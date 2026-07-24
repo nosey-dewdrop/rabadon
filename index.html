@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rabadon · the runtime that repairs your pipeline (in development)</title>
+<meta name="description" content="rabadon runs your pipeline and checks itself while it runs: it bounds runaway loops, catches a step that silently breaks, and repairs it before it spreads. built in public to solve a real problem from shipping 20+ projects. the core runs; the rest is being built in the open.">
+<meta name="author" content="nosey dewdrop">
+<link rel="canonical" href="https://nosey-dewdrop.github.io/rabadon-site/">
+<meta name="theme-color" content="#0e1018">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%234fd39a'/%3E%3C/svg%3E">
+<!-- open graph / twitter: how it looks when the link is shared -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="rabadon · the runtime that repairs your pipeline">
+<meta property="og:description" content="it knows what is going wrong through your code, so you can touch the grass. a reliability runtime that bounds runaway loops, catches silent breaks, and repairs them. in development, built in public.">
+<meta property="og:url" content="https://nosey-dewdrop.github.io/rabadon-site/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="rabadon · the runtime that repairs your pipeline">
+<meta name="twitter:description" content="it knows what is going wrong through your code, so you can touch the grass. in development, built in public.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ---- rabadon world ----
+   dark stage, not pure black. three named colors, each one a pipeline STATE:
+   flow (blue) = a running step / a bound
+   catch (lilac) = rabadon stepping in — it noticed
+   ok (green) = repaired, passed
+   break (warm) = a step that silently broke
+   colors are meaning, never decoration. one dark world, states read on it. */
+:root{
+  --stage:#0e1018;        /* deep cold anthracite, not #000 */
+  --stage-2:#141726;      /* raised panel */
+  --line:#232739;         /* hairline */
+  --ink:#eef0f7;          /* near-white text */
+  --ink-dim:#9aa0b8;      /* secondary text */
+  --flow:#5b8cff;         /* blue  — a running step / bound */
+  --catch:#b98cff;        /* lilac — rabadon intervening */
+  --ok:#4fd39a;           /* green — repaired / passed */
+  --break:#ff8a6b;        /* warm  — silently broke */
+  --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:Helvetica,Arial,-apple-system,sans-serif;
+  /* display = the temporal feeling: a geometric grotesk, LIGHT and airy, never bold-and-cramped */
+  --display:"Space Grotesk",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--stage);color:var(--ink);
+  font-family:var(--sans);line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  /* faint grid texture, deterministic — the stage, never neon glow */
+  background-image:
+    linear-gradient(var(--line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:64px 64px;
+  background-position:center top;
+}
+body::before{ /* darken the grid so it whispers */
+  content:"";position:fixed;inset:0;z-index:-1;
+  background:radial-gradient(120% 90% at 70% -10%,rgba(91,140,255,.06),transparent 55%),var(--stage);
+  pointer-events:none;
+}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+
+/* ---- header: full width, wordmark left / nav mid / cta right ---- */
+header{border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50;
+  background:rgba(14,16,24,.82);backdrop-filter:saturate(1.2) blur(8px)}
+.bar{display:flex;align-items:center;gap:40px;height:66px}
+.mark{font-family:var(--mono);font-size:19px;letter-spacing:-.5px;display:flex;align-items:center;gap:9px}
+.mark b{font-weight:600}
+/* the dot: a step. it breaks (warm), rabadon catches it, it heals (green) — looping quietly in the wordmark */
+.mark .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);
+  animation:heal 5.2s ease-in-out infinite}
+@keyframes heal{
+  0%,64%{background:var(--ok);transform:scale(1)}
+  70%{background:var(--break);transform:scale(1.5)}   /* broke */
+  78%{background:var(--catch);transform:scale(1.5)}   /* caught */
+  86%,100%{background:var(--ok);transform:scale(1)}   /* repaired */
+}
+nav{display:flex;gap:26px;font-size:14.5px;color:var(--ink-dim);margin-left:6px}
+nav a:hover{color:var(--ink)}
+.bar .right{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:14.5px}
+.btn{font-family:var(--mono);font-size:13.5px;padding:9px 16px;border:1px solid var(--line);
+  background:var(--stage-2);transition:.15s}
+.btn:hover{border-color:var(--flow);color:var(--ink)}
+.btn.solid{background:var(--catch);color:#160f24;border-color:var(--catch);font-weight:600}
+.btn.solid:hover{filter:brightness(1.08)}
+
+/* ---- kicker: tiny mono state label above a block ---- */
+.kick{font-family:var(--mono);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--flow);margin:0 0 20px}
+.kick.c-catch{color:var(--catch)} .kick.c-ok{color:var(--ok)} .kick.c-break{color:var(--break)}
+
+/* ---- hero: left weight, code right (asymmetric, never centered stack) ---- */
+.hero{padding:78px 0 64px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);
+  gap:56px;align-items:center}
+.hero h1{font-family:var(--display);font-size:56px;line-height:1.06;letter-spacing:-1.5px;margin:0 0 22px;font-weight:300}
+.hero .lead{font-size:18px;color:var(--ink-dim);max-width:44ch;margin:0 0 30px}
+.hero .cta{display:flex;gap:14px;align-items:center;margin-bottom:26px}
+.proof{font-family:var(--mono);font-size:13px;color:var(--ink-dim);display:flex;gap:8px;align-items:center}
+.proof b{color:var(--ok);font-weight:600}
+.proof .gh{width:16px;height:16px;fill:var(--ink-dim)}
+
+/* ---- code panel ---- */
+.panel{background:#0a0c14;border:1px solid var(--line);font-family:var(--mono);
+  font-size:13.5px;line-height:1.7;overflow:hidden}
+.panel .top{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.panel .top i{width:11px;height:11px;border-radius:50%;background:#2c3145;display:inline-block}
+.panel .top .lbl{margin-left:auto;font-size:11px;letter-spacing:1px;color:var(--ink-dim)}
+.code{padding:18px 18px 20px;white-space:pre;overflow-x:auto;color:#c7ccdf;tab-size:2}
+.code .k{color:var(--catch)}     /* keyword / rabadon call */
+.code .s{color:var(--ok)}        /* string / pass */
+.code .c{color:#5b6178}          /* comment */
+.code .f{color:var(--flow)}      /* fn / field */
+.code .b{color:var(--break)}     /* the break */
+/* the live line states, toggled by JS */
+.ln{display:block;transition:background .3s,color .3s}
+.ln.hot{background:rgba(255,138,107,.10)}
+.ln.fix{background:rgba(79,211,154,.10)}
+.verdict{padding:11px 18px;border-top:1px solid var(--line);font-family:var(--mono);
+  font-size:12.5px;letter-spacing:.5px;display:flex;align-items:center;gap:10px;min-height:42px}
+.verdict .tag{padding:2px 9px;font-weight:600}
+.tag.run{color:var(--flow)}.tag.brk{color:var(--break)}.tag.cat{color:var(--catch)}.tag.ok{color:var(--ok)}
+.verdict .msg{color:var(--ink-dim)}
+
+/* ---- rows: left says what / right shows code. each its own state color ---- */
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;
+  align-items:center;padding:66px 0;border-top:1px solid var(--line)}
+.row h2{font-family:var(--display);font-size:36px;line-height:1.12;letter-spacing:-.8px;margin:0 0 18px;font-weight:300}
+.row p{font-size:16.5px;color:var(--ink-dim);max-width:46ch;margin:0 0 12px}
+.row.flip .txt{order:2}.row.flip .art{order:1}
+
+/* ---- the number (benchmark, the moat) ---- */
+.bench{padding:66px 0;border-top:1px solid var(--line)}
+.bench .grid{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:44px;align-items:start;margin-top:18px}
+.bench .n{font-family:var(--mono);font-size:78px;font-weight:500;letter-spacing:-2px;line-height:.9;color:var(--ok)}
+.bench .n small{font-size:28px;color:var(--ink-dim)}
+.bench .note{font-size:16px;color:var(--ink-dim)}
+.bench code{font-family:var(--mono);color:var(--catch);font-size:14px}
+@media(max-width:860px){.bench .grid{grid-template-columns:1fr;gap:24px}}
+
+/* ---- close + footer ---- */
+.close{padding:74px 0;border-top:1px solid var(--line)}
+.close h2{font-family:var(--display);font-size:42px;letter-spacing:-1px;margin:0 0 16px;max-width:20ch;font-weight:300}
+.close p{color:var(--ink-dim);font-size:17px;max-width:48ch;margin:0 0 26px}
+footer{border-top:1px solid var(--line);padding:34px 0;color:var(--ink-dim);font-size:13.5px;
+  display:flex;gap:26px;align-items:center;font-family:var(--mono)}
+footer .m{margin-left:auto}
+
+@media(max-width:860px){
+  .hero,.row{grid-template-columns:1fr;gap:32px;padding-top:48px}
+  .row.flip .txt{order:0}.row.flip .art{order:0}
+  .hero h1{font-size:38px}.row h2{font-size:27px}.close h2{font-size:30px}
+  nav{display:none}.bench .n{font-size:48px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <span class="mark"><span class="dot"></span><b>rabadon</b></span>
+    <nav>
+      <a href="#how">how it works</a>
+      <a href="#number">where it is</a>
+      <a href="https://github.com/nosey-dewdrop/rabadon">github</a>
+    </nav>
+    <span class="right">
+      <a class="btn" href="#how">how it works</a>
+      <a class="btn solid" href="https://github.com/nosey-dewdrop/rabadon">follow on github</a>
+    </span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- HERO: left weight, live breaking-and-repairing code on the right -->
+  <section class="hero">
+    <div class="txt">
+      <p class="kick c-catch">in development · building in public</p>
+      <h1>it knows what is going wrong through your code, so you can touch the grass.</h1>
+      <p class="lead">rabadon runs your pipeline and checks itself while it runs. a step breaks silently, it catches it before it spreads, and repairs it. no babysitting.</p>
+      <p class="lead" style="margin-bottom:26px">i started building it to solve my own problem, after shipping 20+ projects where the plumbing broke quietly. it is not a finished product yet. the core runs; the rest is being built in the open.</p>
+      <div class="cta">
+        <a class="btn solid" href="https://github.com/nosey-dewdrop/rabadon">follow on github</a>
+        <a class="btn" href="#how">how it works</a>
+      </div>
+      <span class="proof">
+        <svg class="gh" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        day one · first core written, its tests run
+      </span>
+    </div>
+
+    <div class="art">
+      <div class="panel" id="hpanel">
+        <div class="top"><i></i><i></i><i></i><span class="lbl">pipeline.js</span></div>
+<div class="code"><span class="ln" id="l1"><span class="k">rabadon</span>.pipeline()</span>
+<span class="ln" id="l2">  .step(<span class="s">'normalize'</span>, normalize, {</span>
+<span class="ln" id="l3">    correct: [<span class="f">noRecordVanishes</span>],</span>
+<span class="ln" id="l4">    repair: fixNormalize,</span>
+<span class="ln" id="l5">  })</span>
+<span class="ln" id="l6">  .bound({ maxTokens: <span class="f">50_000</span>, maxRepairs: <span class="f">2</span> })</span>
+<span class="ln" id="l7">  .run(records)</span>
+<span class="ln" id="l8"><span class="c">// records in: 4  ->  out: 3  (id 0 gone)</span></span></div>
+        <div class="verdict" id="hverdict">
+          <span class="tag run">RUN</span><span class="msg">running the pipeline…</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW: three states, each a color, each its own row -->
+  <section id="how">
+
+    <div class="row">
+      <div class="txt">
+        <p class="kick">bound by construction</p>
+        <h2>a loop that can run away won't compile.</h2>
+        <p>the pipeline refuses to start without a bound. no depth, no token ceiling, no run. the runaway that burns tokens can't be written by accident.</p>
+      </div>
+      <div class="art">
+        <div class="panel"><div class="top"><i></i><i></i><i></i><span class="lbl">bound</span></div>
+<div class="code"><span class="c">// no bound -> .run() refuses</span>
+rabadon.pipeline()
+  .step(<span class="s">'draft'</span>, draft)
+  .<span class="k">run</span>(input)
+<span class="b">// Error: no .bound() set.</span>
+<span class="b">// an unbounded pipeline is a</span>
+<span class="b">// runaway waiting to happen.</span></div></div>
+      </div>
+    </div>
+
+    <div class="row flip">
+      <div class="txt">
+        <p class="kick c-break">caught before it spreads</p>
+        <h2>a step that silently drops a feature is caught at the step, not eight steps later.</h2>
+        <p>each step's output is checked against what you meant, before it flows onward. the drop that used to surface as a wrong answer downstream is named where it was born.</p>
+      </div>
+      <div class="art">
+        <div class="panel"><div class="top"><i></i><i></i><i></i><span class="lbl">correct[]</span></div>
+<div class="code">step(<span class="s">'normalize'</span>, normalize, {
+  correct: [
+    <span class="f">named</span>(<span class="s">'noRecordVanishes'</span>,
+      (out, inp) =></span>
+        out.length === inp.length
+          ? <span class="k">true</span>
+          : <span class="b">'id 0 vanished silently'</span>)
+  ]
+})</div></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="txt">
+        <p class="kick c-ok">diagnose → stop → repair</p>
+        <h2>it doesn't just catch the break. it walks the pipeline back to a working one.</h2>
+        <p>when a step fails its check, rabadon hands the broken output and the exact reasons to a repair, re-checks the fix, and only accepts it if it passes. bounded, so the fixer can't run away either.</p>
+      </div>
+      <div class="art">
+        <div class="panel"><div class="top"><i></i><i></i><i></i><span class="lbl">repair</span></div>
+<div class="code">step(<span class="s">'normalize'</span>, normalize, {
+  correct: [noRecordVanishes],
+  <span class="k">repair</span>: (broken, inp, fails) =>
+    <span class="c">// this step produced `broken`,</span>
+    <span class="c">// checks failed for `fails`,</span>
+    <span class="c">// rewrite, then re-check.</span>
+    fixNormalize(inp)
+})
+<span class="s">// verdict: PASS  (ada kept)</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHERE IT IS: honest state, day one -->
+  <section class="bench" id="number">
+    <p class="kick c-ok">where it is right now</p>
+    <div class="grid">
+      <span class="n">day<small>&nbsp;1</small></span>
+      <p class="note">the core is the only part that exists so far: the four ideas (bound, catch, repair, don't-drop-silently) are written as one small primitive, and it has a test file that runs. that is the whole of it today. no product, no users, no live service.</p>
+      <p class="note">the plan is honest and public: wire the repair step to a real model, hook it onto a live pipeline instead of a demo, and only then publish a benchmark number worth trusting. proof will come as it is built, not before. follow it on github.</p>
+    </div>
+  </section>
+
+  <!-- CLOSE -->
+  <section class="close">
+    <h2>stop babysitting the plumbing.</h2>
+    <p>rabadon is the layer that holds the pieces together so the pipeline stays true to its purpose without you watching it. it is being built in the open, one honest step at a time. the core is here; follow along.</p>
+    <div class="cta">
+      <a class="btn solid" href="https://github.com/nosey-dewdrop/rabadon">follow on github</a>
+      <a class="btn" href="#how">how it works</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <span class="mark" style="font-size:15px"><span class="dot"></span><b>rabadon</b></span>
+  <a href="https://github.com/nosey-dewdrop/rabadon">github</a>
+  <a href="#how">docs</a>
+  <span class="m">built by nosey dewdrop</span>
+</footer>
+
+<script>
+/* the hero code breaks and repairs itself — the product, doing its thing.
+   states: run -> break (l2 hot) -> caught (verdict lilac) -> repaired (l2 fix) -> pass. loops. */
+(function(){
+  var v = document.getElementById('hverdict');
+  var l2 = document.getElementById('l2'), l8 = document.getElementById('l8');
+  if(!v) return;
+  var seq = [
+    [700,  function(){ set('run','running the pipeline…'); clear(); }],
+    [1500, function(){ set('brk','normalize dropped a record · id 0 vanished'); l2.classList.add('hot'); l8.classList.add('hot'); }],
+    [3100, function(){ set('cat','rabadon caught it before the next step'); l2.classList.remove('hot'); l2.classList.add('fix'); l8.classList.remove('hot'); }],
+    [4700, function(){ set('ok','repaired · records in 4 → out 4 · PASS'); }],
+    [7200, function(){ /* rest, then loop */ }]
+  ];
+  function set(tag,msg){
+    var names={run:'RUN',brk:'BROKE',cat:'CAUGHT',ok:'PASS'};
+    v.innerHTML='<span class="tag '+({run:'run',brk:'brk',cat:'cat',ok:'ok'}[tag])+'">'+names[tag]+'</span><span class="msg">'+msg+'</span>';
+  }
+  function clear(){ l2.classList.remove('hot','fix'); l8.classList.remove('hot','fix'); }
+  function play(){ seq.forEach(function(s){ setTimeout(s[1], s[0]); }); setTimeout(play, 8600); }
+  play();
+})();
+</script>
+</body>
+</html>

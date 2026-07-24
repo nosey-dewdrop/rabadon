@@ -1,0 +1,9 @@
+*.log
+.DS_Store
+.env
+.parked/
+CLAUDE.md
+node_modules/
+rabadon-study-notlar/
+referans/
+study/

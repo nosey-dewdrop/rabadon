@@ -1,0 +1,12 @@
+{
+  "name": "rabadon",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The reliability runtime for AI agent pipelines. Runs the pipeline and checks itself: bounds runaway loops, verifies each step's output against intent, and stops on drift.",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node core/rabadon.test.mjs",
+    "demo": "node demo/vibecoded-pipeline.mjs"
+  }
+}
