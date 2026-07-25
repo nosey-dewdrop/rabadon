@@ -70,15 +70,6 @@ header{border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50;
 .bar{display:flex;align-items:center;gap:40px;height:66px}
 .mark{font-family:var(--mono);font-size:19px;letter-spacing:-.5px;display:flex;align-items:center;gap:9px}
 .mark b{font-weight:600}
-/* the dot: a step. it breaks (warm), rabadon catches it, it heals (green) — looping quietly in the wordmark */
-.mark .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);
-  animation:heal 5.2s ease-in-out infinite}
-@keyframes heal{
-  0%,64%{background:var(--ok);transform:scale(1)}
-  70%{background:var(--break);transform:scale(1.5)}   /* broke */
-  78%{background:var(--catch);transform:scale(1.5)}   /* caught */
-  86%,100%{background:var(--ok);transform:scale(1)}   /* repaired */
-}
 nav{display:flex;gap:26px;font-size:14.5px;color:var(--ink-dim);margin-left:6px}
 nav a:hover{color:var(--ink)}
 .bar .right{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:14.5px}
@@ -161,7 +152,7 @@ footer .m{margin-left:auto}
 
 <header>
   <div class="wrap bar">
-    <span class="mark"><span class="dot"></span><b>rabadon</b></span>
+    <span class="mark"><b>rabadon</b></span>
     <nav>
       <a href="#how">how it works</a>
       <a href="#number">where it is</a>
@@ -296,7 +287,7 @@ rabadon.pipeline()
 </main>
 
 <footer class="wrap">
-  <span class="mark" style="font-size:15px"><span class="dot"></span><b>rabadon</b></span>
+  <span class="mark" style="font-size:15px"><b>rabadon</b></span>
   <a href="https://github.com/nosey-dewdrop/rabadon">github</a>
   <a href="#how">docs</a>
   <span class="m">built by nosey dewdrop</span>
