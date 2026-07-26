@@ -206,6 +206,16 @@ if (cmd === 'statusline') {
   process.exit(0);
 }
 
+if (cmd === 'do') {
+  // the motor: task in, gate-verified output out. `rabadon do "<task>" [dir]`
+  const task = process.argv[3];
+  if (!task || task.startsWith('--')) { console.error('rabadon do: usage — rabadon do "<task>" [dir]'); process.exit(1); }
+  const dir = path0.resolve(process.argv[4] && !process.argv[4].startsWith('--') ? process.argv[4] : process.cwd());
+  const { runDo } = await import('../engine/do.mjs');
+  try { await runDo(task, dir); process.exit(0); }
+  catch (e) { console.error(e.message); process.exit(1); }
+}
+
 if (cmd === 'exec') {
   // The second binding — proof the spec is agent-agnostic. Any runtime that
   // shells out can route commands through the SAME gate the Claude Code hooks
