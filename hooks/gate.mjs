@@ -105,13 +105,44 @@ if (hookEvent === 'PreToolUse') {
           if (new RegExp(rule.deny, 'i').test(cmd)) await block(rule, `command matched deny rule: ${cmd.slice(0, 160)}`);
         } catch { /* a broken regex must not take the gate down */ }
       }
-      // push gate: tests must have run (and passed) since the last code edit
+      // push gate: tests must be green since the last code edit. rabadon does
+      // not just SAY it — if the guard declares the literal test command
+      // (pushGate.run), rabadon RUNS it right here and opens the gate itself
+      // on green. Telling is a warning; solving is the product.
       if (guard.pushGate && /\bgit\s+push\b/.test(cmd) && !/--dry-run/.test(cmd)) {
         const editedSince = state.lastCodeEdit || 0;
         const testedAt = state.lastTestPass || 0;
         if (editedSince > testedAt) {
-          await block({ id: 'push-gate', why: guard.pushGate.why || 'tests must be green before push' },
-            `code was edited after the last passing test run — run: ${guard.pushGate.testHint || 'the test suite'} first`);
+          if (guard.pushGate.run) {
+            emit('REPAIR_START', { step: 'push-gate', attempt: 1, fixing: ['tests-not-green'] });
+            const { execSync } = await import('node:child_process');
+            let out = '', green = false;
+            try {
+              out = execSync(guard.pushGate.run, {
+                cwd, encoding: 'utf8', timeout: (guard.pushGate.timeoutSec || 900) * 1000,
+                stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024,
+              });
+              green = guard.testPassPattern ? new RegExp(guard.testPassPattern, 'i').test(out) : true;
+            } catch (e) {
+              out = String((e.stdout || '') + (e.stderr || e.message || ''));
+              green = false;
+            }
+            if (green) {
+              state.lastTestPass = Date.now(); state.lastTestRun = Date.now();
+              saveState(state);
+              emit('REPAIR_OK', { step: 'push-gate', attempt: 1 });
+              // fall through: the push is now legitimately allowed
+            } else {
+              emit('REPAIR_FAIL', { step: 'push-gate', attempt: 1, why: 'tests not green' });
+              // show the FAILURES, not whatever happened to be at the tail
+              const failLines = out.split('\n').filter((l) => /fail|error|\*\*\*|tests passed/i.test(l)).slice(-15).join('\n');
+              await block({ id: 'push-gate', why: guard.pushGate.why || 'tests must be green before push' },
+                `rabadon ran the tests itself (${guard.pushGate.run}) — NOT GREEN.\n${failLines || out.slice(-800)}\nFix the failure; rabadon will re-run the suite on your next push attempt.`);
+            }
+          } else {
+            await block({ id: 'push-gate', why: guard.pushGate.why || 'tests must be green before push' },
+              `code was edited after the last passing test run — run: ${guard.pushGate.testHint || 'the test suite'} first`);
+          }
         }
       }
     }

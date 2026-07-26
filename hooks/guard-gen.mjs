@@ -24,7 +24,7 @@ const SCHEMA_PROMPT = `You are rabadon, a reliability runtime. Below are the LAW
   "codePaths": [ "<JS regex for paths that count as CODE (used to demand tests before push)>" ],
   "testCommand": "<JS regex matching the project's test command>",
   "testPassPattern": "<JS regex that appears in the test output ONLY when fully green>",
-  "pushGate": { "why": "<the law that says tests must be green before push>", "testHint": "<the literal command to run>" }
+  "pushGate": { "why": "<the law that says tests must be green before push>", "testHint": "<human hint>", "run": "<the LITERAL shell command that builds and runs the full suite from the project root — rabadon executes this itself at the push gate>", "timeoutSec": 600 }
 }
 
 Rules for writing rules:
