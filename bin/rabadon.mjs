@@ -206,6 +206,52 @@ if (cmd === 'statusline') {
   process.exit(0);
 }
 
+if (cmd === 'doctor') {
+  // end-to-end self-check: a supervisor that silently fails open is worse
+  // than none. Verifies every link of its own chain, loudly.
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const cp = await import('node:child_process');
+  const { SPOOL_DIR } = await import('../core/bus.mjs');
+  const dir = process.cwd();
+  let fail = 0;
+  const check = (name, ok, hint) => { process.stdout.write(`  ${ok ? 'OK  ' : 'FAIL'}  ${name}${ok ? '' : ` — ${hint}`}\n`); if (!ok) fail++; };
+
+  check('node >= 18', Number(process.versions.node.split('.')[0]) >= 18, `found ${process.versions.node}`);
+  let hasClaude = true;
+  try { cp.execSync('claude --version', { stdio: 'pipe', timeout: 15000 }); } catch { hasClaude = false; }
+  check('claude cli (guard authoring, diagnosis, drift judge)', hasClaude, 'install claude code or set RABADON_JUDGE=0');
+  try { fs.mkdirSync(SPOOL_DIR, { recursive: true }); fs.accessSync(SPOOL_DIR, fs.constants.W_OK); check('spool writable', true); } catch { check('spool writable', false, SPOOL_DIR); }
+
+  let guardOk = null;
+  try {
+    const g = JSON.parse(fs.readFileSync(path0.join(dir, '.rabadon', 'guard.json'), 'utf8'));
+    guardOk = true;
+    for (const r of [...(g.bash || []), ...(g.protectedPaths || [])]) new RegExp(r.deny || r.match, 'i');
+    check(`guard.json valid (${(g.bash || []).length} bash + ${(g.protectedPaths || []).length} path rules)`, true);
+  } catch (e) { if (guardOk !== null) check('guard.json valid', false, e.message.slice(0, 80)); else check('guard.json present', false, 'run `rabadon init` or `rabadon guard`'); }
+
+  let hooksOk = false;
+  try {
+    const st = JSON.parse(fs.readFileSync(path0.join(dir, '.claude', 'settings.json'), 'utf8'));
+    hooksOk = JSON.stringify(st.hooks || {}).includes('gate.mjs');
+  } catch { }
+  check('hooks installed in this project', hooksOk, 'run `rabadon init` (or add gate.mjs hooks to .claude/settings.json)');
+
+  // fire a synthetic event through the REAL gate binary and verify it lands in the spool
+  const gate = path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'hooks', 'gate.mjs');
+  const marker = `doctor-${process.pid}`;
+  try {
+    cp.execSync(`node ${gate}`, { input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: dir, session_id: marker, tool_name: 'Bash', tool_input: { command: `echo ${marker}` } }), stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 });
+    const today = path0.join(SPOOL_DIR, new Date().toISOString().slice(0, 10) + '.jsonl');
+    const landed = fs.readFileSync(today, 'utf8').includes(marker);
+    check('gate end-to-end (synthetic event through the real binary -> spool)', landed, 'event did not land in the spool');
+  } catch (e) { check('gate end-to-end', false, String(e.message).slice(0, 80)); }
+
+  process.stdout.write(fail ? `\n${fail} problem(s) — rabadon may be failing open.\n` : `\nall clear — rabadon is standing guard here.\n`);
+  process.exit(fail ? 1 : 0);
+}
+
 if (cmd === 'off' || cmd === 'on') {
   const fs = await import('node:fs');
   const dir = path0.join(process.cwd(), '.rabadon');

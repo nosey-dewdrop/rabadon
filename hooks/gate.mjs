@@ -62,8 +62,18 @@ if (guard) {
 
 const emit = emitter({ pipe: `${project}:session` });
 
+const SID = String(ev.session_id || 'default').slice(0, 16);
 function loadState() {
-  try { return JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { return {}; }
+  let st;
+  try { st = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { st = {}; }
+  st.sessions = st.sessions || {};
+  // per-session counters (loop, trail, fanout, goal) — two parallel sessions
+  // in one project must not poison each other's counters
+  st.s = st.sessions[SID] = st.sessions[SID] || {};
+  // keep at most 4 sessions of history
+  const sids = Object.keys(st.sessions);
+  if (sids.length > 4) for (const k of sids.slice(0, sids.length - 4)) delete st.sessions[k];
+  return st;
 }
 function saveState(s) {
   try { fs.mkdirSync(path.dirname(statePath), { recursive: true }); fs.writeFileSync(statePath, JSON.stringify(s)); } catch { /* state is advisory */ }
@@ -76,7 +86,8 @@ const flush = () => new Promise((r) => setTimeout(r, 60));
 // remember the session's last moves so a diagnosis knows WHERE it is —
 // "which gate is the problem at" needs the trail, not just the crash
 function remember(state, summary) {
-  state.recent = [...(state.recent || []), { t: Date.now(), s: summary.slice(0, 120) }].slice(-30);
+  state.s.recent = [...(state.s.recent || []), { t: Date.now(), s: summary.slice(0, 120) }].slice(-30);
+  state.s.actionCount = (state.s.actionCount || 0) + 1;
 }
 
 // the incident brain: local Claude Code CLI, bounded, structured verdict.
@@ -101,6 +112,26 @@ async function diagnose({ goal, recent, failOutput, cmd }) {
     const child = execFile('claude', ['-p', '--output-format', 'text'],
       { timeout: 90000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => err ? reject(new Error((stderr || err.message).slice(0, 200))) : resolve(String(stdout).trim()));
+    child.stdin.write(prompt);
+    child.stdin.end();
+  });
+  try { return JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { return null; }
+}
+
+// fast drift judge: haiku-class, single small verdict, ~seconds.
+async function driftJudge(goal, recent) {
+  const { execFile } = await import('node:child_process');
+  const prompt = [
+    'You are rabadon, supervising a coding session. Verdict only, JSON only, no fences:',
+    '{ "onTrack": true|false, "anchor": "<if off track: ONE sentence steering the work back to the goal; else empty>" }',
+    'Judge conservatively: refactors, tests, and setup that SERVE the goal are on-track. Only flag work that belongs to a different task.',
+    `## the session goal\n${goal}`,
+    `## the last moves\n${recent.map((r) => `- ${r.s}`).join('\n')}`,
+  ].join('\n');
+  const out = await new Promise((resolve, reject) => {
+    const child = execFile('claude', ['-p', '--output-format', 'text', '--model', 'claude-haiku-4-5'],
+      { timeout: 30000, maxBuffer: 1024 * 1024 },
+      (err, stdout, stderr) => err ? reject(new Error((stderr || err.message).slice(0, 150))) : resolve(String(stdout).trim()));
     child.stdin.write(prompt);
     child.stdin.end();
   });
@@ -222,13 +253,13 @@ if (hookEvent === 'PreToolUse') {
   const READ_ONLY = /^(git\s+(status|diff|log|show|branch)|ls|cat|head|tail|grep|rg|find|pwd|wc|echo|which|node\s+--check)\b/;
   if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string' && !READ_ONLY.test(toolInput.command.trim())) {
     const cmd = toolInput.command.trim();
-    const editedBetween = (state.lastCodeEdit || 0) > (state.lastCmdTs || 0);
-    if (state.lastCmd === cmd && !editedBetween) state.cmdRepeat = (state.cmdRepeat || 1) + 1;
-    else state.cmdRepeat = 1;
-    state.lastCmd = cmd;
-    state.lastCmdTs = Date.now();
+    const editedBetween = (state.lastCodeEdit || 0) > (state.s.lastCmdTs || 0);
+    if (state.s.lastCmd === cmd && !editedBetween) state.s.cmdRepeat = (state.s.cmdRepeat || 1) + 1;
+    else state.s.cmdRepeat = 1;
+    state.s.lastCmd = cmd;
+    state.s.lastCmdTs = Date.now();
     saveState(state);
-    if (state.cmdRepeat >= 3) {
+    if (state.s.cmdRepeat >= 3) {
       await block({ id: 'loop-stop', why: 'the same command has now run 3x with no code change in between — a loop, not progress' },
         `looping on: ${cmd.slice(0, 120)} — change the code or the approach before running it again`);
     }
@@ -263,18 +294,36 @@ else if (hookEvent === 'PostToolUse') {
     const rel = path.relative(cwd, file);
     const top = rel.startsWith('..') ? null : rel.split(path.sep)[0];
     if (top) {
-      state.touchedDirs = Array.from(new Set([...(state.touchedDirs || []), top]));
-      if (state.touchedDirs.length >= 5 && !state.fanoutWarned) {
-        state.fanoutWarned = true;
+      state.s.touchedDirs = Array.from(new Set([...(state.s.touchedDirs || []), top]));
+      if (state.s.touchedDirs.length >= 5 && !state.s.fanoutWarned) {
+        state.s.fanoutWarned = true;
         saveState(state);
-        emit('CHECK_FAIL', { step: 'scope', fails: [{ check: 'scope-fanout', why: `session has now edited files in ${state.touchedDirs.length} top-level dirs: ${state.touchedDirs.join(', ')}` }] });
+        emit('CHECK_FAIL', { step: 'scope', fails: [{ check: 'scope-fanout', why: `session has now edited files in ${state.s.touchedDirs.length} top-level dirs: ${state.s.touchedDirs.join(', ')}` }] });
         await flush();
         emit.close();
-        process.stderr.write(`rabadon: scope fan-out — this session has edited files across ${state.touchedDirs.length} top-level directories (${state.touchedDirs.join(', ')}). If the task really spans all of them, say so and continue; otherwise rein the change back to the area the task started in.\n`);
+        process.stderr.write(`rabadon: scope fan-out — this session has edited files across ${state.s.touchedDirs.length} top-level directories (${state.s.touchedDirs.join(', ')}). If the task really spans all of them, say so and continue; otherwise rein the change back to the area the task started in.\n`);
         process.exit(2);
       }
     }
     saveState(state);
+
+    // --- guarantee #4 at the session level: ACTIVE RE-ANCHOR. Every 12th
+    // action a fast judge compares the last moves against the captured goal;
+    // if the session is drifting, the anchor is fed back (non-blocking — the
+    // edit already happened, the NEXT move gets the correction). Fast model,
+    // bounded, skipped entirely with RABADON_JUDGE=0.
+    if (process.env.RABADON_JUDGE !== '0' && state.s.goalPrompt && (state.s.actionCount || 0) > 0 && state.s.actionCount % 12 === 0) {
+      try {
+        const verdict = await driftJudge(state.s.goalPrompt, (state.s.recent || []).slice(-12));
+        if (verdict && verdict.onTrack === false && verdict.anchor) {
+          emit('CHECK_FAIL', { step: 'goal', fails: [{ check: 'goal-drift', why: verdict.anchor.slice(0, 200) }] });
+          await flush();
+          emit.close();
+          process.stderr.write(`rabadon re-anchor: the session goal is "${state.s.goalPrompt.slice(0, 120)}". ${verdict.anchor}\n`);
+          process.exit(2);
+        }
+      } catch { /* judge unavailable -> stay silent, never stall the session */ }
+    }
     await done('STEP_OK', { step: `edited: ${path.basename(file)}` });
   } else if (ev.tool_name === 'Bash') {
     const cmd = String(toolInput.command || '');
@@ -295,12 +344,15 @@ else if (hookEvent === 'PostToolUse') {
       // caught pre-action next time. The guard grows out of real incidents.
       emit('CHECK_FAIL', { step: 'tests', fails: [{ check: 'test-run', why: 'test run is RED' }] });
       let advice = '';
-      if (process.env.RABADON_JUDGE !== '0') {
+      const failSig = out.split('\n').filter((l) => /fail/i.test(l)).join('|').slice(0, 300);
+      const sameIncident = state.lastDiagSig === failSig && (now - (state.lastDiagAt || 0)) < 15 * 60000;
+      if (process.env.RABADON_JUDGE !== '0' && !sameIncident) {
+        state.lastDiagSig = failSig; state.lastDiagAt = now; saveState(state);
         emit('REPAIR_START', { step: 'diagnose', attempt: 1, fixing: ['red-tests'] });
         try {
           const diag = await diagnose({
-            goal: state.goalPrompt || '(no goal captured)',
-            recent: (state.recent || []).slice(-15),
+            goal: state.s.goalPrompt || '(no goal captured)',
+            recent: (state.s.recent || []).slice(-15),
             failOutput: out.slice(-4000),
             cmd,
           });
@@ -339,14 +391,14 @@ else if (hookEvent === 'PostToolUse') {
 // ---------- UserPromptSubmit: pin the session's goal ----------
 else if (hookEvent === 'UserPromptSubmit') {
   const state = loadState();
-  if (!state.goalPrompt || (Date.now() - (state.goalTs || 0)) > 6 * 3600 * 1000) {
-    state.goalPrompt = String(ev.prompt || '').slice(0, 400);
-    state.goalTs = Date.now();
+  if (!state.s.goalPrompt || (Date.now() - (state.s.goalTs || 0)) > 6 * 3600 * 1000) {
+    state.s.goalPrompt = String(ev.prompt || '').slice(0, 400);
+    state.s.goalTs = Date.now();
     // a new goal resets the drift trackers — a new task may legitimately live elsewhere
-    state.touchedDirs = [];
-    state.fanoutWarned = false;
+    state.s.touchedDirs = [];
+    state.s.fanoutWarned = false;
     saveState(state);
-    emit('RUN_START', { steps: [`goal: ${state.goalPrompt.slice(0, 100)}`], bound: {} });
+    emit('RUN_START', { steps: [`goal: ${state.s.goalPrompt.slice(0, 100)}`], bound: {} });
     await flush();
   }
   await done(null);
@@ -355,7 +407,7 @@ else if (hookEvent === 'UserPromptSubmit') {
 // ---------- SessionStart / Stop: bracket the session on the live view ----------
 else if (hookEvent === 'SessionStart') {
   const st = loadState();
-  st.touchedDirs = []; st.fanoutWarned = false; st.cmdRepeat = 0; st.lastCmd = null;
+  st.s.touchedDirs = []; st.s.fanoutWarned = false; st.s.cmdRepeat = 0; st.s.lastCmd = null; st.s.actionCount = 0;
   saveState(st);
   await done('RUN_START', { steps: [guard ? `guard: ${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules` : 'NO GUARD (observe only)'], bound: guard ? { pushGate: !!guard.pushGate, loopStop: 3, fanout: 5 } : { loopStop: 3, fanout: 5 } });
 }
