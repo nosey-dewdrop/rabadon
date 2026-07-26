@@ -97,8 +97,77 @@ if (cmd === 'guard') {
   process.exit(0);
 }
 
+if (cmd === 'stats') {
+  // The catch ledger: numbers from the spool, not claims. Every line here is
+  // backed by a jsonl event with a timestamp.
+  const fs = await import('node:fs');
+  const { SPOOL_DIR } = await import('../core/bus.mjs');
+  const days = Number(process.argv[process.argv.indexOf('--days') + 1]) || 7;
+  const cutoff = Date.now() - days * 86400000;
+  const perProject = new Map();
+  let files = [];
+  try { files = fs.readdirSync(SPOOL_DIR).filter((f) => f.endsWith('.jsonl')); } catch { }
+  for (const f of files) {
+    for (const line of fs.readFileSync(path0.join(SPOOL_DIR, f), 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.ts < cutoff) continue;
+      const proj = String(e.pipe || '?').replace(/:session$/, '');
+      if (!perProject.has(proj)) perProject.set(proj, { gated: 0, blocked: new Map(), loops: 0, repairsOk: 0, checkFails: 0, runs: new Set() });
+      const s = perProject.get(proj);
+      if (e.run) s.runs.add(e.run.slice(0, 8));
+      if (e.ev === 'STEP_START') s.gated++;
+      if (e.ev === 'CHECK_FAIL') { s.checkFails++; for (const fl of e.fails || []) { if (fl.check === 'loop-stop') s.loops++; } }
+      if (e.ev === 'STOP' && e.reason === 'BLOCKED') {
+        const rule = String(e.detail || '').slice(0, 60);
+        s.blocked.set(rule, (s.blocked.get(rule) || 0) + 1);
+      }
+      if (e.ev === 'REPAIR_OK') s.repairsOk++;
+    }
+  }
+  process.stdout.write(`rabadon stats — last ${days} day(s), source: ${SPOOL_DIR}\n\n`);
+  if (!perProject.size) process.stdout.write('  (no events yet)\n');
+  for (const [proj, s] of perProject) {
+    const blockedTotal = [...s.blocked.values()].reduce((a, b) => a + b, 0);
+    process.stdout.write(`  ${proj}\n`);
+    process.stdout.write(`    actions gated:            ${s.gated}\n`);
+    process.stdout.write(`    caught before happening:  ${blockedTotal}\n`);
+    for (const [rule, n] of s.blocked) process.stdout.write(`      ${n}x  ${rule}\n`);
+    process.stdout.write(`    checks failed (caught):   ${s.checkFails}${s.loops ? `  (loops stopped: ${s.loops})` : ''}\n`);
+    process.stdout.write(`    repairs accepted:         ${s.repairsOk}\n\n`);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'init') {
+  // one command into any project: guard rules authored + hooks installed.
+  const fs = await import('node:fs');
+  const dir = process.argv[3] ? path0.resolve(process.argv[3]) : process.cwd();
+  const gate = path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'hooks', 'gate.mjs');
+  const gateCmd = `node ${path0.resolve(gate)}`;
+  const settingsPath = path0.join(dir, '.claude', 'settings.json');
+  if (fs.existsSync(settingsPath)) {
+    console.error(`rabadon init: ${settingsPath} already exists — add the hooks manually (gate: ${gateCmd}) so nothing of yours is overwritten.`);
+    process.exit(1);
+  }
+  const { generateGuard } = await import('../hooks/guard-gen.mjs');
+  process.stdout.write(`rabadon init: authoring guard rules for ${dir}…\n`);
+  const { guardPath, guard } = await generateGuard(dir);
+  fs.mkdirSync(path0.dirname(settingsPath), { recursive: true });
+  const hook = [{ hooks: [{ type: 'command', command: gateCmd }] }];
+  const matched = [{ matcher: 'Bash|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: gateCmd }] }];
+  fs.writeFileSync(settingsPath, JSON.stringify({
+    hooks: { SessionStart: hook, UserPromptSubmit: hook, PreToolUse: matched, PostToolUse: matched, Stop: hook },
+  }, null, 2) + '\n');
+  try { fs.appendFileSync(path0.join(dir, '.gitignore'), '\n.rabadon/state.json\n'); } catch { }
+  process.stdout.write(`written: ${guardPath} (${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules)\n`);
+  process.stdout.write(`written: ${settingsPath}\n`);
+  process.stdout.write(`REVIEW the guard, then just run \`claude\` in ${dir} — the session is supervised.\n`);
+  process.exit(0);
+}
+
 if (cmd !== 'watch') {
-  console.error(`rabadon: unknown command "${cmd}" (watch | guard [dir])`);
+  console.error(`rabadon: unknown command "${cmd}" (watch | guard [dir] | init [dir] | stats [--days N])`);
   process.exit(1);
 }
 

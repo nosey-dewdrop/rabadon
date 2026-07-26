@@ -82,6 +82,25 @@ const hookEvent = ev.hook_event_name;
 if (hookEvent === 'PreToolUse') {
   const state = loadState();
 
+  // --- loop-stop: rabadon's founding guarantee, applied to the session. ---
+  // The same bash command re-run with NO code change in between is an agent
+  // spinning in place ("loops that were meant to proofread didn't stop").
+  // Three identical spins -> stopped, with the reason fed back.
+  const READ_ONLY = /^(git\s+(status|diff|log|show|branch)|ls|cat|head|tail|grep|rg|find|pwd|wc|echo|which|node\s+--check)\b/;
+  if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string' && !READ_ONLY.test(toolInput.command.trim())) {
+    const cmd = toolInput.command.trim();
+    const editedBetween = (state.lastCodeEdit || 0) > (state.lastCmdTs || 0);
+    if (state.lastCmd === cmd && !editedBetween) state.cmdRepeat = (state.cmdRepeat || 1) + 1;
+    else state.cmdRepeat = 1;
+    state.lastCmd = cmd;
+    state.lastCmdTs = Date.now();
+    saveState(state);
+    if (state.cmdRepeat >= 3) {
+      await block({ id: 'loop-stop', why: 'the same command has now run 3x with no code change in between — a loop, not progress' },
+        `looping on: ${cmd.slice(0, 120)} — change the code or the approach before running it again`);
+    }
+  }
+
   if (guard) {
     // Bash command rules
     if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string') {
@@ -130,6 +149,26 @@ else if (hookEvent === 'PostToolUse') {
       ? (guard.codePaths || []).some((p) => { try { return new RegExp(p, 'i').test(file); } catch { return false; } })
       : true;
     if (isCode) state.lastCodeEdit = now;
+
+    // --- scope fan-out: "the pipeline loses its own purpose", session form. ---
+    // A task that started in one area and is now touching its 5th top-level
+    // directory is drifting. Once per session: the observation is fed back to
+    // the agent (PostToolUse exit 2 = feedback, not a block) so it either
+    // justifies the spread or reins itself in.
+    const rel = path.relative(cwd, file);
+    const top = rel.startsWith('..') ? null : rel.split(path.sep)[0];
+    if (top) {
+      state.touchedDirs = Array.from(new Set([...(state.touchedDirs || []), top]));
+      if (state.touchedDirs.length >= 5 && !state.fanoutWarned) {
+        state.fanoutWarned = true;
+        saveState(state);
+        emit('CHECK_FAIL', { step: 'scope', fails: [{ check: 'scope-fanout', why: `session has now edited files in ${state.touchedDirs.length} top-level dirs: ${state.touchedDirs.join(', ')}` }] });
+        await flush();
+        emit.close();
+        process.stderr.write(`rabadon: scope fan-out — this session has edited files across ${state.touchedDirs.length} top-level directories (${state.touchedDirs.join(', ')}). If the task really spans all of them, say so and continue; otherwise rein the change back to the area the task started in.\n`);
+        process.exit(2);
+      }
+    }
     saveState(state);
     await done('STEP_OK', { step: `edited: ${path.basename(file)}` });
   } else if (ev.tool_name === 'Bash') {
@@ -154,9 +193,28 @@ else if (hookEvent === 'PostToolUse') {
   }
 }
 
+// ---------- UserPromptSubmit: pin the session's goal ----------
+else if (hookEvent === 'UserPromptSubmit') {
+  const state = loadState();
+  if (!state.goalPrompt || (Date.now() - (state.goalTs || 0)) > 6 * 3600 * 1000) {
+    state.goalPrompt = String(ev.prompt || '').slice(0, 400);
+    state.goalTs = Date.now();
+    // a new goal resets the drift trackers — a new task may legitimately live elsewhere
+    state.touchedDirs = [];
+    state.fanoutWarned = false;
+    saveState(state);
+    emit('RUN_START', { steps: [`goal: ${state.goalPrompt.slice(0, 100)}`], bound: {} });
+    await flush();
+  }
+  await done(null);
+}
+
 // ---------- SessionStart / Stop: bracket the session on the live view ----------
 else if (hookEvent === 'SessionStart') {
-  await done('RUN_START', { steps: [guard ? `guard: ${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules` : 'NO GUARD (observe only)'], bound: guard ? { pushGate: !!guard.pushGate } : {} });
+  const st = loadState();
+  st.touchedDirs = []; st.fanoutWarned = false; st.cmdRepeat = 0; st.lastCmd = null;
+  saveState(st);
+  await done('RUN_START', { steps: [guard ? `guard: ${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules` : 'NO GUARD (observe only)'], bound: guard ? { pushGate: !!guard.pushGate, loopStop: 3, fanout: 5 } : { loopStop: 3, fanout: 5 } });
 }
 else if (hookEvent === 'Stop') {
   await done('RUN_DONE', { verdict: 'SESSION_TURN_DONE', tokens: 0, depth: 0 });
