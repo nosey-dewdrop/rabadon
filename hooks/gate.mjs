@@ -43,8 +43,22 @@ const project = path.basename(cwd);
 const guardPath = path.join(cwd, '.rabadon', 'guard.json');
 const statePath = path.join(cwd, '.rabadon', 'state.json');
 
+// escape hatches — trust at scale requires an instant, obvious OFF switch:
+//   RABADON_OFF=1 in the env, or a `.rabadon/off` file in the project
+//   (`rabadon off` / `rabadon on` manage it). Observation stops too: off is off.
+if (process.env.RABADON_OFF === '1' || fs.existsSync(path.join(cwd, '.rabadon', 'off'))) {
+  process.exit(0);
+}
+
 let guard = null;
 try { guard = JSON.parse(fs.readFileSync(guardPath, 'utf8')); } catch { /* no guard = observe only */ }
+// per-rule disable: guard.disabled = ["rule-id", ...] — every block message
+// names its rule id precisely so the user can silence THAT rule, not the product
+const disabled = new Set((guard && guard.disabled) || []);
+if (guard) {
+  guard.bash = (guard.bash || []).filter((r) => !disabled.has(r.id));
+  guard.protectedPaths = (guard.protectedPaths || []).filter((r) => !disabled.has(r.id));
+}
 
 const emit = emitter({ pipe: `${project}:session` });
 
@@ -65,7 +79,7 @@ async function block(rule, detail) {
   await flush();
   emit.close();
   // stderr goes back to the agent as the reason — this is the self-correction loop
-  process.stderr.write(`rabadon BLOCKED this action.\nRule: ${rule.id || 'guard'} — ${rule.why || ''}\n${detail}\nAdjust the approach instead of retrying the same action.\n`);
+  process.stderr.write(`rabadon BLOCKED this action.\nRule: ${rule.id || 'guard'} — ${rule.why || ''}\n${detail}\nAdjust the approach instead of retrying the same action.\n(user override: add "${rule.id || 'guard'}" to disabled[] in .rabadon/guard.json, or \`rabadon off\` to pause supervision)\n`);
   process.exit(2);
 }
 

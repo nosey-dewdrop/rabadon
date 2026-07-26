@@ -1,15 +1,41 @@
 {
   "name": "rabadon",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The reliability runtime for AI agent pipelines. Runs the pipeline and checks itself: bounds runaway loops, verifies each step's output against intent, and stops on drift.",
   "type": "module",
-  "engines": { "node": ">=18" },
-  "bin": { "rabadon": "./bin/rabadon.mjs" },
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "rabadon": "./bin/rabadon.mjs"
+  },
   "exports": "./index.mjs",
   "scripts": {
     "test": "node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs",
     "demo": "node demo/vibecoded-pipeline.mjs",
     "watch": "node bin/rabadon.mjs watch"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nosey-dewdrop/rabadon.git"
+  },
+  "homepage": "https://nosey-dewdrop.github.io/rabadon/",
+  "keywords": [
+    "ai-agents",
+    "reliability",
+    "claude-code",
+    "hooks",
+    "guardrails",
+    "self-healing",
+    "pipeline"
+  ],
+  "files": [
+    "index.mjs",
+    "core/",
+    "bin/",
+    "hooks/",
+    "repair/",
+    "README.md"
+  ]
 }

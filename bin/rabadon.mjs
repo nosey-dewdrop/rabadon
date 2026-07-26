@@ -166,8 +166,23 @@ if (cmd === 'init') {
   process.exit(0);
 }
 
+if (cmd === 'off' || cmd === 'on') {
+  const fs = await import('node:fs');
+  const dir = path0.join(process.cwd(), '.rabadon');
+  const offFile = path0.join(dir, 'off');
+  if (cmd === 'off') {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(offFile, new Date().toISOString() + '\n');
+    process.stdout.write('rabadon: OFF for this project (supervision + observation paused). `rabadon on` to resume.\n');
+  } else {
+    try { fs.unlinkSync(offFile); } catch { }
+    process.stdout.write('rabadon: ON — the session is supervised again.\n');
+  }
+  process.exit(0);
+}
+
 if (cmd !== 'watch') {
-  console.error(`rabadon: unknown command "${cmd}" (watch | guard [dir] | init [dir] | stats [--days N])`);
+  console.error(`rabadon: unknown command "${cmd}" (watch | guard [dir] | init [dir] | stats [--days N] | off | on)`);
   process.exit(1);
 }
 

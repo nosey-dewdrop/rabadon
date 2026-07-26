@@ -61,6 +61,24 @@ const result = await pipeline()
 
 Most reliability tools only **watch** a live pipeline (Langfuse, Braintrust, Arize Phoenix — passive tracers). One **stops** it (Galileo — active, inline). rabadon is active **and repairs**: it walks the pipeline back to a working one, not just to a red light. It sits as a synchronous gate — output can't flow to the next step until it passes — which is the only shape that can actually intervene, not just log after the fact.
 
+## Supervise a coding agent session (Claude Code)
+
+Your coding agent works; rabadon stands at the gate. Rules are authored by rabadon itself from YOUR project's own law files (CLAUDE.md / RULES.md), enforced deterministically before every action, and every violation is blocked at the moment it is attempted — with the reason fed back so the agent corrects itself.
+
+```sh
+cd your-project
+rabadon init      # rabadon reads your law files and writes .rabadon/guard.json + installs the hooks
+claude            # work normally — the session is supervised
+rabadon stats     # the ledger: how many mistakes were stopped before they happened
+```
+
+Built in, on every session, no configuration:
+- **loop-stop** — the same command run 3x with no code change in between is a loop, not progress; stopped.
+- **scope fan-out** — a task that spreads across 5 top-level directories gets challenged.
+- **push gate** — if your laws demand green tests before push, an untested push is refused.
+
+Everything is local: events go over a unix socket and into `~/.rabadon/spool/` on your machine. Nothing leaves it. Escape hatches are first-class: `rabadon off` pauses everything, and every block message names its rule id so you can disable exactly that rule in `.rabadon/guard.json` (`"disabled": ["rule-id"]`).
+
 ## One line into existing code: `wrap()`
 
 You don't have to rewrite your pipeline as rabadon steps. Wrap the client you already use — the adoption surface of the passive tracers, with the inline gate they don't have:
