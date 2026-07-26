@@ -206,6 +206,30 @@ if (cmd === 'statusline') {
   process.exit(0);
 }
 
+if (cmd === 'exec') {
+  // The second binding — proof the spec is agent-agnostic. Any runtime that
+  // shells out can route commands through the SAME gate the Claude Code hooks
+  // use: `rabadon exec -- <cmd...>`. Pre-gated by the project's guard; the
+  // action and its verdict land on the same spool/stream.
+  const cp = await import('node:child_process');
+  const sep = process.argv.indexOf('--');
+  const argv = sep === -1 ? process.argv.slice(3) : process.argv.slice(sep + 1);
+  if (!argv.length) { console.error('rabadon exec: usage — rabadon exec -- <command...>'); process.exit(1); }
+  const command = argv.join(' ');
+  const gate = path0.resolve(path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'hooks', 'gate.mjs'));
+  const pre = cp.spawnSync('node', [gate], {
+    input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: process.cwd(), session_id: `exec-${process.pid}`, tool_name: 'Bash', tool_input: { command } }),
+    encoding: 'utf8',
+  });
+  if (pre.status === 2) { process.stderr.write(pre.stderr); process.exit(2); }
+  const run = cp.spawnSync(argv[0], argv.slice(1), { stdio: 'inherit', shell: false });
+  cp.spawnSync('node', [gate], {
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', cwd: process.cwd(), session_id: `exec-${process.pid}`, tool_name: 'Bash', tool_input: { command }, tool_response: `exit=${run.status}` }),
+    encoding: 'utf8',
+  });
+  process.exit(run.status || 0);
+}
+
 if (cmd === 'spin') {
   // DEVRIDAIM — the work itself keeps turning. If the project has an open
   // front (red tests / unfinished goal), rabadon LAUNCHES the worker itself:

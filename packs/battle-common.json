@@ -1,0 +1,74 @@
+{
+  "rabadonPack": 1,
+  "name": "battle-common",
+  "notes": "rules that independently emerged in 5+ real projects; review before importing",
+  "bash": [
+    {
+      "id": "no-force-push-main",
+      "deny": "git\\s+push(?=.*(--force|\\s-f\\b))(?=.*\\b(main|master)\\b)",
+      "why": "always-on default: force-pushing the main branch rewrites shared history"
+    },
+    {
+      "id": "no-hard-reset-shared",
+      "deny": "git\\s+reset\\s+--hard\\s+(origin/)?(main|master)\\b",
+      "why": "always-on default: hard reset on a shared branch destroys work"
+    },
+    {
+      "id": "no-rm-rf-outside-project",
+      "deny": "rm\\s+-[a-z]*(rf|fr)[a-z]*\\s+(/|~|\\$HOME|\\.\\.)",
+      "why": "always-on default: recursive force-delete on absolute/home/parent paths reaches outside the project"
+    },
+    {
+      "id": "no-coauthor-commit",
+      "deny": "git\\s+commit[\\s\\S]*co-authored-by",
+      "why": "global git law: commit messages lowercase english, 'co-author ASLA'"
+    },
+    {
+      "id": "no-hard-reset-main",
+      "deny": "git\\s+reset\\s+--hard\\s+(origin\\/)?(main|master)\\b",
+      "why": "standard gate: destructive reset on the shared branch throws away committed work (her hamle = commit + push law)"
+    },
+    {
+      "id": "no-rm-rf-outside",
+      "deny": "rm\\s+-\\w*[rf]\\w*\\s+(/(?!tmp)|~/(?!\\.)|\\$HOME)",
+      "why": "baseline: recursive delete outside the project is unrecoverable"
+    },
+    {
+      "id": "no-hook-bypass",
+      "deny": "git\\s+(commit|push)[^|;&]*--no-verify",
+      "why": "baseline: bypassing hooks bypasses every gate at once"
+    },
+    {
+      "id": "force-push-main",
+      "deny": "git\\s+push(?=.*(\\s--force\\b|\\s-f\\b))(?=.*\\b(main|master)\\b)",
+      "why": "baseline rule: force-pushing main rewrites shared history"
+    },
+    {
+      "id": "rm-rf-outside-project",
+      "deny": "rm\\s+-[a-z]*(rf|fr)[a-z]*\\s+(~|\\$HOME\\b|\\.\\.|\\/(?!tmp\\/))",
+      "why": "baseline rule: recursive delete outside the project tree is unrecoverable"
+    },
+    {
+      "id": "no-shell-edit-generated-context",
+      "deny": "(>|\\bsed\\s+-i\\b|\\btee\\b).*CLAUDE\\.context\\.md",
+      "why": "CLAUDE.context.md is marked '(auto, regenerable)' \u2014 regenerate it, don't rewrite it via shell redirection"
+    },
+    {
+      "id": "reset-hard-shared",
+      "deny": "git\\s+reset\\s+--hard\\s+(origin\\/)?(main|master)\\b",
+      "why": "baseline rule: destructive reset on a shared branch loses work"
+    }
+  ],
+  "protectedPaths": [
+    {
+      "id": "claude-context-generated",
+      "match": "(^|\\/)CLAUDE\\.context\\.md$",
+      "why": "law marks it 'deep machine context (auto, regenerable)' \u2014 regenerate it, never hand-edit"
+    },
+    {
+      "id": "generated-claude-context",
+      "match": "CLAUDE\\.context\\.md$",
+      "why": "law marks it 'deep machine context (auto, regenerable)' \u2014 change the generator/source, not this file"
+    }
+  ]
+}
