@@ -11,11 +11,11 @@
 
 import { pipeline, named } from '../index.mjs';
 import { claudeRepair } from '../repair/claude.mjs';
+import { claudeCodeRepair } from '../repair/claude-code.mjs';
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.error('ANTHROPIC_API_KEY missing — this demo makes ONE real Claude call.');
-  process.exit(1);
-}
+// engine: ANTHROPIC_API_KEY if present, else the local Claude Code CLI
+// (already authorized on any machine where `claude` is logged in).
+const useApi = !!process.env.ANTHROPIC_API_KEY;
 
 const FEEDBACK = [
   { id: 0, text: 'love it', sentiment: 'positive' },   // id 0 — the truthiness trap
@@ -43,9 +43,11 @@ const rateOverTruePopulation = named('rateOverTruePopulation', (out, input) => {
 });
 
 let usage = null;
-const repair = claudeRepair({ onUsage: (u) => { usage = u; } });
+const repair = useApi
+  ? claudeRepair({ onUsage: (u) => { usage = u; } })
+  : claudeCodeRepair();
 
-console.log('=== rabadon + LIVE claude-opus-4-8 repair ===\n');
+console.log(`=== rabadon + LIVE LLM repair (engine: ${useApi ? 'api claude-opus-4-8' : 'claude code cli'}) ===\n`);
 const t0 = Date.now();
 
 const result = await pipeline('llm-repair-live')
