@@ -166,6 +166,46 @@ if (cmd === 'init') {
   process.exit(0);
 }
 
+if (cmd === 'statusline') {
+  // rabadon's presence in the Claude Code terminal — antivirus style:
+  // a calm lilac * while standing guard; the moment something is caught it
+  // switches to the catch itself for a few minutes. No dashboards, no counts.
+  const fs = await import('node:fs');
+  const { SPOOL_DIR } = await import('../core/bus.mjs');
+  let input = '';
+  try { input = fs.readFileSync(0, 'utf8'); } catch { }
+  let info = {};
+  try { info = JSON.parse(input); } catch { }
+  const dir = (info.workspace && info.workspace.current_dir) || info.cwd || process.cwd();
+  const project = path0.basename(dir);
+  const model = (info.model && info.model.display_name) || '';
+  const LILAC = '\x1b[38;5;141m', GRAY = '\x1b[38;5;245m', WARM = '\x1b[38;5;209m', R = '\x1b[0m';
+
+  const off = fs.existsSync(path0.join(dir, '.rabadon', 'off'));
+  let lastCatch = null; // most recent block within the last 5 minutes
+  if (!off) {
+    try {
+      const today = path0.join(SPOOL_DIR, new Date().toISOString().slice(0, 10) + '.jsonl');
+      const lines = fs.readFileSync(today, 'utf8').trim().split('\n');
+      for (let i = lines.length - 1; i >= 0 && i > lines.length - 400; i--) {
+        if (!lines[i].includes(`"${project}:session"`)) continue;
+        let e; try { e = JSON.parse(lines[i]); } catch { continue; }
+        if (e.ev === 'STOP' && e.reason === 'BLOCKED' && Date.now() - e.ts < 5 * 60000) {
+          lastCatch = String(e.detail || 'blocked').split(' — ')[0].slice(0, 60);
+        }
+        break; // only the newest session event decides the face
+      }
+    } catch { }
+  }
+
+  const left = `${GRAY}${model}${model ? ' · ' : ''}${project}${R}`;
+  const seg = off ? `${GRAY}* rabadon off${R}`
+    : lastCatch ? `${WARM}* rabadon caught: ${lastCatch}${R}`
+    : `${LILAC}* rabadon${R}`;
+  process.stdout.write(`${left}  ${seg}\n`);
+  process.exit(0);
+}
+
 if (cmd === 'off' || cmd === 'on') {
   const fs = await import('node:fs');
   const dir = path0.join(process.cwd(), '.rabadon');
