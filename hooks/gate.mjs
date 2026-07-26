@@ -138,9 +138,23 @@ async function driftJudge(goal, recent) {
   try { return JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { return null; }
 }
 
+function notify(title, body) {
+  // native macOS notification — the catch reaches the builder even when the
+  // terminal is buried. fire-and-forget, never blocks, no-op elsewhere.
+  if (process.platform !== 'darwin' || process.env.RABADON_NOTIFY === '0') return;
+  try {
+    const { spawn } = require('node:child_process');
+  } catch { }
+  import('node:child_process').then(({ spawn }) => {
+    const esc = (x) => String(x).replace(/["\\]/g, '');
+    spawn('osascript', ['-e', `display notification "${esc(body).slice(0, 120)}" with title "rabadon" subtitle "${esc(title).slice(0, 60)}"`], { detached: true, stdio: 'ignore' }).unref();
+  }).catch(() => { });
+}
+
 async function block(rule, detail) {
   emit('CHECK_FAIL', { step: ev.tool_name, fails: [{ check: rule.id || 'guard', why: `${detail} — ${rule.why || ''}` }] });
   emit('STOP', { reason: 'BLOCKED', detail });
+  notify(`${project}: caught`, `${rule.id || 'guard'} — ${detail}`);
   await flush();
   emit.close();
   // stderr goes back to the agent as the reason — this is the self-correction loop
@@ -196,6 +210,7 @@ if (hookEvent === 'PreToolUse') {
               state.lastTestPass = Date.now(); state.lastTestRun = Date.now();
               saveState(state);
               emit('REPAIR_OK', { step: 'push-gate', attempt: 1 });
+              notify(`${project}: hallettim`, 'push istendi, testleri kendim koştum — yeşil, kapıyı açtım');
               // fall through: the push is now legitimately allowed
             } else {
               emit('REPAIR_FAIL', { step: 'push-gate', attempt: 1, why: 'tests not green' });
@@ -358,6 +373,7 @@ else if (hookEvent === 'PostToolUse') {
           });
           if (diag) {
             advice = `\nrabadon diagnosis:\n  where: ${diag.where}\n  cause: ${diag.cause}\n  fix:   ${diag.fix}\n`;
+            notify(`${project}: sorun buldum`, `${diag.where} — ${diag.cause}`.slice(0, 150));
             if (diag.newRule && guard) {
               try {
                 new RegExp(diag.newRule.deny || diag.newRule.match, 'i'); // must compile
@@ -367,6 +383,7 @@ else if (hookEvent === 'PostToolUse') {
                   fullGuard[target] = [...(fullGuard[target] || []), { ...diag.newRule, authoredBy: 'incident', incidentAt: new Date().toISOString() }];
                   fs.writeFileSync(guardPath, JSON.stringify(fullGuard, null, 2) + '\n');
                   emit('REPAIR_OK', { step: `new gate: ${diag.newRule.id}`, attempt: 1 });
+                  notify(`${project}: yeni kapı`, `bu hata sınıfı artık üretilmeden yakalanacak: ${diag.newRule.id}`);
                   advice += `  new gate installed: ${diag.newRule.id} — this class of break is now caught BEFORE it happens.\n`;
                 }
               } catch { /* an invalid rule is dropped, never installed */ }
@@ -421,6 +438,37 @@ else if (hookEvent === 'SessionStart') {
   await done('RUN_START', { steps: [guard ? `guard: ${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules` : 'NO GUARD (observe only)'], bound: guard ? { pushGate: !!guard.pushGate, loopStop: 3, fanout: 5 } : { loopStop: 3, fanout: 5 } });
 }
 else if (hookEvent === 'Stop') {
+  // token ledger — REAL usage from the session transcript, read incrementally
+  // from the last byte offset (never the whole file twice).
+  try {
+    const tp = ev.transcript_path;
+    if (tp && fs.existsSync(tp)) {
+      const st2 = loadState();
+      const size = fs.statSync(tp).size;
+      const from = (st2.s.tsOffset && st2.s.tsOffset <= size) ? st2.s.tsOffset : 0;
+      if (size > from) {
+        const fd = fs.openSync(tp, 'r');
+        const buf = Buffer.alloc(size - from);
+        fs.readSync(fd, buf, 0, buf.length, from);
+        fs.closeSync(fd);
+        let inTok = 0, outTok = 0;
+        for (const line of buf.toString('utf8').split('\n')) {
+          const m = line.match(/"usage":\{[^}]*"output_tokens":(\d+)/);
+          if (m) {
+            outTok += Number(m[1]);
+            const mi = line.match(/"input_tokens":(\d+)/);
+            if (mi) inTok += Number(mi[1]);
+          }
+        }
+        st2.s.tsOffset = size;
+        st2.s.tokensOut = (st2.s.tokensOut || 0) + outTok;
+        st2.s.tokensIn = (st2.s.tokensIn || 0) + inTok;
+        saveState(st2);
+        emit('STEP_OK', { step: `tokens this session: ${st2.s.tokensOut} out / ${st2.s.tokensIn} in`, tokens: st2.s.tokensOut });
+      }
+    }
+  } catch { /* ledger must never break the turn */ }
+
   // DEVRIDAIM — the cycle must survive the session. Every turn-end, distill
   // the session's state into .rabadon/handoff.md; SessionStart injects it, so
   // the NEXT session (tomorrow, after a crash, after compact) starts where
