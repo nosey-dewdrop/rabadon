@@ -206,6 +206,66 @@ if (cmd === 'statusline') {
   process.exit(0);
 }
 
+if (cmd === 'spin') {
+  // DEVRIDAIM — the work itself keeps turning. If the project has an open
+  // front (red tests / unfinished goal), rabadon LAUNCHES the worker itself:
+  // a headless Claude session inside the project, which means the project's
+  // own gate supervises every move it makes. After each spin rabadon runs
+  // the REAL test suite and decides: green -> done, red -> next spin, up to
+  // --max spins. No summaries. The job either finishes or stops at a bound.
+  const fs = await import('node:fs');
+  const cp = await import('node:child_process');
+  const dir = path0.resolve(process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : process.cwd());
+  const maxSpins = Number(process.argv[process.argv.indexOf('--max') + 1]) || 3;
+  const guardFile = path0.join(dir, '.rabadon', 'guard.json');
+  let guard = null;
+  try { guard = JSON.parse(fs.readFileSync(guardFile, 'utf8')); } catch { }
+
+  const runTests = () => {
+    if (!guard || !guard.pushGate || !guard.pushGate.run) return { ran: false };
+    try {
+      const out = cp.execSync(guard.pushGate.run, { cwd: dir, encoding: 'utf8', timeout: (guard.pushGate.timeoutSec || 900) * 1000, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 });
+      return { ran: true, green: guard.testPassPattern ? new RegExp(guard.testPassPattern, 'i').test(out) : true, out };
+    } catch (e) {
+      return { ran: true, green: false, out: String((e.stdout || '') + (e.stderr || '')) };
+    }
+  };
+
+  let status = runTests();
+  if (!status.ran) { process.stdout.write('rabadon spin: no pushGate.run in the guard — nothing I can verify, nothing I will spin.\n'); process.exit(1); }
+  if (status.green) { process.stdout.write('rabadon spin: suite is GREEN — no open front here.\n'); process.exit(0); }
+
+  let handoff = '';
+  try { handoff = fs.readFileSync(path0.join(dir, '.rabadon', 'handoff.md'), 'utf8'); } catch { }
+
+  for (let spin = 1; spin <= maxSpins; spin++) {
+    process.stdout.write(`spin ${spin}/${maxSpins}: suite RED — launching the worker (supervised by this project's own gate)…\n`);
+    const failTail = status.out.split('\n').filter((l) => /fail|error|\*\*\*/i.test(l)).slice(-12).join('\n');
+    const task = [
+      'You are the worker inside rabadon devridaim, continuing this project unattended.',
+      'The test suite is RED. Fix the CODE so the suite passes. Laws:',
+      '- never weaken or skip a test; never touch pinned reference files;',
+      '- decisions the project reserves for its owner (re-pins, scope changes) are NOT yours — if the only fix is such a decision, stop and say exactly that;',
+      '- make the smallest correct fix, run the suite yourself, and finish.',
+      handoff ? `\n## where the last session stood\n${handoff.slice(0, 2000)}` : '',
+      `\n## failing output\n${failTail}`,
+      `\n## the suite command\n${guard.pushGate.run}`,
+    ].join('\n');
+    try {
+      cp.execSync('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Bash,Grep,Glob"', {
+        cwd: dir, input: task, stdio: ['pipe', 'inherit', 'inherit'], timeout: 30 * 60000,
+      });
+    } catch { /* worker ended non-zero — the suite is the judge, not the exit code */ }
+    status = runTests();
+    if (status.green) {
+      process.stdout.write(`spin ${spin}: suite GREEN — the cycle closed the front.\n`);
+      process.exit(0);
+    }
+  }
+  process.stdout.write(`rabadon spin: still RED after ${maxSpins} spin(s) — bounded stop, front stays open (this is fail-closed, not failure to try).\n`);
+  process.exit(1);
+}
+
 if (cmd === 'pack') {
   // Guard packs — the ecosystem mechanism. `pack export` distills a project's
   // guard (including incident-authored rules) into a shareable, sanitized

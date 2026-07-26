@@ -409,9 +409,57 @@ else if (hookEvent === 'SessionStart') {
   const st = loadState();
   st.s.touchedDirs = []; st.s.fanoutWarned = false; st.s.cmdRepeat = 0; st.s.lastCmd = null; st.s.actionCount = 0;
   saveState(st);
+  // DEVRIDAIM injection: SessionStart stdout becomes session context — the
+  // new session opens already knowing where the last one stood.
+  try {
+    const h = path.join(cwd, '.rabadon', 'handoff.md');
+    const stat = fs.statSync(h);
+    if (Date.now() - stat.mtimeMs < 7 * 86400000) {
+      process.stdout.write(fs.readFileSync(h, 'utf8'));
+    }
+  } catch { /* no handoff yet — first cycle */ }
   await done('RUN_START', { steps: [guard ? `guard: ${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules` : 'NO GUARD (observe only)'], bound: guard ? { pushGate: !!guard.pushGate, loopStop: 3, fanout: 5 } : { loopStop: 3, fanout: 5 } });
 }
 else if (hookEvent === 'Stop') {
+  // DEVRIDAIM — the cycle must survive the session. Every turn-end, distill
+  // the session's state into .rabadon/handoff.md; SessionStart injects it, so
+  // the NEXT session (tomorrow, after a crash, after compact) starts where
+  // this one stood. Deterministic, from the trail — no model, no cost.
+  try {
+    const st = loadState();
+    const today = path.join(process.env.RABADON_DIR || path.join(process.env.HOME || '', '.rabadon'), 'spool', new Date().toISOString().slice(0, 10) + '.jsonl');
+    let caught = [];
+    try {
+      for (const line of fs.readFileSync(today, 'utf8').split('\n')) {
+        if (!line.includes(`"${project}:session"`)) continue;
+        try { const e = JSON.parse(line); if (e.ev === 'STOP' && e.reason === 'BLOCKED') caught.push(String(e.detail || '').split('\n')[0].slice(0, 90)); } catch { }
+      }
+    } catch { }
+    const tests = (st.lastTestFail || 0) > (st.lastTestPass || 0)
+      ? `RED (since ${new Date(st.lastTestFail).toLocaleTimeString()})`
+      : st.lastTestPass ? `green (last pass ${new Date(st.lastTestPass).toLocaleTimeString()})` : 'not run this cycle';
+    const moves = (st.s.recent || []).slice(-8).map((r) => `- ${r.s}`).join('\n') || '- (none recorded)';
+    const handoff = [
+      `# rabadon devridaim — ${project}`,
+      `updated: ${new Date().toISOString()}`,
+      '',
+      `## goal (as captured from the session)`,
+      st.s.goalPrompt || '(no goal captured)',
+      '',
+      `## tests`, tests,
+      '',
+      `## caught today (blocked before happening)`,
+      ...(caught.slice(-6).map((c) => `- ${c}`).length ? caught.slice(-6).map((c) => `- ${c}`) : ['- none']),
+      '',
+      `## last moves`, moves,
+      '',
+      `## for the next session`,
+      `- if tests are RED above: that is the open front — start there.`,
+      `- the guard is law (.rabadon/guard.json); rules born from incidents carry authoredBy: incident.`,
+      '',
+    ].join('\n');
+    fs.writeFileSync(path.join(cwd, '.rabadon', 'handoff.md'), handoff);
+  } catch { /* devridaim must never break the turn */ }
   await done('RUN_DONE', { verdict: 'SESSION_TURN_DONE', tokens: 0, depth: 0 });
 }
 else {
