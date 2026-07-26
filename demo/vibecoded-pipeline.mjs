@@ -26,7 +26,7 @@
 // number is real. (The repair here is a coded fix; the same slot takes an LLM
 // repair for the general vibecoding case — see NOTE at the bottom.)
 
-import { pipeline, named } from '../core/rabadon.mjs';
+import { pipeline, named } from '../index.mjs';
 
 // ---- the raw input (real-world: ids start at 0, one record has a null score) ----
 const RAW = [
@@ -85,7 +85,7 @@ console.log(`  avgScore reported: ${rawOut.avgScore}   <- wrong, and nothing cra
 let normFn = vibecoded.normalize;
 let sumFn = vibecoded.summarize;
 
-const result = await pipeline()
+const result = await pipeline('vibecoded-demo')
   .step('normalize', (rows) => normFn(rows), {
     correct: [noRecordVanishes],
     repair: () => { normFn = repairNormalize(); return normFn(RAW); },

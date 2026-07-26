@@ -57,10 +57,14 @@ async function runChecks(step, out, input, ctx) {
 }
 
 class Pipeline {
-  constructor() {
+  constructor(opts = {}) {
     this._steps = [];
     this._bound = null;     // { maxSteps, maxTokens, maxDepth }
     this._goal = null;      // { score: fn, floor: number }
+    this._name = typeof opts === 'string' ? opts : (opts.name || 'pipeline');
+    // emit: (ev, fields) => void — the live event stream (core/bus.mjs).
+    // Injected so the core stays pure/testable; pipeline() wires the real bus.
+    this._emit = (typeof opts === 'object' && opts.emit) || null;
   }
 
   /**
@@ -131,6 +135,9 @@ class Pipeline {
     if (this._steps.length === 0) throw new Error('rabadon: pipeline has no steps');
     if (!this._bound) throw new Error('rabadon: .run() refused — no .bound() set. An unbounded pipeline is a runaway waiting to happen; declare maxSteps/maxTokens/maxDepth.');
 
+    const emit = this._emit || (() => {});
+    emit('RUN_START', { bound: this._bound, steps: this._steps.map((s) => s.name), goal: this._goal ? { floor: this._goal.floor } : null });
+
     const trace = [];
     const ctx = { tokens: 0, depth: 0, input };
     let cur = input;
@@ -147,6 +154,7 @@ class Pipeline {
       if (b.maxTokens != null && ctx.tokens >= b.maxTokens) { stopped = { reason: 'RUNAWAY', detail: `maxTokens=${b.maxTokens} spent before "${step.name}" (spent ${ctx.tokens})` }; break; }
 
       // --- run the step ---
+      emit('STEP_START', { step: step.name, depth: ctx.depth });
       let out;
       try {
         out = await step.run(cur, ctx);
@@ -161,6 +169,7 @@ class Pipeline {
 
       // --- guarantee #2: correctness checks BEFORE the output flows onward. ---
       let checkFails = await runChecks(step, out, cur, ctx);
+      if (checkFails.length) emit('CHECK_FAIL', { step: step.name, fails: checkFails });
 
       // --- self-healing: diagnose -> stop -> repair -> re-check, bounded. ---
       // If the step declared a repair fn and its checks failed, rabadon does not
@@ -172,15 +181,18 @@ class Pipeline {
       const repairs = [];
       if (checkFails.length && step.repair && this._bound.maxRepairs) {
         for (let attempt = 1; attempt <= this._bound.maxRepairs && checkFails.length; attempt++) {
+          emit('REPAIR_START', { step: step.name, attempt, fixing: checkFails.map((f) => f.check) });
           let fixed;
           try {
             fixed = await step.repair(out, cur, checkFails, ctx);
           } catch (err) {
             repairs.push({ attempt, ok: false, why: `repair threw: ${String(err && err.message || err).slice(0, 160)}` });
+            emit('REPAIR_FAIL', { step: step.name, attempt, why: repairs[repairs.length - 1].why });
             break;
           }
           const reFails = await runChecks(step, fixed, cur, ctx);
           repairs.push({ attempt, ok: reFails.length === 0, fixedFrom: checkFails.map((f) => f.check), remaining: reFails.map((f) => f.why) });
+          emit(reFails.length === 0 ? 'REPAIR_OK' : 'REPAIR_FAIL', { step: step.name, attempt, remaining: reFails.map((f) => f.why) });
           out = fixed;
           checkFails = reFails;
         }
@@ -216,10 +228,13 @@ class Pipeline {
         break;
       }
 
+      emit('STEP_OK', { step: step.name, tokens: ctx.tokens, repaired: repairs.length > 0 });
       cur = out;
     }
 
     const ok = stopped === null;
+    if (!ok) emit('STOP', { reason: stopped.reason, detail: stopped.detail });
+    emit('RUN_DONE', { verdict: ok ? 'PASS' : stopped.reason, tokens: ctx.tokens, depth: ctx.depth });
     return {
       ok,
       verdict: ok ? 'PASS' : stopped.reason,
@@ -249,9 +264,14 @@ export function named(name, fn) {
   return fn;
 }
 
-/** Start a new pipeline. */
-export function pipeline() {
-  return new Pipeline();
+/**
+ * Start a new pipeline.
+ * @param {string|{name?:string, emit?:(ev:string, fields:object)=>void}} [opts]
+ *   Pass a name (or {name, emit}) to identify this pipeline on the live event
+ *   stream. The root index.mjs wires the real bus; the core stays pure.
+ */
+export function pipeline(opts) {
+  return new Pipeline(opts);
 }
 
 export default { pipeline, named };
