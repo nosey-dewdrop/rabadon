@@ -206,6 +206,173 @@ if (cmd === 'statusline') {
   process.exit(0);
 }
 
+if (cmd === 'pack') {
+  // Guard packs — the ecosystem mechanism. `pack export` distills a project's
+  // guard (including incident-authored rules) into a shareable, sanitized
+  // pack; `pack import` merges one into a project's guard. Rules carry their
+  // origin. Code can be copied; a growing library of battle-authored rules
+  // cannot.
+  const fs = await import('node:fs');
+  const sub = process.argv[3];
+  if (sub === 'export') {
+    const dir = path0.resolve(process.argv[4] || process.cwd());
+    const g = JSON.parse(fs.readFileSync(path0.join(dir, '.rabadon', 'guard.json'), 'utf8'));
+    const sane = (r) => !/\/Users\/|\/home\/|damummyphus/i.test(JSON.stringify(r)); // no machine-specific paths leave
+    const pack = {
+      rabadonPack: 1,
+      name: `${g.project || path0.basename(dir)}-pack`,
+      exportedAt: new Date().toISOString(),
+      bash: (g.bash || []).filter(sane),
+      protectedPaths: (g.protectedPaths || []).filter(sane),
+      testPaths: g.testPaths || [],
+      notes: 'rules carry their own why; review before importing — a guard is law, not decoration',
+    };
+    process.stdout.write(JSON.stringify(pack, null, 2) + '\n');
+    process.exit(0);
+  }
+  if (sub === 'import') {
+    const file = process.argv[4];
+    const dir = path0.resolve(process.argv[5] || process.cwd());
+    const pack = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (pack.rabadonPack !== 1) { console.error('rabadon pack: not a v1 pack'); process.exit(1); }
+    for (const r of [...(pack.bash || []), ...(pack.protectedPaths || [])]) new RegExp(r.deny || r.match, 'i'); // must compile
+    const guardFile = path0.join(dir, '.rabadon', 'guard.json');
+    const g = fs.existsSync(guardFile) ? JSON.parse(fs.readFileSync(guardFile, 'utf8')) : { project: path0.basename(dir), bash: [], protectedPaths: [] };
+    let added = 0;
+    for (const [key, list] of [['bash', pack.bash || []], ['protectedPaths', pack.protectedPaths || []]]) {
+      g[key] = g[key] || [];
+      for (const r of list) {
+        if (!g[key].some((x) => x.id === r.id)) { g[key].push({ ...r, source: pack.name }); added++; }
+      }
+    }
+    if (pack.testPaths && pack.testPaths.length && !(g.testPaths || []).length) g.testPaths = pack.testPaths;
+    fs.mkdirSync(path0.dirname(guardFile), { recursive: true });
+    fs.writeFileSync(guardFile, JSON.stringify(g, null, 2) + '\n');
+    process.stdout.write(`rabadon pack: ${added} rule(s) from "${pack.name}" merged into ${guardFile}\nREVIEW the guard — imported law is still law.\n`);
+    process.exit(0);
+  }
+  console.error('rabadon pack: usage — pack export [dir] | pack import <pack.json> [dir]');
+  process.exit(1);
+}
+
+if (cmd === 'fleet') {
+  // The whole fleet, one command. For every git project under <root>:
+  //   - author a guard (Claude from the project's own law files; an honest
+  //     baseline if it has none),
+  //   - MERGE the gate hooks into .claude/settings.json (never clobber —
+  //     existing settings are backed up first),
+  //   - verify end-to-end with a synthetic event,
+  //   - run a first-catch drill so the gate is SEEN working in minute one.
+  const fs = await import('node:fs');
+  const cp = await import('node:child_process');
+  const { SPOOL_DIR } = await import('../core/bus.mjs');
+  const root = path0.resolve(process.argv[3] || process.cwd());
+  const gate = path0.resolve(path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'hooks', 'gate.mjs'));
+  const gateCmd = `node ${gate}`;
+  const EXCLUDE = /_archive|\.audit-clones|node_modules|\.parked|rabadon$/;
+
+  const projects = fs.readdirSync(root)
+    .map((d) => path0.join(root, d))
+    .filter((p) => { try { return fs.statSync(p).isDirectory() && fs.existsSync(path0.join(p, '.git')) && !EXCLUDE.test(p); } catch { return false; } });
+  // include nested working dir if present
+  const nest = path0.join(root, '00_currently_on_working');
+  if (fs.existsSync(nest)) {
+    for (const d of fs.readdirSync(nest)) {
+      const p = path0.join(nest, d);
+      try { if (fs.statSync(p).isDirectory() && fs.existsSync(path0.join(p, '.git')) && !EXCLUDE.test(p)) projects.push(p); } catch { }
+    }
+  }
+  process.stdout.write(`rabadon fleet: ${projects.length} git projects under ${root}\n\n`);
+
+  const BASELINE = {
+    bash: [
+      { id: 'no-force-push-main', deny: 'git\\s+push[^|;&]*(--force|-f)\\b[^|;&]*\\b(main|master)\\b', why: 'baseline: force-pushing a shared branch destroys history' },
+      { id: 'no-rm-rf-outside', deny: 'rm\\s+-\\w*[rf]\\w*\\s+(/(?!tmp)|~/(?!\\.)|\\$HOME)', why: 'baseline: recursive delete outside the project is unrecoverable' },
+      { id: 'no-hard-reset-main', deny: 'git\\s+reset\\s+--hard\\s+(origin/)?(main|master)\\b', why: 'baseline: rewrite shared state via commits, not resets' },
+      { id: 'no-hook-bypass', deny: 'git\\s+(commit|push)[^|;&]*--no-verify', why: 'baseline: bypassing hooks bypasses every gate at once' },
+    ],
+    protectedPaths: [],
+  };
+
+  const results = [];
+  for (const p of projects) {
+    const name = path0.basename(p);
+    const guardFile = path0.join(p, '.rabadon', 'guard.json');
+    let guardHow = 'kept';
+    try {
+      if (!fs.existsSync(guardFile)) {
+        const hasLaws = ['RULES.md', 'ENV.md', 'CLAUDE.md'].some((f) => fs.existsSync(path0.join(p, f)));
+        if (hasLaws) {
+          const { generateGuard } = await import('../hooks/guard-gen.mjs');
+          await generateGuard(p);
+          guardHow = 'authored';
+        } else {
+          fs.mkdirSync(path0.dirname(guardFile), { recursive: true });
+          fs.writeFileSync(guardFile, JSON.stringify({ project: name, ...BASELINE, generatedBy: 'rabadon fleet (baseline)' }, null, 2) + '\n');
+          guardHow = 'baseline';
+        }
+      }
+      // merge hooks into settings.json without clobbering
+      const settingsPath = path0.join(p, '.claude', 'settings.json');
+      let settings = {};
+      if (fs.existsSync(settingsPath)) {
+        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        if (!JSON.stringify(settings.hooks || {}).includes('gate.mjs')) {
+          fs.copyFileSync(settingsPath, settingsPath + '.bak-rabadon');
+        }
+      } else {
+        fs.mkdirSync(path0.dirname(settingsPath), { recursive: true });
+      }
+      if (!JSON.stringify(settings.hooks || {}).includes('gate.mjs')) {
+        settings.hooks = settings.hooks || {};
+        const entry = { hooks: [{ type: 'command', command: gateCmd }] };
+        const matched = { matcher: 'Bash|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: gateCmd, timeout: 900 }] };
+        for (const evName of ['SessionStart', 'UserPromptSubmit', 'Stop']) {
+          settings.hooks[evName] = [...(settings.hooks[evName] || []), entry];
+        }
+        for (const evName of ['PreToolUse', 'PostToolUse']) {
+          settings.hooks[evName] = [...(settings.hooks[evName] || []), matched];
+        }
+        if (!settings.statusLine) settings.statusLine = { type: 'command', command: `node ${path0.resolve(path0.join(path0.dirname(gate), '..', 'bin', 'rabadon.mjs'))} statusline` };
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+      }
+      try { const gi = path0.join(p, '.gitignore'); const cur = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : ''; if (!cur.includes('.rabadon/state.json')) fs.appendFileSync(gi, '\n.rabadon/state.json\n'); } catch { }
+
+      // end-to-end verify + first-catch drill against the project's OWN top rule
+      const g = JSON.parse(fs.readFileSync(guardFile, 'utf8'));
+      const marker = `fleet-${process.pid}-${name}`;
+      cp.execSync(`node ${gate}`, { input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: p, session_id: marker, tool_name: 'Bash', tool_input: { command: `echo ${marker}` } }), stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 });
+      const landed = fs.readFileSync(path0.join(SPOOL_DIR, new Date().toISOString().slice(0, 10) + '.jsonl'), 'utf8').includes(marker);
+      let drill = '-';
+      const rule = (g.bash || [])[0];
+      if (rule) {
+        // a drill is a fake command that MATCHES the rule — proof the gate bites here
+        const sample = rule.id.includes('force') ? 'git push --force origin main'
+          : rule.id.includes('wrangler') ? 'npx wrangler deploy'
+          : rule.id.includes('reset') ? 'git reset --hard origin/main'
+          : rule.id.includes('no-verify') || rule.id.includes('bypass') ? 'git commit --no-verify -m x'
+          : null;
+        if (sample) {
+          try {
+            cp.execSync(`node ${gate}`, { input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: p, session_id: marker, tool_name: 'Bash', tool_input: { command: sample } }), stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 });
+            drill = 'MISSED';
+          } catch { drill = `BLOCKED (${rule.id})`; }
+        }
+      }
+      // clean drill counters so real sessions start fresh
+      try { fs.unlinkSync(path0.join(p, '.rabadon', 'state.json')); } catch { }
+      results.push({ name, guardHow, e2e: landed ? 'ok' : 'FAIL', drill });
+      process.stdout.write(`  ${name.padEnd(24)} guard:${guardHow.padEnd(9)} e2e:${landed ? 'ok  ' : 'FAIL'} drill:${drill}\n`);
+    } catch (e) {
+      results.push({ name, error: String(e.message).slice(0, 60) });
+      process.stdout.write(`  ${name.padEnd(24)} ERROR: ${String(e.message).slice(0, 80)}\n`);
+    }
+  }
+  const ok = results.filter((r) => r.e2e === 'ok').length;
+  process.stdout.write(`\nfleet done: ${ok}/${projects.length} projects under guard.\n`);
+  process.exit(0);
+}
+
 if (cmd === 'doctor') {
   // end-to-end self-check: a supervisor that silently fails open is worse
   // than none. Verifies every link of its own chain, loudly.
