@@ -96,25 +96,6 @@ const hookEvent = ev.hook_event_name;
 if (hookEvent === 'PreToolUse') {
   const state = loadState();
 
-  // --- loop-stop: rabadon's founding guarantee, applied to the session. ---
-  // The same bash command re-run with NO code change in between is an agent
-  // spinning in place ("loops that were meant to proofread didn't stop").
-  // Three identical spins -> stopped, with the reason fed back.
-  const READ_ONLY = /^(git\s+(status|diff|log|show|branch)|ls|cat|head|tail|grep|rg|find|pwd|wc|echo|which|node\s+--check)\b/;
-  if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string' && !READ_ONLY.test(toolInput.command.trim())) {
-    const cmd = toolInput.command.trim();
-    const editedBetween = (state.lastCodeEdit || 0) > (state.lastCmdTs || 0);
-    if (state.lastCmd === cmd && !editedBetween) state.cmdRepeat = (state.cmdRepeat || 1) + 1;
-    else state.cmdRepeat = 1;
-    state.lastCmd = cmd;
-    state.lastCmdTs = Date.now();
-    saveState(state);
-    if (state.cmdRepeat >= 3) {
-      await block({ id: 'loop-stop', why: 'the same command has now run 3x with no code change in between — a loop, not progress' },
-        `looping on: ${cmd.slice(0, 120)} — change the code or the approach before running it again`);
-    }
-  }
-
   if (guard) {
     // Bash command rules
     if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string') {
@@ -145,6 +126,26 @@ if (hookEvent === 'PreToolUse') {
       }
     }
   }
+
+  // --- loop-stop: rabadon's founding guarantee, applied to the session. ---
+  // The same bash command re-run with NO code change in between is an agent
+  // spinning in place ("loops that were meant to proofread didn't stop").
+  // Three identical spins -> stopped, with the reason fed back.
+  const READ_ONLY = /^(git\s+(status|diff|log|show|branch)|ls|cat|head|tail|grep|rg|find|pwd|wc|echo|which|node\s+--check)\b/;
+  if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string' && !READ_ONLY.test(toolInput.command.trim())) {
+    const cmd = toolInput.command.trim();
+    const editedBetween = (state.lastCodeEdit || 0) > (state.lastCmdTs || 0);
+    if (state.lastCmd === cmd && !editedBetween) state.cmdRepeat = (state.cmdRepeat || 1) + 1;
+    else state.cmdRepeat = 1;
+    state.lastCmd = cmd;
+    state.lastCmdTs = Date.now();
+    saveState(state);
+    if (state.cmdRepeat >= 3) {
+      await block({ id: 'loop-stop', why: 'the same command has now run 3x with no code change in between — a loop, not progress' },
+        `looping on: ${cmd.slice(0, 120)} — change the code or the approach before running it again`);
+    }
+  }
+
 
   const label = ev.tool_name === 'Bash'
     ? `bash: ${String(toolInput.command || '').slice(0, 80)}`
