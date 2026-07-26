@@ -13,6 +13,7 @@
 //
 // Zero dependencies. ANSI only.
 
+import path0 from 'node:path';
 import { listen, SOCK_PATH } from '../core/bus.mjs';
 
 const C = {
@@ -83,8 +84,21 @@ function render(e) {
 }
 
 const cmd = process.argv[2] || 'watch';
+
+if (cmd === 'guard') {
+  // rabadon writes the guard rules for a project from its own law files.
+  const { generateGuard } = await import('../hooks/guard-gen.mjs');
+  const dir = process.argv[3] ? path0.resolve(process.argv[3]) : process.cwd();
+  process.stdout.write(`rabadon guard: reading law files in ${dir}, asking claude to write the rules…\n`);
+  const { guardPath, guard } = await generateGuard(dir);
+  process.stdout.write(`written: ${guardPath}\n`);
+  process.stdout.write(`  bash rules: ${(guard.bash || []).length}, protected paths: ${(guard.protectedPaths || []).length}, pushGate: ${guard.pushGate ? 'yes' : 'no'}\n`);
+  process.stdout.write(`REVIEW IT — the gate enforces exactly what is in that file.\n`);
+  process.exit(0);
+}
+
 if (cmd !== 'watch') {
-  console.error(`rabadon: unknown command "${cmd}" (only: watch)`);
+  console.error(`rabadon: unknown command "${cmd}" (watch | guard [dir])`);
   process.exit(1);
 }
 
