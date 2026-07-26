@@ -73,6 +73,40 @@ function saveState(s) {
 // before the hook process dies (the spool already has it either way)
 const flush = () => new Promise((r) => setTimeout(r, 60));
 
+// remember the session's last moves so a diagnosis knows WHERE it is —
+// "which gate is the problem at" needs the trail, not just the crash
+function remember(state, summary) {
+  state.recent = [...(state.recent || []), { t: Date.now(), s: summary.slice(0, 120) }].slice(-30);
+}
+
+// the incident brain: local Claude Code CLI, bounded, structured verdict.
+// Runs ONLY on an incident (red tests) — never in the per-action hot path.
+async function diagnose({ goal, recent, failOutput, cmd }) {
+  const { execFile } = await import('node:child_process');
+  const prompt = [
+    'You are rabadon, a reliability runtime supervising a live coding session. The test suite just went RED.',
+    'Diagnose from the evidence and return ONLY a JSON object, no fences, no prose:',
+    '{ "where": "<which step/gate of the work this belongs to, one short phrase>",',
+    '  "cause": "<root cause in one sentence, from the evidence — never invent>",',
+    '  "fix": "<the concrete next action to fix it, one sentence>",',
+    '  "newRule": { "id": "kebab-id", "deny": "<JS regex over bash commands>", "why": "<one line>" } | { "id": "kebab-id", "match": "<JS regex over file paths>", "why": "<one line>" } | null }',
+    'newRule: ONLY if this class of mistake could have been caught BEFORE it happened by blocking a command or an edit; otherwise null. Prefer null over a rule that could block legitimate work.',
+    '',
+    `## session goal\n${goal}`,
+    `## last moves\n${recent.map((r) => `- ${r.s}`).join('\n')}`,
+    `## the test command\n${cmd}`,
+    `## failing output (tail)\n${failOutput}`,
+  ].join('\n');
+  const out = await new Promise((resolve, reject) => {
+    const child = execFile('claude', ['-p', '--output-format', 'text'],
+      { timeout: 90000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout, stderr) => err ? reject(new Error((stderr || err.message).slice(0, 200))) : resolve(String(stdout).trim()));
+    child.stdin.write(prompt);
+    child.stdin.end();
+  });
+  try { return JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { return null; }
+}
+
 async function block(rule, detail) {
   emit('CHECK_FAIL', { step: ev.tool_name, fails: [{ check: rule.id || 'guard', why: `${detail} — ${rule.why || ''}` }] });
   emit('STOP', { reason: 'BLOCKED', detail });
@@ -158,6 +192,29 @@ if (hookEvent === 'PreToolUse') {
     }
   }
 
+  // --- test-tamper: the classic agent cheat, caught the moment it is typed.
+  // Tests are RED and the very next edit touches a TEST file in a way that
+  // weakens it (skip markers added, assertions removed) — that is not a fix,
+  // that is doctoring the thermometer. Deterministic, no LLM, zero latency.
+  if (['Edit', 'Write', 'MultiEdit'].includes(ev.tool_name) && (state.lastTestFail || 0) > (state.lastTestPass || 0)) {
+    const file = toolInput.file_path || '';
+    const isTestFile = guard && guard.testPaths
+      ? (guard.testPaths || []).some((p) => { try { return new RegExp(p, 'i').test(file); } catch { return false; } })
+      : /test/i.test(file);
+    if (isTestFile) {
+      const oldS = String(toolInput.old_string || '');
+      const newS = String(toolInput.new_string ?? toolInput.content ?? '');
+      const SKIP = /\b(it|test|describe)\.(skip|todo)\b|\bxit\(|\bxdescribe\(|DISABLED_|GTEST_SKIP|@unittest\.skip|pytest\.mark\.skip/;
+      const count = (str) => (str.match(/\b(assert|expect|EXPECT_|ASSERT_|assert_eq|require)\w*\s*\(/g) || []).length;
+      const addsSkip = SKIP.test(newS) && !SKIP.test(oldS);
+      const dropsAsserts = oldS && count(newS) < count(oldS);
+      if (addsSkip || dropsAsserts) {
+        await block({ id: 'test-tamper', why: 'tests are RED and this edit weakens the test instead of fixing the code' },
+          `${addsSkip ? 'a skip marker is being added to' : 'assertions are being removed from'} ${path.basename(file)} while the suite is red — fix the CODE; if the test itself is truly wrong, say so to the user and change it with the suite green`);
+      }
+    }
+  }
+
   // --- loop-stop: rabadon's founding guarantee, applied to the session. ---
   // The same bash command re-run with NO code change in between is an agent
   // spinning in place ("loops that were meant to proofread didn't stop").
@@ -181,6 +238,8 @@ if (hookEvent === 'PreToolUse') {
   const label = ev.tool_name === 'Bash'
     ? `bash: ${String(toolInput.command || '').slice(0, 80)}`
     : `${ev.tool_name.toLowerCase()}: ${path.basename(toolInput.file_path || toolInput.pattern || toolInput.url || '') || '?'}`;
+  remember(state, label);
+  saveState(state);
   await done('STEP_START', { step: label });
 }
 
@@ -226,11 +285,49 @@ else if (hookEvent === 'PostToolUse') {
         ? new RegExp(guard.testPassPattern, 'i').test(out)
         : /100% tests passed|0 failed|pass 1?\d+\n.*fail 0/i.test(out);
       state.lastTestRun = now;
-      if (passed) state.lastTestPass = now;
+      if (passed) { state.lastTestPass = now; state.lastTestFail = 0; }
+      else state.lastTestFail = now;
       saveState(state);
-      await done(passed ? 'STEP_OK' : 'CHECK_FAIL', passed
-        ? { step: 'tests: GREEN' }
-        : { step: 'tests', fails: [{ check: 'test-run', why: 'test command ran but did not report green' }] });
+      if (passed) await done('STEP_OK', { step: 'tests: GREEN' });
+
+      // --- INCIDENT LOOP: see the problem live -> say WHICH gate it belongs
+      // to -> produce the fix -> AUTHOR A NEW GATE so this class of break is
+      // caught pre-action next time. The guard grows out of real incidents.
+      emit('CHECK_FAIL', { step: 'tests', fails: [{ check: 'test-run', why: 'test run is RED' }] });
+      let advice = '';
+      if (process.env.RABADON_JUDGE !== '0') {
+        emit('REPAIR_START', { step: 'diagnose', attempt: 1, fixing: ['red-tests'] });
+        try {
+          const diag = await diagnose({
+            goal: state.goalPrompt || '(no goal captured)',
+            recent: (state.recent || []).slice(-15),
+            failOutput: out.slice(-4000),
+            cmd,
+          });
+          if (diag) {
+            advice = `\nrabadon diagnosis:\n  where: ${diag.where}\n  cause: ${diag.cause}\n  fix:   ${diag.fix}\n`;
+            if (diag.newRule && guard) {
+              try {
+                new RegExp(diag.newRule.deny || diag.newRule.match, 'i'); // must compile
+                const target = diag.newRule.deny ? 'bash' : 'protectedPaths';
+                const fullGuard = JSON.parse(fs.readFileSync(guardPath, 'utf8'));
+                if (!(fullGuard[target] || []).some((r) => r.id === diag.newRule.id)) {
+                  fullGuard[target] = [...(fullGuard[target] || []), { ...diag.newRule, authoredBy: 'incident', incidentAt: new Date().toISOString() }];
+                  fs.writeFileSync(guardPath, JSON.stringify(fullGuard, null, 2) + '\n');
+                  emit('REPAIR_OK', { step: `new gate: ${diag.newRule.id}`, attempt: 1 });
+                  advice += `  new gate installed: ${diag.newRule.id} — this class of break is now caught BEFORE it happens.\n`;
+                }
+              } catch { /* an invalid rule is dropped, never installed */ }
+            }
+          }
+        } catch { emit('REPAIR_FAIL', { step: 'diagnose', attempt: 1, why: 'diagnosis unavailable' }); }
+      }
+      await flush();
+      emit.close();
+      // exit 2 on PostToolUse = feedback to the agent (the action already ran);
+      // the diagnosis lands in the session the moment the red is seen
+      process.stderr.write(`rabadon: tests are RED.${advice || ' Fix the failure before moving on.'}\n`);
+      process.exit(2);
     } else {
       await done('STEP_OK', { step: `ran: ${cmd.slice(0, 80)}` });
     }
