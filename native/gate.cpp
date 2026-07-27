@@ -231,36 +231,163 @@ static std::vector<string> parse_str_array(const string& j, const string& key) {
   return out;
 }
 
-// ---------- native session state (simple key=value file) ----------
+// ---------- session state: .rabadon/state.json, ONE owner ----------
+// Fixed schema, shared with the (retiring) node cold paths:
+//   { lastCodeEdit, lastTestPass, lastTestFail, lastTestRun,
+//     lastDiagAt, lastDiagSig,
+//     sessions: { "<sid16>": { goalPrompt, goalTs, touchedDirs[],
+//        fanoutWarned, lastCmd, lastCmdTs, cmdRepeat, actionCount,
+//        offTarget, driftChallenged, recent:[{t,s}], recentEv[],
+//        tsOffset, tokensOut, tokensIn } } }
+// The writer serializes ONLY this schema — which is itself the root fix for
+// the stray top-level "s" key: the old JS writer serialized its session
+// alias next to the sessions map, doubling every session on every save.
 
-struct NativeState {
-  string path;
+// the balanced {...} object starting at the first '{' at/after `from`
+static string take_obj(const string& j, size_t from) {
+  size_t a = j.find('{', from);
+  if (a == string::npos) return "";
+  int depth = 0;
+  for (size_t i = a; i < j.size(); i++) {
+    char c = j[i];
+    if (c == '"') { for (i++; i < j.size(); i++) { if (j[i] == '\\') i++; else if (j[i] == '"') break; } continue; }
+    if (c == '{') depth++;
+    else if (c == '}') { depth--; if (!depth) return j.substr(a, i - a + 1); }
+  }
+  return "";
+}
+
+static bool get_bool(const string& j, const string& key) {
+  const string pat = "\"" + key + "\"";
+  size_t k = j.find(pat);
+  if (k == string::npos) return false;
+  size_t colon = j.find(':', k + pat.size());
+  if (colon == string::npos) return false;
+  size_t i = colon + 1;
+  while (i < j.size() && isspace((unsigned char)j[i])) i++;
+  return j.compare(i, 4, "true") == 0;
+}
+
+// raw {..} object substrings of the array under `key`
+static std::vector<string> parse_obj_array(const string& j, const string& key) {
+  std::vector<string> out;
+  size_t sec = j.find("\"" + key + "\"");
+  if (sec == string::npos) return out;
+  size_t arr = j.find('[', sec);
+  if (arr == string::npos) return out;
+  int depth = 0; size_t objStart = 0;
+  for (size_t i = arr; i < j.size(); i++) {
+    char c = j[i];
+    if (c == '"') { for (i++; i < j.size(); i++) { if (j[i] == '\\') i++; else if (j[i] == '"') break; } continue; }
+    if (c == '{') { if (depth == 1) objStart = i; depth++; }
+    else if (c == '}') { depth--; if (depth == 1) out.push_back(j.substr(objStart, i - objStart + 1)); }
+    else if (c == '[') depth++;
+    else if (c == ']') { depth--; if (!depth) break; }
+  }
+  return out;
+}
+
+struct Sess {
+  string goalPrompt; long long goalTs = 0;
+  std::vector<string> touchedDirs; bool fanoutWarned = false;
   string lastCmd; long long lastCmdTs = 0; int cmdRepeat = 1;
-  int offTarget = 0; int driftChallenged = 0;
-  std::vector<string> recentIds;
+  int actionCount = 0, offTarget = 0, driftChallenged = 0;
+  std::vector<std::pair<long long, string>> recent;
+  std::vector<string> recentEv;
+  long long tsOffset = 0, tokensOut = 0, tokensIn = 0;
+};
+
+struct State {
+  string path;
+  long long lastCodeEdit = 0, lastTestPass = 0, lastTestFail = 0, lastTestRun = 0, lastDiagAt = 0;
+  string lastDiagSig;
+  std::vector<std::pair<string, Sess>> sessions; // insertion-ordered, max 4
+
+  Sess& session(const string& sid) {
+    for (auto& kv : sessions) if (kv.first == sid) return kv.second;
+    sessions.push_back({ sid, Sess{} });
+    if (sessions.size() > 4) sessions.erase(sessions.begin(), sessions.end() - 4);
+    return sessions.back().second;
+  }
 
   void load() {
-    std::ifstream f(path);
-    string line;
-    while (std::getline(f, line)) {
-      size_t eq = line.find('=');
-      if (eq == string::npos) continue;
-      string k = line.substr(0, eq), v = line.substr(eq + 1);
-      if (k == "lastCmd") lastCmd = v;
-      else if (k == "lastCmdTs") lastCmdTs = atoll(v.c_str());
-      else if (k == "cmdRepeat") cmdRepeat = atoi(v.c_str());
-      else if (k == "offTarget") offTarget = atoi(v.c_str());
-      else if (k == "driftChallenged") driftChallenged = atoi(v.c_str());
-      else if (k == "id") recentIds.push_back(v);
+    const string j = read_file(path);
+    if (j.empty()) return;
+    lastCodeEdit = get_num(j, "lastCodeEdit");
+    lastTestPass = get_num(j, "lastTestPass");
+    lastTestFail = get_num(j, "lastTestFail");
+    lastTestRun  = get_num(j, "lastTestRun");
+    lastDiagAt   = get_num(j, "lastDiagAt");
+    lastDiagSig  = get_str(j, "lastDiagSig");
+    size_t sp = j.find("\"sessions\"");
+    if (sp == string::npos) return;
+    const string smap = take_obj(j, j.find(':', sp + 10));
+    for (size_t i = 1; i + 1 < smap.size();) {
+      size_t q = smap.find('"', i);
+      if (q == string::npos) break;
+      string sid;
+      size_t q2 = q + 1;
+      for (; q2 < smap.size(); q2++) { if (smap[q2] == '\\') { q2++; continue; } if (smap[q2] == '"') break; sid += smap[q2]; }
+      size_t colon = smap.find(':', q2);
+      if (colon == string::npos) break;
+      size_t objAt = smap.find('{', colon);
+      const string obj = take_obj(smap, colon);
+      if (obj.empty() || objAt == string::npos) break;
+      Sess s;
+      s.goalPrompt = get_str(obj, "goalPrompt");
+      s.goalTs = get_num(obj, "goalTs");
+      s.touchedDirs = parse_str_array(obj, "touchedDirs");
+      s.fanoutWarned = get_bool(obj, "fanoutWarned");
+      s.lastCmd = get_str(obj, "lastCmd");
+      s.lastCmdTs = get_num(obj, "lastCmdTs");
+      s.cmdRepeat = (int)get_num(obj, "cmdRepeat"); if (s.cmdRepeat < 1) s.cmdRepeat = 1;
+      s.actionCount = (int)get_num(obj, "actionCount");
+      s.offTarget = (int)get_num(obj, "offTarget");
+      s.driftChallenged = (int)get_num(obj, "driftChallenged");
+      for (const auto& r : parse_obj_array(obj, "recent"))
+        s.recent.push_back({ get_num(r, "t"), get_str(r, "s") });
+      s.recentEv = parse_str_array(obj, "recentEv");
+      s.tsOffset = get_num(obj, "tsOffset");
+      s.tokensOut = get_num(obj, "tokensOut");
+      s.tokensIn = get_num(obj, "tokensIn");
+      sessions.push_back({ sid, s });
+      i = objAt + obj.size();
     }
+    if (sessions.size() > 4) sessions.erase(sessions.begin(), sessions.end() - 4);
   }
+
   void save() {
+    std::ostringstream o;
+    o << "{\"lastCodeEdit\":" << lastCodeEdit << ",\"lastTestPass\":" << lastTestPass
+      << ",\"lastTestFail\":" << lastTestFail << ",\"lastTestRun\":" << lastTestRun
+      << ",\"lastDiagAt\":" << lastDiagAt
+      << ",\"lastDiagSig\":\"" << json_escape(lastDiagSig) << "\",\"sessions\":{";
+    bool firstS = true;
+    for (const auto& kv : sessions) {
+      const Sess& s = kv.second;
+      if (!firstS) o << ",";
+      firstS = false;
+      o << "\"" << json_escape(kv.first) << "\":{"
+        << "\"goalPrompt\":\"" << json_escape(s.goalPrompt) << "\",\"goalTs\":" << s.goalTs
+        << ",\"touchedDirs\":[";
+      for (size_t i = 0; i < s.touchedDirs.size(); i++)
+        o << (i ? "," : "") << "\"" << json_escape(s.touchedDirs[i]) << "\"";
+      o << "],\"fanoutWarned\":" << (s.fanoutWarned ? "true" : "false")
+        << ",\"lastCmd\":\"" << json_escape(s.lastCmd) << "\",\"lastCmdTs\":" << s.lastCmdTs
+        << ",\"cmdRepeat\":" << s.cmdRepeat << ",\"actionCount\":" << s.actionCount
+        << ",\"offTarget\":" << s.offTarget << ",\"driftChallenged\":" << s.driftChallenged
+        << ",\"recent\":[";
+      for (size_t i = 0; i < s.recent.size(); i++)
+        o << (i ? "," : "") << "{\"t\":" << s.recent[i].first << ",\"s\":\"" << json_escape(s.recent[i].second) << "\"}";
+      o << "],\"recentEv\":[";
+      for (size_t i = 0; i < s.recentEv.size(); i++)
+        o << (i ? "," : "") << "\"" << json_escape(s.recentEv[i]) << "\"";
+      o << "],\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
+        << ",\"tokensIn\":" << s.tokensIn << "}";
+    }
+    o << "}}";
     std::ofstream f(path, std::ios::trunc);
-    if (!f) return;
-    f << "lastCmd=" << lastCmd << "\nlastCmdTs=" << lastCmdTs << "\ncmdRepeat=" << cmdRepeat << "\n";
-    f << "offTarget=" << offTarget << "\ndriftChallenged=" << driftChallenged << "\n";
-    size_t from = recentIds.size() > 16 ? recentIds.size() - 16 : 0;
-    for (size_t i = from; i < recentIds.size(); i++) f << "id=" << recentIds[i] << "\n";
+    if (f) f << o.str();
   }
 };
 
@@ -329,15 +456,22 @@ int main(int argc, char** argv) {
   em.drill = sid.rfind("fleet-", 0) == 0 || sid.rfind("doctor-", 0) == 0;
   em.open_sock();
 
-  // twin-delivery dedupe on tool_use_id (same law as the node gate)
+  // one state file, one owner. the old parallel state-native-*.txt store is
+  // retired — removed on sight so no stale twin survives the migration.
   mkdir((cwd + "/.rabadon").c_str(), 0755);
-  NativeState st;
-  st.path = cwd + "/.rabadon/state-native-" + (sid.empty() ? "default" : sid.substr(0, 16)) + ".txt";
-  st.load();
+  const string sidKey = sid.empty() ? "default" : sid.substr(0, 16);
+  unlink((cwd + "/.rabadon/state-native-" + sidKey + ".txt").c_str());
+  State stt;
+  stt.path = cwd + "/.rabadon/state.json";
+  stt.load();
+  Sess& ss = stt.session(sidKey);
+
+  // twin-delivery dedupe on tool_use_id (same law as the node gate)
   if (!toolUseId.empty()) {
     const string key = "PreToolUse:" + toolUseId;
-    for (const auto& id : st.recentIds) if (id == key) return 0;
-    st.recentIds.push_back(key);
+    for (const auto& id : ss.recentEv) if (id == key) return 0;
+    ss.recentEv.push_back(key);
+    if (ss.recentEv.size() > 12) ss.recentEv.erase(ss.recentEv.begin(), ss.recentEv.end() - 12);
   }
 
   const string guardRaw = read_file(cwd + "/.rabadon/guard.json");
@@ -346,7 +480,7 @@ int main(int argc, char** argv) {
   auto block = [&](const string& ruleId, const string& why, const string& detail) {
     em.emit("CHECK_FAIL", "\"step\":\"" + json_escape(toolName) + "\",\"fails\":[{\"check\":\"" + json_escape(ruleId) + "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
     em.emit("STOP", "\"reason\":\"BLOCKED\",\"detail\":\"" + json_escape(detail) + "\"");
-    st.save();
+    stt.save();
     fprintf(stderr,
       "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n"
       "(user override: add \"%s\" to disabled[] in .rabadon/guard.json, or `rabadon off` to pause supervision)\n",
@@ -359,11 +493,11 @@ int main(int argc, char** argv) {
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
         if (rx_test(r.pattern, command))
           block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
-      // push gate needs to RUN the suite — that is node's cold path, delegate
-      if (rx_test("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) && guardRaw.find("\"pushGate\"") != string::npos) {
-        st.save();
+      // push gate needs to RUN the suite — that is node's cold path. Delegate
+      // WITHOUT saving: node does its own bookkeeping on this event, and a
+      // pre-saved dedupe key or loop counter would double every count.
+      if (rx_test("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) && guardRaw.find("\"pushGate\"") != string::npos)
         return delegate_to_node(gateMjs, raw);
-      }
     }
     if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit" || toolName == "NotebookEdit") {
       for (const auto& r : parse_rules(guardRaw, "protectedPaths", "match", disabled))
@@ -404,9 +538,9 @@ int main(int argc, char** argv) {
       bool onArea = false;
       for (const auto& a : areas) if (rx_test(a, rel)) { onArea = true; break; }
       if (!areas.empty() && !onArea && !onAnti) {
-        st.offTarget++;
-        if (st.offTarget >= 5 && !st.driftChallenged && !ruleOff("promise-off-target")) {
-          st.driftChallenged = 1;
+        ss.offTarget++;
+        if (ss.offTarget >= 5 && !ss.driftChallenged && !ruleOff("promise-off-target")) {
+          ss.driftChallenged = 1;
           block("promise-off-target",
             "5 edits this session landed outside the promised areas — the session is drifting from its star",
             "star: " + star + " — latest off-target file: " + rel +
@@ -416,12 +550,9 @@ int main(int argc, char** argv) {
     }
   }
 
-  // test-tamper: suite red (node state) + a test-file edit that weakens it
+  // test-tamper: suite red + a test-file edit that weakens it
   if ((toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") && !filePath.empty()) {
-    const string nodeState = read_file(cwd + "/.rabadon/state.json");
-    long long lastFail = get_num(nodeState, "lastTestFail");
-    long long lastPass = get_num(nodeState, "lastTestPass");
-    if (lastFail > lastPass) {
+    if (stt.lastTestFail > stt.lastTestPass) {
       bool isTest = false;
       if (guardRaw.find("\"testPaths\"") != string::npos) {
         for (const auto& pat : parse_str_array(guardRaw, "testPaths"))
@@ -448,19 +579,23 @@ int main(int argc, char** argv) {
   // loop-stop: same non-read-only command, 3rd time, no code edit in between
   if (toolName == "Bash" && !command.empty() &&
       !rx_test("^(git\\s+(status|diff|log|show|branch)|ls|cat|head|tail|grep|rg|find|pwd|wc|echo|which|node\\s+--check)\\b", command)) {
-    long long lastCodeEdit = get_num(read_file(cwd + "/.rabadon/state.json"), "lastCodeEdit");
-    bool editedBetween = lastCodeEdit > st.lastCmdTs;
-    if (st.lastCmd == command && !editedBetween) st.cmdRepeat++;
-    else st.cmdRepeat = 1;
-    st.lastCmd = command;
-    st.lastCmdTs = now_ms();
-    if (st.cmdRepeat >= 3)
+    bool editedBetween = stt.lastCodeEdit > ss.lastCmdTs;
+    if (ss.lastCmd == command && !editedBetween) ss.cmdRepeat++;
+    else ss.cmdRepeat = 1;
+    ss.lastCmd = command;
+    ss.lastCmdTs = now_ms();
+    if (ss.cmdRepeat >= 3)
       block("loop-stop", "the same command has now run 3x with no code change in between — a loop, not progress",
         "looping on: " + command.substr(0, 120));
   }
 
+  // the trail: a diagnosis needs to know WHERE the session is, not just that
+  // it crashed — same law as the node gate's remember()
   string label = toolName == "Bash" ? ("bash: " + command.substr(0, 80)) : (toolName + ": " + filePath.substr(filePath.rfind('/') + 1));
+  ss.recent.push_back({ now_ms(), label.substr(0, 120) });
+  if (ss.recent.size() > 30) ss.recent.erase(ss.recent.begin(), ss.recent.end() - 30);
+  ss.actionCount++;
   em.emit("STEP_START", "\"step\":\"" + json_escape(label) + "\"");
-  st.save();
+  stt.save();
   return 0;
 }

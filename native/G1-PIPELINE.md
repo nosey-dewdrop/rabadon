@@ -66,7 +66,9 @@ S7. **The orphans are buried.** `core/rabadon.mjs`, `core/wrap.mjs`,
 
 ## status
 
-- [ ] S1
+- [x] S1 — state.json single-owner native writer; stray `s` alias dead on
+      first save; loop/dedupe/trail counters unified; session_test 7/7,
+      full native 39/39, js 47/47
 - [ ] S2
 - [ ] S3
 - [ ] S4
