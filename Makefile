@@ -20,6 +20,7 @@ test: native/rabadon-drift native/rabadon-verify native/rabadon-loop
 	./native/drift_test.sh
 	./native/verify_test.sh
 	./native/loop_test.sh
+	./native/regression_demo.sh
 
 clean:
 	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do

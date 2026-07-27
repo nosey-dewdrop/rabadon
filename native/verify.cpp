@@ -146,6 +146,20 @@ int main(int argc, char** argv) {
       if (rc != 0) { printf("FAIL differential [%s]: command errored (exit %d)\n", run.c_str(), rc); failed++; }
       else if (trim(out) != trim(expect)) { printf("FAIL differential [%s]: behavior changed — got '%s', baseline '%s'\n", run.c_str(), trim(out).substr(0,80).c_str(), trim(expect).substr(0,80).c_str()); failed++; }
 
+    } else if (type == "testsuite") {
+      // the behavior gate: run the project's OWN test suite. This is the answer
+      // to "where's the ground-truth data" — there is no dataset to find, the
+      // oracle is the customer's real tests. A broken edit that a shallow check
+      // (file exists / syntax ok) waves through is caught here the moment the
+      // real suite goes red, and the failing test is named in the report.
+      const string run = obj_str(it, "run");
+      int rc = 0; string out = run_cmd(run, dir, &rc);
+      if (rc != 0) {
+        string tail = out.size() > 300 ? out.substr(out.size() - 300) : out;
+        printf("FAIL testsuite [%s]: the project's own suite is RED (exit %d)\n...%s\n", run.c_str(), rc, tail.c_str());
+        failed++;
+      }
+
     } else if (type == "forbidden") {
       // a path the repair must not alter. `sha` is the fingerprint of the
       // known-good bytes; if it changed, the repair cheated by editing the
