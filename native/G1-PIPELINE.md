@@ -79,7 +79,13 @@ S7. **The orphans are buried.** `core/rabadon.mjs`, `core/wrap.mjs`,
       authoring, all C++; run_claude spawns the model with RABADON_OFF=1
       (recursion root-fix); 53/53 differential node==native parity across every
       branch; native 100/100, js 47/47
-- [ ] S4
+- [x] S4 — the hooks are binaries: settings.json PostToolUse rewired to
+      native, so NO rabadon hook entry calls node. The push gate is native too
+      (`run_shell` runs the project's own suite, green→allow+REPAIR_OK, red→
+      block+REPAIR_FAIL, hanging suite→killed; 9/9 pushgate proofs), so
+      `delegate_to_node` is deleted — the gate binary depends on nothing but a
+      shell. (gate.mjs the FILE survives only as the differential test oracle
+      and `rabadon exec`; it dies at S5/S7.) native 109/109, js 47/47.
 - [ ] S5
 - [ ] S6
 - [ ] S7

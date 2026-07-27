@@ -20,6 +20,7 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/gate_promise_test.sh
 	./native/session_test.sh
 	./native/postuse_test.sh
+	./native/pushgate_test.sh
 	./native/drift_test.sh
 	./native/verify_test.sh
 	./native/loop_test.sh

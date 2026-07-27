@@ -623,15 +623,58 @@ struct State {
   }
 };
 
-// ---------- delegation to the node gate (cold paths) ----------
-
-static int delegate_to_node(const string& gateMjs, const string& raw) {
-  FILE* p = popen(("node '" + gateMjs + "'").c_str(), "w");
-  if (!p) return 0; // node missing -> fail open
-  fwrite(raw.data(), 1, raw.size(), p);
-  int st = pclose(p);
-  if (st == -1) return 0;
-  return WIFEXITED(st) ? WEXITSTATUS(st) : 0;
+// ---------- run the project's own suite (the push gate) ----------
+// A bounded shell child, stdout+stderr captured, SIGKILL on timeout. The push
+// gate uses this to RUN the project's real test command and decide on the REAL
+// result — telling is a warning, solving is the product. *exitCode = -1 on
+// timeout/spawn failure. This is the last thing that used to need node; the
+// gate binary now depends on nothing but a shell.
+static string run_shell(const string& cmd, int timeoutSec, size_t maxBytes, int* exitCode) {
+  *exitCode = -1;
+  int outPipe[2];
+  if (pipe(outPipe) != 0) return "";
+  pid_t pid = fork();
+  if (pid < 0) { close(outPipe[0]); close(outPipe[1]); return ""; }
+  if (pid == 0) {
+    dup2(outPipe[1], STDOUT_FILENO);
+    dup2(outPipe[1], STDERR_FILENO);
+    int devnull = open("/dev/null", O_RDONLY);
+    if (devnull >= 0) dup2(devnull, STDIN_FILENO);
+    close(outPipe[0]); close(outPipe[1]);
+    setenv("RABADON_OFF", "1", 1); // the suite run is work, not a supervised action
+    execlp("sh", "sh", "-c", cmd.c_str(), (char*)nullptr);
+    _exit(127);
+  }
+  close(outPipe[1]);
+  fcntl(outPipe[0], F_SETFL, O_NONBLOCK);
+  string out;
+  const long long deadline = now_ms() + (long long)timeoutSec * 1000;
+  bool killed = false;
+  for (;;) {
+    char buf[8192];
+    ssize_t r = read(outPipe[0], buf, sizeof(buf));
+    if (r > 0) { if (out.size() < maxBytes) out.append(buf, (size_t)std::min((size_t)r, maxBytes - out.size())); continue; }
+    if (r == 0) break;
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (now_ms() > deadline) { kill(pid, SIGKILL); killed = true; break; }
+      int st; pid_t w = waitpid(pid, &st, WNOHANG);
+      if (w == pid) {
+        for (;;) { ssize_t r2 = read(outPipe[0], buf, sizeof(buf)); if (r2 <= 0) break;
+          if (out.size() < maxBytes) out.append(buf, (size_t)std::min((size_t)r2, maxBytes - out.size())); }
+        close(outPipe[0]);
+        if (WIFEXITED(st)) *exitCode = WEXITSTATUS(st);
+        return out;
+      }
+      struct timespec nap{0, 5 * 1000 * 1000}; nanosleep(&nap, nullptr);
+      continue;
+    }
+    break;
+  }
+  close(outPipe[0]);
+  int st; waitpid(pid, &st, 0);
+  if (killed) { *exitCode = -1; return out; }
+  if (WIFEXITED(st)) *exitCode = WEXITSTATUS(st);
+  return out;
 }
 
 // ---------- the incident brain (opus-class) ----------
@@ -708,12 +751,6 @@ int main(int argc, char** argv) {
   // escape hatches first — off is off, instantly
   const char* offEnv = getenv("RABADON_OFF");
   if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")) return 0;
-
-  // resolve our home (…/native/rabadon-gate -> repo root)
-  string self = argv[0];
-  size_t slash = self.rfind('/');
-  string root = slash == string::npos ? "." : self.substr(0, slash) + "/..";
-  const string gateMjs = root + "/hooks/gate.mjs";
 
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
   // re-anchor — the LLM stays off the hot path (bounded `claude -p`).
@@ -1185,11 +1222,41 @@ int main(int argc, char** argv) {
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
         if (rx_test(r.pattern, command))
           block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
-      // push gate needs to RUN the suite — that is node's cold path. Delegate
-      // WITHOUT saving: node does its own bookkeeping on this event, and a
-      // pre-saved dedupe key or loop counter would double every count.
-      if (rx_test("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) && guardRaw.find("\"pushGate\"") != string::npos)
-        return delegate_to_node(gateMjs, raw);
+      // push gate: rabadon RUNS the project's own suite here and opens the gate
+      // on the REAL result — telling is a warning, solving is the product. This
+      // was the last thing that delegated to node; it is native now.
+      if (rx_test("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) &&
+          guardRaw.find("\"pushGate\"") != string::npos && stt.lastCodeEdit > stt.lastTestPass) {
+        size_t pg = guardRaw.find("\"pushGate\"");
+        const string pgObj = take_obj(guardRaw, guardRaw.find(':', pg));
+        const string runCmd = get_str(pgObj, "run");
+        const string pgWhy = get_str(pgObj, "why");
+        const string why = pgWhy.empty() ? "tests must be green before push" : pgWhy;
+        long long tsec = get_num(pgObj, "timeoutSec"); if (tsec <= 0) tsec = 900;
+        const string passPat = get_str(guardRaw, "testPassPattern");
+        if (runCmd.empty())
+          block("push-gate", why, "code was edited after the last passing test run — run the test suite first");
+        em.emit("REPAIR_START", "\"step\":\"push-gate\",\"attempt\":1,\"fixing\":[\"tests-not-green\"]");
+        int code = -1;
+        const string out = run_shell(runCmd, (int)tsec, 16 * 1024 * 1024, &code);
+        const bool green = (code == 0) && (passPat.empty() ? true : rx_test(passPat, out));
+        if (green) {
+          stt.lastTestPass = now_ms(); stt.lastTestRun = now_ms();
+          em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1");
+          // fall through: the push is now legitimately allowed
+        } else {
+          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"why\":\"tests not green\"");
+          string fails; {
+            std::istringstream is(out); string ln; std::vector<string> keep;
+            while (std::getline(is, ln)) if (rx_test("fail|error|\\*\\*\\*|tests passed", ln)) keep.push_back(ln);
+            size_t from = keep.size() > 15 ? keep.size() - 15 : 0;
+            for (size_t i = from; i < keep.size(); i++) fails += keep[i] + "\n";
+          }
+          if (fails.empty()) fails = out.size() > 800 ? out.substr(out.size() - 800) : out;
+          block("push-gate", why, "rabadon ran the tests itself (" + runCmd + ") — NOT GREEN.\n" + fails +
+            "Fix the failure; rabadon will re-run the suite on your next push attempt.");
+        }
+      }
     }
     if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit" || toolName == "NotebookEdit") {
       for (const auto& r : parse_rules(guardRaw, "protectedPaths", "match", disabled))
