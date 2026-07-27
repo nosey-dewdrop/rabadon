@@ -424,8 +424,11 @@ int main(int argc, char** argv) {
   string root = slash == string::npos ? "." : self.substr(0, slash) + "/..";
   const string gateMjs = root + "/hooks/gate.mjs";
 
-  // cold paths keep the full node behavior (test analysis, diagnosis, ledger)
-  if (hook != "PreToolUse") return delegate_to_node(gateMjs, raw);
+  // PostToolUse keeps the full node behavior until G1/S3 (test analysis,
+  // diagnosis, re-anchor). Everything else is native now.
+  if (hook == "PostToolUse") return delegate_to_node(gateMjs, raw);
+  if (hook != "PreToolUse" && hook != "UserPromptSubmit" &&
+      hook != "SessionStart" && hook != "Stop") return 0;
 
   const string toolName = get_str(raw, "tool_name");
   size_t ti = raw.find("\"tool_input\"");
@@ -466,16 +469,163 @@ int main(int argc, char** argv) {
   stt.load();
   Sess& ss = stt.session(sidKey);
 
-  // twin-delivery dedupe on tool_use_id (same law as the node gate)
-  if (!toolUseId.empty()) {
-    const string key = "PreToolUse:" + toolUseId;
-    for (const auto& id : ss.recentEv) if (id == key) return 0;
-    ss.recentEv.push_back(key);
-    if (ss.recentEv.size() > 12) ss.recentEv.erase(ss.recentEv.begin(), ss.recentEv.end() - 12);
+  // twin-delivery dedupe (same law as the node gate): tool events carry a
+  // unique tool_use_id; non-tool events (Stop/SessionStart/prompt) dedupe on
+  // a 2s time bucket, which only ever collides with a genuine twin.
+  {
+    string key;
+    if (!toolUseId.empty()) key = hook + ":" + toolUseId;
+    else if (hook != "PreToolUse") key = hook + ":" + std::to_string(now_ms() / 2000);
+    if (!key.empty()) {
+      for (const auto& id : ss.recentEv) if (id == key) return 0;
+      ss.recentEv.push_back(key);
+      if (ss.recentEv.size() > 12) ss.recentEv.erase(ss.recentEv.begin(), ss.recentEv.end() - 12);
+    }
   }
 
   const string guardRaw = read_file(cwd + "/.rabadon/guard.json");
   const auto disabled = parse_disabled(guardRaw);
+
+  // ---------- UserPromptSubmit: pin the session's goal ----------
+  if (hook == "UserPromptSubmit") {
+    const string prompt = get_str(raw, "prompt");
+    // root fix for goal poisoning: the gate's own recursive prompts (the
+    // diagnose/judge children run `claude -p` from inside a hook) must
+    // never be mistaken for the builder's goal
+    const bool recursive = prompt.rfind("You are rabadon", 0) == 0;
+    if (!recursive && !prompt.empty() &&
+        (ss.goalPrompt.empty() || now_ms() - ss.goalTs > 6LL * 3600 * 1000)) {
+      ss.goalPrompt = prompt.substr(0, 400);
+      ss.goalTs = now_ms();
+      // a new goal resets the drift trackers — a new task may live elsewhere
+      ss.touchedDirs.clear();
+      ss.fanoutWarned = false;
+      em.emit("RUN_START", "\"steps\":[\"goal: " + json_escape(ss.goalPrompt.substr(0, 100)) + "\"],\"bound\":{}");
+    }
+    stt.save();
+    return 0;
+  }
+
+  // ---------- SessionStart: reset + devridaim injection ----------
+  if (hook == "SessionStart") {
+    ss.touchedDirs.clear(); ss.fanoutWarned = false;
+    ss.cmdRepeat = 0; ss.lastCmd.clear(); ss.actionCount = 0;
+    stt.save();
+    // a fresh-enough handoff becomes session context via stdout — the new
+    // session opens already knowing where the last one stood
+    const string hpath = cwd + "/.rabadon/handoff.md";
+    struct stat hst;
+    if (stat(hpath.c_str(), &hst) == 0 && time(nullptr) - hst.st_mtime < 7 * 86400) {
+      const string h = read_file(hpath);
+      fwrite(h.data(), 1, h.size(), stdout);
+    }
+    const size_t nb = parse_rules(guardRaw, "bash", "deny", disabled).size();
+    const size_t np = parse_rules(guardRaw, "protectedPaths", "match", disabled).size();
+    const string steps = guardRaw.empty() ? "NO GUARD (observe only)"
+      : ("guard: " + std::to_string(nb) + " bash + " + std::to_string(np) + " path rules");
+    const string bound = guardRaw.empty() ? "{\"loopStop\":3,\"fanout\":5}"
+      : string("{\"pushGate\":") + (guardRaw.find("\"pushGate\"") != string::npos ? "true" : "false") + ",\"loopStop\":3,\"fanout\":5}";
+    em.emit("RUN_START", "\"steps\":[\"" + json_escape(steps) + "\"],\"bound\":" + bound);
+    return 0;
+  }
+
+  // ---------- Stop: token ledger + devridaim handoff ----------
+  if (hook == "Stop") {
+    // token ledger — REAL usage from the transcript, read incrementally from
+    // the last byte offset, never the whole file twice
+    const string tp = get_str(raw, "transcript_path");
+    struct stat tst;
+    if (!tp.empty() && stat(tp.c_str(), &tst) == 0) {
+      const long long size = tst.st_size;
+      const long long from = (ss.tsOffset > 0 && ss.tsOffset <= size) ? ss.tsOffset : 0;
+      if (size > from) {
+        std::ifstream f(tp, std::ios::binary);
+        f.seekg(from);
+        string win((size_t)(size - from), '\0');
+        f.read(&win[0], size - from);
+        long long inTok = 0, outTok = 0;
+        size_t ls = 0;
+        while (ls < win.size()) {
+          size_t le = win.find('\n', ls);
+          if (le == string::npos) le = win.size();
+          const string line = win.substr(ls, le - ls);
+          size_t u = line.find("\"usage\":");
+          if (u != string::npos) {
+            size_t o = line.find("\"output_tokens\":", u);
+            if (o != string::npos) {
+              outTok += atoll(line.c_str() + o + 16);
+              size_t i2 = line.find("\"input_tokens\":", u);
+              if (i2 != string::npos) inTok += atoll(line.c_str() + i2 + 15);
+            }
+          }
+          ls = le + 1;
+        }
+        ss.tsOffset = size;
+        ss.tokensOut += outTok;
+        ss.tokensIn += inTok;
+        em.emit("STEP_OK", "\"step\":\"tokens this session: " + std::to_string(ss.tokensOut) +
+          " out / " + std::to_string(ss.tokensIn) + " in\",\"tokens\":" + std::to_string(ss.tokensOut));
+      }
+    }
+
+    // devridaim — distill the session into .rabadon/handoff.md so the NEXT
+    // session (tomorrow, after a crash, after compact) starts where this one
+    // stood. Deterministic, from the trail — no model, no cost.
+    auto hhmmss = [](long long ms) {
+      time_t t = (time_t)(ms / 1000); struct tm tmv; localtime_r(&t, &tmv);
+      char b[16]; strftime(b, 16, "%H:%M:%S", &tmv); return string(b);
+    };
+    std::vector<string> caught;
+    {
+      const string spool = read_file(em.spoolPath);
+      const string pipeTag = "\"" + project + ":session\"";
+      size_t ls = 0;
+      while (ls < spool.size()) {
+        size_t le = spool.find('\n', ls);
+        if (le == string::npos) le = spool.size();
+        const string line = spool.substr(ls, le - ls);
+        if (line.find(pipeTag) != string::npos &&
+            line.find("\"ev\":\"STOP\"") != string::npos &&
+            line.find("\"reason\":\"BLOCKED\"") != string::npos) {
+          string d = get_str(line, "detail");
+          size_t nl = d.find('\n');
+          if (nl != string::npos) d = d.substr(0, nl);
+          caught.push_back(d.substr(0, 90));
+        }
+        ls = le + 1;
+      }
+      if (caught.size() > 6) caught.erase(caught.begin(), caught.end() - 6);
+    }
+    const string tests = stt.lastTestFail > stt.lastTestPass
+      ? ("RED (since " + hhmmss(stt.lastTestFail) + ")")
+      : stt.lastTestPass ? ("green (last pass " + hhmmss(stt.lastTestPass) + ")")
+      : string("not run this cycle");
+    std::ostringstream ho;
+    {
+      char iso[32]; time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv);
+      strftime(iso, 32, "%Y-%m-%dT%H:%M:%SZ", &tmv);
+      ho << "# rabadon devridaim — " << project << "\nupdated: " << iso << "\n\n";
+    }
+    ho << "## goal (as captured from the session)\n"
+       << (ss.goalPrompt.empty() ? "(no goal captured)" : ss.goalPrompt) << "\n\n";
+    ho << "## tests\n" << tests << "\n\n";
+    ho << "## caught today (blocked before happening)\n";
+    if (caught.empty()) ho << "- none\n";
+    else for (const auto& c : caught) ho << "- " << c << "\n";
+    ho << "\n## last moves\n";
+    if (ss.recent.empty()) ho << "- (none recorded)\n";
+    else {
+      size_t from8 = ss.recent.size() > 8 ? ss.recent.size() - 8 : 0;
+      for (size_t i = from8; i < ss.recent.size(); i++) ho << "- " << ss.recent[i].second << "\n";
+    }
+    ho << "\n## for the next session\n"
+       << "- if tests are RED above: that is the open front — start there.\n"
+       << "- the guard is law (.rabadon/guard.json); rules born from incidents carry authoredBy: incident.\n";
+    { std::ofstream hf(cwd + "/.rabadon/handoff.md", std::ios::trunc); if (hf) hf << ho.str(); }
+    stt.save();
+    em.emit("RUN_DONE", "\"verdict\":\"SESSION_TURN_DONE\",\"tokens\":0,\"depth\":0");
+    return 0;
+  }
 
   auto block = [&](const string& ruleId, const string& why, const string& detail) {
     em.emit("CHECK_FAIL", "\"step\":\"" + json_escape(toolName) + "\",\"fails\":[{\"check\":\"" + json_escape(ruleId) + "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
