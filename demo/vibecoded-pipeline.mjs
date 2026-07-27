@@ -3,7 +3,7 @@
 // This is the exact vibecoding failure mode: an LLM (or a tired human) writes a
 // data pipeline that runs clean on the happy path, passes a glance, and ships —
 // then silently corrupts real-world input in production. Nothing throws. No red.
-// It just quietly produces wrong output, the way Damla's pipelines "ended up
+// It just quietly produces wrong output, the way real vibecoded pipelines "end up
 // wrong in ways I hadn't imagined."
 //
 // The pipeline: take raw user records -> normalize -> compute a summary.
@@ -49,7 +49,7 @@ const vibecoded = {
 };
 
 // ---- the INTENT, expressed as cheap named checks (this is the "right check"
-//      Damla could never get right by hand — here it's one honest line each) ----
+//      a builder could never get right by hand — here it's one honest line each) ----
 const noRecordVanishes = named('noRecordVanishes', (out, input) =>
   out.length === input.length ? true
     : `normalize dropped ${input.length - out.length} record(s): ids ${input.filter((r) => !out.some((o) => o.id === r.id)).map((r) => r.id).join(',')} vanished silently`);

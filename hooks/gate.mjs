@@ -18,7 +18,7 @@
 //   stdin  = one JSON event {hook_event_name, cwd, tool_name, tool_input, ...}
 //   exit 0 = allow;  exit 2 = BLOCK, stderr is shown to the agent as feedback.
 //   The gate itself must never crash the session: an internal error allows
-//   (fail-open for the gate's own bugs, loudly logged — blocking Damla's work
+//   (fail-open for the gate's own bugs, loudly logged — blocking the builder's work
 //   because rabadon has a bug would make rabadon the problem it exists to kill).
 
 import fs from 'node:fs';

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # rabadon behavior gate — LIVE regression catch on a REAL test suite.
 #
-# The point Damla hammered: today rabadon caught none of the real errors. The
+# The hard point: today rabadon caught none of the real errors. The
 # reason was it only watched shell-actions, never ran the project's own tests.
 # This proves the fix on a REAL test runner (node --test), not hand-written
 # goldens: an agent-style edit breaks behavior; a shallow self-check (file
