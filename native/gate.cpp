@@ -209,11 +209,34 @@ static bool rx_test(const string& pattern, const string& text) {
   } catch (...) { return false; } // a broken rule must not take the gate down
 }
 
+// plain ["a","b"] string array under `key` (regex escapes preserved)
+static std::vector<string> parse_str_array(const string& j, const string& key) {
+  std::vector<string> out;
+  size_t sec = j.find("\"" + key + "\"");
+  if (sec == string::npos) return out;
+  size_t a = j.find('[', sec), b = j.find(']', a);
+  if (a == string::npos || b == string::npos) return out;
+  string body = j.substr(a, b - a);
+  size_t p = 0;
+  while ((p = body.find('"', p)) != string::npos) {
+    size_t q = p + 1; string pat;
+    for (; q < body.size(); q++) {
+      if (body[q] == '\\' && q + 1 < body.size()) { pat += body[q]; pat += body[q + 1]; q++; }
+      else if (body[q] == '"') break;
+      else pat += body[q];
+    }
+    out.push_back(json_unescape(pat));
+    p = q + 1;
+  }
+  return out;
+}
+
 // ---------- native session state (simple key=value file) ----------
 
 struct NativeState {
   string path;
   string lastCmd; long long lastCmdTs = 0; int cmdRepeat = 1;
+  int offTarget = 0; int driftChallenged = 0;
   std::vector<string> recentIds;
 
   void load() {
@@ -226,6 +249,8 @@ struct NativeState {
       if (k == "lastCmd") lastCmd = v;
       else if (k == "lastCmdTs") lastCmdTs = atoll(v.c_str());
       else if (k == "cmdRepeat") cmdRepeat = atoi(v.c_str());
+      else if (k == "offTarget") offTarget = atoi(v.c_str());
+      else if (k == "driftChallenged") driftChallenged = atoi(v.c_str());
       else if (k == "id") recentIds.push_back(v);
     }
   }
@@ -233,6 +258,7 @@ struct NativeState {
     std::ofstream f(path, std::ios::trunc);
     if (!f) return;
     f << "lastCmd=" << lastCmd << "\nlastCmdTs=" << lastCmdTs << "\ncmdRepeat=" << cmdRepeat << "\n";
+    f << "offTarget=" << offTarget << "\ndriftChallenged=" << driftChallenged << "\n";
     size_t from = recentIds.size() > 16 ? recentIds.size() - 16 : 0;
     for (size_t i = from; i < recentIds.size(); i++) f << "id=" << recentIds[i] << "\n";
   }
@@ -346,6 +372,50 @@ int main(int argc, char** argv) {
     }
   }
 
+  // ---------- promise: the goal contract enforced IN the session ----------
+  // .rabadon/promise.json declares the project's north star (drift.cpp
+  // measures it at session end). The gate refuses the betrayal at the moment
+  // it is attempted: an edit landing on an anti-path is blocked, and edits
+  // creeping outside the promised areas are challenged once per session.
+  // No promise, or a broken one -> nothing to enforce (fail open).
+  const bool isEditTool = toolName == "Edit" || toolName == "Write" ||
+                          toolName == "MultiEdit" || toolName == "NotebookEdit";
+  auto ruleOff = [&](const char* id) {
+    for (const auto& d : disabled) if (d == id) return true;
+    return false;
+  };
+  if (isEditTool && !filePath.empty()) {
+    // the promise is authored by the user; a supervised session rewriting it
+    // to escape the gate is the exact gaming this binary exists to refuse
+    if (rx_test("\\.rabadon/promise\\.json$", filePath) && !ruleOff("promise-tamper"))
+      block("promise-tamper", "the goal contract is authored by the user, not by the supervised session",
+        "attempt to edit the promise itself: " + filePath);
+    const string praw = read_file(cwd + "/.rabadon/promise.json");
+    const string star = get_str(praw, "north_star");
+    if (!star.empty()) {
+      string rel = filePath.rfind(cwd + "/", 0) == 0 ? filePath.substr(cwd.size() + 1) : filePath;
+      bool onAnti = false; string antiPat;
+      for (const auto& a : parse_str_array(praw, "anti_paths"))
+        if (rx_test(a, rel)) { onAnti = true; antiPat = a; break; }
+      if (onAnti && !ruleOff("promise-anti-path"))
+        block("promise-anti-path", "the promise swore off this ground: " + star,
+          rel + " matches anti-path '" + antiPat + "'");
+      const auto areas = parse_str_array(praw, "areas");
+      bool onArea = false;
+      for (const auto& a : areas) if (rx_test(a, rel)) { onArea = true; break; }
+      if (!areas.empty() && !onArea && !onAnti) {
+        st.offTarget++;
+        if (st.offTarget >= 5 && !st.driftChallenged && !ruleOff("promise-off-target")) {
+          st.driftChallenged = 1;
+          block("promise-off-target",
+            "5 edits this session landed outside the promised areas — the session is drifting from its star",
+            "star: " + star + " — latest off-target file: " + rel +
+            " (fires once per session; if this work is intended, update .rabadon/promise.json areas)");
+        }
+      }
+    }
+  }
+
   // test-tamper: suite red (node state) + a test-file edit that weakens it
   if ((toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") && !filePath.empty()) {
     const string nodeState = read_file(cwd + "/.rabadon/state.json");
@@ -354,20 +424,8 @@ int main(int argc, char** argv) {
     if (lastFail > lastPass) {
       bool isTest = false;
       if (guardRaw.find("\"testPaths\"") != string::npos) {
-        for (const auto& r : parse_rules(guardRaw, "testPaths", "match", disabled)) (void)r; // testPaths is a plain array, handled below
-        size_t tp = guardRaw.find("\"testPaths\"");
-        size_t a = guardRaw.find('[', tp), b = guardRaw.find(']', a);
-        if (a != string::npos && b != string::npos) {
-          string body = guardRaw.substr(a, b - a);
-          size_t p = 0;
-          while ((p = body.find('"', p)) != string::npos) {
-            size_t q = p + 1;
-            string pat;
-            for (; q < body.size(); q++) { if (body[q] == '\\' && q + 1 < body.size()) { pat += body[q]; pat += body[q + 1]; q++; } else if (body[q] == '"') break; else pat += body[q]; }
-            if (rx_test(json_unescape(pat), filePath)) { isTest = true; break; }
-            p = q + 1;
-          }
-        }
+        for (const auto& pat : parse_str_array(guardRaw, "testPaths"))
+          if (rx_test(pat, filePath)) { isTest = true; break; }
       } else isTest = rx_test("test", filePath);
       if (isTest) {
         const string oldS = ti == string::npos ? "" : get_str(raw, "old_string", ti);
