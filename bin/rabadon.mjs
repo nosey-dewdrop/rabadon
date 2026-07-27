@@ -161,8 +161,16 @@ if (cmd === 'init') {
     process.stdout.write(`rabadon init: guard already present (${guardFile}) — keeping it.\n`);
   } else {
     process.stdout.write(`rabadon init: authoring guard rules for ${dir}…\n`);
-    const { guardPath, guard } = await generateGuard(dir);
-    process.stdout.write(`written: ${guardPath} (${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules)\n`);
+    try {
+      const { guardPath, guard } = await generateGuard(dir);
+      process.stdout.write(`written: ${guardPath} (${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules)\n`);
+    } catch (e) {
+      // authoring needs the claude CLI and can fail transiently — a stranger's
+      // first minute gets a clean next step, never a raw stack
+      console.error(`rabadon init: could not author the guard (${String(e.message).slice(0, 200)})`);
+      console.error(`  retry \`rabadon init\`, or write ${guardFile} by hand (schema: SPEC.md §3) — hooks were NOT installed, nothing was changed.`);
+      process.exit(1);
+    }
   }
   let r;
   try { r = installHooks(dir); }
