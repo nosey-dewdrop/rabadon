@@ -60,9 +60,15 @@ if (guard) {
   guard.protectedPaths = (guard.protectedPaths || []).filter((r) => !disabled.has(r.id));
 }
 
-const emit = emitter({ pipe: `${project}:session` });
-
 const SID = String(ev.session_id || 'default').slice(0, 16);
+
+// Drill events (rabadon's own synthetic checks: fleet verification, doctor
+// self-test) are tagged at EMIT time so no ledger downstream can ever count
+// rabadon testing itself as a real catch. The ledger's honesty is the product.
+const isDrill = /^(fleet|doctor)-/.test(String(ev.session_id || ''));
+const emit0 = emitter({ pipe: `${project}:session` });
+const emit = (evName, fields = {}) => emit0(evName, isDrill ? { ...fields, drill: true } : fields);
+emit.close = emit0.close;
 function loadState() {
   let st;
   try { st = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { st = {}; }
@@ -251,7 +257,9 @@ if (hookEvent === 'PreToolUse') {
       const oldS = String(toolInput.old_string || '');
       const newS = String(toolInput.new_string ?? toolInput.content ?? '');
       const SKIP = /\b(it|test|describe)\.(skip|todo)\b|\bxit\(|\bxdescribe\(|DISABLED_|GTEST_SKIP|@unittest\.skip|pytest\.mark\.skip/;
-      const count = (str) => (str.match(/\b(assert|expect|EXPECT_|ASSERT_|assert_eq|require)\w*\s*\(/g) || []).length;
+      // method-call styles count too: assert.equal(...), expect(x).toBe(...) —
+      // the node:assert style slipped the old pattern (assert\w* cannot cross '.')
+      const count = (str) => (str.match(/\b(assert|expect|require)(\.\w+)?\s*\(|\b(EXPECT_|ASSERT_|assert_eq)\w*!?\s*\(/g) || []).length;
       const addsSkip = SKIP.test(newS) && !SKIP.test(oldS);
       const dropsAsserts = oldS && count(newS) < count(oldS);
       if (addsSkip || dropsAsserts) {

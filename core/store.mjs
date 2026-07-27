@@ -77,6 +77,7 @@ export function indexRuns(events, { now = Date.now() } = {}) {
     }
     const r = byRun.get(id);
     r.counts.events++;
+    if (e.drill) r.drill = true; // a run touched by a synthetic drill is not real usage
     if (e.ts < r.start) r.start = e.ts;
     if (e.ts > r.end) r.end = e.ts;
 
@@ -151,12 +152,15 @@ export function indexRuns(events, { now = Date.now() } = {}) {
   return runs;
 }
 
-/** The ledger: per-project counts, every number backed by spool events. */
+/** The ledger: per-project counts, every number backed by spool events.
+ * Drill-tagged events (rabadon's own synthetic checks) are EXCLUDED from
+ * every count and reported separately — self-tests are not catches. */
 export function aggregate(events) {
   const perProject = new Map();
-  const totals = { gated: 0, blocked: 0, checkFails: 0, repairsOk: 0, runs: 0, projects: 0 };
+  const totals = { gated: 0, blocked: 0, checkFails: 0, repairsOk: 0, runs: 0, projects: 0, drills: 0 };
   const runSets = new Map();
   for (const e of events) {
+    if (e.drill) { totals.drills++; continue; }
     const proj = projectOf(e.pipe);
     if (!perProject.has(proj)) {
       perProject.set(proj, { project: proj, gated: 0, blocked: 0, blockedRules: new Map(), checkFails: 0, loopsStopped: 0, repairsOk: 0, runs: 0, lastTs: 0 });

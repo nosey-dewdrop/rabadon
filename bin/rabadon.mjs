@@ -113,11 +113,14 @@ if (cmd === 'stats') {
   const perProject = new Map();
   let files = [];
   try { files = fs.readdirSync(SPOOL_DIR).filter((f) => f.endsWith('.jsonl')); } catch { }
+  let drills = 0;
   for (const f of files) {
     for (const line of fs.readFileSync(path0.join(SPOOL_DIR, f), 'utf8').split('\n')) {
       if (!line.trim()) continue;
       let e; try { e = JSON.parse(line); } catch { continue; }
       if (e.ts < cutoff) continue;
+      // rabadon's own synthetic checks are NOT catches — excluded, counted apart
+      if (e.drill) { drills++; continue; }
       const proj = String(e.pipe || '?').replace(/:session$/, '');
       if (!perProject.has(proj)) perProject.set(proj, { gated: 0, blocked: new Map(), loops: 0, repairsOk: 0, checkFails: 0, runs: new Set() });
       const s = perProject.get(proj);
@@ -142,33 +145,32 @@ if (cmd === 'stats') {
     process.stdout.write(`    checks failed (caught):   ${s.checkFails}${s.loops ? `  (loops stopped: ${s.loops})` : ''}\n`);
     process.stdout.write(`    repairs accepted:         ${s.repairsOk}\n\n`);
   }
+  if (drills) process.stdout.write(`  (${drills} drill event(s) — rabadon's own synthetic checks — excluded from every number above)\n`);
   process.exit(0);
 }
 
 if (cmd === 'init') {
-  // one command into any project: guard rules authored + hooks installed.
+  // one command into any project: guard rules authored + hooks MERGED into
+  // whatever settings the project already has (never clobbered, backed up).
   const fs = await import('node:fs');
   const dir = process.argv[3] ? path0.resolve(process.argv[3]) : process.cwd();
-  const gate = path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'hooks', 'gate.mjs');
-  const gateCmd = `node ${path0.resolve(gate)}`;
-  const settingsPath = path0.join(dir, '.claude', 'settings.json');
-  if (fs.existsSync(settingsPath)) {
-    console.error(`rabadon init: ${settingsPath} already exists — add the hooks manually (gate: ${gateCmd}) so nothing of yours is overwritten.`);
-    process.exit(1);
-  }
+  const { installHooks } = await import('../hooks/install.mjs');
   const { generateGuard } = await import('../hooks/guard-gen.mjs');
-  process.stdout.write(`rabadon init: authoring guard rules for ${dir}…\n`);
-  const { guardPath, guard } = await generateGuard(dir);
-  fs.mkdirSync(path0.dirname(settingsPath), { recursive: true });
-  const hook = [{ hooks: [{ type: 'command', command: gateCmd }] }];
-  const matched = [{ matcher: 'Bash|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: gateCmd }] }];
-  fs.writeFileSync(settingsPath, JSON.stringify({
-    hooks: { SessionStart: hook, UserPromptSubmit: hook, PreToolUse: matched, PostToolUse: matched, Stop: hook },
-  }, null, 2) + '\n');
-  try { fs.appendFileSync(path0.join(dir, '.gitignore'), '\n.rabadon/state.json\n'); } catch { }
-  process.stdout.write(`written: ${guardPath} (${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules)\n`);
-  process.stdout.write(`written: ${settingsPath}\n`);
-  process.stdout.write(`REVIEW the guard, then just run \`claude\` in ${dir} — the session is supervised.\n`);
+  const guardFile = path0.join(dir, '.rabadon', 'guard.json');
+  if (fs.existsSync(guardFile)) {
+    process.stdout.write(`rabadon init: guard already present (${guardFile}) — keeping it.\n`);
+  } else {
+    process.stdout.write(`rabadon init: authoring guard rules for ${dir}…\n`);
+    const { guardPath, guard } = await generateGuard(dir);
+    process.stdout.write(`written: ${guardPath} (${(guard.bash || []).length} bash + ${(guard.protectedPaths || []).length} path rules)\n`);
+  }
+  let r;
+  try { r = installHooks(dir); }
+  catch (e) { console.error(`rabadon init: ${path0.join(dir, '.claude', 'settings.json')} could not be parsed (${e.message}) — fix it, rabadon will not overwrite a file it cannot read.`); process.exit(1); }
+  process.stdout.write(r.changed
+    ? `hooks merged into: ${r.settingsPath}${r.backedUp ? ` (original backed up: ${path0.basename(r.settingsPath)}.bak-rabadon)` : ''}\n`
+    : `hooks already installed: ${r.settingsPath}\n`);
+  process.stdout.write(`REVIEW the guard, then just run \`claude\` in ${dir} — the session is supervised. \`rabadon stats\` shows the ledger.\n`);
   process.exit(0);
 }
 
@@ -412,31 +414,9 @@ if (cmd === 'fleet') {
           guardHow = 'baseline';
         }
       }
-      // merge hooks into settings.json without clobbering
-      const settingsPath = path0.join(p, '.claude', 'settings.json');
-      let settings = {};
-      if (fs.existsSync(settingsPath)) {
-        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        if (!JSON.stringify(settings.hooks || {}).includes('gate.mjs')) {
-          fs.copyFileSync(settingsPath, settingsPath + '.bak-rabadon');
-        }
-      } else {
-        fs.mkdirSync(path0.dirname(settingsPath), { recursive: true });
-      }
-      if (!JSON.stringify(settings.hooks || {}).includes('gate.mjs')) {
-        settings.hooks = settings.hooks || {};
-        const entry = { hooks: [{ type: 'command', command: gateCmd }] };
-        const matched = { matcher: 'Bash|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: gateCmd, timeout: 900 }] };
-        for (const evName of ['SessionStart', 'UserPromptSubmit', 'Stop']) {
-          settings.hooks[evName] = [...(settings.hooks[evName] || []), entry];
-        }
-        for (const evName of ['PreToolUse', 'PostToolUse']) {
-          settings.hooks[evName] = [...(settings.hooks[evName] || []), matched];
-        }
-        if (!settings.statusLine) settings.statusLine = { type: 'command', command: `node ${path0.resolve(path0.join(path0.dirname(gate), '..', 'bin', 'rabadon.mjs'))} statusline` };
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-      }
-      try { const gi = path0.join(p, '.gitignore'); const cur = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : ''; if (!cur.includes('.rabadon/state.json')) fs.appendFileSync(gi, '\n.rabadon/state.json\n'); } catch { }
+      // merge hooks into settings.json without clobbering (shared installer)
+      const { installHooks } = await import('../hooks/install.mjs');
+      installHooks(p, { gateCmd });
 
       // end-to-end verify + first-catch drill against the project's OWN top rule
       const g = JSON.parse(fs.readFileSync(guardFile, 'utf8'));

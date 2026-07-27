@@ -111,6 +111,8 @@ export function createUiServer({ port = 8484, spoolDir = SPOOL_DIR, roots = [pro
     if (url.pathname === '/api/runs') {
       const { events } = readEvents({ days, spoolDir });
       let runs = indexRuns(events);
+      // drill runs (rabadon's own synthetic checks) are hidden unless asked for
+      if (url.searchParams.get('drills') !== '1') runs = runs.filter((r) => !r.drill);
       const project = url.searchParams.get('project');
       const kind = url.searchParams.get('kind');
       if (project) runs = runs.filter((r) => r.project === project);

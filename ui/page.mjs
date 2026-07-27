@@ -189,6 +189,7 @@ async function loadSummary(){
     loadSummary(); loadRuns();
   };
   $('foot').textContent = 'spool: '+r.spoolDir+' · window: '+r.days+'d · '+
+    (r.totals.drills ? r.totals.drills+' drill event(s) (rabadon self-tests) excluded from every number · ' : '')+
     (r.unparseable ? r.unparseable+' unparseable line(s) — counted, not hidden · ' : '')+
     'every number on this page is backed by a timestamped event on your disk.';
 }

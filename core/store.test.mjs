@@ -120,6 +120,21 @@ test('aggregate: the ledger counts match the events one for one', () => {
   assert.equal(alpha.blockedRules[0].n, 1);
 });
 
+test('aggregate + indexRuns: drill events are excluded from the ledger and drill runs are marked', () => {
+  const events = [
+    ev(1, 'd1', 'alpha:session', 'STEP_START', { step: 'Bash', drill: true }),
+    ev(2, 'd1', 'alpha:session', 'STOP', { reason: 'BLOCKED', detail: 'rule-x — drill', drill: true }),
+    ev(3, 'r1', 'alpha:session', 'STEP_START', { step: 'Bash' }),
+  ];
+  const { totals } = aggregate(events);
+  assert.equal(totals.gated, 1, 'the drill STEP_START must not count');
+  assert.equal(totals.blocked, 0, 'a self-test block is NOT a catch');
+  assert.equal(totals.drills, 2);
+  const runs = indexRuns(events);
+  assert.equal(runs.find((r) => r.id === 'd1').drill, true);
+  assert.ok(!runs.find((r) => r.id === 'r1').drill);
+});
+
 test('scanFleet: finds guarded projects, reads their state, attaches last activity', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rabadon-fleet-'));
   const mk = (name, { guard = true, hooks = false, off = false, nest = false } = {}) => {
