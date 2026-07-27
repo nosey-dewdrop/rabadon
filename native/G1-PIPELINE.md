@@ -74,7 +74,11 @@ S7. **The orphans are buried.** `core/rabadon.mjs`, `core/wrap.mjs`,
       Stop measures tokens from the transcript incrementally and writes the
       devridaim handoff; goal→handoff round-trip proven with zero node;
       session_test 15/15, native 47/47, js 47/47
-- [ ] S3
+- [x] S3 — PostToolUse native: code-edit tracking, scope fan-out, red/green
+      detection (incl. the "fail 0" trap), incident diagnose + incident-rule
+      authoring, all C++; run_claude spawns the model with RABADON_OFF=1
+      (recursion root-fix); 53/53 differential node==native parity across every
+      branch; native 100/100, js 47/47
 - [ ] S4
 - [ ] S5
 - [ ] S6

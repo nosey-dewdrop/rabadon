@@ -25,8 +25,11 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <csignal>
+#include <cerrno>
 
 using std::string;
 
@@ -115,6 +118,235 @@ static long long now_ms() {
   struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
   return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
+
+static string iso8601_now() {
+  char iso[32]; time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv);
+  strftime(iso, 32, "%Y-%m-%dT%H:%M:%SZ", &tmv);
+  return string(iso);
+}
+
+// ---------- bounded claude subprocess (the incident brain / drift judge) ----------
+// fork/exec `claude -p --output-format text [--model M]`, write the prompt to
+// the child's stdin, read its stdout with a wall-clock deadline, SIGKILL on
+// timeout. RABADON_OFF=1 is set in the CHILD env — the child itself fires this
+// very gate (it runs `claude`), and without the flag the supervisor would
+// supervise itself into a recursion. Returns "" on timeout/failure -> the
+// caller treats it as "no verdict", the deterministic path still runs.
+static string run_claude(const string& prompt, int timeoutSec, const string& model, size_t maxBytes) {
+  int inPipe[2], outPipe[2];
+  if (pipe(inPipe) != 0) return "";
+  if (pipe(outPipe) != 0) { close(inPipe[0]); close(inPipe[1]); return ""; }
+
+  pid_t pid = fork();
+  if (pid < 0) { close(inPipe[0]); close(inPipe[1]); close(outPipe[0]); close(outPipe[1]); return ""; }
+
+  if (pid == 0) {
+    // child: stdin <- inPipe read end, stdout -> outPipe write end
+    dup2(inPipe[0], STDIN_FILENO);
+    dup2(outPipe[1], STDOUT_FILENO);
+    // silence the child's stderr so it never mixes into the hook's own feedback
+    int devnull = open("/dev/null", O_WRONLY);
+    if (devnull >= 0) dup2(devnull, STDERR_FILENO);
+    close(inPipe[0]); close(inPipe[1]);
+    close(outPipe[0]); close(outPipe[1]);
+    // the recursion root-fix: the child's own gate must exit 0 immediately
+    setenv("RABADON_OFF", "1", 1);
+    std::vector<char*> argv;
+    argv.push_back(const_cast<char*>("claude"));
+    argv.push_back(const_cast<char*>("-p"));
+    argv.push_back(const_cast<char*>("--output-format"));
+    argv.push_back(const_cast<char*>("text"));
+    if (!model.empty()) {
+      argv.push_back(const_cast<char*>("--model"));
+      argv.push_back(const_cast<char*>(model.c_str()));
+    }
+    argv.push_back(nullptr);
+    execvp("claude", argv.data());
+    _exit(127); // exec failed -> parent reads EOF, treats as no verdict
+  }
+
+  // parent
+  close(inPipe[0]);
+  close(outPipe[1]);
+  // feed the prompt, then close so the child sees EOF on stdin
+  { size_t off = 0; while (off < prompt.size()) {
+      ssize_t w = write(inPipe[1], prompt.data() + off, prompt.size() - off);
+      if (w <= 0) break; off += (size_t)w;
+  } }
+  close(inPipe[1]);
+
+  fcntl(outPipe[0], F_SETFL, O_NONBLOCK);
+  string out;
+  const long long deadline = now_ms() + (long long)timeoutSec * 1000;
+  bool killed = false;
+  for (;;) {
+    char buf[8192];
+    ssize_t r = read(outPipe[0], buf, sizeof(buf));
+    if (r > 0) {
+      if (out.size() < maxBytes) out.append(buf, (size_t)std::min((size_t)r, maxBytes - out.size()));
+      continue;
+    }
+    if (r == 0) break; // EOF: child closed stdout
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (now_ms() > deadline) { kill(pid, SIGKILL); killed = true; break; }
+      // reap-if-done check without blocking
+      int st; pid_t w = waitpid(pid, &st, WNOHANG);
+      if (w == pid) { // child gone; drain any last bytes then break
+        for (;;) { ssize_t r2 = read(outPipe[0], buf, sizeof(buf));
+          if (r2 <= 0) break;
+          if (out.size() < maxBytes) out.append(buf, (size_t)std::min((size_t)r2, maxBytes - out.size())); }
+        close(outPipe[0]);
+        // trim + report
+        size_t a = out.find_first_not_of(" \t\r\n");
+        size_t b = out.find_last_not_of(" \t\r\n");
+        return a == string::npos ? "" : out.substr(a, b - a + 1);
+      }
+      struct timespec nap{0, 5 * 1000 * 1000}; nanosleep(&nap, nullptr); // 5ms
+      continue;
+    }
+    break; // real read error
+  }
+  close(outPipe[0]);
+  int st; waitpid(pid, &st, 0);
+  if (killed) return "";
+  if (WIFEXITED(st) && WEXITSTATUS(st) != 0) return ""; // nonzero exit -> no verdict
+  if (WIFSIGNALED(st)) return "";
+  size_t a = out.find_first_not_of(" \t\r\n");
+  size_t b = out.find_last_not_of(" \t\r\n");
+  return a == string::npos ? "" : out.substr(a, b - a + 1);
+}
+
+// strip a leading/trailing ```json ... ``` fence (mirrors the JS regex
+// /^```(?:json)?\s*|\s*```$/g) then hand the body to the get_* helpers
+static string strip_fences(const string& s) {
+  string t = s;
+  size_t a = t.find_first_not_of(" \t\r\n");
+  if (a != string::npos) t = t.substr(a);
+  if (t.rfind("```", 0) == 0) {
+    t = t.substr(3);
+    if (t.rfind("json", 0) == 0) t = t.substr(4);
+    size_t nb = t.find_first_not_of(" \t\r\n");
+    if (nb != string::npos) t = t.substr(nb);
+  }
+  size_t e = t.find_last_not_of(" \t\r\n");
+  if (e != string::npos) t = t.substr(0, e + 1);
+  if (t.size() >= 3 && t.compare(t.size() - 3, 3, "```") == 0) {
+    t = t.substr(0, t.size() - 3);
+    size_t e2 = t.find_last_not_of(" \t\r\n");
+    if (e2 != string::npos) t = t.substr(0, e2 + 1);
+  }
+  return t;
+}
+
+// ---------- generic JSON value (only for incident rule authoring) ----------
+// A minimal, order-preserving JSON model used solely to re-read guard.json,
+// splice one incident rule into an array, and pretty-print it back exactly as
+// JSON.stringify(obj,null,2) would. NOT used on the hot path.
+struct JVal {
+  enum T { OBJ, ARR, STR, NUM, BOOL, NUL } t = NUL;
+  std::vector<std::pair<string, JVal>> obj; // insertion-ordered
+  std::vector<JVal> arr;
+  string str;       // for STR (unescaped) and NUM (verbatim token)
+  bool b = false;
+
+  JVal* get(const string& key) { for (auto& kv : obj) if (kv.first == key) return &kv.second; return nullptr; }
+};
+
+struct JParser {
+  const string& s; size_t i = 0; bool ok = true;
+  explicit JParser(const string& src) : s(src) {}
+  void ws() { while (i < s.size() && (s[i]==' '||s[i]=='\t'||s[i]=='\n'||s[i]=='\r')) i++; }
+  JVal parse() { ws(); JVal v = value(); ws(); return v; }
+  JVal value() {
+    ws();
+    if (i >= s.size()) { ok = false; return {}; }
+    char c = s[i];
+    if (c == '{') return object();
+    if (c == '[') return array();
+    if (c == '"') { JVal v; v.t = JVal::STR; v.str = str(); return v; }
+    if (c == 't') { if (s.compare(i,4,"true")==0){i+=4; JVal v; v.t=JVal::BOOL; v.b=true; return v;} ok=false; return {}; }
+    if (c == 'f') { if (s.compare(i,5,"false")==0){i+=5; JVal v; v.t=JVal::BOOL; v.b=false; return v;} ok=false; return {}; }
+    if (c == 'n') { if (s.compare(i,4,"null")==0){i+=4; JVal v; v.t=JVal::NUL; return v;} ok=false; return {}; }
+    return number();
+  }
+  string str() {
+    string out; i++; // opening quote
+    while (i < s.size()) {
+      char c = s[i++];
+      if (c == '\\' && i < s.size()) { out += c; out += s[i++]; continue; } // keep escapes verbatim
+      if (c == '"') return out;
+      out += c;
+    }
+    ok = false; return out;
+  }
+  JVal number() {
+    size_t a = i;
+    while (i < s.size() && (isdigit((unsigned char)s[i]) || s[i]=='-'||s[i]=='+'||s[i]=='.'||s[i]=='e'||s[i]=='E')) i++;
+    if (i == a) { ok = false; return {}; }
+    JVal v; v.t = JVal::NUM; v.str = s.substr(a, i - a); return v;
+  }
+  JVal object() {
+    JVal v; v.t = JVal::OBJ; i++; ws();
+    if (i < s.size() && s[i] == '}') { i++; return v; }
+    while (i < s.size()) {
+      ws(); if (i>=s.size()||s[i]!='"'){ok=false;break;}
+      string key = str(); ws();
+      if (i>=s.size()||s[i]!=':'){ok=false;break;} i++;
+      JVal val = value(); if (!ok) break;
+      v.obj.push_back({key, val}); ws();
+      if (i<s.size() && s[i]==',') { i++; continue; }
+      if (i<s.size() && s[i]=='}') { i++; return v; }
+      ok = false; break;
+    }
+    ok = false; return v;
+  }
+  JVal array() {
+    JVal v; v.t = JVal::ARR; i++; ws();
+    if (i < s.size() && s[i] == ']') { i++; return v; }
+    while (i < s.size()) {
+      JVal e = value(); if (!ok) break;
+      v.arr.push_back(e); ws();
+      if (i<s.size() && s[i]==',') { i++; continue; }
+      if (i<s.size() && s[i]==']') { i++; return v; }
+      ok = false; break;
+    }
+    ok = false; return v;
+  }
+};
+
+// pretty-print with 2-space indent, matching JSON.stringify(v,null,2)
+static void jval_print(const JVal& v, string& out, int indent) {
+  const string pad(indent * 2, ' ');
+  const string pad2((indent + 1) * 2, ' ');
+  switch (v.t) {
+    case JVal::NUL: out += "null"; break;
+    case JVal::BOOL: out += v.b ? "true" : "false"; break;
+    case JVal::NUM: out += v.str; break;
+    case JVal::STR: out += "\""; out += v.str; out += "\""; break; // str holds already-escaped body
+    case JVal::ARR:
+      if (v.arr.empty()) { out += "[]"; break; }
+      out += "[\n";
+      for (size_t k = 0; k < v.arr.size(); k++) {
+        out += pad2; jval_print(v.arr[k], out, indent + 1);
+        out += (k + 1 < v.arr.size()) ? ",\n" : "\n";
+      }
+      out += pad; out += "]";
+      break;
+    case JVal::OBJ:
+      if (v.obj.empty()) { out += "{}"; break; }
+      out += "{\n";
+      for (size_t k = 0; k < v.obj.size(); k++) {
+        out += pad2; out += "\""; out += v.obj[k].first; out += "\": ";
+        jval_print(v.obj[k].second, out, indent + 1);
+        out += (k + 1 < v.obj.size()) ? ",\n" : "\n";
+      }
+      out += pad; out += "}";
+      break;
+  }
+}
+
+// build a STR leaf whose printed form is a JSON string of `raw`
+static JVal jstr(const string& raw) { JVal v; v.t = JVal::STR; v.str = json_escape(raw); return v; }
 
 // ---------- spool + socket emit ----------
 
@@ -402,6 +634,65 @@ static int delegate_to_node(const string& gateMjs, const string& raw) {
   return WIFEXITED(st) ? WEXITSTATUS(st) : 0;
 }
 
+// ---------- the incident brain (opus-class) ----------
+// bounded `claude -p`, 90s / 4MB. Returns a parsed verdict or {ok=false}.
+struct Diag {
+  bool ok = false;
+  string where, cause, fix;
+  bool hasRule = false; JVal newRule; // the raw model object, verbatim fields
+};
+static Diag diagnose(const string& goal, const std::vector<string>& recentBullets,
+                     const string& cmd, const string& failOutputTail) {
+  std::ostringstream p;
+  p << "You are rabadon, a reliability runtime supervising a live coding session. The test suite just went RED.\n"
+    << "Diagnose from the evidence and return ONLY a JSON object, no fences, no prose:\n"
+    << "{ \"where\": \"<which step/gate of the work this belongs to, one short phrase>\",\n"
+    << "  \"cause\": \"<root cause in one sentence, from the evidence — never invent>\",\n"
+    << "  \"fix\": \"<the concrete next action to fix it, one sentence>\",\n"
+    << "  \"newRule\": { \"id\": \"kebab-id\", \"deny\": \"<JS regex over bash commands>\", \"why\": \"<one line>\" } | { \"id\": \"kebab-id\", \"match\": \"<JS regex over file paths>\", \"why\": \"<one line>\" } | null }\n"
+    << "newRule: ONLY if this class of mistake could have been caught BEFORE it happened by blocking a command or an edit; otherwise null. Prefer null over a rule that could block legitimate work.\n\n"
+    << "## session goal\n" << goal << "\n"
+    << "## last moves\n";
+  for (const auto& r : recentBullets) p << "- " << r << "\n";
+  p << "## the test command\n" << cmd << "\n"
+    << "## failing output (tail)\n" << failOutputTail << "\n";
+  const string raw = run_claude(p.str(), 90, "", 4 * 1024 * 1024);
+  if (raw.empty()) return {};
+  const string body = strip_fences(raw);
+  JParser jp(body); JVal v = jp.parse();
+  if (!jp.ok || v.t != JVal::OBJ) return {};
+  Diag d; d.ok = true;
+  d.where = get_str(body, "where");
+  d.cause = get_str(body, "cause");
+  d.fix   = get_str(body, "fix");
+  if (JVal* nr = v.get("newRule")) {
+    if (nr->t == JVal::OBJ) { d.hasRule = true; d.newRule = *nr; }
+  }
+  return d;
+}
+
+// ---------- the fast drift judge (haiku-class) ----------
+// bounded `claude -p --model claude-haiku-4-5`, 30s / 1MB. Fail-open.
+struct Verdict { bool ok = false; bool onTrack = true; string anchor; };
+static Verdict driftJudge(const string& goal, const std::vector<string>& recentBullets) {
+  std::ostringstream p;
+  p << "You are rabadon, supervising a coding session. Verdict only, JSON only, no fences:\n"
+    << "{ \"onTrack\": true|false, \"anchor\": \"<if off track: ONE sentence steering the work back to the goal; else empty>\" }\n"
+    << "Judge conservatively: refactors, tests, and setup that SERVE the goal are on-track. Only flag work that belongs to a different task.\n"
+    << "## the session goal\n" << goal << "\n"
+    << "## the last moves\n";
+  for (const auto& r : recentBullets) p << "- " << r << "\n";
+  const string raw = run_claude(p.str(), 30, "claude-haiku-4-5", 1024 * 1024);
+  if (raw.empty()) return {};
+  const string body = strip_fences(raw);
+  JParser jp(body); JVal v = jp.parse();
+  if (!jp.ok || v.t != JVal::OBJ) return {};
+  Verdict vd; vd.ok = true;
+  vd.onTrack = get_bool(body, "onTrack");
+  vd.anchor = get_str(body, "anchor");
+  return vd;
+}
+
 int main(int argc, char** argv) {
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate 0.1.0\n"); return 0; }
@@ -424,10 +715,9 @@ int main(int argc, char** argv) {
   string root = slash == string::npos ? "." : self.substr(0, slash) + "/..";
   const string gateMjs = root + "/hooks/gate.mjs";
 
-  // PostToolUse keeps the full node behavior until G1/S3 (test analysis,
-  // diagnosis, re-anchor). Everything else is native now.
-  if (hook == "PostToolUse") return delegate_to_node(gateMjs, raw);
-  if (hook != "PreToolUse" && hook != "UserPromptSubmit" &&
+  // PostToolUse is native now (S3): test analysis, incident diagnosis,
+  // re-anchor — the LLM stays off the hot path (bounded `claude -p`).
+  if (hook != "PreToolUse" && hook != "PostToolUse" && hook != "UserPromptSubmit" &&
       hook != "SessionStart" && hook != "Stop") return 0;
 
   const string toolName = get_str(raw, "tool_name");
@@ -437,6 +727,43 @@ int main(int argc, char** argv) {
   if (filePath.empty() && ti != string::npos) filePath = get_str(raw, "notebook_path", ti);
   const string sid = get_str(raw, "session_id");
   const string toolUseId = get_str(raw, "tool_use_id");
+
+  // PostToolUse test analysis reads the command's output. tool_response is
+  // either a string OR an object; mirror the JS EXACTLY:
+  //   out = (string ? value : JSON.stringify(value||'')).replace(/\\r?\\n/g,'\n')
+  // The .replace regex is /\\r?\\n/ — a literal backslash, optional 'r', and a
+  // real NEWLINE character. JSON.stringify never emits real newline chars (it
+  // escapes them to the two chars '\' 'n'), so on the object path the replace
+  // is a NO-OP: `out` keeps the JSON text VERBATIM, literal \n and all. The
+  // `fail(ed|ures): N` / green-phrase regexes then run over that verbatim text
+  // — de-escaping here would silently change which lines the boundary anchors
+  // see (it flipped "Failures: 0" from GREEN to RED in an early port). For the
+  // string path, JSON.parse already turned \n into real newlines and the
+  // replace stays a no-op, so get_str's unescaped value matches node.
+  string toolResponse;
+  {
+    size_t tr = raw.find("\"tool_response\"");
+    if (tr != string::npos) {
+      size_t colon = raw.find(':', tr + 15);
+      if (colon != string::npos) {
+        size_t j = colon + 1;
+        while (j < raw.size() && isspace((unsigned char)raw[j])) j++;
+        if (j < raw.size() && raw[j] == '"') {
+          toolResponse = get_str(raw, "tool_response", tr); // JSON string value, unescaped
+        } else if (j < raw.size() && (raw[j] == '{' || raw[j] == '[')) {
+          // the raw {..}/[..] text verbatim — this IS JSON.stringify's output
+          // for compact stdin, which is what the gate receives
+          int depth = 0; size_t a = j;
+          for (size_t k = j; k < raw.size(); k++) {
+            char c = raw[k];
+            if (c == '"') { for (k++; k < raw.size(); k++) { if (raw[k]=='\\') k++; else if (raw[k]=='"') break; } continue; }
+            if (c=='['||c=='{') depth++;
+            else if (c==']'||c=='}') { depth--; if (!depth) { toolResponse = raw.substr(a, k - a + 1); break; } }
+          }
+        }
+      }
+    }
+  }
 
   // rabadon home (spool/socket) — env override mirrors core/bus.mjs
   const char* rd = getenv("RABADON_DIR");
@@ -485,6 +812,221 @@ int main(int argc, char** argv) {
 
   const string guardRaw = read_file(cwd + "/.rabadon/guard.json");
   const auto disabled = parse_disabled(guardRaw);
+
+  const char* judgeEnv = getenv("RABADON_JUDGE");
+  const bool judgeOff = judgeEnv && string(judgeEnv) == "0";
+
+  // ---------- PostToolUse: observe + track session state ----------
+  // The action already ran; exit 2 here is FEEDBACK to the agent, not a block.
+  // lastCodeEdit / lastTest* are TOP-LEVEL state (Pre reads them); the drift
+  // trackers are per-session. The LLM (diagnose / re-anchor) is bounded and
+  // off the hot path — a missing/slow claude fails open to the deterministic
+  // verdict.
+  if (hook == "PostToolUse") {
+    const long long now = now_ms();
+
+    if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") {
+      // isCode: guard.codePaths present ? ANY match : true. Set BEFORE the
+      // fan-out / re-anchor early-exits so a fed-back edit still records.
+      bool isCode = true;
+      if (!guardRaw.empty() && guardRaw.find("\"codePaths\"") != string::npos) {
+        isCode = false;
+        for (const auto& pat : parse_str_array(guardRaw, "codePaths"))
+          if (rx_test(pat, filePath)) { isCode = true; break; }
+      }
+      if (isCode) stt.lastCodeEdit = now;
+
+      // scope fan-out: rel = path.relative(cwd,file); top = first segment when
+      // the file is inside cwd. touchedDirs is an order-preserving Set. Fires
+      // once per session (fanoutWarned latch) at the 5th distinct top dir.
+      string rel;
+      {
+        string base = cwd;
+        if (!base.empty() && base.back() != '/') base += '/';
+        if (filePath.rfind(base, 0) == 0) rel = filePath.substr(base.size());
+        else rel = "../"; // outside cwd -> path.relative would start with '..'
+      }
+      bool inside = rel.rfind("..", 0) != 0;
+      if (inside && !rel.empty()) {
+        string top = rel;
+        size_t sl = rel.find('/');
+        if (sl != string::npos) top = rel.substr(0, sl);
+        if (!top.empty()) {
+          bool seen = false;
+          for (const auto& d : ss.touchedDirs) if (d == top) { seen = true; break; }
+          if (!seen) ss.touchedDirs.push_back(top);
+          if (ss.touchedDirs.size() >= 5 && !ss.fanoutWarned) {
+            ss.fanoutWarned = true;
+            string joined;
+            for (size_t k = 0; k < ss.touchedDirs.size(); k++)
+              joined += (k ? ", " : "") + ss.touchedDirs[k];
+            const string N = std::to_string(ss.touchedDirs.size());
+            stt.save(); // lastCodeEdit + touchedDirs + fanoutWarned persisted
+            em.emit("CHECK_FAIL", "\"step\":\"scope\",\"fails\":[{\"check\":\"scope-fanout\",\"why\":\"" +
+              json_escape("session has now edited files in " + N + " top-level dirs: " + joined) + "\"}]");
+            fprintf(stderr,
+              "rabadon: scope fan-out — this session has edited files across %s top-level directories (%s). "
+              "If the task really spans all of them, say so and continue; otherwise rein the change back to the area the task started in.\n",
+              N.c_str(), joined.c_str());
+            return 2;
+          }
+        }
+      }
+      stt.save();
+
+      // active re-anchor: every 12th action, a fast judge compares last moves
+      // vs the goal. actionCount is READ here (incremented only by Pre) — the
+      // matching Pre already bumped it. Skipped with RABADON_JUDGE=0. Fail-open.
+      if (!judgeOff && !ss.goalPrompt.empty() && ss.actionCount > 0 && ss.actionCount % 12 == 0) {
+        std::vector<string> bullets;
+        size_t from = ss.recent.size() > 12 ? ss.recent.size() - 12 : 0;
+        for (size_t k = from; k < ss.recent.size(); k++) bullets.push_back(ss.recent[k].second);
+        Verdict v = driftJudge(ss.goalPrompt, bullets);
+        if (v.ok && !v.onTrack && !v.anchor.empty()) {
+          em.emit("CHECK_FAIL", "\"step\":\"goal\",\"fails\":[{\"check\":\"goal-drift\",\"why\":\"" +
+            json_escape(v.anchor.substr(0, 200)) + "\"}]");
+          fprintf(stderr, "rabadon re-anchor: the session goal is \"%s\". %s\n",
+            ss.goalPrompt.substr(0, 120).c_str(), v.anchor.c_str());
+          return 2;
+        }
+        // null / onTrack / no anchor / judge unavailable -> fall through
+      }
+
+      const string base = filePath.substr(filePath.rfind('/') + 1);
+      em.emit("STEP_OK", "\"step\":\"edited: " + json_escape(base) + "\"");
+      return 0;
+    }
+
+    if (toolName == "Bash") {
+      const string& out = toolResponse;
+      bool isTest;
+      if (!guardRaw.empty() && guardRaw.find("\"testCommand\"") != string::npos)
+        isTest = rx_test(get_str(guardRaw, "testCommand"), command);
+      else
+        isTest = rx_test("ctest|--test|npm test", command);
+
+      if (!isTest) {
+        em.emit("STEP_OK", "\"step\":\"ran: " + json_escape(command.substr(0, 80)) + "\"");
+        stt.save();
+        return 0;
+      }
+
+      // measured green/red — never a keyword sighting. Prefer testPassPattern;
+      // else if a "fail(ed|ures): N" count exists, green iff N==0; else fall
+      // back to explicit green phrases. ("fail 0" in a green run is GREEN.)
+      bool passed;
+      if (!guardRaw.empty() && guardRaw.find("\"testPassPattern\"") != string::npos) {
+        passed = rx_test(get_str(guardRaw, "testPassPattern"), out);
+      } else {
+        std::smatch m;
+        std::regex fc("\\bfail(?:ed|ures)?\\s*[:= ]\\s*(\\d+)", std::regex::ECMAScript | std::regex::icase);
+        if (std::regex_search(out, m, fc)) passed = (atoll(m[1].str().c_str()) == 0);
+        else passed = rx_test("100% tests passed|0 failed|all tests passed", out);
+      }
+
+      stt.lastTestRun = now;
+      if (passed) { stt.lastTestPass = now; stt.lastTestFail = 0; }
+      else stt.lastTestFail = now;
+      stt.save();
+
+      if (passed) {
+        em.emit("STEP_OK", "\"step\":\"tests: GREEN\"");
+        return 0;
+      }
+
+      // RED — the incident loop.
+      em.emit("CHECK_FAIL", "\"step\":\"tests\",\"fails\":[{\"check\":\"test-run\",\"why\":\"test run is RED\"}]");
+      string advice;
+      // failSig = out lines matching /fail/i joined by '|' sliced to 300
+      string failSig;
+      {
+        size_t ls = 0;
+        while (ls < out.size()) {
+          size_t le = out.find('\n', ls);
+          if (le == string::npos) le = out.size();
+          const string line = out.substr(ls, le - ls);
+          if (rx_test("fail", line)) { if (!failSig.empty()) failSig += "|"; failSig += line; }
+          ls = le + 1;
+        }
+        if (failSig.size() > 300) failSig = failSig.substr(0, 300);
+      }
+      const bool sameIncident = stt.lastDiagSig == failSig && (now - stt.lastDiagAt) < 15LL * 60000;
+
+      if (!judgeOff && !sameIncident) {
+        stt.lastDiagSig = failSig; stt.lastDiagAt = now; stt.save();
+        em.emit("REPAIR_START", "\"step\":\"diagnose\",\"attempt\":1,\"fixing\":[\"red-tests\"]");
+        std::vector<string> bullets;
+        size_t from = ss.recent.size() > 15 ? ss.recent.size() - 15 : 0;
+        for (size_t k = from; k < ss.recent.size(); k++) bullets.push_back(ss.recent[k].second);
+        const string goal = ss.goalPrompt.empty() ? "(no goal captured)" : ss.goalPrompt;
+        const string failTail = out.size() > 4000 ? out.substr(out.size() - 4000) : out;
+        Diag diag = diagnose(goal, bullets, command, failTail);
+        if (!diag.ok) {
+          em.emit("REPAIR_FAIL", "\"step\":\"diagnose\",\"attempt\":1,\"why\":\"diagnosis unavailable\"");
+        } else {
+          advice = "\nrabadon diagnosis:\n  where: " + diag.where +
+                   "\n  cause: " + diag.cause + "\n  fix:   " + diag.fix + "\n";
+          if (diag.hasRule && !guardRaw.empty()) {
+            // validate the rule regex compiles; install into bash (deny) or
+            // protectedPaths (match); re-read guard.json FRESH; id-dedup;
+            // append {...newRule, authoredBy:'incident', incidentAt:ISO}.
+            JVal* denyV = diag.newRule.get("deny");
+            JVal* matchV = diag.newRule.get("match");
+            string patRaw, patUnescaped;
+            const char* target = nullptr;
+            if (denyV && denyV->t == JVal::STR) { patRaw = denyV->str; target = "bash"; }
+            else if (matchV && matchV->t == JVal::STR) { patRaw = matchV->str; target = "protectedPaths"; }
+            // the rule's regex is JSON-escaped in patRaw; unescape for compile test
+            if (target) patUnescaped = json_unescape(patRaw);
+            bool compiles = false;
+            if (target) { try { std::regex re(patUnescaped, std::regex::ECMAScript | std::regex::icase); compiles = true; (void)re; } catch (...) { compiles = false; } }
+            if (target && compiles) {
+              const string fresh = read_file(cwd + "/.rabadon/guard.json");
+              JParser gp(fresh); JVal g = gp.parse();
+              if (gp.ok && g.t == JVal::OBJ) {
+                JVal* idV = diag.newRule.get("id");
+                const string ruleId = idV && idV->t == JVal::STR ? json_unescape(idV->str) : "";
+                JVal* arr = g.get(target);
+                bool exists = false;
+                if (arr && arr->t == JVal::ARR) {
+                  for (auto& e : arr->arr) {
+                    JVal* eid = e.get("id");
+                    if (eid && eid->t == JVal::STR && json_unescape(eid->str) == ruleId) { exists = true; break; }
+                  }
+                }
+                if (!exists) {
+                  // build the rule object = the model's newRule fields verbatim
+                  // + authoredBy + incidentAt, in that order
+                  JVal rule = diag.newRule;
+                  rule.obj.push_back({ "authoredBy", jstr("incident") });
+                  rule.obj.push_back({ "incidentAt", jstr(iso8601_now()) });
+                  if (!arr) { g.obj.push_back({ target, JVal{} }); arr = &g.obj.back().second; arr->t = JVal::ARR; }
+                  else if (arr->t != JVal::ARR) { arr->t = JVal::ARR; arr->arr.clear(); }
+                  arr->arr.push_back(rule);
+                  string pretty; jval_print(g, pretty, 0); pretty += "\n";
+                  // atomic write: temp + rename so the law can never corrupt
+                  const string gpath = cwd + "/.rabadon/guard.json";
+                  const string tmp = gpath + ".tmp";
+                  { std::ofstream tf(tmp, std::ios::trunc); if (tf) tf << pretty; }
+                  rename(tmp.c_str(), gpath.c_str());
+                  em.emit("REPAIR_OK", "\"step\":\"new gate: " + json_escape(ruleId) + "\",\"attempt\":1");
+                  advice += "  new gate installed: " + ruleId + " — this class of break is now caught BEFORE it happens.\n";
+                }
+              }
+            }
+          }
+        }
+      }
+      fprintf(stderr, "rabadon: tests are RED.%s\n",
+        advice.empty() ? " Fix the failure before moving on." : advice.c_str());
+      return 2;
+    }
+
+    // any other tool: no event, no state mutation — but the twin-dedupe key we
+    // appended above must persist so a twin delivery dedupes.
+    stt.save();
+    return 0;
+  }
 
   // ---------- UserPromptSubmit: pin the session's goal ----------
   if (hook == "UserPromptSubmit") {

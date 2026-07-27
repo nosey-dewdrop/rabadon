@@ -19,6 +19,7 @@ bench: native/rabadon-gate
 test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop
 	./native/gate_promise_test.sh
 	./native/session_test.sh
+	./native/postuse_test.sh
 	./native/drift_test.sh
 	./native/verify_test.sh
 	./native/loop_test.sh
