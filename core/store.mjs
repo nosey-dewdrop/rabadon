@@ -18,6 +18,40 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SPOOL_DIR } from './bus.mjs';
 
+// Pipes that are rabadon exercising ITSELF (shipped demos, scratch test
+// projects). Their events are honest history but they are NOT the user's
+// work, so the ledger must never sell them as catches.
+const SELF_PIPES = /^(vibecoded-demo|do-test|llm-repair-live|bus-test)(:|$)/;
+const DRILL_MARKER = /(fleet|doctor)-\d+/; // `echo fleet-<pid>-<proj>` / doctor probes
+
+/**
+ * Label rabadon's own noise so every ledger downstream can exclude it.
+ * Three deterministic rules, applied WITHOUT touching the spool files
+ * (the source of truth stays byte-identical):
+ *   1. an event carrying a fleet/doctor marker string is a drill;
+ *   2. an event on a self/demo/scratch pipe is a drill;
+ *   3. an event on the SAME pipe within ±2min of that pipe's marker is part
+ *      of that drill (the synthetic force-push fired right after the marker,
+ *      before drill-tagging at emit existed).
+ * Newly emitted drills are tagged at the gate itself; these rules are the
+ * honest back-fill for history.
+ */
+export function markDrills(events) {
+  const markers = [];
+  for (const e of events) {
+    if (e.drill) continue;
+    let s; try { s = JSON.stringify(e); } catch { continue; }
+    if (DRILL_MARKER.test(s)) { e.drill = true; markers.push({ pipe: e.pipe, ts: e.ts }); }
+  }
+  for (const e of events) {
+    if (e.drill) continue;
+    const pipe = String(e.pipe || '');
+    if (SELF_PIPES.test(pipe) || pipe.startsWith('tmp.')) { e.drill = true; continue; }
+    if (markers.some((m) => m.pipe === e.pipe && Math.abs(e.ts - m.ts) < 120000)) e.drill = true;
+  }
+  return events;
+}
+
 /** Read every event of the last `days` days, oldest first. Bad lines are
  * counted, not silently dropped — the store reports its own losses. */
 export function readEvents({ days = 7, spoolDir = SPOOL_DIR, now = Date.now() } = {}) {
@@ -41,6 +75,7 @@ export function readEvents({ days = 7, spoolDir = SPOOL_DIR, now = Date.now() } 
     }
   }
   events.sort((a, b) => (a.ts - b.ts) || ((a.seq || 0) - (b.seq || 0)));
+  markDrills(events);
   return { events, unparseable };
 }
 

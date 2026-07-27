@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readEvents, indexRuns, aggregate, scanFleet, projectOf, kindOf } from './store.mjs';
+import { readEvents, indexRuns, aggregate, scanFleet, projectOf, kindOf, markDrills } from './store.mjs';
 
 const T0 = Date.parse('2026-07-27T10:00:00Z');
 const day = new Date(T0).toISOString().slice(0, 10);
@@ -133,6 +133,31 @@ test('aggregate + indexRuns: drill events are excluded from the ledger and drill
   const runs = indexRuns(events);
   assert.equal(runs.find((r) => r.id === 'd1').drill, true);
   assert.ok(!runs.find((r) => r.id === 'r1').drill);
+});
+
+test('markDrills: historic fleet drills, demo pipes and scratch projects are labeled — a real catch outside the drill window survives', () => {
+  const events = [
+    // the fleet drill signature: echo marker + the synthetic force-push right after
+    ev(1, 'm1', 'arnica:session', 'STEP_START', { step: 'bash: echo fleet-77659-arnica' }),
+    ev(2, 'b1', 'arnica:session', 'CHECK_FAIL', { step: 'Bash', fails: [{ check: 'force-push-main', why: 'command matched deny rule: git push --force origin main' }] }),
+    ev(3, 'b1', 'arnica:session', 'STOP', { reason: 'BLOCKED', detail: 'command matched deny rule: git push --force origin main' }),
+    // demo + scratch pipes
+    ev(4, 'd1', 'vibecoded-demo', 'REPAIR_OK', { step: 'summarize', attempt: 1 }),
+    ev(5, 't1', 'tmp.MoDcJQS3mw:session', 'STOP', { reason: 'BLOCKED', detail: 'x' }),
+    // a REAL catch on the same project, 3 hours after the drill — must survive
+    { v: 1, seq: 9, ts: T0 + 3 * 3600000, run: 'r9', pipe: 'arnica:session', ev: 'STOP', reason: 'BLOCKED', detail: 'protected file: pin.json' },
+  ];
+  markDrills(events);
+  assert.equal(events[0].drill, true, 'the marker itself');
+  assert.equal(events[1].drill, true, 'the paired synthetic block');
+  assert.equal(events[2].drill, true);
+  assert.equal(events[3].drill, true, 'demo pipe');
+  assert.equal(events[4].drill, true, 'scratch project');
+  assert.ok(!events[5].drill, 'the real catch 3h later is NOT eaten');
+
+  const { totals } = aggregate(events);
+  assert.equal(totals.blocked, 1, 'the ledger keeps exactly the one real catch');
+  assert.equal(totals.repairsOk, 0, 'a demo repair is not a repair credit');
 });
 
 test('scanFleet: finds guarded projects, reads their state, attaches last activity', () => {

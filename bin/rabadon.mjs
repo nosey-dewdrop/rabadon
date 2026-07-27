@@ -104,48 +104,25 @@ if (cmd === 'guard') {
 }
 
 if (cmd === 'stats') {
-  // The catch ledger: numbers from the spool, not claims. Every line here is
-  // backed by a jsonl event with a timestamp.
-  const fs = await import('node:fs');
+  // The catch ledger: numbers from the spool, not claims — via the SAME store
+  // the dashboard reads, so the terminal and the ui can never disagree.
+  // Drills and demo/self runs are excluded by the store and reported apart.
   const { SPOOL_DIR } = await import('../core/bus.mjs');
+  const { readEvents, aggregate } = await import('../core/store.mjs');
   const days = Number(process.argv[process.argv.indexOf('--days') + 1]) || 7;
-  const cutoff = Date.now() - days * 86400000;
-  const perProject = new Map();
-  let files = [];
-  try { files = fs.readdirSync(SPOOL_DIR).filter((f) => f.endsWith('.jsonl')); } catch { }
-  let drills = 0;
-  for (const f of files) {
-    for (const line of fs.readFileSync(path0.join(SPOOL_DIR, f), 'utf8').split('\n')) {
-      if (!line.trim()) continue;
-      let e; try { e = JSON.parse(line); } catch { continue; }
-      if (e.ts < cutoff) continue;
-      // rabadon's own synthetic checks are NOT catches — excluded, counted apart
-      if (e.drill) { drills++; continue; }
-      const proj = String(e.pipe || '?').replace(/:session$/, '');
-      if (!perProject.has(proj)) perProject.set(proj, { gated: 0, blocked: new Map(), loops: 0, repairsOk: 0, checkFails: 0, runs: new Set() });
-      const s = perProject.get(proj);
-      if (e.run) s.runs.add(e.run.slice(0, 8));
-      if (e.ev === 'STEP_START') s.gated++;
-      if (e.ev === 'CHECK_FAIL') { s.checkFails++; for (const fl of e.fails || []) { if (fl.check === 'loop-stop') s.loops++; } }
-      if (e.ev === 'STOP' && e.reason === 'BLOCKED') {
-        const rule = String(e.detail || '').slice(0, 60);
-        s.blocked.set(rule, (s.blocked.get(rule) || 0) + 1);
-      }
-      if (e.ev === 'REPAIR_OK') s.repairsOk++;
-    }
-  }
+  const { events } = readEvents({ days });
+  const { totals, projects } = aggregate(events);
   process.stdout.write(`rabadon stats — last ${days} day(s), source: ${SPOOL_DIR}\n\n`);
-  if (!perProject.size) process.stdout.write('  (no events yet)\n');
-  for (const [proj, s] of perProject) {
-    const blockedTotal = [...s.blocked.values()].reduce((a, b) => a + b, 0);
-    process.stdout.write(`  ${proj}\n`);
+  if (!projects.length) process.stdout.write('  (no events yet)\n');
+  for (const s of projects) {
+    process.stdout.write(`  ${s.project}\n`);
     process.stdout.write(`    actions gated:            ${s.gated}\n`);
-    process.stdout.write(`    caught before happening:  ${blockedTotal}\n`);
-    for (const [rule, n] of s.blocked) process.stdout.write(`      ${n}x  ${rule}\n`);
-    process.stdout.write(`    checks failed (caught):   ${s.checkFails}${s.loops ? `  (loops stopped: ${s.loops})` : ''}\n`);
+    process.stdout.write(`    caught before happening:  ${s.blocked}\n`);
+    for (const { rule, n } of s.blockedRules) process.stdout.write(`      ${n}x  ${rule.slice(0, 60)}\n`);
+    process.stdout.write(`    checks failed (caught):   ${s.checkFails}${s.loopsStopped ? `  (loops stopped: ${s.loopsStopped})` : ''}\n`);
     process.stdout.write(`    repairs accepted:         ${s.repairsOk}\n\n`);
   }
-  if (drills) process.stdout.write(`  (${drills} drill event(s) — rabadon's own synthetic checks — excluded from every number above)\n`);
+  if (totals.drills) process.stdout.write(`  (${totals.drills} event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)\n`);
   process.exit(0);
 }
 
