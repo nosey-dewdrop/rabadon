@@ -13,6 +13,7 @@
 //
 // Zero dependencies. ANSI only.
 
+import fs from 'node:fs';
 import path0 from 'node:path';
 import { listen, SOCK_PATH } from '../core/bus.mjs';
 
@@ -81,6 +82,11 @@ function render(e) {
       line = paint(C.dim, `${e.ev} ${JSON.stringify(e).slice(0, 120)}`);
   }
   process.stdout.write(`${t}  ${p} ${runTag}  ${line}\n`);
+}
+
+if (process.argv.includes('--version') || process.argv.includes('-v')) {
+  console.log(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
+  process.exit(0);
 }
 
 const cmd = process.argv[2] || 'watch';

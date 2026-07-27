@@ -79,6 +79,20 @@ Built in, on every session, no configuration:
 
 Everything is local: events go over a unix socket and into `~/.rabadon/spool/` on your machine. Nothing leaves it. Escape hatches are first-class: `rabadon off` pauses everything, and every block message names its rule id so you can disable exactly that rule in `.rabadon/guard.json` (`"disabled": ["rule-id"]`).
 
+## The motor: `rabadon do`
+
+Task in, gate-verified output out. The motor derives the pipeline FROM the task — you don't declare steps, you state what done means and rabadon plans, runs, gates and pivots until it gets there or stops honestly:
+
+```sh
+rabadon do "make the failing suite green without weakening any test" ~/code/my-project
+```
+
+- **PLAN** — one model call decomposes the task into steps, and every step gets a MECHANICAL contract (command exits green / file exists / pattern present). No LLM ever judges pass/fail.
+- **RUN** — deterministic runner; shell steps cost zero tokens, work steps are a narrow headless agent.
+- **GATE** — after every step its contract runs before anything flows onward. A broken step cannot leak downstream.
+- **PIVOT** — a broken gate gets one repair, then one bounded replan of the remaining path. Then fail-closed.
+- **ACCEPT** — the task-level contract runs at the end. "Done" is a measurement, not a claim.
+
 ## One line into existing code: `wrap()`
 
 You don't have to rewrite your pipeline as rabadon steps. Wrap the client you already use — the adoption surface of the passive tracers, with the inline gate they don't have:
@@ -115,6 +129,21 @@ Run your pipelines anywhere on the machine; watch every step, break and repair l
 
 Events are also spooled to `~/.rabadon/spool/` so nothing is lost when nobody is watching, and dropped live events are counted, never hidden.
 
+## The dashboard: `rabadon ui`
+
+The surface the hosted platforms sell — traces, catch ledger, live feed — standing on your own disk:
+
+```sh
+rabadon ui --root ~/code    # then open http://127.0.0.1:8484
+```
+
+- **the ledger** — actions gated, caught before happening, breaks caught, repairs accepted; every number backed by a timestamped event in the spool.
+- **traces** — every run reconstructed step by step: what broke, what was repaired, what verdict closed it. The same shape Langfuse/Braintrust call a trace; the vocabulary here is what the gate *did*, not what the model said.
+- **live** — events stream in the moment they land, from every pipeline, session and motor run on the machine.
+- **fleet** — every project standing under guard: rules, hooks, push gate, state.
+
+Local only, by law: binds `127.0.0.1`, reads `~/.rabadon/spool/`, no account, no upload, nothing leaves the machine.
+
 ## The LLM repair slot
 
 `repair/claude.mjs` — the piece none of the field has. When a step's checks fail, the broken output and the exact failure reasons go to `claude-opus-4-8` ("this step produced X, the checks failed because Y, rewrite it"). The model's fix is re-run through the SAME intent checks and accepted only if they pass — the LLM gets no free pass, its real token spend counts against the same session budget, and an unfixable break still fails closed. Zero dependencies: raw fetch, bounded retries, 401/400 never retried.
@@ -131,9 +160,10 @@ Events are also spooled to `~/.rabadon/spool/` so nothing is lost when nobody is
 ## Run it
 
 ```sh
-npm test                          # every guarantee proven: core, wrap, live bus
+npm test                          # every guarantee proven: core, wrap, bus, store, ui, do contracts
 node demo/vibecoded-pipeline.mjs  # a broken pipeline diagnosed + repaired end to end
 node bin/rabadon.mjs watch        # live terminal view (run the demo in another terminal)
+node bin/rabadon.mjs ui           # the dashboard on 127.0.0.1:8484
 node demo/llm-repair-live.mjs     # LIVE Claude repair (needs ANTHROPIC_API_KEY)
 ```
 
