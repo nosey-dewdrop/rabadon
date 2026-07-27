@@ -513,7 +513,27 @@ if (cmd === 'doctor') {
   process.exit(fail ? 1 : 0);
 }
 
-if (cmd === 'off' || cmd === 'on') {
+if (cmd === 'ui') {
+  // the dashboard — what the hosted platforms sell, standing on YOUR disk.
+  // `rabadon ui [--port N] [--root DIR]...`  then open the printed URL.
+  const { createUiServer } = await import('../ui/server.mjs');
+  const portIdx = process.argv.indexOf('--port');
+  const port = portIdx !== -1 ? Number(process.argv[portIdx + 1]) : 8484;
+  const roots = [];
+  for (let i = 3; i < process.argv.length; i++) {
+    if (process.argv[i] === '--root' && process.argv[i + 1]) roots.push(path0.resolve(process.argv[++i]));
+  }
+  if (!roots.length) roots.push(process.cwd());
+  try {
+    const ui = await createUiServer({ port, roots });
+    process.stdout.write(`rabadon ui — http://127.0.0.1:${ui.port}\n`);
+    process.stdout.write(`  local only: reads ~/.rabadon/spool, binds 127.0.0.1, nothing leaves this machine.\n`);
+    process.stdout.write(`  fleet roots: ${roots.join(', ')}\n`);
+  } catch (e) {
+    console.error(`rabadon ui: ${e.message}${String(e.message).includes('EADDRINUSE') ? ' — another ui is already running; open it, or pass --port' : ''}`);
+    process.exit(1);
+  }
+} else if (cmd === 'off' || cmd === 'on') {
   const fs = await import('node:fs');
   const dir = path0.join(process.cwd(), '.rabadon');
   const offFile = path0.join(dir, 'off');
@@ -528,19 +548,18 @@ if (cmd === 'off' || cmd === 'on') {
   process.exit(0);
 }
 
-if (cmd !== 'watch') {
-  console.error(`rabadon: unknown command "${cmd}" (watch | guard [dir] | init [dir] | stats [--days N] | off | on)`);
+if (cmd === 'watch') {
+  const banner = [
+    '',
+    `  ${paint(C.bold, 'rabadon watch')} ${paint(C.dim, '— live view of every checked pipeline on this machine')}`,
+    `  ${paint(C.dim, `socket: ${SOCK_PATH}`)}`,
+    `  ${paint(C.dim, 'waiting for pipelines… (run one anywhere; it will appear here the moment it starts)')}`,
+    '',
+  ].join('\n');
+  listen(render)
+    .then(() => process.stdout.write(banner + '\n'))
+    .catch((err) => { console.error(`rabadon watch: ${err.message}`); process.exit(1); });
+} else if (cmd !== 'ui') {
+  console.error(`rabadon: unknown command "${cmd}" (watch | ui | do "<task>" [dir] | guard [dir] | init [dir] | fleet [root] | spin [dir] | exec -- <cmd> | pack export|import | stats [--days N] | doctor | statusline | off | on)`);
   process.exit(1);
 }
-
-const banner = [
-  '',
-  `  ${paint(C.bold, 'rabadon watch')} ${paint(C.dim, '— live view of every checked pipeline on this machine')}`,
-  `  ${paint(C.dim, `socket: ${SOCK_PATH}`)}`,
-  `  ${paint(C.dim, 'waiting for pipelines… (run one anywhere; it will appear here the moment it starts)')}`,
-  '',
-].join('\n');
-
-listen(render)
-  .then(() => process.stdout.write(banner + '\n'))
-  .catch((err) => { console.error(`rabadon watch: ${err.message}`); process.exit(1); });

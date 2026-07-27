@@ -11,7 +11,7 @@
   },
   "exports": "./index.mjs",
   "scripts": {
-    "test": "node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs",
+    "test": "node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs core/store.test.mjs ui/server.test.mjs engine/do.test.mjs",
     "demo": "node demo/vibecoded-pipeline.mjs",
     "watch": "node bin/rabadon.mjs watch"
   },
@@ -36,6 +36,9 @@
     "bin/",
     "hooks/",
     "repair/",
+    "engine/",
+    "ui/",
+    "packs/",
     "README.md"
   ]
 }

@@ -58,7 +58,7 @@ function runClaude(prompt, { cwd, timeoutMs = 20 * 60000, worker = false } = {})
   });
 }
 
-function checkContract(contract, dir) {
+export function checkContract(contract, dir) {
   const fails = [];
   for (const c of contract || []) {
     try {
@@ -82,7 +82,7 @@ function checkContract(contract, dir) {
   return fails;
 }
 
-const parseJson = (t) => { try { return JSON.parse(t.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { return null; } };
+export const parseJson = (t) => { try { return JSON.parse(t.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { return null; } };
 
 export async function runDo(task, dir, { maxReplans = 2 } = {}) {
   const emit = emitter({ pipe: `${path.basename(dir)}:do` });
