@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-gate native/rabadon-drift
+all: native/rabadon-gate native/rabadon-drift native/rabadon-verify
 
 native/rabadon-gate: native/gate.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -16,10 +16,14 @@ bench: native/rabadon-gate
 	python3 native/bench.py
 
 # native proofs: the direction check fires in both directions and fails open.
-test: native/rabadon-drift
+test: native/rabadon-drift native/rabadon-verify
 	./native/drift_test.sh
+	./native/verify_test.sh
 
 clean:
-	rm -f native/rabadon-gate native/rabadon-drift
+	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify
 
 .PHONY: all bench clean
+
+native/rabadon-verify: native/verify.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<

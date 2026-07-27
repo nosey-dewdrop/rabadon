@@ -11,3 +11,4 @@ BUGUN-*.md
 .rabadon/
 native/rabadon-gate
 native/rabadon-drift
+native/rabadon-verify
