@@ -106,6 +106,9 @@ for (const t of result.trace) {
 console.log(`\n  verdict: ${result.verdict}`);
 console.log(`  final output: count=${result.output.count}, avgScore=${result.output.avgScore}   <- correct (ada kept, null not counted as 0)`);
 console.log(`\n>>> rabadon didn't just CATCH the silent break — it walked the pipeline back to a working one. <<<`);
+console.log(`    (honesty note: this demo's repair fns are coded fixes, so it runs deterministic and key-free.`);
+console.log(`     the LLM slot does the general case — see demo/llm-repair-live.mjs and the committed evidence`);
+console.log(`     of a real 10.9s Claude repair in demo/fixtures/, pinned by demo/live-repair-evidence.test.mjs)`);
 
 // NOTE: the repair fns here install a coded fix so the demo is deterministic and
 // needs no key. For the general vibecoding case, the same `repair` slot takes an

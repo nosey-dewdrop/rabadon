@@ -1,0 +1,7 @@
+{"v":1,"seq":1,"ts":1785071423407,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"RUN_START","bound":{"maxSteps":3,"maxRepairs":1},"steps":["summarize"],"goal":null}
+{"v":1,"seq":2,"ts":1785071423407,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"STEP_START","step":"summarize","depth":1}
+{"v":1,"seq":3,"ts":1785071423407,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"CHECK_FAIL","step":"summarize","fails":[{"check":"nothingDropped","why":"total=3 but input had 4 records — something was silently dropped"},{"check":"rateOverTruePopulation","why":"positiveRate=0.3333333333333333 but the true rate is 0.5 (2/4)"}]}
+{"v":1,"seq":4,"ts":1785071423407,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"REPAIR_START","step":"summarize","attempt":1,"fixing":["nothingDropped","rateOverTruePopulation"]}
+{"v":1,"seq":5,"ts":1785071434293,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"REPAIR_OK","step":"summarize","attempt":1,"remaining":[]}
+{"v":1,"seq":6,"ts":1785071434294,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"STEP_OK","step":"summarize","tokens":0,"repaired":true}
+{"v":1,"seq":7,"ts":1785071434294,"run":"ms1tfpgi-112n-1","pipe":"llm-repair-live","ev":"RUN_DONE","verdict":"PASS","tokens":0,"depth":1}
