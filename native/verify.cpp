@@ -60,6 +60,12 @@ static uint64_t fnv1a(const string& s) {
 
 static bool file_exists(const string& p) { struct stat sb; return stat(p.c_str(), &sb) == 0; }
 
+// resolve a contract path against the project dir. An absolute path is used
+// as-is (the planner sometimes emits one); a relative path joins with dir.
+// Without this, dir + "/" + "/abs/path" double-joins and every file check
+// false-fails — a real bug the first live run exposed.
+static string resolve(const string& dir, const string& p) { return (!p.empty() && p[0] == '/') ? p : dir + "/" + p; }
+
 // ---- minimal JSON: this file only ever parses the contract array we emit ----
 // Each contract object is a flat {"type":..,"...":".."} — find string/scalar by key
 // within a given object slice.
@@ -120,12 +126,12 @@ int main(int argc, char** argv) {
 
     } else if (type == "fileExists") {
       const string path = obj_str(it, "path");
-      if (!file_exists(dir + "/" + path)) { printf("FAIL fileExists [%s]: missing\n", path.c_str()); failed++; }
+      if (!file_exists(resolve(dir, path))) { printf("FAIL fileExists [%s]: missing\n", path.c_str()); failed++; }
 
     } else if (type == "fileContains") {
       const string path = obj_str(it, "path");
       const string pat = obj_str(it, "pattern");
-      string body = read_file(dir + "/" + path);
+      string body = read_file(resolve(dir, path));
       if (body.find(pat) == string::npos) { printf("FAIL fileContains [%s]: '%s' absent\n", path.c_str(), pat.c_str()); failed++; }
 
     } else if (type == "differential") {
@@ -146,7 +152,7 @@ int main(int argc, char** argv) {
       // thing it was told to preserve.
       const string path = obj_str(it, "path");
       const string sha = obj_str(it, "sha");
-      string body = read_file(dir + "/" + path);
+      string body = read_file(resolve(dir, path));
       char now[24]; snprintf(now, sizeof now, "%llu", (unsigned long long)fnv1a(body));
       if (sha != now) { printf("FAIL forbidden [%s]: protected content was modified\n", path.c_str()); failed++; }
 

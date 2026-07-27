@@ -184,9 +184,13 @@ if (cmd === 'do') {
   const task = process.argv[3];
   if (!task || task.startsWith('--')) { console.error('rabadon do: usage — rabadon do "<task>" [dir]'); process.exit(1); }
   const dir = path0.resolve(process.argv[4] && !process.argv[4].startsWith('--') ? process.argv[4] : process.cwd());
-  const { runDo } = await import('../engine/do.mjs');
-  try { await runDo(task, dir); process.exit(0); }
-  catch (e) { console.error(e.message); process.exit(1); }
+  // the motor is native now (C++ language law). This dispatches to the binary:
+  // plan (one model call) then the gate-verified loop. The JS engine is retired.
+  const { spawnSync } = await import('node:child_process');
+  const doBin = path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'native', 'rabadon-do');
+  if (!fs.existsSync(doBin)) { console.error('rabadon do: native engine not built — run `make` in the rabadon repo first.'); process.exit(1); }
+  const r = spawnSync(doBin, [task, dir], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
 }
 
 if (cmd === 'exec') {

@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop
+all: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do
 
 native/rabadon-gate: native/gate.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -22,7 +22,7 @@ test: native/rabadon-drift native/rabadon-verify native/rabadon-loop
 	./native/loop_test.sh
 
 clean:
-	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop
+	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do
 
 .PHONY: all bench clean
 
@@ -30,4 +30,7 @@ native/rabadon-verify: native/verify.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-loop: native/loop.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+native/rabadon-do: native/do.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
