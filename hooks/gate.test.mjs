@@ -114,6 +114,25 @@ test('twin delivery (global + project hooks): the duplicate tool_use_id is a no-
   assert.equal(retry.status, 2, 'a genuine re-attempt is refused again, not deduped away');
 });
 
+test('red detector: "fail 0" in a green run is GREEN (measured count, not keyword sighting), fail 2 is red', () => {
+  const { home, proj } = world();
+  guard(proj, { project: 'p', bash: [] });
+  // green run, JSON-escaped newlines exactly as Claude Code delivers them
+  const green = fire(home, {
+    hook_event_name: 'PostToolUse', cwd: proj, session_id: 'real-green', tool_use_id: 'toolu_g1',
+    tool_name: 'Bash', tool_input: { command: 'npm test' },
+    tool_response: { stdout: 'ℹ tests 52\nℹ pass 52\nℹ fail 0' },
+  });
+  assert.equal(green.status, 0, 'a fully green suite must never be called RED');
+  const red = fire(home, {
+    hook_event_name: 'PostToolUse', cwd: proj, session_id: 'real-red', tool_use_id: 'toolu_r1',
+    tool_name: 'Bash', tool_input: { command: 'npm test' },
+    tool_response: { stdout: 'ℹ tests 52\nℹ pass 50\nℹ fail 2' },
+  });
+  assert.equal(red.status, 2, 'a measured failure is fed back');
+  assert.match(red.stderr, /RED/);
+});
+
 test('no guard file: the gate observes but never blocks', () => {
   const { home, proj } = world();
   const r = fire(home, { hook_event_name: 'PreToolUse', cwd: proj, session_id: 'real-noguard', tool_name: 'Bash', tool_input: { command: 'git push --force origin main' } });

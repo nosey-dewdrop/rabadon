@@ -371,12 +371,20 @@ else if (hookEvent === 'PostToolUse') {
     await done('STEP_OK', { step: `edited: ${path.basename(file)}` });
   } else if (ev.tool_name === 'Bash') {
     const cmd = String(toolInput.command || '');
-    const out = typeof ev.tool_response === 'string' ? ev.tool_response : JSON.stringify(ev.tool_response || '');
+    // tool_response is often a JSON object; stringifying it escapes newlines
+    // to literal \n — unescape so line-anchored patterns see real lines
+    const out = (typeof ev.tool_response === 'string' ? ev.tool_response : JSON.stringify(ev.tool_response || ''))
+      .replace(/\\r?\\n/g, '\n');
     const isTest = guard && guard.testCommand ? new RegExp(guard.testCommand, 'i').test(cmd) : /ctest|--test|npm test/.test(cmd);
     if (isTest) {
+      // red = a MEASURED failure, never a keyword sighting: the word "fail"
+      // appears in a green run too ("fail 0") — its own diagnosis engine
+      // caught this detector doing exactly that (2026-07-27, live)
+      const failCount = out.match(/\bfail(?:ed|ures)?\s*[:= ]\s*(\d+)/i);
       const passed = guard && guard.testPassPattern
         ? new RegExp(guard.testPassPattern, 'i').test(out)
-        : /100% tests passed|0 failed|pass 1?\d+\n.*fail 0/i.test(out);
+        : failCount ? Number(failCount[1]) === 0
+        : /100% tests passed|0 failed|all tests passed/i.test(out);
       state.lastTestRun = now;
       if (passed) { state.lastTestPass = now; state.lastTestFail = 0; }
       else state.lastTestFail = now;
