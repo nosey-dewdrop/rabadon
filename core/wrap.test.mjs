@@ -174,3 +174,68 @@ test('wrapped client passes through unrelated properties untouched', async () =>
   assert.equal(wrapped.apiKey, 'k');
   assert.equal(wrapped.messages.list(), 'listed');
 });
+
+// --- no un-gated side door: the budget must be impossible to bypass ---------
+
+test('the Responses-API bypass is CLOSED: un-gated spend surfaces are refused, even after budget exhaustion', async () => {
+  let responsesCalls = 0, embeddingsCalls = 0;
+  const client = fakeOpenAI('hi');
+  client.responses = { create: async () => { responsesCalls++; return { output_text: 'leak' }; } };
+  client.embeddings = { create: async () => { embeddingsCalls++; return { data: [] }; } };
+  const s = session({ maxCalls: 1 });
+  const wrapped = s.wrap(client);
+
+  await wrapped.chat.completions.create({ model: 'gpt' }); // budget now exhausted
+
+  await assert.rejects(() => wrapped.responses.create({ model: 'gpt' }), (err) => {
+    assert.ok(err instanceof RabadonStop);
+    assert.equal(err.reason, 'UNWRAPPED');
+    return true;
+  });
+  await assert.rejects(() => wrapped.embeddings.create({ input: 'x' }), /UNWRAPPED/);
+  assert.equal(responsesCalls, 0, 'the provider must never see the un-gated call');
+  assert.equal(embeddingsCalls, 0);
+});
+
+test('stream:true is refused in block mode — un-countable spend cannot pass the gate', async () => {
+  let streamed = 0;
+  const client = fakeOpenAI('hi');
+  const inner = client.chat.completions.create;
+  client.chat.completions.create = async (p) => { if (p && p.stream) streamed++; return inner(p); };
+  const s = session({ maxCalls: 5 });
+  const wrapped = s.wrap(client);
+  await assert.rejects(() => wrapped.chat.completions.create({ model: 'gpt', stream: true }), /stream:true/);
+  assert.equal(streamed, 0, 'the streamed call must be refused BEFORE the provider sees it');
+  assert.equal(s.stats().tokens, 0);
+});
+
+test('anthropic messages.stream is refused in block mode', async () => {
+  const client = fakeAnthropic([anthropicResp('x')]);
+  client.messages.stream = () => ({ on: () => {} });
+  const s = session({ maxCalls: 5 });
+  const wrapped = s.wrap(client);
+  await assert.rejects(async () => wrapped.messages.stream({ model: 'm' }), /UNWRAPPED/);
+});
+
+test('observe mode: an un-gated surface flows but is ON RECORD (counted + warned)', async () => {
+  let responsesCalls = 0;
+  const client = fakeOpenAI('hi');
+  client.responses = { create: async () => { responsesCalls++; return { output_text: 'day-one traffic' }; } };
+  const events = [];
+  const s = session({ maxCalls: 5, mode: 'observe', emit: (ev, f) => events.push({ ev, ...f }) });
+  const wrapped = s.wrap(client);
+  const out = await wrapped.responses.create({ model: 'gpt' });
+  assert.equal(out.output_text, 'day-one traffic', 'observe mode must not break existing traffic');
+  assert.equal(responsesCalls, 1);
+  assert.equal(s.stats().observedFails, 1);
+  assert.equal(s.stats().calls, 1, 'the bypass call is at least COUNTED');
+  assert.ok(events.some((e) => e.ev === 'CHECK_FAIL' && e.fails[0].check === 'unwrapped-surface'));
+});
+
+test('responseText: tool-only responses are payload, not "empty" (agentic traffic must not fail-close)', () => {
+  const anthropicToolOnly = { content: [{ type: 'tool_use', name: 'get_weather', input: { city: 'ankara' } }] };
+  assert.ok(responseText(anthropicToolOnly).includes('get_weather'));
+  const openaiToolOnly = { choices: [{ message: { content: null, tool_calls: [{ function: { name: 'search', arguments: '{}' } }] } }] };
+  assert.ok(responseText(openaiToolOnly).includes('search'));
+  assert.equal(nonEmpty(anthropicToolOnly), true, 'the README non-empty check must pass a tool-only response');
+});

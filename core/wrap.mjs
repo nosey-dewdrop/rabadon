@@ -14,14 +14,22 @@
 //     are passive; their own docs say they only log, never gate.
 //   - Galileo Protect / Agent Control: the only inline one — code AWAITS the
 //     verdict, then branches (allow / deny / canned override). No rewrite.
+//   - Guardrails (ReAsk) / Instructor (max_retries): re-ask the model when ONE
+//     structured output fails validation. Real prior art for repair — honored
+//     in the comparison, not erased.
 //   - rabadon: the wrap surface of the passive tools, the inline gate of
-//     Galileo, plus the piece none of them have — bounded REPAIR, re-checked
-//     before anything flows onward. Fail-closed.
+//     Galileo, and repair generalized past the single-output case: any step,
+//     re-checked before it flows, spending from the same session budget.
 //
 // The session is the unit of protection: one shared budget across every call
 // made through it, so a runaway loop cannot spend past the bound no matter
 // how many wrapped clients it touches. Bound is enforced PRE-CALL (the spend
 // is refused before it happens, not lamented after).
+//
+// FAIL-CLOSED ALSO MEANS: no un-gated side door. A wrapped client refuses the
+// spend surfaces rabadon cannot count or check (responses/embeddings/batches/
+// beta/streaming) instead of letting them silently bypass the budget. In
+// 'observe' mode they flow — but loudly, ON RECORD, like every other failure.
 
 import { EV } from './bus.mjs';
 
@@ -30,11 +38,20 @@ export class RabadonStop extends Error {
   constructor(reason, detail, extra = {}) {
     super(`rabadon ${reason}: ${detail}`);
     this.name = 'RabadonStop';
-    this.reason = reason;   // 'RUNAWAY' | 'CHECK_FAILED'
+    this.reason = reason;   // 'RUNAWAY' | 'CHECK_FAILED' | 'UNWRAPPED'
     this.detail = detail;
     Object.assign(this, extra);
   }
 }
+
+// Spend surfaces a wrapped client refuses to pass through un-gated. Anything
+// on this list can cost tokens/money without going through gated(), which
+// would make the budget a lie. Enumerated per provider shape; streaming is
+// handled separately (it is a parameter, not a property).
+const UNGATED = {
+  anthropic: { top: ['completions', 'batches', 'beta'], messages: ['stream', 'batches'] },
+  openai: { top: ['responses', 'completions', 'embeddings', 'images', 'audio', 'batches', 'beta'] },
+};
 
 function usageTokens(response) {
   // Anthropic: response.usage = { input_tokens, output_tokens }
@@ -45,17 +62,25 @@ function usageTokens(response) {
   return (u.input_tokens || u.prompt_tokens || 0) + (u.output_tokens || u.completion_tokens || 0);
 }
 
-/** Read the assistant text out of either provider's response shape. */
+/** Read the assistant's payload out of either provider's response shape.
+ * Tool calls COUNT as payload: an agentic response that only calls tools is
+ * not "empty", and a non-empty check must not fail-close legitimate work. */
 export function responseText(response) {
   if (!response) return '';
   if (Array.isArray(response.content)) {
-    // Anthropic: content blocks
-    return response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    // Anthropic: content blocks — text verbatim, tool_use serialized
+    return response.content.map((b) =>
+      b.type === 'text' ? b.text
+      : b.type === 'tool_use' ? JSON.stringify({ tool_use: { name: b.name, input: b.input } })
+      : '').join('');
   }
   if (Array.isArray(response.choices)) {
-    // OpenAI: choices[0].message.content
+    // OpenAI: message content, else serialized tool_calls
     const m = response.choices[0] && response.choices[0].message;
-    return (m && m.content) || '';
+    if (!m) return '';
+    if (m.content) return m.content;
+    if (Array.isArray(m.tool_calls) && m.tool_calls.length) return JSON.stringify(m.tool_calls);
+    return '';
   }
   return '';
 }
@@ -160,8 +185,60 @@ export function session(opts = {}) {
   }
 
   /**
+   * Refuse (block mode) or record-and-pass (observe mode) a spend surface the
+   * gate cannot count or check. The refusal happens at CALL time, not access
+   * time, so reading `client.responses` for introspection stays harmless.
+   */
+  function denied(pathLabel, orig, why) {
+    const reason = why || `client.${pathLabel} is not gated by rabadon — this spend would be invisible to the session budget and its output unchecked. Route it through the wrapped completion surface, or gate it explicitly with wrapFn().`;
+    // async on purpose: SDK spend surfaces return promises, so the refusal is
+    // a rejection, reaching the same catch paths a provider error would.
+    return async (...a) => {
+      if (mode === 'block') {
+        state.blocked += 1;
+        emit(EV.STOP, { reason: 'UNWRAPPED', detail: `${pathLabel}: refused (fail-closed)` });
+        throw new RabadonStop('UNWRAPPED', reason);
+      }
+      // observe: it flows, but LOUDLY — counted as a call, on the record
+      state.calls += 1;
+      state.observedFails += 1;
+      emit(EV.CHECK_FAIL, { step: pathLabel, fails: [{ check: 'unwrapped-surface', why: reason }] });
+      try { console.warn(`rabadon (observe): ${reason}`); } catch { /* a broken console must not break the call */ }
+      return orig(...a);
+    };
+  }
+
+  /** Deep-poison an un-gated surface: any function at any depth under it is denied. */
+  function poison(pathLabel, target) {
+    if (typeof target === 'function') return denied(pathLabel, target);
+    if (target && typeof target === 'object') {
+      return new Proxy(target, {
+        get(t, k) {
+          if (typeof k === 'symbol') return t[k];
+          const v = t[k];
+          return poison(`${pathLabel}.${String(k)}`, typeof v === 'function' ? v.bind(t) : v);
+        },
+      });
+    }
+    return target;
+  }
+
+  /** Gate a create fn, refusing stream:true — a stream's spend and content
+   * cannot be counted/checked inline yet, so it must not slip the gate. */
+  function gatedCreate(labelOf, original, per) {
+    return (params, ...rest) => {
+      if (params && params.stream === true) {
+        return denied(`${labelOf(params)} (stream:true)`, () => original(params, ...rest),
+          `${labelOf(params)} with stream:true — streamed usage bypasses the token count and inline checks. Drop stream:true on the wrapped client, or gate the streamed call yourself with wrapFn().`)();
+      }
+      return gated(labelOf(params), () => original(params, ...rest), params, per);
+    };
+  }
+
+  /**
    * Wrap a provider client (Anthropic or OpenAI SDK instance). Returns a
-   * proxy that behaves identically except every completion call is gated.
+   * proxy that behaves identically except every completion call is gated —
+   * and every OTHER spend surface is refused instead of silently passed.
    */
   function wrap(client, per = {}) {
     if (client && client.messages && typeof client.messages.create === 'function') {
@@ -169,31 +246,38 @@ export function session(opts = {}) {
       const original = client.messages.create.bind(client.messages);
       const messages = new Proxy(client.messages, {
         get(t, k) {
-          if (k === 'create') {
-            return (params, ...rest) =>
-              gated(per.label || `anthropic:${params && params.model || 'messages'}`, () => original(params, ...rest), params, per);
-          }
+          if (k === 'create') return gatedCreate((p) => per.label || `anthropic:${p && p.model || 'messages'}`, original, per);
           const v = t[k];
+          if (UNGATED.anthropic.messages.includes(k) && v != null) return poison(`messages.${String(k)}`, typeof v === 'function' ? v.bind(t) : v);
           return typeof v === 'function' ? v.bind(t) : v;
         },
       });
-      return new Proxy(client, { get(t, k) { return k === 'messages' ? messages : t[k]; } });
+      return new Proxy(client, {
+        get(t, k) {
+          if (k === 'messages') return messages;
+          if (typeof k === 'string' && UNGATED.anthropic.top.includes(k) && t[k] != null) return poison(k, t[k]);
+          return t[k];
+        },
+      });
     }
     if (client && client.chat && client.chat.completions && typeof client.chat.completions.create === 'function') {
       // OpenAI shape
       const original = client.chat.completions.create.bind(client.chat.completions);
       const completions = new Proxy(client.chat.completions, {
         get(t, k) {
-          if (k === 'create') {
-            return (params, ...rest) =>
-              gated(per.label || `openai:${params && params.model || 'chat'}`, () => original(params, ...rest), params, per);
-          }
+          if (k === 'create') return gatedCreate((p) => per.label || `openai:${p && p.model || 'chat'}`, original, per);
           const v = t[k];
           return typeof v === 'function' ? v.bind(t) : v;
         },
       });
       const chat = new Proxy(client.chat, { get(t, k) { return k === 'completions' ? completions : t[k]; } });
-      return new Proxy(client, { get(t, k) { return k === 'chat' ? chat : t[k]; } });
+      return new Proxy(client, {
+        get(t, k) {
+          if (k === 'chat') return chat;
+          if (typeof k === 'string' && UNGATED.openai.top.includes(k) && t[k] != null) return poison(k, t[k]);
+          return t[k];
+        },
+      });
     }
     throw new Error('rabadon wrap: unrecognized client — expected an Anthropic (.messages.create) or OpenAI (.chat.completions.create) SDK instance');
   }
