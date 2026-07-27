@@ -161,9 +161,11 @@ if (cmd === 'init') {
 
 if (cmd === 'statusline') {
   // rabadon's presence in the Claude Code terminal — a symbol, not a report
-  // (the owner's law). Two faces only: lilac * = standing guard, gray = off.
-  // Catches announce themselves inline in the session; the statusline never
-  // repeats them, never grows.
+  // (the owner's law). Standing guard = a lilac star. The moment rabadon
+  // catches something, the star SPINS for a few seconds, then settles back to
+  // a still star — motion, not an alarm colour (Damla's call: no orange, the
+  // * turns). Gray = off. The statusline still never lists a catch or grows;
+  // the spin IS the whole signal, and catches still announce themselves inline.
   const fs = await import('node:fs');
   let input = '';
   try { input = fs.readFileSync(0, 'utf8'); } catch { }
@@ -174,7 +176,37 @@ if (cmd === 'statusline') {
   const model = (info.model && info.model.display_name) || '';
   const LILAC = '\x1b[38;5;141m', GRAY = '\x1b[38;5;245m', R = '\x1b[0m';
   const off = process.env.RABADON_OFF === '1' || fs.existsSync(path0.join(dir, '.rabadon', 'off'));
-  const seg = off ? `${GRAY}* rabadon off${R}` : `${LILAC}* rabadon${R}`;
+
+  // did rabadon catch (or start repairing) something in the last few seconds?
+  // reads only the tail of today's spool so the statusline stays instant.
+  const SPIN_MS = 5000;
+  function caughtRecently() {
+    try {
+      const rdir = process.env.RABADON_DIR || path0.join(process.env.HOME || '', '.rabadon');
+      const f = path0.join(rdir, 'spool', new Date().toISOString().slice(0, 10) + '.jsonl');
+      const size = fs.statSync(f).size;
+      const from = Math.max(0, size - 32768);
+      const fd = fs.openSync(f, 'r');
+      const buf = Buffer.alloc(size - from);
+      fs.readSync(fd, buf, 0, buf.length, from);
+      fs.closeSync(fd);
+      const tag = `"${project}:session"`;
+      let last = 0;
+      for (const l of buf.toString('utf8').split('\n')) {
+        if (!l.includes(tag)) continue;
+        let e; try { e = JSON.parse(l); } catch { continue; }
+        const isCatch = (e.ev === 'STOP' && e.reason === 'BLOCKED') || e.ev === 'CHECK_FAIL' || e.ev === 'REPAIR_START';
+        if (isCatch && e.ts > last) last = e.ts;
+      }
+      return last > 0 && (Date.now() - last) < SPIN_MS;
+    } catch { return false; }
+  }
+
+  // a star caught mid-rotation — cycles each render, reads as a spin
+  const FRAMES = ['✶', '✷', '✸', '✹'];
+  const spinning = !off && caughtRecently();
+  const star = spinning ? FRAMES[Math.floor(Date.now() / 100) % FRAMES.length] : '*';
+  const seg = off ? `${GRAY}* rabadon off${R}` : `${LILAC}${star} rabadon${R}`;
   process.stdout.write(`${GRAY}${model}${model ? ' · ' : ''}${project}${R}  ${seg}\n`);
   process.exit(0);
 }
