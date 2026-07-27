@@ -183,6 +183,7 @@ if (cmd === 'statusline') {
       for (let i = lines.length - 1; i >= 0 && i > lines.length - 400; i--) {
         if (!lines[i].includes(`"${project}:session"`)) continue;
         let e; try { e = JSON.parse(lines[i]); } catch { continue; }
+        if (e.drill) continue; // rabadon testing itself never colors the face
         if (e.ev === 'STOP' && e.reason === 'BLOCKED' && Date.now() - e.ts < 5 * 60000) {
           lastCatch = String(e.detail || 'blocked').split(' — ')[0].slice(0, 60);
         }

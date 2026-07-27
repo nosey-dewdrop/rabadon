@@ -177,6 +177,27 @@ async function done(evName, fields) {
 const toolInput = ev.tool_input || {};
 const hookEvent = ev.hook_event_name;
 
+// Global (~/.claude) and project settings can BOTH register this gate; Claude
+// Code then delivers the SAME event twice. The twin must be a no-op — one
+// verdict, one ledger entry, one loop-tick — or every count doubles and
+// loop-stop fires at 2 instead of 3. Tool events carry a unique tool_use_id:
+// twins share it, a REAL re-run of the same command gets a fresh one — so the
+// dedupe is exact, never a content heuristic that could eat loop-stop's food.
+// Non-tool events (Stop/SessionStart/…) have no id; they dedupe on a 2s time
+// bucket, which only ever collides with a genuine twin.
+{
+  const st0 = loadState();
+  st0.s.recentEv = st0.s.recentEv || [];
+  let dedupeKey = null;
+  if (ev.tool_use_id) dedupeKey = `${hookEvent}:${ev.tool_use_id}`;
+  else if (!['PreToolUse', 'PostToolUse'].includes(hookEvent)) dedupeKey = `${hookEvent}:${Math.floor(Date.now() / 2000)}`;
+  if (dedupeKey) {
+    if (st0.s.recentEv.includes(dedupeKey)) process.exit(0);
+    st0.s.recentEv = [...st0.s.recentEv, dedupeKey].slice(-12);
+    saveState(st0);
+  }
+}
+
 // ---------- PreToolUse: the gate ----------
 if (hookEvent === 'PreToolUse') {
   const state = loadState();

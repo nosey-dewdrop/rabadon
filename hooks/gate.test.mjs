@@ -101,6 +101,19 @@ test('drill tagging: fleet/doctor session ids mark every event drill:true so the
   for (const e of lines) assert.equal(e.drill, true, `every drill event carries the tag (got: ${JSON.stringify(e).slice(0, 80)})`);
 });
 
+test('twin delivery (global + project hooks): the duplicate tool_use_id is a no-op, one ledger entry only', () => {
+  const { home, proj } = world();
+  guard(proj, { project: 'p', bash: [{ id: 'no-force-push-main', deny: 'git\\s+push[^|;&]*(--force|-f)\\b', why: 'w' }] });
+  const evt = { hook_event_name: 'PreToolUse', cwd: proj, session_id: 'real-twin', tool_use_id: 'toolu_same_call', tool_name: 'Bash', tool_input: { command: 'git push --force origin main' } };
+  assert.equal(fire(home, evt).status, 2, 'the first delivery blocks');
+  assert.equal(fire(home, evt).status, 0, 'the twin is swallowed, not double-judged');
+  const blocked = spoolToday(home).split('\n').filter((l) => l.includes('"BLOCKED"'));
+  assert.equal(blocked.length, 1, 'one catch on the ledger, not two');
+  // a REAL retry of the same command gets a fresh tool_use_id — still judged
+  const retry = fire(home, { ...evt, tool_use_id: 'toolu_new_call' });
+  assert.equal(retry.status, 2, 'a genuine re-attempt is refused again, not deduped away');
+});
+
 test('no guard file: the gate observes but never blocks', () => {
   const { home, proj } = world();
   const r = fire(home, { hook_event_name: 'PreToolUse', cwd: proj, session_id: 'real-noguard', tool_name: 'Bash', tool_input: { command: 'git push --force origin main' } });
