@@ -31,6 +31,8 @@
 #include <csignal>
 #include <cerrno>
 
+#include "usage.h"   // the shared token/cost meter (budget cap here + rabadon-lens)
+
 using std::string;
 
 // ---------- tiny JSON field extraction (enough for hook payloads) ----------
@@ -135,76 +137,11 @@ static double get_double(const string& j, const string& key) {
   return atof(j.c_str() + colon + 1);
 }
 
-// ---------- the budget meter: this session's REAL usage from the transcript ----------
-// Claude Code writes one JSON object per line to the session transcript; each
-// assistant turn carries "usage":{input_tokens, cache_creation_input_tokens,
-// cache_read_input_tokens, output_tokens}. This sums ALL FOUR classes across a
-// text window — no estimate, the meter is the file the runtime already wrote.
-// One function so the Stop ledger and the budget gate read usage the SAME way,
-// not two. The leading quote in each key disambiguates "input_tokens" from the
-// longer "..._input_tokens" fields (their preceding char is '_', never '"').
-struct Usage {
-  long long in = 0, out = 0, cacheCreate = 0, cacheRead = 0;
-  long long tokens() const { return in + out + cacheCreate + cacheRead; }
-};
-static void add_field(const string& line, size_t from, const char* key, long long& acc) {
-  size_t p = line.find(key, from);
-  if (p != string::npos) acc += atoll(line.c_str() + p + strlen(key));
-}
-static Usage sum_usage(const string& win) {
-  Usage u;
-  size_t ls = 0;
-  while (ls < win.size()) {
-    size_t le = win.find('\n', ls);
-    if (le == string::npos) le = win.size();
-    const string line = win.substr(ls, le - ls);
-    // count ONLY genuine assistant API responses. The billable usage lives on
-    // "type":"assistant" lines; a "type":"user" line can embed a subagent's
-    // result (toolUseResult) whose nested usage is billed to the SUBAGENT's own
-    // transcript, not this session — summing it double-counts. Proven exact
-    // against a real 571M-token transcript (31 tool-result lines, 0 delta vs a
-    // canonical message.usage sum).
-    size_t up = line.find("\"usage\":");
-    if (up != string::npos &&
-        line.find("\"type\":\"assistant\"") != string::npos &&
-        line.find("\"toolUseResult\"") == string::npos) {
-      add_field(line, up, "\"input_tokens\":", u.in);
-      add_field(line, up, "\"output_tokens\":", u.out);
-      add_field(line, up, "\"cache_creation_input_tokens\":", u.cacheCreate);
-      add_field(line, up, "\"cache_read_input_tokens\":", u.cacheRead);
-    }
-    ls = le + 1;
-  }
-  return u;
-}
-
-// price per Mtok — Damla's rates. cache write = input x1.25, cache read =
-// input x0.1 (SPEC lens pricing). Unknown model -> the usd cap is skipped, the
-// token cap still holds (the transcript always has token counts, not always a
-// model we price).
-struct Rate { double in, out; };
-static bool model_rate(const string& model, Rate& r) {
-  if (model.find("opus")   != string::npos) { r = {5.0, 25.0};  return true; }
-  if (model.find("sonnet") != string::npos) { r = {3.0, 15.0};  return true; }
-  if (model.find("haiku")  != string::npos) { r = {1.0, 5.0};   return true; }
-  if (model.find("fable")  != string::npos) { r = {10.0, 50.0}; return true; }
-  return false;
-}
-static double usd_cost(const Usage& u, const Rate& r) {
-  return ((double)u.in * r.in
-        + (double)u.cacheCreate * r.in * 1.25
-        + (double)u.cacheRead * r.in * 0.1
-        + (double)u.out * r.out) / 1e6;
-}
-// the most recent model string in the transcript (the session's current model)
-static string last_model(const string& text) {
-  const string pat = "\"model\":\"";
-  size_t p = text.rfind(pat);
-  if (p == string::npos) return "";
-  size_t s = p + pat.size();
-  size_t e = text.find('"', s);
-  return e == string::npos ? "" : text.substr(s, e - s);
-}
+// ---------- the budget meter ----------
+// Usage / sum_usage / Rate / model_rate / usd_cost / last_model now live in
+// usage.h so the budget cap (below) and `rabadon lens` read this session's REAL
+// usage the SAME way — one meter, not two. See usage.h for the disambiguation
+// and the 571M-token byte-exact proof.
 
 // ---------- bounded claude subprocess (the incident brain / drift judge) ----------
 // fork/exec `claude -p --output-format text [--model M]`, write the prompt to
