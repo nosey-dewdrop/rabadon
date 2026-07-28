@@ -91,6 +91,10 @@ session'ında tool-call zaman çizgisi + catch/fix işaretleri (kırılım türe
   ONAYLI — DOKUNMA. Metre işine (lens/usage.h) GERİ DÖNME, genişletme.
 • max 90dk / max 3 repair → DUR, çalışan çıktıyı göster, ONAY bekle. KANITLA,
   iddia etme. Bitince commit+push (lowercase İng, co-author ASLA).
+• DEFAULT = PROPOSE-and-hold, silent-apply DEĞİL (GTM riski #1: yanlış otomatik
+  tamir, yanlış alarmdan beter — ilk sefer güveni bitirir). Şüpheli/belirsiz
+  durumda tamiri UYGULAMA, öner+beklet; hakem gerçek testi geçirdiyse uygula.
+  Hassasiyet = public benchmark (Snyk "80% fix accuracy" gibi).
 
 ════════════════════════════════════════════════════════════════
 5. AÇIK STRATEJİ SORUSU (Damla 29.07 — GTM, henüz cevaplanmadı)
