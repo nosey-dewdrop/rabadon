@@ -2,9 +2,12 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats
+all: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget
 
 native/rabadon-gate: native/gate.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+native/rabadon-budget: native/budget.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-stats: native/stats.cpp
@@ -19,10 +22,11 @@ bench: native/rabadon-gate
 	python3 native/bench.py
 
 # native proofs: the direction check fires in both directions and fails open.
-test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-stats
+test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-stats native/rabadon-budget
 	./native/gate_promise_test.sh
 	./native/sigpipe_test.sh
 	./native/session_test.sh
+	./native/budget_test.sh
 	./native/postuse_test.sh
 	./native/pushgate_test.sh
 	./native/drift_test.sh
@@ -32,7 +36,7 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/regression_demo.sh
 
 clean:
-	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats
+	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget
 
 .PHONY: all bench clean
 

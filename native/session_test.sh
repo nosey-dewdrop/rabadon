@@ -125,12 +125,12 @@ ac="$(python3 -c "import json;print(json.load(open('$I/.rabadon/state.json'))['s
 # --- K: Stop reads REAL usage from the transcript, incrementally ---
 K="$(mktemp -d)"; RD="$(mktemp -d)"
 T="$(mktemp)"
-printf '{"usage":{"input_tokens":100,"output_tokens":40}}\n{"usage":{"input_tokens":7,"output_tokens":3}}\n' > "$T"
+printf '{"type":"assistant","message":{"usage":{"input_tokens":100,"output_tokens":40}}}\n{"type":"assistant","message":{"usage":{"input_tokens":7,"output_tokens":3}}}\n' > "$T"
 pev "$K" Stop ",\"transcript_path\":\"$T\"" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 toks="$(python3 -c "import json;s=json.load(open('$K/.rabadon/state.json'))['sessions']['sess-alpha'];print(s['tokensOut'],s['tokensIn'])")"
 [ "$toks" = "43 107" ] && ok "token ledger measured from the transcript (43 out / 107 in)" || bad "tokens wrong: $toks"
 sleep 2.1
-printf '{"usage":{"input_tokens":1,"output_tokens":2}}\n' >> "$T"
+printf '{"type":"assistant","message":{"usage":{"input_tokens":1,"output_tokens":2}}}\n' >> "$T"
 pev "$K" Stop ",\"transcript_path\":\"$T\"" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 toks2="$(python3 -c "import json;s=json.load(open('$K/.rabadon/state.json'))['sessions']['sess-alpha'];print(s['tokensOut'],s['tokensIn'])")"
 [ "$toks2" = "45 108" ] && ok "ledger is incremental: only the new bytes are counted" || bad "incremental read wrong: $toks2"

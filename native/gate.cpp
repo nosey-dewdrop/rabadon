@@ -125,6 +125,87 @@ static string iso8601_now() {
   return string(iso);
 }
 
+// fractional number field (usd caps are dollars, not integers)
+static double get_double(const string& j, const string& key) {
+  const string pat = "\"" + key + "\"";
+  size_t k = j.find(pat);
+  if (k == string::npos) return 0;
+  size_t colon = j.find(':', k + pat.size());
+  if (colon == string::npos) return 0;
+  return atof(j.c_str() + colon + 1);
+}
+
+// ---------- the budget meter: this session's REAL usage from the transcript ----------
+// Claude Code writes one JSON object per line to the session transcript; each
+// assistant turn carries "usage":{input_tokens, cache_creation_input_tokens,
+// cache_read_input_tokens, output_tokens}. This sums ALL FOUR classes across a
+// text window — no estimate, the meter is the file the runtime already wrote.
+// One function so the Stop ledger and the budget gate read usage the SAME way,
+// not two. The leading quote in each key disambiguates "input_tokens" from the
+// longer "..._input_tokens" fields (their preceding char is '_', never '"').
+struct Usage {
+  long long in = 0, out = 0, cacheCreate = 0, cacheRead = 0;
+  long long tokens() const { return in + out + cacheCreate + cacheRead; }
+};
+static void add_field(const string& line, size_t from, const char* key, long long& acc) {
+  size_t p = line.find(key, from);
+  if (p != string::npos) acc += atoll(line.c_str() + p + strlen(key));
+}
+static Usage sum_usage(const string& win) {
+  Usage u;
+  size_t ls = 0;
+  while (ls < win.size()) {
+    size_t le = win.find('\n', ls);
+    if (le == string::npos) le = win.size();
+    const string line = win.substr(ls, le - ls);
+    // count ONLY genuine assistant API responses. The billable usage lives on
+    // "type":"assistant" lines; a "type":"user" line can embed a subagent's
+    // result (toolUseResult) whose nested usage is billed to the SUBAGENT's own
+    // transcript, not this session — summing it double-counts. Proven exact
+    // against a real 571M-token transcript (31 tool-result lines, 0 delta vs a
+    // canonical message.usage sum).
+    size_t up = line.find("\"usage\":");
+    if (up != string::npos &&
+        line.find("\"type\":\"assistant\"") != string::npos &&
+        line.find("\"toolUseResult\"") == string::npos) {
+      add_field(line, up, "\"input_tokens\":", u.in);
+      add_field(line, up, "\"output_tokens\":", u.out);
+      add_field(line, up, "\"cache_creation_input_tokens\":", u.cacheCreate);
+      add_field(line, up, "\"cache_read_input_tokens\":", u.cacheRead);
+    }
+    ls = le + 1;
+  }
+  return u;
+}
+
+// price per Mtok — Damla's rates. cache write = input x1.25, cache read =
+// input x0.1 (SPEC lens pricing). Unknown model -> the usd cap is skipped, the
+// token cap still holds (the transcript always has token counts, not always a
+// model we price).
+struct Rate { double in, out; };
+static bool model_rate(const string& model, Rate& r) {
+  if (model.find("opus")   != string::npos) { r = {5.0, 25.0};  return true; }
+  if (model.find("sonnet") != string::npos) { r = {3.0, 15.0};  return true; }
+  if (model.find("haiku")  != string::npos) { r = {1.0, 5.0};   return true; }
+  if (model.find("fable")  != string::npos) { r = {10.0, 50.0}; return true; }
+  return false;
+}
+static double usd_cost(const Usage& u, const Rate& r) {
+  return ((double)u.in * r.in
+        + (double)u.cacheCreate * r.in * 1.25
+        + (double)u.cacheRead * r.in * 0.1
+        + (double)u.out * r.out) / 1e6;
+}
+// the most recent model string in the transcript (the session's current model)
+static string last_model(const string& text) {
+  const string pat = "\"model\":\"";
+  size_t p = text.rfind(pat);
+  if (p == string::npos) return "";
+  size_t s = p + pat.size();
+  size_t e = text.find('"', s);
+  return e == string::npos ? "" : text.substr(s, e - s);
+}
+
 // ---------- bounded claude subprocess (the incident brain / drift judge) ----------
 // fork/exec `claude -p --output-format text [--model M]`, write the prompt to
 // the child's stdin, read its stdout with a wall-clock deadline, SIGKILL on
@@ -1131,26 +1212,10 @@ int main(int argc, char** argv) {
         f.seekg(from);
         string win((size_t)(size - from), '\0');
         f.read(&win[0], size - from);
-        long long inTok = 0, outTok = 0;
-        size_t ls = 0;
-        while (ls < win.size()) {
-          size_t le = win.find('\n', ls);
-          if (le == string::npos) le = win.size();
-          const string line = win.substr(ls, le - ls);
-          size_t u = line.find("\"usage\":");
-          if (u != string::npos) {
-            size_t o = line.find("\"output_tokens\":", u);
-            if (o != string::npos) {
-              outTok += atoll(line.c_str() + o + 16);
-              size_t i2 = line.find("\"input_tokens\":", u);
-              if (i2 != string::npos) inTok += atoll(line.c_str() + i2 + 15);
-            }
-          }
-          ls = le + 1;
-        }
+        Usage u = sum_usage(win); // the shared meter (Stop ledger tracks in/out)
         ss.tsOffset = size;
-        ss.tokensOut += outTok;
-        ss.tokensIn += inTok;
+        ss.tokensOut += u.out;
+        ss.tokensIn += u.in;
         em.emit("STEP_OK", "\"step\":\"tokens this session: " + std::to_string(ss.tokensOut) +
           " out / " + std::to_string(ss.tokensIn) + " in\",\"tokens\":" + std::to_string(ss.tokensOut));
       }
@@ -1225,6 +1290,63 @@ int main(int argc, char** argv) {
       ruleId.c_str(), why.c_str(), detail.c_str(), ruleId.c_str());
     exit(2);
   };
+
+  // ---------- budget cap: the deterministic halt-before-burn ----------
+  // .rabadon/budget.json is the user's ceiling — {"tokens":N} and/or {"usd":X}.
+  // On EVERY tool call, rabadon measures this session's REAL cumulative usage
+  // from the transcript (all four token classes) and, the moment the ceiling is
+  // reached, REFUSES the next tool before it runs — the run halts without
+  // burning past the cap. Not "show the cost": stop at it. When no budget.json
+  // exists the whole check is one read of an empty string -> skipped; the meter
+  // is opt-in (a set cap is a session you explicitly want fenced, so paying a
+  // full transcript read per tool call there is the right trade). Override:
+  // add "budget-cap" to disabled[] in guard.json, or `rabadon budget off`.
+  {
+    const string braw = read_file(cwd + "/.rabadon/budget.json");
+    bool budgetOff = false;
+    for (const auto& d : disabled) if (d == "budget-cap") budgetOff = true;
+    if (!braw.empty() && !budgetOff) {
+      const long long capTok = (long long)get_double(braw, "tokens");
+      const double capUsd = get_double(braw, "usd");
+      if (capTok > 0 || capUsd > 0) {
+        const string tp = get_str(raw, "transcript_path");
+        struct stat tst;
+        if (!tp.empty() && stat(tp.c_str(), &tst) == 0) {
+          const string all = read_file(tp);
+          const Usage u = sum_usage(all);
+          auto halt = [&](const string& capStr, const string& spent) {
+            em.emit("CHECK_FAIL", "\"step\":\"budget\",\"fails\":[{\"check\":\"budget-cap\",\"why\":\"" +
+              json_escape(capStr + " reached — " + spent) + "\"}]");
+            em.emit("STOP", "\"reason\":\"BLOCKED\",\"detail\":\"" +
+              json_escape("budget cap " + capStr + " — " + spent) + "\"");
+            stt.save();
+            fprintf(stderr,
+              "rabadon: budget cap %s reached — run halted before burn\n"
+              "  this session: %s (measured from the transcript, all token classes).\n"
+              "  raise it (`rabadon budget <n>`), clear it (`rabadon budget off`), "
+              "or add \"budget-cap\" to disabled[] in .rabadon/guard.json.\n",
+              capStr.c_str(), spent.c_str());
+            exit(2);
+          };
+          if (capTok > 0 && u.tokens() >= capTok)
+            halt(std::to_string(capTok) + " tokens",
+                 "spent " + std::to_string(u.tokens()) + " tokens");
+          if (capUsd > 0) {
+            Rate r;
+            if (model_rate(last_model(all), r)) {
+              const double spentUsd = usd_cost(u, r);
+              if (spentUsd >= capUsd) {
+                char cap[48], sp[48];
+                snprintf(cap, sizeof cap, "$%g", capUsd);
+                snprintf(sp, sizeof sp, "spent $%.4f", spentUsd);
+                halt(cap, sp);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
   if (!guardRaw.empty()) {
     if (toolName == "Bash" && !command.empty()) {
