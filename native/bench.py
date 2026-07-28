@@ -59,6 +59,14 @@ def run(cmd, payload):
 
 def main():
     scratch = make_scratch()
+    # isolate the ledger: bench events must NEVER land in the real ~/.rabadon
+    # spool — they would inflate the honest catch count with rabadon testing
+    # itself (each run fires ~80 synthetic force-push denies). Point the gate's
+    # spool/socket at a throwaway dir so the real ledger stays clean by
+    # construction, not just by filtering the report. (RABADON_NOTIFY=0 too, so
+    # a bench run never pops a macOS notification.)
+    os.environ["RABADON_DIR"] = tempfile.mkdtemp(prefix="rabadon-bench-spool-")
+    os.environ["RABADON_NOTIFY"] = "0"
     forbidden = "git pu" + "sh --for" + "ce origin ma" + "in"  # never through a shell
     cases = {
         "allow": event(scratch, "ls -la", "bench"),
