@@ -86,7 +86,12 @@ S7. **The orphans are buried.** `core/rabadon.mjs`, `core/wrap.mjs`,
       `delegate_to_node` is deleted — the gate binary depends on nothing but a
       shell. (gate.mjs the FILE survives only as the differential test oracle
       and `rabadon exec`; it dies at S5/S7.) native 109/109, js 47/47.
-- [ ] S5
+- [~] S5 — in progress. `rabadon stats` ported to a standalone native binary
+      (native/stats.cpp → rabadon-stats): reads the same spool, same drill
+      exclusion, same --days window, byte-IDENTICAL to the JS oracle on the
+      real spool + 18 differential proofs (UTF-16-accurate rule truncation,
+      two-pass drill detection). CLI dispatch (bin/rabadon.mjs → native-stats)
+      + the rest (guard/init/on/off/doctor/statusline/watch) still to port.
 - [ ] S6
 - [ ] S7
 
