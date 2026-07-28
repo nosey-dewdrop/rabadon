@@ -767,6 +767,26 @@ int main(int argc, char** argv) {
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate 0.1.0\n"); return 0; }
 
+  // on/off toggle — the deterministic switch. rabadon is DEFAULT OFF and stays
+  // installed in the global hooks, but supervises NOTHING unless ~/.rabadon/enabled
+  // exists. These subcommands flip that one file, so a skill/alias never has to
+  // "pretend" the gate is off — the native gate reads real state. Run again = off.
+  if (argc > 1) {
+    string a1 = argv[1];
+    if (a1 == "--on" || a1 == "--off" || a1 == "--toggle" || a1 == "--status") {
+      const char* h = getenv("HOME"); string home = h ? h : ".";
+      mkdir((home + "/.rabadon").c_str(), 0755);
+      const string flag = home + "/.rabadon/enabled";
+      bool on = file_exists(flag);
+      if (a1 == "--toggle") a1 = on ? "--off" : "--on";
+      if (a1 == "--on")  { std::ofstream f(flag, std::ios::trunc); f << "on\n"; on = true; }
+      else if (a1 == "--off") { unlink(flag.c_str()); on = false; }
+      printf("rabadon: %s\n", on ? "ON — supervising (this session + wherever it runs)"
+                                 : "OFF — default, dormant everywhere until you turn it on");
+      return 0;
+    }
+  }
+
   string raw;
   { char buf[65536]; size_t n; while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) raw.append(buf, n); }
   if (raw.empty()) return 0;
@@ -778,6 +798,17 @@ int main(int argc, char** argv) {
   // escape hatches first — off is off, instantly
   const char* offEnv = getenv("RABADON_OFF");
   if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")) return 0;
+  // DEFAULT-OFF: rabadon supervises nothing unless explicitly enabled — the global
+  // toggle (~/.rabadon/enabled) or a per-project opt-in (cwd/.rabadon/on). The
+  // hard-off above always wins (RABADON_OFF=1 = child recursion guard; .rabadon/off
+  // = force a project silent). Default state = OFF, so rabadon is never forced onto
+  // every project — it runs only where it was turned on.
+  {
+    const char* h = getenv("HOME");
+    bool enabled = file_exists(string(h ? h : ".") + "/.rabadon/enabled")
+                   || file_exists(cwd + "/.rabadon/on");
+    if (!enabled) return 0;
+  }
 
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
   // re-anchor — the LLM stays off the hot path (bounded `claude -p`).
