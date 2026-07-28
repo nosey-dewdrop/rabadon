@@ -737,6 +737,15 @@ static Verdict driftJudge(const string& goal, const std::vector<string>& recentB
 }
 
 int main(int argc, char** argv) {
+  // SECURITY, fail-CLOSED: the gate emits its verdict over a unix socket to any
+  // live watcher BEFORE it reaches exit(2). If the watcher's end is closed, a
+  // raw write() would raise SIGPIPE and KILL this process mid-block — and Claude
+  // Code treats a signal-killed PreToolUse hook as ALLOW, so a dangerous command
+  // would slip through exactly when someone was watching. Ignore SIGPIPE so a
+  // dead watcher can never turn a block into an allow (write just returns EPIPE,
+  // which emit already discards). This is the whole point of the gate.
+  signal(SIGPIPE, SIG_IGN);
+
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate 0.1.0\n"); return 0; }
 

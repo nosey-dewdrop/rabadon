@@ -21,6 +21,7 @@ bench: native/rabadon-gate
 # native proofs: the direction check fires in both directions and fails open.
 test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-stats
 	./native/gate_promise_test.sh
+	./native/sigpipe_test.sh
 	./native/session_test.sh
 	./native/postuse_test.sh
 	./native/pushgate_test.sh
