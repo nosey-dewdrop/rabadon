@@ -19,3 +19,15 @@ native/rabadon-stats
 native/rabadon-budget
 native/rabadon-lens
 native/rabadon-trace
+
+# built binaries — the source is the artifact, not the a.out
+native/rabadon-gate
+native/rabadon-drift
+native/rabadon-verify
+native/rabadon-loop
+native/rabadon-do
+native/rabadon-stats
+native/rabadon-budget
+native/rabadon-lens
+native/rabadon-trace
+native/rabadon-serve
