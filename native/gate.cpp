@@ -767,6 +767,29 @@ int main(int argc, char** argv) {
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate 0.1.0\n"); return 0; }
 
+  // --statusline — the glanceable lamp for the Claude Code status bar. It reads
+  // the SAME source of truth as the gate (~/.rabadon/enabled), so the bar can
+  // never lie about state: lit lilac ● when supervising, dark gray ○ + "off" when
+  // dormant. Read-only, one stat, fast. (The old JS statusline read a different
+  // off-switch and stayed lit even when the gate was dormant — that mismatch is
+  // exactly why the lamp couldn't be trusted.)
+  if (argc > 1 && string(argv[1]) == "--statusline") {
+    string in; { char b[8192]; size_t n; while ((n = fread(b, 1, sizeof b, stdin)) > 0) in.append(b, n); }
+    string dir = get_str(in, "current_dir"); if (dir.empty()) dir = get_str(in, "cwd");
+    if (dir.empty()) { const char* p = getenv("PWD"); dir = p ? p : "."; }
+    string model = get_str(in, "display_name");
+    size_t sl = dir.rfind('/'); string project = (sl == string::npos) ? dir : dir.substr(sl + 1);
+    const char* h = getenv("HOME"); string home = h ? h : ".";
+    const char* off = getenv("RABADON_OFF");
+    bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off");
+    bool on = !hardOff && (file_exists(home + "/.rabadon/enabled") || file_exists(dir + "/.rabadon/on"));
+    const string LILAC = "\033[38;5;141m", GRAY = "\033[38;5;245m", R = "\033[0m";
+    string seg = on ? (LILAC + "● rabadon" + R) : (GRAY + "○ rabadon off" + R);
+    printf("%s%s%s%s%s  %s\n", GRAY.c_str(), model.c_str(), model.empty() ? "" : " · ",
+           project.c_str(), R.c_str(), seg.c_str());
+    return 0;
+  }
+
   // on/off toggle — the deterministic switch. rabadon is DEFAULT OFF and stays
   // installed in the global hooks, but supervises NOTHING unless ~/.rabadon/enabled
   // exists. These subcommands flip that one file, so a skill/alias never has to
