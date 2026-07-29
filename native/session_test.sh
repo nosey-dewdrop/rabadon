@@ -4,6 +4,11 @@
 # old JS writer leaked (doubling every session) dies on the first native
 # save; counters survive round-trips; a twin delivery books nothing twice.
 set -u
+# HERMETIC: rabadon is DEFAULT-OFF, so the gate is dormant unless a project opts
+# in (cwd/.rabadon/on) or the machine has ~/.rabadon/enabled. A test that reads
+# the real HOME passes or fails on whether the developer happens to have rabadon
+# switched on — which is not a test. Give this run its own HOME with the flag set.
+export HOME="$(mktemp -d)"; mkdir -p "$HOME/.rabadon"; : > "$HOME/.rabadon/enabled"
 BIN="$(cd "$(dirname "$0")" && pwd)/rabadon-gate"
 [ -x "$BIN" ] || { echo "build first: make native/rabadon-gate"; exit 1; }
 PASS=0; FAIL=0

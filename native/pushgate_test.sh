@@ -6,6 +6,11 @@
 # + REPAIR_FAIL with the failing lines; no edit since last pass -> nothing to
 # run; a hanging suite is killed and the push blocked (the gate never hangs).
 set -u
+# HERMETIC: rabadon is DEFAULT-OFF, so the gate is dormant unless a project opts
+# in (cwd/.rabadon/on) or the machine has ~/.rabadon/enabled. A test that reads
+# the real HOME passes or fails on whether the developer happens to have rabadon
+# switched on — which is not a test. Give this run its own HOME with the flag set.
+export HOME="$(mktemp -d)"; mkdir -p "$HOME/.rabadon"; : > "$HOME/.rabadon/enabled"
 export RABADON_NOTIFY=0
 BIN="$(cd "$(dirname "$0")" && pwd)/rabadon-gate"
 [ -x "$BIN" ] || { echo "build first: make native/rabadon-gate"; exit 1; }

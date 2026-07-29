@@ -17,6 +17,11 @@
 #
 # Style mirrors native/session_test.sh: ok/bad counters, nonzero exit on any fail.
 set -u
+# HERMETIC: rabadon is DEFAULT-OFF, so the gate is dormant unless a project opts
+# in (cwd/.rabadon/on) or the machine has ~/.rabadon/enabled. A test that reads
+# the real HOME passes or fails on whether the developer happens to have rabadon
+# switched on — which is not a test. Give this run its own HOME with the flag set.
+export HOME="$(mktemp -d)"; mkdir -p "$HOME/.rabadon"; : > "$HOME/.rabadon/enabled"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 BIN="$HERE/rabadon-gate"

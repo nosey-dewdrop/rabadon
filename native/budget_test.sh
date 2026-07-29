@@ -7,6 +7,11 @@
 # cache-only burn (which the old in+out-only ledger would have scored as zero)
 # still trips the cap. The meter is opt-in: no budget.json -> no cost, no block.
 set -u
+# HERMETIC: rabadon is DEFAULT-OFF, so the gate is dormant unless a project opts
+# in (cwd/.rabadon/on) or the machine has ~/.rabadon/enabled. A test that reads
+# the real HOME passes or fails on whether the developer happens to have rabadon
+# switched on — which is not a test. Give this run its own HOME with the flag set.
+export HOME="$(mktemp -d)"; mkdir -p "$HOME/.rabadon"; : > "$HOME/.rabadon/enabled"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 GATE="$DIR/rabadon-gate"
 BUDGET="$DIR/rabadon-budget"
