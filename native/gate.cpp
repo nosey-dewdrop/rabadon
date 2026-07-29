@@ -783,8 +783,34 @@ int main(int argc, char** argv) {
     const char* off = getenv("RABADON_OFF");
     bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off");
     bool on = !hardOff && (file_exists(home + "/.rabadon/enabled") || file_exists(dir + "/.rabadon/on"));
-    const string LILAC = "\033[38;5;141m", GRAY = "\033[38;5;245m", R = "\033[0m";
-    string seg = on ? (LILAC + "* rabadon" + R) : (GRAY + "* rabadon off" + R);
+    const string GRAY = "\033[38;5;245m", R = "\033[0m";
+
+    // The ON lamp BREATHES. Claude Code spawns this process fresh for every
+    // render and keeps no state, so the phase has to be a pure function of the
+    // wall clock. Measured on this host (Claude Code 2.1.172): the status line
+    // is event-driven with a 300ms trailing debounce and NO timer unless the
+    // user sets statusLine.refreshInterval (floor: 1 second). Sampling is
+    // therefore irregular, and at best ~0.8 frames/sec.
+    //
+    // That measurement is the reason this is a brightness pulse and not a
+    // highlight sweeping across the letters: a moving crest sampled at
+    // irregular moments reads as a light that TELEPORTS (letter 2, then 7,
+    // then 3). Brightness carries no positional expectation — sampled at any
+    // moment it simply reads as alive. OFF stays dead and static, because a
+    // dormant supervisor must look dormant.
+    static const int RAMP[] = { 97, 104, 141, 183, 189, 183, 141, 104 };
+    const int STEPS = 8, STEP_MS = 750;           // one full breath = 6 seconds
+    long long nowms; { struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+                       nowms = (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000; }
+    // test hook: pin the clock so the breath is a deterministic, assertable
+    // sequence instead of "whatever millisecond the test ran in".
+    { const char* fake = getenv("RABADON_LAMP_MS"); if (fake && *fake) nowms = atoll(fake); }
+    int ph = (int)((nowms / STEP_MS) % STEPS);
+    char lamp[80];
+    snprintf(lamp, sizeof lamp, "\033[38;5;%dm*\033[38;5;%dm rabadon\033[0m",
+             RAMP[(ph + 2) % STEPS],   // the star runs ahead: a pilot light
+             RAMP[ph]);
+    string seg = on ? string(lamp) : (GRAY + "* rabadon off" + R);
     printf("%s%s%s%s%s  %s\n", GRAY.c_str(), model.c_str(), model.empty() ? "" : " · ",
            project.c_str(), R.c_str(), seg.c_str());
     return 0;
