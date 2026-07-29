@@ -784,7 +784,7 @@ int main(int argc, char** argv) {
     bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off");
     bool on = !hardOff && (file_exists(home + "/.rabadon/enabled") || file_exists(dir + "/.rabadon/on"));
     const string LILAC = "\033[38;5;141m", GRAY = "\033[38;5;245m", R = "\033[0m";
-    string seg = on ? (LILAC + "● rabadon" + R) : (GRAY + "○ rabadon off" + R);
+    string seg = on ? (LILAC + "* rabadon" + R) : (GRAY + "* rabadon off" + R);
     printf("%s%s%s%s%s  %s\n", GRAY.c_str(), model.c_str(), model.empty() ? "" : " · ",
            project.c_str(), R.c_str(), seg.c_str());
     return 0;
