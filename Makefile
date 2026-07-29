@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace
+all: native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace
 
 native/rabadon-gate: native/gate.cpp native/usage.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -12,6 +12,9 @@ native/rabadon-trace: native/trace.cpp
 
 native/rabadon-serve: native/serve.cpp
 	$(CXX) $(CXXFLAGS) -pthread -o $@ $<
+
+native/rabadon-truth: native/truth.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-lens: native/lens.cpp native/usage.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -45,12 +48,13 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/verify_test.sh
 	./native/loop_test.sh
 	./native/route_test.sh
+	./native/truth_test.sh
 	./native/stats_test.sh
 	./native/lens_test.sh
 	./native/regression_demo.sh
 
 clean:
-	rm -f native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace
+	rm -f native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace
 
 .PHONY: all bench clean
 
