@@ -200,7 +200,11 @@ static Truth detect(const string& dir, const Scan& s) {
 
   // ---- 3: does every source file still parse ------------------------------
   // The weakest rung that can still go RED, and it needs nothing installed.
-  if (s.py > 0)  return {3, "syntax", "python3 -m compileall -q .", "python sources"};
+  // -f is not optional: without it compileall SKIPS a file whose cached .pyc
+  // looks current, so the second run after a break returns 0 and the rung
+  // silently stops being able to fail. Measured, not assumed — the test that
+  // asserts "a rung that cannot fail is not a rung" caught exactly this.
+  if (s.py > 0)  return {3, "syntax", "python3 -m compileall -q -f .", "python sources"};
   if (s.js > 0)  return {3, "syntax",
                          "find . -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check",
                          "javascript sources"};

@@ -40,6 +40,10 @@ using std::string;
 // is that the action is allowed to proceed. See the three-state block in main().
 enum { MODE_SILENT = 0, MODE_WATCH = 1, MODE_ENFORCE = 2 };
 static int g_mode = MODE_SILENT;
+// argv[0], so the gate can find its sibling binaries (rabadon-net) wherever the
+// install lives — a symlinked /opt/homebrew/bin must not break the net.
+static string g_self;
+static string self_dir() { size_t s = g_self.rfind('/'); return s == string::npos ? string(".") : g_self.substr(0, s); }
 // The exit code a refusal turns into. Claude Code reads 2 as "blocked"; in watch
 // mode the same refusal is recorded and then waved through with 0.
 static int refuse_code() { return g_mode == MODE_ENFORCE ? 2 : 0; }
@@ -561,6 +565,12 @@ struct State {
   string path;
   long long lastCodeEdit = 0, lastTestPass = 0, lastTestFail = 0, lastTestRun = 0, lastDiagAt = 0;
   string lastDiagSig;
+  // the always-on net: the timestamp of the last verdict we have already acted
+  // on, and what that verdict was. Both are needed to spot the TRANSITION —
+  // "it is red" is noise if it was red an hour ago; "it just turned red" is the
+  // catch the whole product exists for.
+  long long lastNetTs = 0;
+  string lastNetVerdict;
   std::vector<std::pair<string, Sess>> sessions; // insertion-ordered, max 4
 
   Sess& session(const string& sid) {
@@ -579,6 +589,8 @@ struct State {
     lastTestRun  = get_num(j, "lastTestRun");
     lastDiagAt   = get_num(j, "lastDiagAt");
     lastDiagSig  = get_str(j, "lastDiagSig");
+    lastNetTs    = get_num(j, "lastNetTs");
+    lastNetVerdict = get_str(j, "lastNetVerdict");
     size_t sp = j.find("\"sessions\"");
     if (sp == string::npos) return;
     const string smap = take_obj(j, j.find(':', sp + 10));
@@ -621,6 +633,8 @@ struct State {
     o << "{\"lastCodeEdit\":" << lastCodeEdit << ",\"lastTestPass\":" << lastTestPass
       << ",\"lastTestFail\":" << lastTestFail << ",\"lastTestRun\":" << lastTestRun
       << ",\"lastDiagAt\":" << lastDiagAt
+      << ",\"lastNetTs\":" << lastNetTs
+      << ",\"lastNetVerdict\":\"" << json_escape(lastNetVerdict) << "\""
       << ",\"lastDiagSig\":\"" << json_escape(lastDiagSig) << "\",\"sessions\":{";
     bool firstS = true;
     for (const auto& kv : sessions) {
@@ -765,6 +779,7 @@ static Verdict driftJudge(const string& goal, const std::vector<string>& recentB
 }
 
 int main(int argc, char** argv) {
+  g_self = argv[0];
   // SECURITY, fail-CLOSED: the gate emits its verdict over a unix socket to any
   // live watcher BEFORE it reaches exit(2). If the watcher's end is closed, a
   // raw write() would raise SIGPIPE and KILL this process mid-block — and Claude
@@ -1007,6 +1022,52 @@ int main(int argc, char** argv) {
   if (hook == "PostToolUse") {
     const long long now = now_ms();
 
+    // ---------- the net's verdict from the PREVIOUS tool call ----------
+    // What matters is not "the suite is red" — it is the TRANSITION. Step 3.254
+    // is the moment something that was green stopped being green while the run
+    // kept going. A standing red reported on every call is noise the agent
+    // learns to ignore; the EDGE, reported once with the failing output, is a
+    // correction it can act on.
+    {
+      const string netRaw = read_file(cwd + "/.rabadon/net.json");
+      const long long netTs = get_num(netRaw, "ts");
+      if (!netRaw.empty() && netTs > stt.lastNetTs) {
+        const string verdict = get_str(netRaw, "verdict");
+        const string kindStr = get_str(netRaw, "kind");
+        const int lvl        = (int)get_num(netRaw, "level");
+        const string prev    = stt.lastNetVerdict;
+        stt.lastNetTs = netTs;
+        stt.lastNetVerdict = verdict;
+        // lastTestRun:0 is what "the net has never run anything" was measured
+        // on. From here it is the truth: the net ran, at this instant.
+        stt.lastTestRun = netTs;
+        if (verdict == "green")    stt.lastTestPass = netTs;
+        else if (verdict == "red") stt.lastTestFail = netTs;
+        stt.save();
+
+        if (verdict == "red" && prev != "red") {
+          string tail = get_str(netRaw, "tail");
+          if (tail.size() > 700) tail = tail.substr(tail.size() - 700);
+          const char* strength = lvl == 1 ? "your own test suite"
+                               : lvl == 2 ? "the build/typecheck"
+                                          : "a syntax check (weak evidence)";
+          em.emit("CHECK_FAIL", "\"step\":\"net\",\"mode\":\"" + string(mode_tag()) +
+                  "\",\"level\":" + std::to_string(lvl) + ",\"kind\":\"" + json_escape(kindStr) +
+                  "\",\"fails\":[{\"check\":\"net-turned-red\",\"why\":\"" +
+                  json_escape(tail.substr(0, 600)) + "\"}]");
+          fprintf(stderr,
+            "rabadon: this project just went GREEN -> RED, caught by %s.\n"
+            "It happened on your last edit — this is not a pre-existing failure.\n"
+            "%s\n"
+            "Fix this before continuing: every step from here builds on a broken base.\n",
+            strength, tail.c_str());
+          // PostToolUse exit 2 is FEEDBACK to the agent, not a block — the
+          // correction re-enters the run as an instruction.
+          return refuse_code();
+        }
+      }
+    }
+
     if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") {
       // isCode: guard.codePaths present ? ANY match : true. Set BEFORE the
       // fan-out / re-anchor early-exits so a fed-back edit still records.
@@ -1017,6 +1078,34 @@ int main(int argc, char** argv) {
           if (rx_test(pat, filePath)) { isCode = true; break; }
       }
       if (isCode) stt.lastCodeEdit = now;
+
+      // ---------- THE ALWAYS-ON NET ----------
+      // The agent just touched code. Start the project's own check in a DETACHED
+      // child and return immediately: a hook that waits for a test suite freezes
+      // the editor for as long as the suite takes, which is how a supervisor
+      // becomes the thing people uninstall. The verdict lands in .rabadon/net.json
+      // and is read on the next tool call — one call of latency, zero stall.
+      //
+      // ENFORCE ONLY. In watch mode rabadon spends not one cycle of the user's
+      // machine on their repo; watch observes what the agent did, nothing more.
+      // Turning it on is the moment you accept the cost of being supervised.
+      if (isCode && g_mode == MODE_ENFORCE) {
+        const string netBin = self_dir() + "/rabadon-net";
+        if (file_exists(netBin)) {
+          pid_t k = fork();
+          if (k == 0) {
+            setsid();
+            int devnull = open("/dev/null", O_RDWR);
+            if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2); }
+            // argv[0] must carry the FULL path: rabadon-net locates its sibling
+            // rabadon-truth from it, and a bare name makes it look in the
+            // supervised project instead of the install directory.
+            execl(netBin.c_str(), netBin.c_str(), cwd.c_str(), (char*)nullptr);
+            _exit(127);
+          }
+          // do not wait: the child outlives this hook on purpose
+        }
+      }
 
       // scope fan-out: rel = path.relative(cwd,file); top = first segment when
       // the file is inside cwd. touchedDirs is an order-preserving Set. Fires
