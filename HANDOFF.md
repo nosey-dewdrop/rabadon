@@ -132,8 +132,35 @@ adımı doğrular, haiku'nun çuvalladığı adım opus'a yükselir, trace şunu
 "N adım ucuzda geçti+KANITLANDI, $X cebe, 1 doğrulanıp yükseltildi." Kanıt tutarsa
 tam motora (cache/routing/sıkıştırma) yatırılır. loop.cpp zaten koştur→doğrula→
 yükselt(repair) şekli; "yükselt = daha iyi model" birebir aynı iskelet.
-İSİM: LoL kökenli kod-adı İSTENİYOR ama HENÜZ SEÇİLMEDİ. Damla reddetti:
-Lucidity, Cull, Muramana, Tear ("kötü bunlar"). Yeni tur isim önerilecek.
+İSİM: DÜŞTÜ. Ayrı ürün olmayınca ayrı marka gerekmiyor (Damla 29.07: "ayrı
+yapmayalım demiştik"). Ayrı repo/binary YOK — aynı loop, aynı hakem, aynı trace.
+LoL adı istenirse sadece trace'teki yükseltme satırının etiketi olur (kozmetik).
+
+DURUM 29.07 — YÜZ 2 ÇALIŞIYOR VE ÖLÇÜLDÜ (commit dd58df6):
+• loop.cpp: RABADON_TIERS="haiku,opus" → her work adımı önce ucuzda koşar, aynı
+  verify.cpp hakemi karar verir, RED olursa ESCALATE ile üst tier aynı adımı
+  tekrarlar. Repair = en üst tier'da (tamir zaten bir yükseltmedir). Değişken
+  boşsa eski davranış birebir korunur. Yeni event'ler: STEP_TRY / ESCALATE +
+  STEP_OK'ta hangi tier taşıdı. RUN_START'ta arm=routed|control.
+• llm-proposer.sh: RABADON_MODEL → claude -p --model. Metrikler artık HER
+  proposer çağrısında sidecar'dan füzyonlanıyor (sadece repair'de değil).
+• trace.cpp: routed görünüm + ÖLÇÜLEN A/B bloğu. İki kol da spool'daysa fark
+  basılır; routing kaybederse "PAHALIYA geldi" yazar; ölçüm yoksa (scripted
+  proposer) para iddiası YAPILMAZ; tek kol varsa karşılaştırma basılmaz.
+• Testler: loop_test 11/11 (yükseltme LLM'siz kanıtlı), route_test 9/9 (yeni,
+  A/B aritmetiği + kayıp senaryosu + yarım-ölçüm koruması). make test tamamı yeşil.
+• AYRICA (ae9694c): repo testlerinin 32'si default-off commit'inden beri sessizce
+  kırıktı — gate uykudayken ölçüyorlardı. Testler hermetik HOME'a alındı.
+• CANLI KANIT (native/route_demo.sh, ham çıktı: reports/2026-07-29-rabadon-
+  verified-routing.txt): aynı plan iki kez koştu, $ değerleri modelin kendi
+  total_cost_usd'sinden. control(opus) $1.6933 · routed(haiku,opus) $0.2758 →
+  $1.4175 cepte (%84), iki kol da PASS. Adalet: routed ÖNCE koşar, prompt cache
+  avantajı kontrol koluna gider (yani sayı bir TABAN).
+AÇIK/DÜRÜST BOŞLUK: bu canlı koşuda haiku 5/5 geçti → YÜKSELTME CANLI TETİKLENMEDİ.
+Yükseltme yolu deterministik (loop_test) ve kuru provada kanıtlı, canlı değil.
+Kurgulayarak haiku'yu düşürmek YASAK; gerçekten zor bir spec ile ikinci koşu
+(~$2) yapılacaksa Damla'ya maliyeti söylenip onay alınır. N=1: bu bir workload,
+henüz benchmark değil — %84'ü genel iddia olarak satma.
 AYRI TUTULACAK (bu işe karıştırma): "$X israf yakalandı" waste-detector
 (runaway loop / gereksiz re-run) = SONRAKİ ayrı ürün, Damla öyle dedi.
 
