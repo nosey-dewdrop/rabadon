@@ -67,7 +67,7 @@ static string str_field(const string& line,const char* key){  // key ends at the
 
 // ---------- model ----------
 struct Ev {
-  string ev, step, why, reason, detail, verdict, model, tierName, from, to;
+  string ev, step, why, reason, detail, verdict, model, tierName, from, to, repairKind;
   long long ts=0, tokens=0, usd_e6=0, dur_ms=0; int tier=0;
 };
 struct Run {
@@ -171,7 +171,7 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
     else if(e.ev=="CHECK_FAIL" && cur){ cur->caught=true; if(cur->why.empty()) cur->why=e.why; }
     else if(e.ev=="ESCALATE" && cur){ cur->escalated=true; cur->escFrom=e.from; cur->escTo=e.to; }
     else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
-      if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true;
+      if(e.repairKind.empty()){ if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true; }
       usd+=e.usd_e6; tok+=e.tokens; cur->usd_e6+=e.usd_e6; cur->tokens+=e.tokens;
       if(!e.model.empty()) cur->wonTierName=short_model(e.model);
     }
@@ -260,7 +260,8 @@ static void render_run(const Run& r, const Pal& C, string& out){
     if(e.ev=="STEP_START"){ nodes.push_back({}); cur=&nodes.back(); cur->no=(int)nodes.size(); cur->id=e.step; cur->startTs=e.ts; }
     else if(e.ev=="CHECK_FAIL" && cur){ cur->caught=true; if(cur->why.empty()) cur->why=e.why; }
     else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
-      if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true;
+      // only an unmarked repair is a repair: see the note where repair_kind is read
+      if(e.repairKind.empty()){ if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true; }
       cur->tokens+=e.tokens; cur->usd_e6+=e.usd_e6; if(e.dur_ms>cur->dur_ms) cur->dur_ms=e.dur_ms;
       if(!e.model.empty()){ cur->model=e.model; if(runModel.empty()) runModel=e.model; }
       tok+=e.tokens; usd+=e.usd_e6;
@@ -408,6 +409,12 @@ int main(int argc,char** argv){
     if(ev=="REPAIR_OK"||ev=="REPAIR_FAIL"||ev=="STEP_TRY"){
       e.tokens=ll_field(line,"\"tokens\":"); e.usd_e6=ll_field(line,"\"usd_e6\":");
       e.dur_ms=ll_field(line,"\"dur_ms\":"); e.model=str_field(line,"\"model\":\"");
+      // A gate-side REPAIR_OK can mean "a rule was installed" or "a test run was
+      // observed" — neither of which repaired anything. The loop's real repairs
+      // carry no marker. Counting them together would let the report claim
+      // repairs that never happened, which is the one number a buyer will
+      // check by hand.
+      e.repairKind=str_field(line,"\"repair_kind\":\"");
     }
     if(ev=="STEP_TRY"||ev=="STEP_OK"){ e.tier=(int)ll_field(line,"\"tier\":"); e.tierName=str_field(line,"\"tier_name\":\""); }
     if(ev=="ESCALATE"){ e.from=str_field(line,"\"from\":\""); e.to=str_field(line,"\"to\":\""); }

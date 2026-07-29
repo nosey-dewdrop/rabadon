@@ -92,6 +92,36 @@ S3="$TMP/one.jsonl"; grep 'loop-r"' "$S" > "$S3"
   && bad "printed an A/B comparison with only one arm on the ledger" \
   || ok "no second arm -> no comparison printed (never a half-measured claim)"
 
+# ---- fixture 4: the ledger must not count a NON-repair as a repair ----
+# The gate emits REPAIR_OK when it installs a guard rule, and when it merely
+# observes a green test run before a push. Neither repaired anything. Before
+# this was marked, a session spool rendered "TAMIR 2" with zero repairs in it —
+# a number an investor can check by hand, and the fastest way to lose them.
+S4="$TMP/notrepair.jsonl"
+{
+echo '{"v":1,"ts":1000,"run":"sess-1","pipe":"demo:session","ev":"RUN_START","steps":1}'
+echo '{"v":1,"ts":1010,"run":"sess-1","pipe":"demo:session","ev":"STEP_START","step":"Edit"}'
+echo '{"v":1,"ts":1020,"run":"sess-1","pipe":"demo:session","ev":"CHECK_FAIL","step":"Edit","fails":[{"check":"net-turned-red","why":"FAIL testsuite: RED"}]}'
+echo '{"v":1,"ts":1030,"run":"sess-1","pipe":"demo:session","ev":"REPAIR_OK","step":"new gate: no-force-push","attempt":1,"repair_kind":"rule"}'
+echo '{"v":1,"ts":1040,"run":"sess-1","pipe":"demo:session","ev":"REPAIR_OK","step":"push-gate","attempt":1,"repair_kind":"testrun"}'
+echo '{"v":1,"ts":1050,"run":"sess-1","pipe":"demo:session","ev":"STEP_OK","step":"Edit"}'
+echo '{"v":1,"ts":1060,"run":"sess-1","pipe":"demo:session","ev":"RUN_DONE","verdict":"PASS"}'
+} > "$S4"
+OUT4="$("$TRACE" "$S4" --no-color)"
+echo "$OUT4" | grep -q 'TAMİR 0'   && ok "installing a rule and observing a green run are NOT counted as repairs (TAMİR 0)"   || bad "the ledger counted a non-repair as a repair: $(echo "$OUT4" | grep -i 'TAMİR')"
+
+# and the real thing still counts
+S5="$TMP/realrepair.jsonl"
+{
+echo '{"v":1,"ts":1000,"run":"loop-x","pipe":"demo:do","ev":"RUN_START","steps":1}'
+echo '{"v":1,"ts":1010,"run":"loop-x","pipe":"demo:do","ev":"STEP_START","step":"s1"}'
+echo '{"v":1,"ts":1020,"run":"loop-x","pipe":"demo:do","ev":"CHECK_FAIL","step":"s1","fails":[{"check":"contract","why":"FAIL testsuite: RED"}]}'
+echo '{"v":1,"ts":1030,"run":"loop-x","pipe":"demo:do","ev":"REPAIR_OK","step":"s1","attempt":1,"tokens":1000,"usd_e6":5000}'
+echo '{"v":1,"ts":1040,"run":"loop-x","pipe":"demo:do","ev":"STEP_OK","step":"s1"}'
+echo '{"v":1,"ts":1050,"run":"loop-x","pipe":"demo:do","ev":"RUN_DONE","verdict":"PASS"}'
+} > "$S5"
+"$TRACE" "$S5" --no-color | grep -q 'TAMİR 1'   && ok "a real repair from the loop is still counted (TAMİR 1)" || bad "a genuine repair stopped counting"
+
 echo ""
 echo "route: $PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]

@@ -1225,7 +1225,7 @@ int main(int argc, char** argv) {
 
       if (!judgeOff && !sameIncident) {
         stt.lastDiagSig = failSig; stt.lastDiagAt = now; stt.save();
-        em.emit("REPAIR_START", "\"step\":\"diagnose\",\"attempt\":1,\"fixing\":[\"red-tests\"]");
+        em.emit("REPAIR_START", "\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\",\"fixing\":[\"red-tests\"]");
         std::vector<string> bullets;
         size_t from = ss.recent.size() > 15 ? ss.recent.size() - 15 : 0;
         for (size_t k = from; k < ss.recent.size(); k++) bullets.push_back(ss.recent[k].second);
@@ -1233,7 +1233,7 @@ int main(int argc, char** argv) {
         const string failTail = out.size() > 4000 ? out.substr(out.size() - 4000) : out;
         Diag diag = diagnose(goal, bullets, command, failTail);
         if (!diag.ok) {
-          em.emit("REPAIR_FAIL", "\"step\":\"diagnose\",\"attempt\":1,\"why\":\"diagnosis unavailable\"");
+          em.emit("REPAIR_FAIL", "\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\",\"why\":\"diagnosis unavailable\"");
         } else {
           advice = "\nrabadon diagnosis:\n  where: " + diag.where +
                    "\n  cause: " + diag.cause + "\n  fix:   " + diag.fix + "\n";
@@ -1280,7 +1280,7 @@ int main(int argc, char** argv) {
                   const string tmp = gpath + ".tmp";
                   { std::ofstream tf(tmp, std::ios::trunc); if (tf) tf << pretty; }
                   rename(tmp.c_str(), gpath.c_str());
-                  em.emit("REPAIR_OK", "\"step\":\"new gate: " + json_escape(ruleId) + "\",\"attempt\":1");
+                  em.emit("REPAIR_OK", "\"step\":\"new gate: " + json_escape(ruleId) + "\",\"attempt\":1,\"repair_kind\":\"rule\"");
                   advice += "  new gate installed: " + ruleId + " — this class of break is now caught BEFORE it happens.\n";
                 }
               }
@@ -1525,16 +1525,16 @@ int main(int argc, char** argv) {
         const string passPat = get_str(guardRaw, "testPassPattern");
         if (runCmd.empty())
           block("push-gate", why, "code was edited after the last passing test run — run the test suite first");
-        em.emit("REPAIR_START", "\"step\":\"push-gate\",\"attempt\":1,\"fixing\":[\"tests-not-green\"]");
+        em.emit("REPAIR_START", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"fixing\":[\"tests-not-green\"]");
         int code = -1;
         const string out = run_shell(runCmd, (int)tsec, 16 * 1024 * 1024, &code);
         const bool green = (code == 0) && (passPat.empty() ? true : rx_test(passPat, out));
         if (green) {
           stt.lastTestPass = now_ms(); stt.lastTestRun = now_ms();
-          em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1");
+          em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\"");
           // fall through: the push is now legitimately allowed
         } else {
-          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"why\":\"tests not green\"");
+          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"why\":\"tests not green\"");
           string fails; {
             std::istringstream is(out); string ln; std::vector<string> keep;
             while (std::getline(is, ln)) if (rx_test("fail|error|\\*\\*\\*|tests passed", ln)) keep.push_back(ln);
