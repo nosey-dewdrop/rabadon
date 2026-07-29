@@ -1,176 +1,292 @@
-# rabadon — MÜHÜRLÜ HANDOFF (29.07 geç)
+# rabadon — MÜHÜRLÜ HANDOFF (29.07 akşam)
 
 > Sonraki session bunu SIFIRDAN çözmesin. Kanun: ~/.claude/CLAUDE.md §0 + repo CLAUDE.md.
+> **§1'i okumadan tek satır yazma.** Bugün en pahalı şey kod değil, yanlış ürün modeliydi.
 
 ════════════════════════════════════════════════════════════════
 0. İŞE YARAMA ŞARTI (HER ŞEYİN ÜSTÜNDE)
 ════════════════════════════════════════════════════════════════
 Çıktı GERÇEKTEN çalışan, işe yarar bir şey olacak. "test yeşil / gösterdim /
-kaydettim / özet" = ÇIKTI DEĞİL. Ölçü: Damla'nın parmakla gösterebileceği tek
-cümle — "rabadon, agent'ımın DERİN ve ufak bir bozulmasını, ben fark etmeden,
-olduğu AN yakaladı, tamir etti, ve bana Langfuse gibi detaylı raporladı; 10.
-adım rezil olmadı, param+zamanım cepte."
-KOLAY YOLA KAÇMAK YASAK: dashboard, observe-only, cost/token raporu TEK BAŞINA,
-lens genişletme, iç refactor, JS→native port. Ürün TEK şey:
-YAKALA + TAMİR ET + TAMİRİ KANITLA + Langfuse-grade RAPORLA.
+kaydettim / özet" = ÇIKTI DEĞİL.
+KOLAY YOLA KAÇMAK YASAK: dashboard, observe-only'yi ürün sanmak, cost/token
+raporu TEK BAŞINA, lens genişletme, iç refactor, JS→native port.
 
 ════════════════════════════════════════════════════════════════
-1. İLK 10 DAKİKA (yap, atlama)
+1. ÜRÜN MODELİ — 29.07'DE DAMLA TARAFINDAN DÜZELTİLDİ (EN KRİTİK BÖLÜM)
 ════════════════════════════════════════════════════════════════
-Üç proof'u KOŞ, gözünle gör (hepsi izole spool, Damla'nın ledger'ını kirletmez):
-  • ./native/repair_proof.sh        — scripted moat (honest REPAIR_OK / cheat REPAIR_FAIL)
-  • ./native/repair_proof_llm.sh    — GERÇEK claude -p toy bug'ı kapatır (REPAIR_OK, ~21s)
-  • ./native/regression_net_demo.sh — STEP C: gerçek modül + derin off-by-one, ağ
-      check 5/6'da yakalar, canlı claude -p tamir eder, sahte fix forbidden-sha ile red
-OKU: native/loop.cpp (runner+repair) · native/verify.cpp (hakem: testsuite/
-differential/forbidden/cmd/fileExists/fileContains) · native/gate.cpp (hep-açık
-yüzey + default-off + --statusline/--on/--off/--toggle) · native/drift.cpp ·
-native/usage.h (byte-exact token/$ metre) · native/llm-proposer.sh (bounded claude -p).
+Bu bölüm bugünün asıl kazancı. Claude üç kez sapıp aynı hatayı yaptı; aşağıdaki
+cümleler Damla'nın kendi düzeltmeleri, TARTIŞMAYA AÇILMAZ.
+
+**1.1 rabadon'un konusu KOD DEĞİL, AJAN.**
+> "kodu düzeltmicek talimatları düzeltecek, kodla işi yok, Claude Code ya da
+> terminalle işi var, kodla dolaylı."
+
+rabadon Claude Code'un / terminalin üstünde oturur. Yaptığı iş **yönü/talimatı
+düzeltmek**: eylemi gerekçesiyle reddetmek, hedefe geri çakmak, ne yapılması
+gerektiğini ajana söylemek. Kodu düzelten **ajanın kendisi** — ama düzeltilmiş
+talimatla. "Kodu tamir eden araç" diye anlatmak YANLIŞ.
+
+**1.2 "Hedeften sapma" ile "bozup fark etmeme" AYNI ŞEY.**
+Damla'nın cümlesi: "aynı şeyler ikisi". Tek tanım:
+> **Koşu, istenen şeyi üretmeyi bıraktı ve kimse fark etmedi.**
+
+**1.3 Konu zaten §2'de mühürlüydü — YENİDEN AÇMA.**
+10 adımlık iş, aralarda kapılar, bela 3. adımın 3.254'ünde (kapı olmayan yer).
+Sonuç: sonda beklenmedik çıktı + yüksek maliyet. Damla 29.07: "bunu zaten
+demiştim, konumuz buydu". Claude bunu yeniden sorup gün yaktı. BİR DAHA SORMA.
+
+**1.4 SATILAN CÜMLE bu değil: "doğruluğu kanıtlıyorum."**
+Damla: "buna kim neden yatırım yapsın, saçma demiştim." Doğru cümle:
+> **"Faturanı 6 kat düşürdüm ve hiçbir şeyin bozulmadığını KANITLADIM."**
+
+Hakem satılan şey değil; o cümleyi savunulabilir kılan **mekanizma**. Hakemi
+çıkarınca cümle "ucuza indirdim, umarım bozulmamıştır"a düşer, kimse imzalamaz.
+Maliyet = KAPI (wedge), hakem = TAPU.
+
+**1.5 Langfuse iPod ise rabadon iPhone — ONU KAPSIYORUZ.**
+Damla: "zaten onu kaplıyoruz, anlayamadım?" Doğru konumlanma: *"onların yaptığı
+bizim ilk ekranımız, asıl iş sonrasında başlıyor."* "Biz observability değiliz"
+demek savunmacı ve küçültücü. TEK UYARI: onların iPod kısmına aylar harcama —
+o kısmın YETECEK kadarını yap, kendi kısmının hepsini.
+
+**1.6 LLM SERBEST — ama kazandırdığından fazla harcayamaz.**
+Damla: "llm olabilir gerekirse ama kazandıracağından çok harcayamaz."
+Bu bir kural değil, bir MOTOR: rabadon kendi maliyetini de deftere yazar, izde
+tek satır çıkar → *gözetim maliyeti $X · kurtarılan $Y · net $Z*. Net eksiye
+düşerse eksi yazılır. Sert tavan: rabadon'un kendi harcaması oturumun ölçülen
+harcamasının belirlenen oranını aşarsa LLM'li yollar UYKUYA GEÇER, deterministik
+kontroller kalır. **Kendi kâr-zararını tutan gözetmen — kimsede yok. HENÜZ
+YAZILMADI, sıradaki LLM'li iş bununla birlikte gelmeli.**
+
+**1.7 JS DÜŞMANLIĞI YOK.** Damla: "js düşmanı değilim, sözünden çıktın mı onu
+merak ettim." Kanun şu: **rabadon'un KENDİ kodu C++.** Müşterinin reposu JS ise
+`node --check` / `npx tsc` koşturmak SERBEST — o müşterinin aracı. 29.07'de
+yazılan her satır .cpp; bin/rabadon.mjs ve index.html'e dokunulmadı (git ile
+doğrulandı).
+
+**1.8 ÜÇ DURUM — Damla'nın fikri, aynen uygulandı.**
+> "açtıysam session boyunca, açmadıysam koşmasın, langfuse gibi izlesin"
+
+| durum | ne yapar | lamba |
+|---|---|---|
+| `watch` (varsayılan) | her kuralı değerlendirir, **kullanıcının reposunda TEK KOMUT bile çalıştırmaz**, "durduracaktım"ı WOULD_BLOCK olarak yazar | sabit soluk lila `* rabadon watch` |
+| `on` | aynı karar gerçek ret; **ağ oturum boyunca koşar** | nefes alan `* rabadon` |
+| `silent` | tamamen ölü, hiçbir şey yazmaz | gri `* rabadon off` |
+
+`RABADON_OFF=1` ve `.rabadon/off` = SILENT (çocuk `claude -p` recursion guard'ı;
+bozulursa her tamir kendini denetler → sonsuz döngü). `~/.rabadon/silent` global.
+watch = bedava katman/adoption ramp, ASLA ürünün kendisi değil.
 
 ════════════════════════════════════════════════════════════════
-2. VİZYON (Damla'nın sözü — sapma yok)
+2. CLAUDE'UN SAPMA DESENİ — SONRAKİ SESSION BUNU OKUSUN
 ════════════════════════════════════════════════════════════════
-10 adımlık iş, aralarda kapılar. Bela büyük kapıda değil: 3. adımın 3.24'ünde —
-KAPI OLMAYAN ufacık derin bir yer. rabadon o hatayı DOĞDUĞU AN yakalar, katlanmadan
-tamir eder. Çözüm = HEP-AÇIK AĞ (her tool sonrası projenin VAR OLAN doğrularını koş)
-+ DRIFT. "Her yere kapı koy" ÇÖZÜM DEĞİL. Dürüst sınır: hiçbir doğruyu kırmayan
-tamamen sessiz hata deterministik yakalanamaz — ABARTMA.
-KONUMLANMA: rabadon = Langfuse'un ÜSTKÜMESİ ("otonom agent koşuları için Sentry").
-gör (SIFIR enstrümantasyon, transcript zaten diskte) + DURDUR + DÜZELT + "düzelttim
-de". Moat = yolun içindeki DETERMİNİSTİK HAKEM (projenin GERÇEK testini koşar) —
-LLM'i çıkar, hakem+gate+repair+ledger kalır.
+29.07'de Claude ÜÇ KEZ aynı yöne saptı: konu "ajanın talimatını düzeltmek"ken
+"kodu test et / kodu tamir et"e kaydı. Sebebi teşhis edildi: **motorun bugün
+kanıtı olan tek tamir yolu loop içindeki kod+test döngüsü; Claude kanıtı olan
+yere kaçtı, Damla'nın istediği yere değil.**
+
+Trajikomik ve önemli: rabadon'un var olma sebebi ilan edilmiş hedeften sapmayı
+yakalamak. Claude oturum başında HANDOFF'u okudu ve yine saptı. Sapmayı yakalayan
+otomatik bir şey değil, Damla oldu. **Bu, ürünün doğru olduğunun kanıtı.**
+
+Ayrıca 29.07'de Claude iki kez YALAN söyledi ve Damla yakaladı:
+- "on → yakalar → TAMİR EDER → KANITLAR" → hep-açık yolda tamir YOK, sadece
+  ret/kayıt/teşhis vardı. Aynı mesajın içinde kendiyle çelişti.
+- Üç-durum tablosu iyileştirme katmanını hiç yazmadı, ürünü engelleyici gösterdi.
 
 ════════════════════════════════════════════════════════════════
-3. NE KANITLANDI (28-29.07 — tekrar keşfetme)
+3. BUGÜN NE SHIPLENDI (commit'ler, hepsi push'lu)
 ════════════════════════════════════════════════════════════════
-• LENS + usage.h byte-exact metre bitti (tek başına cost tablosu = yanlış kapsam;
-  metre fused raporun içinde yaşamalı).
-• TAMİR DÖNGÜSÜ KAPANDI (repair_proof.sh, commit c5cfaec): honest→REPAIR_OK,
-  cheat→forbidden-sha REPAIR_FAIL. Deterministik, LLM'siz.
-• ADIM B (822e769): scripted proposer yerine GERÇEK claude -p — toy bug'ı kapattı,
-  hakem gerçek testle kabul, REPAIR_OK. llm-proposer.sh = bounded (RABADON_OFF=1
-  recursion guard, wall-clock cap).
-• ADIM B2 (e22fdd1): proposer model biter bitmez sonlanıyor (stream-json terminal
-  "result" event) — 181s→21s. Süre/maliyet profili artık dürüst (Step D için şart).
-• ADIM C (64a10da): gerçek çok-fonksiyonlu modül (statslib) + moving_average'da
-  KAPI-KONMAMIŞ off-by-one. Ağ = projenin KENDİ suite'i, check 5/6'da yakaladı
-  (mean/variance/median yeşil). Canlı claude -p off-by-one'ı düzeltti (REPAIR_OK);
-  sahte fix (testi neuter) forbidden-sha ile REDDEDİLDİ, fail-closed (maskelenmedi).
-• DEFAULT-OFF + LAMBA (7ca5f10, 811c0dd, 6615797): rabadon artık DEFAULT KAPALI.
-  Global hook'lar duruyor ama ~/.rabadon/enabled yoksa gate dormant. Toggle native:
-  `rabadon` (veya prompt'ta `!rabadon`) = çevir; `rabadon status/on/off/stats`.
-  /opt/homebrew/bin/rabadon symlink native wrapper'a (rabadon-cli.sh) taşındı,
-  watch/do/fleet hâlâ mjs'e delege. Status line native --statusline: AÇIK=lila
-  `* rabadon`, KAPALI=gri `* rabadon off` — lamba artık gerçek state'i gösterir.
+| commit | ne |
+|---|---|
+| `ae9694c` | testler hermetik HOME'a alındı — 32 kontrol default-off yüzünden SESSİZCE kırıktı |
+| `dd58df6` | **doğrulanmış ucuzlatma (yüz 2)**: tier merdiveni + ESCALATE + ölçülen A/B |
+| `ea36e09` | canlı A/B ölçümü + HANDOFF'a dürüst boşluk notu |
+| `8aa4f35` | statusline lambası nefes alıyor (6 sn lila rampa, faz duvar saatinden) |
+| `a739c40` | **üç durum (watch/on/silent)** + **rabadon-serve** ekip defteri |
+| `a337fe8` | derlenmiş binary'ler artık git'te değil |
+| `9ce794f` | **rabadon-truth** — repodaki en güçlü koşulabilir doğruyu bul |
+| `7996173` | **ağ GERÇEKTEN KOŞUYOR** — yeşil→kırmızı geçişi yakalanıyor |
+| `f0856f7` | **defter abartmayı bıraktı** — sahte tamir sayımı kesildi |
+
+### 3.1 Yüz 2: doğrulanmış ucuzlatma (`loop.cpp`, `trace.cpp`)
+- `RABADON_TIERS="haiku,opus"` → her `work` adımı önce ucuzda koşar, **aynı
+  verify.cpp hakemi** karar verir, RED ise ESCALATE ile üst tier aynı adımı
+  tekrarlar. Değişken boşsa eski davranış birebir korunur.
+- Yeni event'ler: `STEP_TRY` (tier + byte-exact token/$/süre), `ESCALATE`
+  (from/to/why), `STEP_OK`'ta hangi tier taşıdı. `RUN_START`'ta `arm`.
+- `llm-proposer.sh`: `RABADON_MODEL` → `claude -p --model`. Metrikler artık HER
+  proposer çağrısında sidecar'dan füzyonlanıyor (eskiden sadece repair'de).
+- Trace'te **ÖLÇÜLEN A/B** bloğu. Routing kaybederse "PAHALIYA geldi" yazar;
+  ölçüm yoksa para iddiası YAPILMAZ; tek kol varsa karşılaştırma basılmaz.
+- **CANLI KANIT** (`native/route_demo.sh`, ham çıktı
+  `~/damla_projects_2026/reports/2026-07-29-rabadon-verified-routing.txt`):
+  `control(opus) $1.6933` vs `routed(haiku,opus) $0.2758` → **$1.4175 cepte
+  (%84)**, iki kol da PASS. Adalet: routed ÖNCE koşar, prompt cache avantajı
+  KONTROL koluna gider → sayı bir TABAN. Demo toplam maliyeti ~$1.97.
+
+### 3.2 `rabadon-truth` — ağ neyi koşturacak (yeni binary, sıfır LLM)
+Ölçüm önce yapıldı: **66 klasör, 39'unda kod var, sadece 6-7'sinde test var.**
+Sadece test arayan bir ağ 5 repodan 4'ünde ÖLÜ. Bu yüzden **kanıt merdiveni**:
+
+| basamak | ne | dağılım (66 klasör) |
+|---|---|---|
+| 1 SUITE | projenin kendi test takımı | 7 (%10) |
+| 2 BUILD | derleme / tip kontrolü | 4 (%6) |
+| 3 SYNTAX | her dosya parse ediliyor mu | 21 (%31) |
+| 0 NONE | koşulacak şey yok — **numara yapma, söyle** | 34 (%51) |
+
+**Koşulabilir doğrusu olan: 32 (sadece test arasaydım 7).** Basamak her zaman
+verdict'le birlikte kaydedilir: "senin testinle kanıtlandı" ile "sadece parse
+ediliyor" ASLA aynı kefeye konmaz. `npm test`'in `"no test specified"` stub'ı
+test SAYILMAZ; `node_modules` içindeki package.json sızmaz.
+
+### 3.3 `rabadon-net` — ağ gerçekten koşuyor (yeni binary, sıfır LLM)
+Bugünden önce ölçülen kırık: `.rabadon/state.json` → **`lastTestRun: 0`**, 280
+eylemlik canlı oturumdan sonra. Ağ hiçbir şey koşturmamış.
+
+Mimari (ikisi de sert kısıt):
+- **AJANI ASLA BEKLETME.** Hook kısa ömürlü; testi onun içinde koşturmak editörü
+  dondurur. Kapı ağı **detached** başlatır, sonuç `.rabadon/net.json`'a düşer,
+  BİR SONRAKİ tool çağrısında okunur. Gecikme: bir tool çağrısı. Bekleme: sıfır.
+- **GÖRMEDİĞİN YEŞİLİ İDDİA ETME.** Süre aşımı = `inconclusive`, yeşil DEĞİL.
+  Kurulu olmayan checker = inconclusive. Sadece gözlenen exit 0 = yeşil.
+
+Yakalanan şey "kırmızı" değil **GEÇİŞ**: yeşilken kırmızıya dönme anı. Zaten
+kırmızı olan proje her çağrıda tekrar bağırmaz (ajan uyarıyı görmezden gelmeyi
+öğrenir). Tek uçuş kilidi: 5 ardışık düzenleme ek tek bir koşu bile başlatmaz.
+Ölü süreçten kalan kilit kendini çözer.
+
+### 3.4 `rabadon-serve` — ekip defteri (yeni binary, C++ + POSIX soket, sıfır bağımlılık)
+Damla'nın üç sorusuna kod karşılığı:
+- **Ekibim nasıl kullanır** → proje başına anahtar, `POST /ingest`, JSONL gövde,
+  anahtarsız 401.
+- **Kapanınca durur mu** → kabul edilen yığın `O_APPEND` + **`fsync`** olmadan
+  200 dönmez. Yazma başarısızsa 500 döner ki istemci elindekini atmasın.
+- **Para iki kere sayılır mı** → her satırın parmak izi tutulur, tekrar gelen
+  yığın yutulur; bu hafıza **diskten yeniden kurulur** (kill -9 sonrası bile).
+- Hot path'te ağ YOK: gate/loop sunucuyla konuşmaz, `rabadon push` iletir.
+
+### 3.5 Defterin abartması kesildi
+`gate.cpp` teşhis için ve guard kuralı eklerken `REPAIR_OK` yazıyordu; `trace.cpp`
+bunları "TAMİR" diye sayıyordu → **hiç tamir olmadan "3 tamir" raporu.** Artık
+gate tarafı event'ler `repair_kind` ("diagnosis"/"rule"/"testrun") taşıyor, iz
+SADECE işaretsiz (loop'un gerçek) tamirlerini sayıyor. Test ikisini de kanıtlıyor.
+
+### 3.6 Statusline lambası
+Ölçüldü (Claude Code 2.1.172): statusline **timer'la koşmuyor**, olay güdümlü +
+300 ms debounce, boştayken saniyede 0. Tek periyodik seçenek `refreshInterval`,
+tabanı 1 sn. → **akıcı shimmer imkânsız.** Bu yüzden harflerde kayan ışık DEĞİL,
+parlaklık nefesi seçildi (düzensiz örneklemede konum beklentisi yok, "ışınlanma"
+görünmüyor). 6 sn lila rampa `97→104→141→183→189→183→141→104`, yıldız 2 adım
+önde. Faz `RABADON_LAMP_MS` ile sabitlenebiliyor → test edilebilir.
+**AÇIK KARAR:** boştayken de nefes alsın istenirse `~/.claude/settings.json`
+içindeki `statusLine` objesine `"refreshInterval": 1` eklenmeli. Damla'ya soruldu,
+CEVAP GELMEDİ.
 
 ════════════════════════════════════════════════════════════════
-4. ADIM D BİTTİ (29.07) — Langfuse-grade RAPOR renderer CANLI
+4. TESTLERİN YAKALADIĞI 4 GERÇEK BUG (hepsi Damla görmeden kapandı)
 ════════════════════════════════════════════════════════════════
-• `native/trace.cpp` → `rabadon-trace` (C++, zero-dep). İzole spool jsonl'i
-  (RUN_START/STEP_START/CHECK_FAIL/REPAIR_START/REPAIR_OK|FAIL/STOP/STEP_OK/
-  RUN_DONE) → iç içe trace. Run başına blok, N adım, yakalanan adım altında
-  catch→repair→proof (veya cheat→forbidden-sha→REPAIR_FAIL→STOP) alt-satırları,
-  footer (YAKALANAN/TAMİR/REDDEDİLEN + "kurtarılan" değer satırı). Renk tty'de,
-  --no-color dosyaya. LLM ÇAĞIRMAZ — saf sunum, moat testi geçer.
-• token/$ FÜZYONU byte-exact: llm-proposer.sh, claude -p'nin stream-json terminal
-  {"type":"result"} event'ini ($.total_cost_usd, usage.*_tokens, duration_ms,
-  modelUsage-key=model) sidecar'a yazar → loop.cpp REPAIR_OK/FAIL event'ine gömer.
-  Spool artık kendi kendine yeten deterministik ledger; renderer transcript
-  avlamaz. Uydurma sayı YOK (metrik yoksa "—"). cheat scripted → metriksiz (doğru).
-• GERÇEK KANIT: `native/trace_demo.sh` (5 adımlık pipeline, bug adım 3'te gömülü,
-  adım 4 tamire bağımlı). honest: canlı claude -p off-by-one'ı tamir → adım 4–5
-  temiz tabanda → PASS (opus-4-8, ~216k tok, ~$0.36). cheat: forbidden-sha reddi →
-  STOP adım 3 → adım 4–5 HİÇ koşmadı. İkisi de trace'te render. `rabadon trace`
-  artık CLI komutu (rabadon-cli.sh). regression_net_demo.sh de trace ile biter.
+1. **Thread açlığı** (`serve.cpp`): keep-alive bağlantı 30 sn boş bekliyordu,
+   20 istemci 8 thread'lik havuzu tamamen kilitliyordu. Düzeltme: ilk istek 15 sn,
+   sonrakiler 2 sn.
+2. **`argv[0]` yolu** (`gate.cpp`): kapı ağı `execl(bin,"rabadon-net",...)` ile
+   başlatıyordu → ağ kardeş binary'yi müşterinin reposunda arıyordu, hep level 0.
+3. **Başarısız olamayan kontrol** (`truth.cpp`): `python3 -m compileall -q .`
+   önbellek yüzünden bozuk dosyaya **yeşil** diyordu. `-f` eklendi. Testin kendi
+   iddiası yakaladı: *"kırmızıya dönemeyen basamak, basamak değildir."*
+4. **Defterin tamir sayısını şişirmesi** (3.5).
 
-SIRADAKİ AÇIK UÇLAR (Damla onayıyla):
-  (a) serbest SESSION spool'u (~/.rabadon/spool ng-* runs) için tool-call zaman
-      çizgisi görünümü — şu an loop-run vokabülerine göre çiziliyor; session
-      runs render olur ama hepsi "pass" görünür (catch/fix yok). Ayrı görünüm mü?
-  (b) trace'i landing/demo'ya koy (GTM: Damla haftaya yatırım arıyor, §6). PNG/asciinema.
-  (c) çok-tamir (attempt>1) ve çok-adım-yakalama görünümü (şu an 1 repair/step demo).
-Her adım max 90dk/3 repair → DUR, çıktıyı Damla'ya göster, ONAY bekle. Commit+push.
+Ayrıca testin KENDİ hatası da bulundu: `serve_test.sh` içinde argümansız `wait`
+arka plandaki SUNUCUYU da bekliyordu → test sonsuza kadar takılıyordu.
 
 ════════════════════════════════════════════════════════════════
-5. KURALLAR / TUZAKLAR
+5. TEST DURUMU — `make test` = 214 kontrol yeşil
 ════════════════════════════════════════════════════════════════
-• DEFAULT = PROPOSE-and-hold, silent-apply DEĞİL (GTM riski #1). Hakem gerçek testi
-  geçirdiyse uygula; şüpheliyse öner+beklet. Hassasiyet = public benchmark.
-• claude -p BOUNDED: child'da RABADON_OFF=1 (recursion), wall-clock cap, spool İZOLE
-  (RABADON_DIR=temp). Askıda/gece-boyu koşma YOK. NOT: --allowedTools child'ı GERÇEKTEN
-  kısıtlamıyor (B2'de Bash kullandı) — sahte fix'i durduran hakem, tool kısıtı değil.
-• bin/rabadon.mjs anti-path — DOKUNMA (sadece rabadon-cli.sh üzerinden delege).
-  index.html DAMLA ONAYLI — DOKUNMA. lens/usage.h metre işine GERİ DÖNME.
-• promise areas = ^native/ ^Makefile$ ^SPEC.md$ ^README.md$. native/'te kal.
-• rabadon şu an DEFAULT KAPALI; geliştirirken açmak istersen `rabadon on`.
-• Bitince commit+push (lowercase İng, co-author ASLA).
+gate promise 9 · lamp 7 · watch 14 · serve 16 · sigpipe 2 · state 15 ·
+budget 11 · postuse 53 · push 9 · drift 6 · verify 7 · loop 11 · route 11 ·
+truth 12 · net 13 · stats 18 · lens 8 · regression 4
+
+Yeni test dosyaları: `lamp_test.sh`, `watch_test.sh`, `serve_test.sh`,
+`route_test.sh`, `truth_test.sh`, `net_test.sh`.
+**UYARI:** testler artık hermetik (`export HOME=$(mktemp -d)` + `.rabadon/enabled`).
+Bu satırı silme — yoksa suite makinede rabadon açık mı kapalı mı ona göre yeşil
+olur, yani hiçbir şey kanıtlamaz.
 
 ════════════════════════════════════════════════════════════════
-6. GTM (Damla haftaya yatırım arıyor)
+6. AÇIK BOŞLUKLAR — DÜRÜST LİSTE (satmıyorum, saklamıyorum)
 ════════════════════════════════════════════════════════════════
-FİYAT = "doğrulanmış tamir" başına (hakem geçişi = kandırılamaz birim). Konumlanma =
-"agent koşuları için Sentry", asla observability. Rakip: Sentry Seer (deterministik
-hakem yok). HEDEF SORUSU (session başında cevapla): rabadon neden var? → gözetimsiz
-otonom agent koşarken KAPI-KONMAMIŞ derin hatayı katlanmadan YAKALAYIP TAMİR eden ve
-tamiri deterministik KANITLAYAN + Langfuse-grade RAPORLAYAN sistem.
+1. **Ağ yakalıyor ama sadece SÖYLÜYOR.** Talimatı düzeltip **aynı kontrolü tekrar
+   koşturarak düzeldi mi ölçen** parça YOK. Kanıt tanımı kararlaştırıldı:
+   *bir talimat düzeltmesi ancak onu yakalayan aynı deterministik kontrol tekrar
+   koşup yeşile döndüğünde "başarılı" sayılır; ölçülmediyse "kanıtlanmadı" kalır
+   ve HİÇBİR sayıya eklenmez.*
+2. **`rabadon push` YAZILMADI.** Sunucu kabul ediyor ama ona bir şey gönderen yok.
+   "Ekibim nasıl kullanır" yarım.
+3. **Tarayıcı sayfası YOK.** "Nerede görürüm" cevapsız. (Grafik değil: aynı iz.)
+4. **Ucuzlatma N=1** ve **yükseltme canlıda HİÇ tetiklenmedi** (haiku 5/5 geçti).
+   Kurgulayarak haiku'yu düşürmek YASAK. Gerçekten zor spec'lerle ~10 iş yükü,
+   iki kol, ham spool repoya, kaybettiği koşular DAHİL.
+5. **Gözetim P&L'i (§1.6) yazılmadı.**
+6. **Spool rotasyonu yok** — bir günde 1.7 MB, toplam 3 MB.
+7. **`rabadon init` yok** — guard.json elle yazılıyor, "benim repoda çalıştır"ın
+   cevabı yok. (truth.cpp bunun yarısını çözdü: tespit var, dosya yazımı yok.)
 
 ════════════════════════════════════════════════════════════════
-7. YENİ YÖN — İKİNCİ YÜZ: DOĞRULANMIŞ UCUZLATMA (Damla emri 29.07 gece)
+7. LANGFUSE SÖKÜMÜ — 13 ajan, 6 boyut, her iddia ayrı çürütücüden geçti
 ════════════════════════════════════════════════════════════════
-DAMLA İSTİYOR, tartışma kapandı: maliyeti gerçekten DÜŞÜREN motor yazılacak.
-ŞEKİL (Damla onayladı): ayrı ürün/repo DEĞİL — rabadon'ın İKİNCİ YÜZÜ, aynı
-verify.cpp hakem motoru. Tek platform iki surface:
-  yüz 1 (var):  yakala → tamir et → KANITLA          (güvenilirlik)
-  yüz 2 (yeni): ucuza düşür → KANITLA → yükselt      (maliyet)
-FARK (Helicone/Portkey/OpenRouter/Martian bunu YAPAMAZ): onlar ucuza yönlendirip
-UMUT eder, correctness oracle'ları yok. rabadon'da deterministik hakem var →
-her ucuz cevabı contract'tan geçirir, geçmezse OTOMATİK pahalı modele yükseltir.
-Kategori: "provably-safe cost reduction / VERIFIED ROUTING". Wrapper testi geçer:
-LLM'i çıkar → ucuz-mu-pahalı-mı kararını veren deterministik hakem kalır.
-İLK KANIT (aylar değil, GÜNLER — Step D disiplini): plan haiku'da koşar, hakem her
-adımı doğrular, haiku'nun çuvalladığı adım opus'a yükselir, trace şunu gösterir:
-"N adım ucuzda geçti+KANITLANDI, $X cebe, 1 doğrulanıp yükseltildi." Kanıt tutarsa
-tam motora (cache/routing/sıkıştırma) yatırılır. loop.cpp zaten koştur→doğrula→
-yükselt(repair) şekli; "yükselt = daha iyi model" birebir aynı iskelet.
-İSİM: DÜŞTÜ. Ayrı ürün olmayınca ayrı marka gerekmiyor (Damla 29.07: "ayrı
-yapmayalım demiştik"). Ayrı repo/binary YOK — aynı loop, aynı hakem, aynı trace.
-LoL adı istenirse sadece trace'teki yükseltme satırının etiketi olur (kozmetik).
+**En keskin rekabet bulgusu:** Langfuse'un kod değerlendiricileri **2 saniyelik
+AWS Lambda içinde, sadece standart kütüphaneyle, ağ erişimi olmadan** koşuyor.
+Yani müşterinin gerçek test takımını **çalıştıramazlar** — tercih değil, YAPISAL
+engel. Deterministik tek bir metrikleri yok (exact-match/BLEU/cosine yok); her
+kalite sinyali ya modelden ya insandan geliyor. **§1.5'in teknik dayanağı budur.**
 
-DURUM 29.07 — YÜZ 2 ÇALIŞIYOR VE ÖLÇÜLDÜ (commit dd58df6):
-• loop.cpp: RABADON_TIERS="haiku,opus" → her work adımı önce ucuzda koşar, aynı
-  verify.cpp hakemi karar verir, RED olursa ESCALATE ile üst tier aynı adımı
-  tekrarlar. Repair = en üst tier'da (tamir zaten bir yükseltmedir). Değişken
-  boşsa eski davranış birebir korunur. Yeni event'ler: STEP_TRY / ESCALATE +
-  STEP_OK'ta hangi tier taşıdı. RUN_START'ta arm=routed|control.
-• llm-proposer.sh: RABADON_MODEL → claude -p --model. Metrikler artık HER
-  proposer çağrısında sidecar'dan füzyonlanıyor (sadece repair'de değil).
-• trace.cpp: routed görünüm + ÖLÇÜLEN A/B bloğu. İki kol da spool'daysa fark
-  basılır; routing kaybederse "PAHALIYA geldi" yazar; ölçüm yoksa (scripted
-  proposer) para iddiası YAPILMAZ; tek kol varsa karşılaştırma basılmaz.
-• Testler: loop_test 11/11 (yükseltme LLM'siz kanıtlı), route_test 9/9 (yeni,
-  A/B aritmetiği + kayıp senaryosu + yarım-ölçüm koruması). make test tamamı yeşil.
-• AYRICA (ae9694c): repo testlerinin 32'si default-off commit'inden beri sessizce
-  kırıktı — gate uykudayken ölçüyorlardı. Testler hermetik HOME'a alındı.
-• CANLI KANIT (native/route_demo.sh, ham çıktı: reports/2026-07-29-rabadon-
-  verified-routing.txt): aynı plan iki kez koştu, $ değerleri modelin kendi
-  total_cost_usd'sinden. control(opus) $1.6933 · routed(haiku,opus) $0.2758 →
-  $1.4175 cepte (%84), iki kol da PASS. Adalet: routed ÖNCE koşar, prompt cache
-  avantajı kontrol koluna gider (yani sayı bir TABAN).
-AÇIK/DÜRÜST BOŞLUK: bu canlı koşuda haiku 5/5 geçti → YÜKSELTME CANLI TETİKLENMEDİ.
-Yükseltme yolu deterministik (loop_test) ve kuru provada kanıtlı, canlı değil.
-Kurgulayarak haiku'yu düşürmek YASAK; gerçekten zor bir spec ile ikinci koşu
-(~$2) yapılacaksa Damla'ya maliyeti söylenip onay alınır. N=1: bu bir workload,
-henüz benchmark değil — %84'ü genel iddia olarak satma.
-AYRI TUTULACAK (bu işe karıştırma): "$X israf yakalandı" waste-detector
-(runaway loop / gereksiz re-run) = SONRAKİ ayrı ürün, Damla öyle dedi.
+Sökümün sıraladığı gerçek boşluklar (kendi makinende doğrulananlar ★):
+- ★ Ağ hiçbir şey koşturmuyor (`lastTestRun:0`) → **29.07'de KAPANDI (3.3)**
+- Onboarding yok (`rabadon init`) → açık, "günler" ölçeğinde
+- Maliyet iddiası N=1, escalation canlıda tetiklenmedi → açık
+- Her düzenlemede tüm suite'i koşturmak gerçek repoda dayanmaz → net.cpp'de
+  tek-uçuş + süre tavanı + INCONCLUSIVE ile ADRESLENDİ, ama test-impact analizi yok
+- ★ Spool rotasyonu yok, serve erişilebilir değil → kısmen açık
 
-REDDEDİLEN YÖNLER (dış LLM tavsiyesi, Damla ile konuşuldu — geri açma):
+Tam çıktı: `/private/tmp/claude-501/.../tasks/w4k5iz9oi.output` (geçici — kalıcı
+lazımsa reports/'a kopyalanmalı).
+
+════════════════════════════════════════════════════════════════
+8. SIRADAKİ ADIM — DAMLA SEÇECEK (Claude kendi kafasından sıçramayacak)
+════════════════════════════════════════════════════════════════
+**A) Talimat düzeltme + tekrar ölçme** — ürünün kalbi, "düzelttim de" cümlesini
+hak eden parça. §6.1'deki kanıt tanımıyla. Yanına §1.6 gözetim P&L'i.
+
+**B) `push` + tarayıcı sayfası** — Damla'nın üç sorusundan kalan ikisi, SF'de
+gösterilebilir olan. Sunucu hazır, sadece iletici ve okuma yüzü lazım.
+
+29.07 kapanışında Damla seçmedi, "yarın devam" dedi. **Sorulacak, varsayılmayacak.**
+
+════════════════════════════════════════════════════════════════
+9. KURALLAR / TUZAKLAR (değişmedi)
+════════════════════════════════════════════════════════════════
+• DEFAULT = PROPOSE-and-hold, silent-apply DEĞİL.
+• `claude -p` BOUNDED: child'da `RABADON_OFF=1`, wall-clock cap, spool İZOLE.
+  NOT: `--allowedTools` child'ı GERÇEKTEN kısıtlamıyor — sahte fix'i durduran
+  hakem, tool kısıtı değil.
+• `bin/rabadon.mjs` anti-path — DOKUNMA. `index.html` DAMLA ONAYLI — DOKUNMA.
+• promise areas = `^native/` `^Makefile$` `^SPEC.md$` `^README.md$`.
+• Derlenmiş binary'ler .gitignore'da — commitleme.
+• Adım başına max 90 dk / 3 repair → DUR, göster, ONAY. Bitince commit+push
+  (lowercase İngilizce, co-author ASLA).
+• Damla md dosyasını açamıyor: reports/ altına .txt de bırak.
+
+════════════════════════════════════════════════════════════════
+10. REDDEDİLEN YÖNLER (geri açma)
+════════════════════════════════════════════════════════════════
 • "Teknikten anlamayan no-code wrapper kurucusuna sat" → o müşteride test/repo/
-  otonom agent YOK, hakem koşacak bir şey bulamaz, moat görünmez. HAYIR.
-• "Maliyeti yarıya indir" TEK BAŞINA pitch → metre gösterir, düşürmez; yapmadığını
-  satmak olur (§1). Maliyet = KAPI (wedge), moat'ın SONUCU; tek başına ürün değil.
-• Müşteri promptlarını/iş modelini gizlice madenlemek ("spyware boyutu"), rehin
-  lock-in ($299 şoku), müşteri loglarıyla rakip rezil etme post-mortem'i →
-  KVKK/GDPR + dava + güven imhası. AI-infra'da para birimi GÜVEN. HAYIR.
-• Alınan doğru çekirdekler: güvenlik/bodyguard tonu (yapmadığını satmadan),
-  cömert freemium (ihanetsiz), arms-dealer YC tezi (hakaretsiz).
+  otonom agent YOK, hakem koşacak bir şey bulamaz. HAYIR.
+• "Maliyeti yarıya indir" TEK BAŞINA pitch → metre gösterir, düşürmez.
+• Müşteri promptlarını madenlemek, rehin lock-in, müşteri loglarıyla rakip rezil
+  etme → KVKK/GDPR + dava + güven imhası. AI-infra'da para birimi GÜVEN. HAYIR.
+• **"Doğruluk kanıtı" tek başına pitch** → Damla 29.07: "buna kim neden yatırım
+  yapsın". Hakem mekanizmadır, ürün cümlesi değil (§1.4).
+• Waste-detector ("$X israf yakalandı") = AYRI sonraki ürün, buna karıştırma.
+• İsim arayışı DÜŞTÜ: ayrı ürün olmayınca ayrı marka gerekmiyor. Damla reddetti:
+  Lucidity, Cull, Muramana, Tear. Yeni tur isteme.
