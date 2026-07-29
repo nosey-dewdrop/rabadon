@@ -113,3 +113,37 @@ FİYAT = "doğrulanmış tamir" başına (hakem geçişi = kandırılamaz birim)
 hakem yok). HEDEF SORUSU (session başında cevapla): rabadon neden var? → gözetimsiz
 otonom agent koşarken KAPI-KONMAMIŞ derin hatayı katlanmadan YAKALAYIP TAMİR eden ve
 tamiri deterministik KANITLAYAN + Langfuse-grade RAPORLAYAN sistem.
+
+════════════════════════════════════════════════════════════════
+7. YENİ YÖN — İKİNCİ YÜZ: DOĞRULANMIŞ UCUZLATMA (Damla emri 29.07 gece)
+════════════════════════════════════════════════════════════════
+DAMLA İSTİYOR, tartışma kapandı: maliyeti gerçekten DÜŞÜREN motor yazılacak.
+ŞEKİL (Damla onayladı): ayrı ürün/repo DEĞİL — rabadon'ın İKİNCİ YÜZÜ, aynı
+verify.cpp hakem motoru. Tek platform iki surface:
+  yüz 1 (var):  yakala → tamir et → KANITLA          (güvenilirlik)
+  yüz 2 (yeni): ucuza düşür → KANITLA → yükselt      (maliyet)
+FARK (Helicone/Portkey/OpenRouter/Martian bunu YAPAMAZ): onlar ucuza yönlendirip
+UMUT eder, correctness oracle'ları yok. rabadon'da deterministik hakem var →
+her ucuz cevabı contract'tan geçirir, geçmezse OTOMATİK pahalı modele yükseltir.
+Kategori: "provably-safe cost reduction / VERIFIED ROUTING". Wrapper testi geçer:
+LLM'i çıkar → ucuz-mu-pahalı-mı kararını veren deterministik hakem kalır.
+İLK KANIT (aylar değil, GÜNLER — Step D disiplini): plan haiku'da koşar, hakem her
+adımı doğrular, haiku'nun çuvalladığı adım opus'a yükselir, trace şunu gösterir:
+"N adım ucuzda geçti+KANITLANDI, $X cebe, 1 doğrulanıp yükseltildi." Kanıt tutarsa
+tam motora (cache/routing/sıkıştırma) yatırılır. loop.cpp zaten koştur→doğrula→
+yükselt(repair) şekli; "yükselt = daha iyi model" birebir aynı iskelet.
+İSİM: LoL kökenli kod-adı İSTENİYOR ama HENÜZ SEÇİLMEDİ. Damla reddetti:
+Lucidity, Cull, Muramana, Tear ("kötü bunlar"). Yeni tur isim önerilecek.
+AYRI TUTULACAK (bu işe karıştırma): "$X israf yakalandı" waste-detector
+(runaway loop / gereksiz re-run) = SONRAKİ ayrı ürün, Damla öyle dedi.
+
+REDDEDİLEN YÖNLER (dış LLM tavsiyesi, Damla ile konuşuldu — geri açma):
+• "Teknikten anlamayan no-code wrapper kurucusuna sat" → o müşteride test/repo/
+  otonom agent YOK, hakem koşacak bir şey bulamaz, moat görünmez. HAYIR.
+• "Maliyeti yarıya indir" TEK BAŞINA pitch → metre gösterir, düşürmez; yapmadığını
+  satmak olur (§1). Maliyet = KAPI (wedge), moat'ın SONUCU; tek başına ürün değil.
+• Müşteri promptlarını/iş modelini gizlice madenlemek ("spyware boyutu"), rehin
+  lock-in ($299 şoku), müşteri loglarıyla rakip rezil etme post-mortem'i →
+  KVKK/GDPR + dava + güven imhası. AI-infra'da para birimi GÜVEN. HAYIR.
+• Alınan doğru çekirdekler: güvenlik/bodyguard tonu (yapmadığını satmadan),
+  cömert freemium (ihanetsiz), arms-dealer YC tezi (hakaretsiz).
