@@ -35,6 +35,16 @@
 
 using std::string;
 
+// Supervision mode, resolved once per invocation. WATCH is not a crippled
+// ENFORCE: every rule runs and every verdict is recorded, the only difference
+// is that the action is allowed to proceed. See the three-state block in main().
+enum { MODE_SILENT = 0, MODE_WATCH = 1, MODE_ENFORCE = 2 };
+static int g_mode = MODE_SILENT;
+// The exit code a refusal turns into. Claude Code reads 2 as "blocked"; in watch
+// mode the same refusal is recorded and then waved through with 0.
+static int refuse_code() { return g_mode == MODE_ENFORCE ? 2 : 0; }
+static const char* mode_tag() { return g_mode == MODE_ENFORCE ? "enforce" : "watch"; }
+
 // ---------- tiny JSON field extraction (enough for hook payloads) ----------
 // We need a handful of known string fields. Values are JSON-escaped; we
 // unescape the common sequences. Anything unparseable -> empty -> fail open.
@@ -781,8 +791,10 @@ int main(int argc, char** argv) {
     size_t sl = dir.rfind('/'); string project = (sl == string::npos) ? dir : dir.substr(sl + 1);
     const char* h = getenv("HOME"); string home = h ? h : ".";
     const char* off = getenv("RABADON_OFF");
-    bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off");
+    bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off")
+                   || file_exists(home + "/.rabadon/silent");
     bool on = !hardOff && (file_exists(home + "/.rabadon/enabled") || file_exists(dir + "/.rabadon/on"));
+    bool watching = !hardOff && !on;
     const string GRAY = "\033[38;5;245m", R = "\033[0m";
 
     // The ON lamp BREATHES. Claude Code spawns this process fresh for every
@@ -810,28 +822,49 @@ int main(int argc, char** argv) {
     snprintf(lamp, sizeof lamp, "\033[38;5;%dm*\033[38;5;%dm rabadon\033[0m",
              RAMP[(ph + 2) % STEPS],   // the star runs ahead: a pilot light
              RAMP[ph]);
-    string seg = on ? string(lamp) : (GRAY + "* rabadon off" + R);
+    // Three states, three readings, and the breath means one specific thing:
+    // rabadon can act on you right now. WATCH is deliberately still — awake and
+    // recording, but with its hands behind its back. SILENT is grey and says so.
+    const string DIM_LILAC = "\033[38;5;97m";
+    string seg = on       ? string(lamp)
+               : watching ? (DIM_LILAC + "* rabadon watch" + R)
+                          : (GRAY + "* rabadon off" + R);
     printf("%s%s%s%s%s  %s\n", GRAY.c_str(), model.c_str(), model.empty() ? "" : " · ",
            project.c_str(), R.c_str(), seg.c_str());
     return 0;
   }
 
-  // on/off toggle — the deterministic switch. rabadon is DEFAULT OFF and stays
-  // installed in the global hooks, but supervises NOTHING unless ~/.rabadon/enabled
-  // exists. These subcommands flip that one file, so a skill/alias never has to
-  // "pretend" the gate is off — the native gate reads real state. Run again = off.
+  // the deterministic switch. Two files, three states, and the gate reads the
+  // real ones — so a skill or an alias never has to "pretend" a state.
+  //   ~/.rabadon/enabled -> ENFORCE (the arbiter acts)
+  //   neither file       -> WATCH   (records everything, blocks nothing)
+  //   ~/.rabadon/silent  -> SILENT  (truly dormant; also RABADON_OFF=1 per process
+  //                                  and .rabadon/off per project)
+  // `rabadon` toggles ENFORCE <-> WATCH, because that is the switch a user flips
+  // daily. Going fully dark is deliberate and separate: `rabadon silent`.
   if (argc > 1) {
     string a1 = argv[1];
-    if (a1 == "--on" || a1 == "--off" || a1 == "--toggle" || a1 == "--status") {
+    if (a1 == "--on" || a1 == "--off" || a1 == "--toggle" || a1 == "--status" || a1 == "--silent") {
       const char* h = getenv("HOME"); string home = h ? h : ".";
       mkdir((home + "/.rabadon").c_str(), 0755);
       const string flag = home + "/.rabadon/enabled";
-      bool on = file_exists(flag);
+      const string mute = home + "/.rabadon/silent";
+      bool on = file_exists(flag), silent = file_exists(mute);
       if (a1 == "--toggle") a1 = on ? "--off" : "--on";
-      if (a1 == "--on")  { std::ofstream f(flag, std::ios::trunc); f << "on\n"; on = true; }
-      else if (a1 == "--off") { unlink(flag.c_str()); on = false; }
-      printf("rabadon: %s\n", on ? "ON — supervising (this session + wherever it runs)"
-                                 : "OFF — default, dormant everywhere until you turn it on");
+      if (a1 == "--on") {
+        unlink(mute.c_str()); silent = false;
+        std::ofstream f(flag, std::ios::trunc); f << "on\n"; on = true;
+      } else if (a1 == "--off") {
+        unlink(flag.c_str()); on = false;
+        unlink(mute.c_str()); silent = false;
+      } else if (a1 == "--silent") {
+        unlink(flag.c_str()); on = false;
+        std::ofstream f(mute, std::ios::trunc); f << "silent\n"; silent = true;
+      }
+      printf("rabadon: %s\n",
+             silent ? "SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)"
+                    : on ? "ON — the arbiter acts: refuses, repairs, proves"
+                         : "WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)");
       return 0;
     }
   }
@@ -844,20 +877,25 @@ int main(int argc, char** argv) {
   string cwd = get_str(raw, "cwd");
   if (cwd.empty()) { const char* c = getenv("PWD"); cwd = c ? c : "."; }
 
-  // escape hatches first — off is off, instantly
+  // ---------- THREE STATES, and the middle one is the whole adoption ramp -----
+  // SILENT  nothing runs. RABADON_OFF=1 (the recursion guard every child
+  //         `claude -p` inherits — without it the supervisor supervises itself)
+  //         or .rabadon/off in the project. This must stay absolutely dead.
+  // WATCH   records everything, blocks nothing. Every rule is still evaluated,
+  //         and a rule that WOULD have stopped the action is written to the
+  //         ledger as WOULD_BLOCK — so a week of watching produces the only
+  //         honest sales artifact there is: "here are the 14 things I would
+  //         have caught, in your repo, on your work." Nobody hands a new tool
+  //         write access to their codebase on day one; this is how the door
+  //         opens. It is a free tier by construction, never the product.
+  // ENFORCE the arbiter acts: refuse, repair, prove.
   const char* offEnv = getenv("RABADON_OFF");
-  if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")) return 0;
-  // DEFAULT-OFF: rabadon supervises nothing unless explicitly enabled — the global
-  // toggle (~/.rabadon/enabled) or a per-project opt-in (cwd/.rabadon/on). The
-  // hard-off above always wins (RABADON_OFF=1 = child recursion guard; .rabadon/off
-  // = force a project silent). Default state = OFF, so rabadon is never forced onto
-  // every project — it runs only where it was turned on.
-  {
-    const char* h = getenv("HOME");
-    bool enabled = file_exists(string(h ? h : ".") + "/.rabadon/enabled")
-                   || file_exists(cwd + "/.rabadon/on");
-    if (!enabled) return 0;
-  }
+  const char* hEnv = getenv("HOME");
+  const string homeDir = hEnv ? hEnv : ".";
+  if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")
+      || file_exists(homeDir + "/.rabadon/silent")) return 0;
+  g_mode = (file_exists(homeDir + "/.rabadon/enabled") || file_exists(cwd + "/.rabadon/on"))
+             ? MODE_ENFORCE : MODE_WATCH;
 
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
   // re-anchor — the LLM stays off the hot path (bounded `claude -p`).
@@ -1012,7 +1050,7 @@ int main(int argc, char** argv) {
               "rabadon: scope fan-out — this session has edited files across %s top-level directories (%s). "
               "If the task really spans all of them, say so and continue; otherwise rein the change back to the area the task started in.\n",
               N.c_str(), joined.c_str());
-            return 2;
+            return refuse_code();
           }
         }
       }
@@ -1031,7 +1069,7 @@ int main(int argc, char** argv) {
             json_escape(v.anchor.substr(0, 200)) + "\"}]");
           fprintf(stderr, "rabadon re-anchor: the session goal is \"%s\". %s\n",
             ss.goalPrompt.substr(0, 120).c_str(), v.anchor.c_str());
-          return 2;
+          return refuse_code();
         }
         // null / onTrack / no anchor / judge unavailable -> fall through
       }
@@ -1163,7 +1201,7 @@ int main(int argc, char** argv) {
       }
       fprintf(stderr, "rabadon: tests are RED.%s\n",
         advice.empty() ? " Fix the failure before moving on." : advice.c_str());
-      return 2;
+      return refuse_code();
     }
 
     // any other tool: no event, no state mutation — but the twin-dedupe key we
@@ -1298,14 +1336,28 @@ int main(int argc, char** argv) {
   }
 
   auto block = [&](const string& ruleId, const string& why, const string& detail) {
-    em.emit("CHECK_FAIL", "\"step\":\"" + json_escape(toolName) + "\",\"fails\":[{\"check\":\"" + json_escape(ruleId) + "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
-    em.emit("STOP", "\"reason\":\"BLOCKED\",\"detail\":\"" + json_escape(detail) + "\"");
+    em.emit("CHECK_FAIL", "\"step\":\"" + json_escape(toolName) + "\",\"mode\":\"" + mode_tag() +
+            "\",\"fails\":[{\"check\":\"" + json_escape(ruleId) + "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
+    if (g_mode == MODE_ENFORCE) {
+      em.emit("STOP", "\"reason\":\"BLOCKED\",\"detail\":\"" + json_escape(detail) + "\"");
+      stt.save();
+      fprintf(stderr,
+        "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n"
+        "(user override: add \"%s\" to disabled[] in .rabadon/guard.json, or `rabadon off` to pause supervision)\n",
+        ruleId.c_str(), why.c_str(), detail.c_str(), ruleId.c_str());
+      exit(2);
+    }
+    // WATCH: the verdict is real and it is recorded — it is simply not enforced.
+    // WOULD_BLOCK is the event a week of watching turns into "here is what I
+    // would have stopped in your repo", which is the only demo that convinces
+    // someone to hand over write access.
+    em.emit("WOULD_BLOCK", "\"reason\":\"" + json_escape(ruleId) + "\",\"detail\":\"" + json_escape(detail) + "\"");
     stt.save();
     fprintf(stderr,
-      "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n"
-      "(user override: add \"%s\" to disabled[] in .rabadon/guard.json, or `rabadon off` to pause supervision)\n",
-      ruleId.c_str(), why.c_str(), detail.c_str(), ruleId.c_str());
-    exit(2);
+      "rabadon (watch) would have blocked this.\nRule: %s — %s\n%s\n"
+      "Nothing was stopped. `rabadon on` makes this a real refusal.\n",
+      ruleId.c_str(), why.c_str(), detail.c_str());
+    exit(0);
   };
 
   // ---------- budget cap: the deterministic halt-before-burn ----------
@@ -1343,7 +1395,7 @@ int main(int argc, char** argv) {
               "  raise it (`rabadon budget <n>`), clear it (`rabadon budget off`), "
               "or add \"budget-cap\" to disabled[] in .rabadon/guard.json.\n",
               capStr.c_str(), spent.c_str());
-            exit(2);
+            exit(refuse_code());
           };
           if (capTok > 0 && u.tokens() >= capTok)
             halt(std::to_string(capTok) + " tokens",
