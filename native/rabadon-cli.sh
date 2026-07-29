@@ -7,11 +7,13 @@
 # (that file is anti-path — never edited, only called through here).
 GATE="$HOME/damla_projects_2026/rabadon/native/rabadon-gate"
 STATS="$HOME/damla_projects_2026/rabadon/native/rabadon-stats"
+TRACE="$HOME/damla_projects_2026/rabadon/native/rabadon-trace"
 JS="$HOME/damla_projects_2026/rabadon/bin/rabadon.mjs"
 case "${1:-toggle}" in
   toggle)        exec "$GATE" --toggle ;;
   on|off|status) exec "$GATE" "--$1" ;;
   statusline)    exec "$GATE" --statusline ;;
   stats)         shift; exec "$STATS" "$@" ;;
+  trace)         shift; exec "$TRACE" "$@" ;;
   *)             exec node "$JS" "$@" ;;
 esac

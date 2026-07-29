@@ -64,28 +64,32 @@ LLM'i çıkar, hakem+gate+repair+ledger kalır.
   `* rabadon`, KAPALI=gri `* rabadon off` — lamba artık gerçek state'i gösterir.
 
 ════════════════════════════════════════════════════════════════
-4. SIRADAKİ TEK HEDEF: ADIM D — Langfuse-grade RAPOR renderer
+4. ADIM D BİTTİ (29.07) — Langfuse-grade RAPOR renderer CANLI
 ════════════════════════════════════════════════════════════════
-Koşunun ÇIKTISI düz metin DEĞİL. `rabadon-trace` diye NATIVE renderer yaz (C++,
-mission): izole spool event'leri (RUN_START/STEP_START/CHECK_FAIL/REPAIR_START/
-REPAIR_OK/STEP_OK/RUN_DONE) + usage.h token/$ → aşağıdaki iç içe trace. Veri %100
-deterministik ledger+transcript'te VAR — kalan = SUNUM, wrapper değil. **EKSTRA LLM
-KOŞUSU YOK, ucuz.** regression_net_demo.sh'ın izole spool'unu girdi olarak kullan.
+• `native/trace.cpp` → `rabadon-trace` (C++, zero-dep). İzole spool jsonl'i
+  (RUN_START/STEP_START/CHECK_FAIL/REPAIR_START/REPAIR_OK|FAIL/STOP/STEP_OK/
+  RUN_DONE) → iç içe trace. Run başına blok, N adım, yakalanan adım altında
+  catch→repair→proof (veya cheat→forbidden-sha→REPAIR_FAIL→STOP) alt-satırları,
+  footer (YAKALANAN/TAMİR/REDDEDİLEN + "kurtarılan" değer satırı). Renk tty'de,
+  --no-color dosyaya. LLM ÇAĞIRMAZ — saf sunum, moat testi geçer.
+• token/$ FÜZYONU byte-exact: llm-proposer.sh, claude -p'nin stream-json terminal
+  {"type":"result"} event'ini ($.total_cost_usd, usage.*_tokens, duration_ms,
+  modelUsage-key=model) sidecar'a yazar → loop.cpp REPAIR_OK/FAIL event'ine gömer.
+  Spool artık kendi kendine yeten deterministik ledger; renderer transcript
+  avlamaz. Uydurma sayı YOK (metrik yoksa "—"). cheat scripted → metriksiz (doğru).
+• GERÇEK KANIT: `native/trace_demo.sh` (5 adımlık pipeline, bug adım 3'te gömülü,
+  adım 4 tamire bağımlı). honest: canlı claude -p off-by-one'ı tamir → adım 4–5
+  temiz tabanda → PASS (opus-4-8, ~216k tok, ~$0.36). cheat: forbidden-sha reddi →
+  STOP adım 3 → adım 4–5 HİÇ koşmadı. İkisi de trace'te render. `rabadon trace`
+  artık CLI komutu (rabadon-cli.sh). regression_net_demo.sh de trace ile biter.
 
-Şablon:
-  rabadon trace — session <id> · <proje> · <model> · <süre> · <token> · $<maliyet> · <tool>
-  görev: "<agent'a verilen iş>"
-  ▸ 1  <adım>              ✓ pass      <tool> <token> $<..> <süre>
-  ▾ 3  <adım>              ⚠ YAKALANDI <tool> <token> $<..> <süre>
-     ├ 3.2 <alt-adım>      ✗ <hata>   ◀── gate BURADA yakaladı (o AN)
-     │      testsuite RED (<test>) → REPAIR → GERÇEK test GREEN → REPAIR_OK ✓
-     └ 3.3 ...             ✓ tamirden sonra yeşil
-  ──────────────────────────────────────────
-  YAKALANAN N (3.2, 10'a varmadan)  TAMİR N  REDDEDİLEN sahte N
-  kurtarılan: adım 4–10 boşa gitmedi (~$X, ~Y saat cepte)   ◀── Langfuse'da YOK
-Hiyerarşi: plan koşusunda net; serbest session'da tool-call zaman çizgisi +
-catch/fix işaretleri (kırılım türetilir) — ABARTMA. Her adım max 90dk/3 repair →
-DUR, çalışan çıktıyı Damla'ya göster, ONAY bekle. Commit+push.
+SIRADAKİ AÇIK UÇLAR (Damla onayıyla):
+  (a) serbest SESSION spool'u (~/.rabadon/spool ng-* runs) için tool-call zaman
+      çizgisi görünümü — şu an loop-run vokabülerine göre çiziliyor; session
+      runs render olur ama hepsi "pass" görünür (catch/fix yok). Ayrı görünüm mü?
+  (b) trace'i landing/demo'ya koy (GTM: Damla haftaya yatırım arıyor, §6). PNG/asciinema.
+  (c) çok-tamir (attempt>1) ve çok-adım-yakalama görünümü (şu an 1 repair/step demo).
+Her adım max 90dk/3 repair → DUR, çıktıyı Damla'ya göster, ONAY bekle. Commit+push.
 
 ════════════════════════════════════════════════════════════════
 5. KURALLAR / TUZAKLAR

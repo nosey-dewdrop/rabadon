@@ -166,3 +166,13 @@ echo "=================================================================="
 echo " scoreboard (isolated ledger):"
 echo "=================================================================="
 "$STATS" --days 1 | sed 's/^/  /'
+
+TRACE="$ROOT/native/rabadon-trace"
+if [ -x "$TRACE" ]; then
+  echo
+  echo "=================================================================="
+  echo " rabadon trace — the same run, rendered Langfuse-grade:"
+  echo "=================================================================="
+  echo
+  "$TRACE" "$RABADON_DIR/spool"
+fi

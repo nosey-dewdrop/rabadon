@@ -47,5 +47,17 @@ while [ "$i" -lt "$iters" ]; do
 done
 kill -9 "$pid" 2>/dev/null
 wait "$pid" 2>/dev/null
+
+# Step D fusing: the stream-json terminal {"type":"result"} event carries the
+# byte-exact usage + total_cost_usd + duration_ms for THIS repair — the same
+# numbers Langfuse would show, straight from the model's own accounting. Hand the
+# raw result line to rabadon-loop via a sidecar so the spool becomes a self-
+# contained, deterministic ledger (the trace renderer never has to hunt a
+# transcript). Best-effort: absent RABADON_DIR or a text-mode proposer just
+# means the trace shows the token column as "—", never a fabricated number.
+if [ -n "${RABADON_DIR:-}" ]; then
+  result_line=$(grep '"type":"result"' "$tmpout" 2>/dev/null | tail -1)
+  [ -n "$result_line" ] && printf '%s\n' "$result_line" > "$RABADON_DIR/.proposer-metrics.json"
+fi
 rm -f "$tmpout"
 exit 0

@@ -2,9 +2,12 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens
+all: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace
 
 native/rabadon-gate: native/gate.cpp native/usage.h
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+native/rabadon-trace: native/trace.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-lens: native/lens.cpp native/usage.h
@@ -40,7 +43,7 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/regression_demo.sh
 
 clean:
-	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens
+	rm -f native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace
 
 .PHONY: all bench clean
 

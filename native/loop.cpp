@@ -27,6 +27,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -124,11 +125,38 @@ int main(int argc,char** argv){
     string out; { string f="\""+verify+"\" \""+dir+"\" \""+tmp+"\" 2>&1"; FILE* p=popen(f.c_str(),"r"); char buf[2048]; size_t n; while((n=fread(buf,1,sizeof buf,p))>0) out.append(buf,n); int st=pclose(p); reason=out; int rc=WIFEXITED(st)?WEXITSTATUS(st):-1; unlink(tmp.c_str()); return rc; }
   };
 
+  // After a repair, the llm-proposer.sh drops the model's own {"type":"result"}
+  // stream-json event (byte-exact usage + total_cost_usd + duration_ms) into a
+  // sidecar. Fuse those numbers into the REPAIR event so the spool is a self-
+  // contained deterministic ledger — the trace renderer reads token/$/time
+  // straight from here, never a transcript. Absent sidecar (text-mode proposer)
+  // -> empty extra -> the trace shows "—", never a fabricated number.
+  string metricsPath=rdir+"/.proposer-metrics.json";
+  auto repair_metrics=[&]()->string{
+    string m=read_file(metricsPath); unlink(metricsPath.c_str());
+    if(m.empty()) return "";
+    size_t up=m.find("\"usage\":");
+    auto tok_after=[&](const char* key)->long long{ if(up==string::npos) return 0; size_t k=m.find(key,up); if(k==string::npos) return 0; return atoll(m.c_str()+k+strlen(key)); };
+    long long in=tok_after("\"input_tokens\":"), out=tok_after("\"output_tokens\":");
+    long long cc=tok_after("\"cache_creation_input_tokens\":"), cr=tok_after("\"cache_read_input_tokens\":");
+    long long tok=in+out+cc+cr;
+    double usd=0; { size_t k=m.find("\"total_cost_usd\":"); if(k!=string::npos) usd=atof(m.c_str()+k+strlen("\"total_cost_usd\":")); }
+    long long usd_e6=(long long)(usd*1e6+0.5);
+    long long dur=0; { size_t k=m.find("\"duration_ms\":"); if(k!=string::npos) dur=atoll(m.c_str()+k+strlen("\"duration_ms\":")); }
+    // model name is the KEY of the modelUsage map: "modelUsage":{"claude-opus-4-8[1m]":{..}
+    string model; { size_t k=m.find("\"modelUsage\":{\""); if(k!=string::npos){ size_t s=k+strlen("\"modelUsage\":{\""),e=m.find('"',s); if(e!=string::npos) model=m.substr(s,e-s);} }
+    string x=",\"tokens\":"+std::to_string(tok)+",\"in\":"+std::to_string(in)+",\"out\":"+std::to_string(out)
+            +",\"usd_e6\":"+std::to_string(usd_e6)+",\"dur_ms\":"+std::to_string(dur);
+    if(!model.empty()) x+=",\"model\":\""+json_escape(model)+"\"";
+    return x;
+  };
+
   string stepsArr=extract_array(plan,"steps");
   vector<string> steps=split_objects(stepsArr);
   if(steps.empty()){ fprintf(stderr,"rabadon-loop: plan has no steps (fail-closed)\n"); return 2; }
 
-  em.ev("RUN_START","\"steps\":"+std::to_string(steps.size())+",\"bound\":{\"maxRepairsPerStep\":"+std::to_string(maxRepairs)+"}");
+  string goal=obj_str(plan,"goal");
+  em.ev("RUN_START",(goal.empty()?"":"\"goal\":\""+json_escape(goal)+"\",")+"\"steps\":"+std::to_string(steps.size())+",\"bound\":{\"maxRepairsPerStep\":"+std::to_string(maxRepairs)+"}");
   fprintf(stderr,"rabadon: %zu-step pipeline, arbiter=rabadon-verify, proposer bounded to %d repair(s)/step\n",steps.size(),maxRepairs);
 
   for(const string& step:steps){
@@ -145,14 +173,15 @@ int main(int argc,char** argv){
     int attempt=0;
     while(rc!=0 && attempt<maxRepairs){
       attempt++;
-      em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,200))+"\"}]");
+      em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,600))+"\"}]");
       em.ev("REPAIR_START","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt));
       fprintf(stderr,"rabadon: gate %s failed — repairing (attempt %d/%d)\n  %s",id.c_str(),attempt,maxRepairs,reason.c_str());
       proposer_run(proposer,dir,
         "You are rabadon's repair inside a pipeline. Step \""+id+"\" ("+doWhat+") failed its contract:\n"+reason+
         "\nFix the PROJECT STATE so the contract passes. Do the real work — the contract runs the code and compares behavior, so faking a file or a string will NOT pass. Smallest correct fix, nothing beyond this step.");
+      string rmetrics=repair_metrics();
       rc=verify_contract(contract,reason);
-      em.ev(rc==0?"REPAIR_OK":"REPAIR_FAIL","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt));
+      em.ev(rc==0?"REPAIR_OK":"REPAIR_FAIL","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)+rmetrics);
     }
     if(rc!=0){
       em.ev("STOP","\"reason\":\"BLOCKED\",\"detail\":\""+json_escape(id+" would not pass its contract; repair budget spent")+"\"");
