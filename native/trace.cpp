@@ -67,14 +67,16 @@ static string str_field(const string& line,const char* key){  // key ends at the
 
 // ---------- model ----------
 struct Ev {
-  string ev, step, why, reason, detail, verdict, model;
-  long long ts=0, tokens=0, usd_e6=0, dur_ms=0;
+  string ev, step, why, reason, detail, verdict, model, tierName, from, to;
+  long long ts=0, tokens=0, usd_e6=0, dur_ms=0; int tier=0;
 };
 struct Run {
-  string id, pipe, goal;
+  string id, pipe, goal, arm, tiers;
   long long firstTs=0, lastTs=0; int declaredSteps=0;
   vector<Ev> evs;
 };
+// what one arm of a routed A/B costs, filled while its run renders
+struct ArmTotal { string arm, tiers, verdict; long long usd_e6=0, tokens=0; int cheapProven=0, escalated=0, steps=0; bool seen=false; };
 
 // ---------- formatting ----------
 static string commafy(long long v){
@@ -98,6 +100,10 @@ static string short_model(const string& m){
   string s=m; const string pre="claude-";
   if(s.compare(0,pre.size(),pre)==0) s=s.substr(pre.size());
   size_t br=s.find('['); if(br!=string::npos) s=s.substr(0,br);
+  // drop a trailing release date (…-4-5-20251001 -> …-4-5) so the tier column
+  // stays narrow enough for the numbers to line up
+  size_t d=s.rfind('-');
+  if(d!=string::npos && s.size()-d==9 && s.find_first_not_of("0123456789",d+1)==string::npos) s=s.substr(0,d);
   return s;
 }
 // project name from a "proj:do" / "proj:session" pipe label
@@ -137,7 +143,115 @@ struct Node {
   int no=0; string id; bool ok=false, caught=false, repaired=false, rejected=false;
   string why; long long tokens=0, usd_e6=0, dur_ms=0; string model;
   long long startTs=0, endTs=0;
+  // routing side: what the cheap attempt cost, whether we had to climb, and
+  // which tier finally carried the step.
+  bool escalated=false; int wonTier=0;
+  string firstTier, wonTierName, escFrom, escTo;
+  long long cheapUsd_e6=0, cheapTok=0;
+  long long topUsd_e6=0, topTok=0, topDur=0;   // what the escalation tier itself cost
 };
+
+// ---------- routed view ----------
+// Rendered only for runs that declared a tier ladder. Every number here comes
+// from the STEP_TRY/REPAIR events the loop fused from the model's own result
+// event — this renderer never prices a token itself.
+static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot){
+  vector<Node> nodes; Node* cur=nullptr;
+  string verdict, stopReason; long long usd=0, tok=0;
+  for(const Ev& e: r.evs){
+    if(e.ev=="STEP_START"){ nodes.push_back({}); cur=&nodes.back(); cur->no=(int)nodes.size(); cur->id=e.step; cur->startTs=e.ts; }
+    else if(e.ev=="STEP_TRY" && cur){
+      usd+=e.usd_e6; tok+=e.tokens;
+      cur->usd_e6+=e.usd_e6; cur->tokens+=e.tokens; if(e.dur_ms>cur->dur_ms) cur->dur_ms=e.dur_ms;
+      string label = !e.model.empty()? short_model(e.model) : e.tierName;
+      if(e.tier==1){ cur->firstTier=label; cur->cheapUsd_e6=e.usd_e6; cur->cheapTok=e.tokens; }
+      else { cur->topUsd_e6+=e.usd_e6; cur->topTok+=e.tokens; if(e.dur_ms>cur->topDur) cur->topDur=e.dur_ms; }
+      cur->wonTierName=label;   // last attempt seen; corrected by STEP_OK below
+    }
+    else if(e.ev=="CHECK_FAIL" && cur){ cur->caught=true; if(cur->why.empty()) cur->why=e.why; }
+    else if(e.ev=="ESCALATE" && cur){ cur->escalated=true; cur->escFrom=e.from; cur->escTo=e.to; }
+    else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
+      if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true;
+      usd+=e.usd_e6; tok+=e.tokens; cur->usd_e6+=e.usd_e6; cur->tokens+=e.tokens;
+      if(!e.model.empty()) cur->wonTierName=short_model(e.model);
+    }
+    else if(e.ev=="STEP_OK" && cur){ cur->ok=true; cur->endTs=e.ts; cur->wonTier=e.tier;
+      if(!e.tierName.empty() && cur->wonTierName.empty()) cur->wonTierName=e.tierName; }
+    else if(e.ev=="STOP"){ if(stopReason.empty()) stopReason=e.reason; }
+    else if(e.ev=="RUN_DONE"){ verdict=e.verdict; }
+  }
+
+  size_t idw=6; for(const Node& n: nodes) idw=std::max(idw,n.id.size()); if(idw>26) idw=26;
+  auto pad=[&](const string& s)->string{ string t=s; if(t.size()>idw) t=t.substr(0,idw-1)+"…"; while(t.size()<idw) t+=' '; return t; };
+
+  char h[600];
+  string armLabel = r.arm.empty()? "" : r.arm;
+  snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · %stier: %s%s · %s · %s · %s\n",
+    C.bold,C.rst, C.bold, r.id.c_str(), C.rst, project_of(r.pipe).c_str(),
+    C.bold, r.tiers.c_str(), C.rst,
+    armLabel.empty()?"—":armLabel.c_str(),
+    fmt_ms(r.lastTs-r.firstTs).c_str(), (usd>0?fmt_usd(usd):"$0").c_str());
+  out+=h;
+  if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="görev: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
+  out+="\n";
+
+  // a control arm has ONE tier: nothing there is "cheap", and calling it that
+  // would flatter the comparison. One ladder = one wording, and it is plain.
+  const bool ladder = r.tiers.find(',')!=string::npos;
+
+  int cheapProven=0, escalated=0;
+  for(const Node& n: nodes){
+    char line[700];
+    string metrics = n.tokens>0 ? (commafy(n.tokens)+" tok  "+fmt_usd(n.usd_e6)+"  "+fmt_ms(n.dur_ms)) : string("—");
+    // the verdict column is padded by hand: these strings are UTF-8, so printf
+    // field widths count bytes and would ragged the whole table.
+    if(!n.escalated){
+      if(n.ok && n.wonTier<=1) cheapProven++;
+      snprintf(line,sizeof line,"  %s▸%s %2d  %s   %s%s%s  %-12s %s\n",
+        C.dim,C.rst, n.no, pad(n.id).c_str(), C.grn,
+        ladder?"✓ ucuzda GEÇTİ":"✓ geçti       ",C.rst,
+        (n.wonTierName.empty()?"—":n.wonTierName).c_str(), metrics.c_str());
+      out+=line;
+      continue;
+    }
+    escalated++;
+    string cheapMetrics = n.cheapTok>0 ? (commafy(n.cheapTok)+" tok  "+fmt_usd(n.cheapUsd_e6)) : string("—");
+    snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s%s%s  %-12s %s\n",
+      C.dim,C.rst, n.no, pad(n.id).c_str(), C.amb,"⚠ hakem RED   ",C.rst,
+      (n.firstTier.empty()?n.escFrom:n.firstTier).c_str(), cheapMetrics.c_str());
+    out+=line;
+    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s   %s◀── ucuz cevap KANITLANAMADI (umut değil, ölçü)%s\n",
+      C.dim,C.rst, C.red,check_kind(n.why).c_str(),C.rst, C.red,failing_test(n.why).c_str(),C.rst, C.amb,C.rst);
+    out+=line;
+    if(n.ok){
+      // the climb's OWN cost, not the step total — the wasted cheap attempt is
+      // counted once, in the arm total, and must not be smuggled in twice here.
+      string topMetrics = n.topTok>0 ? (commafy(n.topTok)+" tok  "+fmt_usd(n.topUsd_e6)+"  "+fmt_ms(n.topDur)) : string("—");
+      snprintf(line,sizeof line,"     %s└%s %s↑ %s ile tekrar%s → %shakem GREEN → KANITLANDI%s   %s\n",
+        C.dim,C.rst, C.bold, (n.wonTierName.empty()?n.escTo:n.wonTierName).c_str(), C.rst, C.grn,C.rst, topMetrics.c_str());
+    } else {
+      snprintf(line,sizeof line,"     %s└%s %sSTOP: %s — üst tier de geçemedi, fail-closed%s\n",
+        C.dim,C.rst, C.red, stopReason.empty()?"BLOCKED":stopReason.c_str(), C.rst);
+    }
+    out+=line;
+  }
+
+  out+="  "; out+=C.dim; out+="──────────────────────────────────────────────────────────────"; out+=C.rst; out+="\n";
+  char f[600];
+  if(ladder)
+    snprintf(f,sizeof f,"  UCUZDA KANITLANAN %s%d/%zu%s · YÜKSELTİLEN %s%d%s · bu kol: %s%s%s · verdict: %s%s%s\n",
+      C.grn,cheapProven,nodes.size(),C.rst, C.amb,escalated,C.rst,
+      C.bold,(usd>0?fmt_usd(usd):"$0").c_str(),C.rst,
+      (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
+  else
+    snprintf(f,sizeof f,"  TEK TIER (%s) · %zu adım · bu kol: %s%s%s · verdict: %s%s%s\n",
+      r.tiers.c_str(), nodes.size(), C.bold,(usd>0?fmt_usd(usd):"$0").c_str(),C.rst,
+      (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
+  out+=f;
+
+  tot.seen=true; tot.arm=r.arm; tot.tiers=r.tiers; tot.verdict=verdict;
+  tot.usd_e6=usd; tot.tokens=tok; tot.cheapProven=cheapProven; tot.escalated=escalated; tot.steps=(int)nodes.size();
+}
 
 static void render_run(const Run& r, const Pal& C, string& out){
   vector<Node> nodes; Node* cur=nullptr;
@@ -291,11 +405,15 @@ int main(int argc,char** argv){
     if(ev=="CHECK_FAIL") e.why=str_field(line,"\"why\":\"");
     if(ev=="STOP"){ e.reason=str_field(line,"\"reason\":\""); e.detail=str_field(line,"\"detail\":\""); }
     if(ev=="RUN_DONE") e.verdict=str_field(line,"\"verdict\":\"");
-    if(ev=="REPAIR_OK"||ev=="REPAIR_FAIL"){
+    if(ev=="REPAIR_OK"||ev=="REPAIR_FAIL"||ev=="STEP_TRY"){
       e.tokens=ll_field(line,"\"tokens\":"); e.usd_e6=ll_field(line,"\"usd_e6\":");
       e.dur_ms=ll_field(line,"\"dur_ms\":"); e.model=str_field(line,"\"model\":\"");
     }
+    if(ev=="STEP_TRY"||ev=="STEP_OK"){ e.tier=(int)ll_field(line,"\"tier\":"); e.tierName=str_field(line,"\"tier_name\":\""); }
+    if(ev=="ESCALATE"){ e.from=str_field(line,"\"from\":\""); e.to=str_field(line,"\"to\":\""); }
     if(ev=="RUN_START"){
+      R.arm=str_field(line,"\"arm\":\"");
+      R.tiers=str_field(line,"\"tiers\":\"");
       // "steps": either an int (loop) or an array (session). goal is optional.
       size_t sp=line.find("\"steps\":");
       if(sp!=string::npos){ char nx=line[sp+8]; if(nx>='0'&&nx<='9') R.declaredSteps=(int)ll_field(line,"\"steps\":"); }
@@ -315,14 +433,59 @@ int main(int argc,char** argv){
   snprintf(hdr,sizeof hdr,"%s%s  (%zu run%s)%s\n\n",C.dim,file.c_str(),runs.size(),runs.size()==1?"":"s",C.rst);
   out+=hdr;
 
-  size_t shown=0;
+  size_t shown=0; ArmTotal control, routedArm;
   for(size_t i=0;i<runs.size();i++){
     const Run& r=runs[i];
     if(!wantRun.empty() && r.id.find(wantRun)==string::npos) continue;
     if(onlyLast && i!=runs.size()-1) continue;
-    render_run(r,C,out);
+    if(!r.tiers.empty()){
+      ArmTotal t; render_routed(r,C,out,t);
+      if(r.arm=="control") control=t; else if(r.arm=="routed") routedArm=t;
+    } else render_run(r,C,out);
     out+="\n";
     shown++;
+  }
+
+  // ---- the A/B, only when BOTH arms of the same plan actually ran ----------
+  // Not a projection, not a price table: two real runs of the identical plan
+  // under the identical arbiter, each priced by the model's own accounting. The
+  // cheap attempts that were rejected are inside the routed number, so the
+  // saving is net of its own waste. If routing lost, this prints that it lost.
+  if(control.seen && routedArm.seen){
+    long long d = control.usd_e6 - routedArm.usd_e6;
+    int pct = control.usd_e6>0 ? (int)((double)d*100.0/(double)control.usd_e6 + (d<0?-0.5:0.5)) : 0;
+    char b[700];
+    out+="  "; out+=C.bold; out+="ÖLÇÜLEN A/B"; out+=C.rst; out+=C.dim;
+    out+="  — aynı plan, aynı hakem, aynı kontratlar; iki gerçek koşu"; out+=C.rst; out+="\n";
+    snprintf(b,sizeof b,"    control · %-16s %10s   %12s tok   %s\n",control.tiers.c_str(),
+      fmt_usd(control.usd_e6).c_str(), commafy(control.tokens).c_str(), control.verdict.c_str());
+    out+=b;
+    snprintf(b,sizeof b,"    routed  · %-16s %10s   %12s tok   %s\n",
+      routedArm.tiers.c_str(), fmt_usd(routedArm.usd_e6).c_str(), commafy(routedArm.tokens).c_str(),
+      routedArm.verdict.c_str());
+    out+=b;
+    snprintf(b,sizeof b,"    %s          %d/%d adım ucuzda KANITLANDI, %d yükseltildi — boşa yanan ucuz denemeler bu rakamın İÇİNDE%s\n",
+      C.dim, routedArm.cheapProven, routedArm.steps, routedArm.escalated, C.rst);
+    out+=b;
+    if(control.verdict!="PASS"||routedArm.verdict!="PASS"){
+      snprintf(b,sizeof b,"    %sUYARI: iki kol da PASS değil — karşılaştırma sadece iki kol da kabul edildiğinde dürüsttür%s\n",C.amb,C.rst);
+      out+=b;
+    }
+    // no measured money on either side (a scripted proposer, no result event)
+    // means there is no saving to report. Printing "$0.0000 cepte" there would
+    // be a claim about a run that never priced anything.
+    if(control.usd_e6==0 && routedArm.usd_e6==0){
+      snprintf(b,sizeof b,"    %sÖLÇÜM YOK: bu koşuda model faturası yok (scripted proposer) — para iddiası YAPILMIYOR%s\n\n",C.dim,C.rst);
+      out+=b;
+      if(shown==0) out+="  (no matching run)\n";
+      fwrite(out.data(),1,out.size(),stdout);
+      return 0;
+    }
+    if(d>=0) snprintf(b,sizeof b,"    %sfark%s    · %-16s %s%10s cepte (%%%d)%s   %s◀── kanıtlanmış tasarruf: yönlendirme değil, hakem kararı%s\n",
+                      C.bold,C.rst, "olculen net", C.grn, fmt_usd(d).c_str(), pct, C.rst, C.dim,C.rst);
+    else     snprintf(b,sizeof b,"    %sfark%s    · %-16s %s%10s%s   %s◀── routed PAHALIYA geldi: yükseltme tasarrufu yedi%s\n",
+                      C.bold,C.rst, "olculen net", C.red, ("-"+string(fmt_usd(-d))).c_str(), C.rst, C.red,C.rst);
+    out+=b; out+="\n";
   }
   if(shown==0) out+="  (no matching run)\n";
   fwrite(out.data(),1,out.size(),stdout);

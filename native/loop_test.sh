@@ -68,7 +68,61 @@ EOF
 RABADON_DIR="$RD" RABADON_PROPOSER="true" "$LOOP" "$D4" "$D4/plan.json" >/dev/null 2>&1 \
   && bad "missing acceptance auto-passed (fail-OPEN!)" || ok "missing acceptance fails closed"
 
-# ---- 5: the report exists — events landed in the spool ----
+# ---- 5: VERIFIED ROUTING — the cheap tier is trusted only when the arbiter
+# says so. No LLM anywhere here: the "models" are two scripts, so what is being
+# proven is the thing that decides — climb on rejection, stay cheap on proof.
+D5="$(mktemp -d)"
+cat > "$D5/mod.js" <<'EOF'
+console.log("unset")
+EOF
+# one proposer, two tiers: "cheap" writes a plausible but WRONG answer, "pricey"
+# writes the correct one. The tier arrives exactly the way a real model tier
+# does — in RABADON_MODEL.
+cat > "$D5/prop_tier.sh" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+if [ "${RABADON_MODEL:-}" = "cheap" ]; then
+  echo 'console.log(41)' > mod.js      # close, but the arbiter runs the code
+else
+  echo 'console.log(42)' > mod.js
+fi
+EOF
+chmod +x "$D5/prop_tier.sh"
+cat > "$D5/plan.json" <<'EOF'
+{ "steps": [ { "id":"answer","kind":"work","do":"make mod.js print the answer",
+    "contract":[ {"type":"differential","run":"node mod.js","expect":"42"} ] } ],
+  "accept":[ {"type":"differential","run":"node mod.js","expect":"42"} ] }
+EOF
+RD5="$(mktemp -d)"
+RABADON_DIR="$RD5" RABADON_TIERS="cheap,pricey" RABADON_MAX_REPAIRS=0 \
+  RABADON_PROPOSER="bash $D5/prop_tier.sh" "$LOOP" "$D5" "$D5/plan.json" >/dev/null 2>&1 \
+  && ok "cheap tier rejected -> auto-escalated -> pricey tier proven -> accept PASS" \
+  || bad "escalation should have rescued the run (exit 0 expected)"
+S5="$RD5/spool/$(date +%Y-%m-%d).jsonl"
+grep -q '"ev":"ESCALATE".*"from":"cheap","to":"pricey"' "$S5" 2>/dev/null \
+  && ok "the escalation is on the ledger with its from/to tier" || bad "ESCALATE event missing"
+grep -q '"ev":"STEP_OK".*"tier":2' "$S5" 2>/dev/null \
+  && ok "the ledger records WHICH tier actually carried the step" || bad "STEP_OK tier missing"
+
+# ---- 6: when the cheap tier is genuinely right, nothing escalates (the whole
+# point — money is kept only on a PROVEN answer, never on a hoped-for one) ----
+D6="$(mktemp -d)"; RD6="$(mktemp -d)"
+cat > "$D6/prop_tier.sh" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+echo 'console.log(42)' > mod.js
+EOF
+chmod +x "$D6/prop_tier.sh"
+cp "$D5/plan.json" "$D6/plan.json"
+RABADON_DIR="$RD6" RABADON_TIERS="cheap,pricey" RABADON_MAX_REPAIRS=0 \
+  RABADON_PROPOSER="bash $D6/prop_tier.sh" "$LOOP" "$D6" "$D6/plan.json" >/dev/null 2>&1
+S6="$RD6/spool/$(date +%Y-%m-%d).jsonl"
+if grep -q '"ev":"ESCALATE"' "$S6" 2>/dev/null; then bad "escalated even though the cheap tier passed"
+else ok "cheap tier passes the arbiter -> no escalation, no extra spend"; fi
+grep -q '"ev":"STEP_OK".*"tier":1' "$S6" 2>/dev/null \
+  && ok "a cheap step is recorded as PROVEN at tier 1" || bad "tier-1 STEP_OK missing"
+
+# ---- 7: the report exists — events landed in the spool ----
 day="$(date +%Y-%m-%d)"
 grep -q '"ev":"REPAIR_OK"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "a real REPAIR_OK is on the ledger (not a demo pipe)" || bad "repair event missing from spool"
 grep -q '"ev":"RUN_DONE"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "run outcomes are reported to the spool" || bad "RUN_DONE missing from spool"

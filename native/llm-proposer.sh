@@ -26,6 +26,13 @@ CAP="${RABADON_LLM_TIMEOUT:-180}"     # seconds, wall-clock hard cap
 ALLOWED="${RABADON_LLM_TOOLS:-Read,Edit,Write}"   # honest path needs only these
 prompt="$(cat)"                        # rabadon-loop pipes the repair prompt on stdin
 
+# VERIFIED ROUTING (second face): rabadon-loop names the tier for THIS attempt in
+# RABADON_MODEL (e.g. haiku for the first try, opus after the arbiter rejects it).
+# Nothing else changes — same proposer, same bounds, same sidecar. Unset = the
+# account default, so every existing caller behaves exactly as before.
+MODEL_ARG=()
+[ -n "${RABADON_MODEL:-}" ] && MODEL_ARG=(--model "$RABADON_MODEL")
+
 # stream-json emits one event per line and ends with a terminal {"type":"result"}
 # event. The measured problem: the claude process does its work in ~21s but then
 # LINGERS ~160s before exiting on its own, so waiting for exit burns the full cap
@@ -37,6 +44,7 @@ tmpout=$(mktemp /tmp/rabadon-llm-out.XXXXXX)
 claude -p "$prompt" \
   --output-format stream-json --verbose \
   --permission-mode acceptEdits \
+  "${MODEL_ARG[@]}" \
   --allowedTools "$ALLOWED" >"$tmpout" 2>/dev/null &
 pid=$!
 iters=$(( CAP * 4 )); i=0

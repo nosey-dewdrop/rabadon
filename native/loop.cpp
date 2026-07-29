@@ -18,11 +18,27 @@
 // rabadon-verify, the bounds, the event stream. The moat test passes — the
 // proposer is a replaceable part, the deterministic arbiter is the engine.
 //
+// SECOND FACE — VERIFIED ROUTING (same engine, cost instead of reliability):
+//   RABADON_TIERS="haiku,opus" makes each work step run on the CHEAP model
+//   first. The arbiter — the same rabadon-verify, the same project contract —
+//   decides. Passed: the cheap answer is not hoped-for, it is PROVEN, and the
+//   difference is money kept. Failed: the identical step is re-run one tier up
+//   and the escalation is recorded with its reason. Routers (Helicone, Portkey,
+//   OpenRouter, Martian) route cheap and hope; none of them owns a correctness
+//   oracle, so none can say which cheap answer held. Take the LLM out and what
+//   remains is the thing that decides: a deterministic arbiter plus a measured
+//   two-arm ledger. Unset RABADON_TIERS = the old single-model behavior, byte
+//   for byte.
+//
 // Usage:  rabadon-loop <dir> <plan.json>
 //   plan.json = { "steps": [ { "id","kind":"cmd"|"work","do","contract":[...] } ],
 //                 "accept": [...] }
 //   proposer  = env RABADON_PROPOSER (default: claude -p …), prompt on stdin,
 //               run with cwd=<dir>. Swap it, the engine is unchanged.
+//   tiers     = env RABADON_TIERS (cheap→expensive, comma separated). The tier
+//               for one attempt reaches the proposer as RABADON_MODEL.
+//   arm       = env RABADON_ARM ("routed"/"control") — labels the run so the
+//               trace can put two MEASURED arms of the same plan side by side.
 //   exit 0 = accepted (done is measured)   exit 1 = fail-closed (nothing eclectic)
 
 #include <cstdio>
@@ -45,14 +61,27 @@ static long long now_ms(){ struct timespec ts; clock_gettime(CLOCK_REALTIME,&ts)
 
 static int shell(const string& cmd,const string& dir){ string f="cd \""+dir+"\" 2>/dev/null && "+cmd; return system(f.c_str()); }
 
-// feed `prompt` to `cmd` on stdin, run with cwd=dir; return child exit code
-static int proposer_run(const string& cmd,const string& dir,const string& prompt){
-  string full="cd \""+dir+"\" && "+cmd;
+// feed `prompt` to `cmd` on stdin, run with cwd=dir; return child exit code.
+// `model` (may be empty) is handed to the proposer as RABADON_MODEL — that is
+// the whole routing mechanism on this side: the tier is data, not a code path.
+static int proposer_run(const string& cmd,const string& dir,const string& prompt,const string& model=""){
+  string env = model.empty() ? "" : ("RABADON_MODEL=\""+model+"\" ");
+  string full="cd \""+dir+"\" && "+env+cmd;
   FILE* p=popen(full.c_str(),"w");
   if(!p) return -1;
   fwrite(prompt.data(),1,prompt.size(),p);
   int st=pclose(p);
   return WIFEXITED(st)?WEXITSTATUS(st):-1;
+}
+
+// "haiku,opus" -> {"haiku","opus"}; empty/unset -> {""} = one attempt on the
+// account default, i.e. exactly what the loop did before routing existed.
+static vector<string> split_csv(const string& s){
+  vector<string> out; string cur;
+  for(char c:s){ if(c==','){ if(!cur.empty()) out.push_back(cur); cur.clear(); } else if(c!=' ') cur+=c; }
+  if(!cur.empty()) out.push_back(cur);
+  if(out.empty()) out.push_back("");
+  return out;
 }
 
 static string json_escape(const string& s){ string o; for(char c:s){ switch(c){ case '"':o+="\\\"";break; case '\\':o+="\\\\";break; case '\n':o+="\\n";break; case '\r':o+="\\r";break; case '\t':o+="\\t";break; default:o+=c; } } return o; }
@@ -125,14 +154,17 @@ int main(int argc,char** argv){
     string out; { string f="\""+verify+"\" \""+dir+"\" \""+tmp+"\" 2>&1"; FILE* p=popen(f.c_str(),"r"); char buf[2048]; size_t n; while((n=fread(buf,1,sizeof buf,p))>0) out.append(buf,n); int st=pclose(p); reason=out; int rc=WIFEXITED(st)?WEXITSTATUS(st):-1; unlink(tmp.c_str()); return rc; }
   };
 
-  // After a repair, the llm-proposer.sh drops the model's own {"type":"result"}
-  // stream-json event (byte-exact usage + total_cost_usd + duration_ms) into a
-  // sidecar. Fuse those numbers into the REPAIR event so the spool is a self-
-  // contained deterministic ledger — the trace renderer reads token/$/time
-  // straight from here, never a transcript. Absent sidecar (text-mode proposer)
-  // -> empty extra -> the trace shows "—", never a fabricated number.
+  // After EVERY proposer call (a step attempt as well as a repair), the
+  // llm-proposer.sh drops the model's own {"type":"result"} stream-json event
+  // (byte-exact usage + total_cost_usd + duration_ms) into a sidecar. Fuse those
+  // numbers into the event so the spool is a self-contained deterministic
+  // ledger — the trace renderer reads token/$/time straight from here, never a
+  // transcript. This is also what makes the routing claim measured rather than
+  // estimated: no price table, no per-model arithmetic, just the two arms' own
+  // accounting. Absent sidecar (text-mode/scripted proposer) -> empty extra ->
+  // the trace shows "—", never a fabricated number.
   string metricsPath=rdir+"/.proposer-metrics.json";
-  auto repair_metrics=[&]()->string{
+  auto attempt_metrics=[&]()->string{
     string m=read_file(metricsPath); unlink(metricsPath.c_str());
     if(m.empty()) return "";
     size_t up=m.find("\"usage\":");
@@ -155,33 +187,87 @@ int main(int argc,char** argv){
   vector<string> steps=split_objects(stepsArr);
   if(steps.empty()){ fprintf(stderr,"rabadon-loop: plan has no steps (fail-closed)\n"); return 2; }
 
+  // the tier ladder, cheap -> expensive. one entry (or unset) = no routing.
+  vector<string> tiers; { const char* t=getenv("RABADON_TIERS"); tiers=split_csv(t?t:""); }
+  const bool routed = tiers.size()>1;
+  const string topTier = tiers.back();
+  string tiersCsv; for(size_t i=0;i<tiers.size();i++){ if(i)tiersCsv+=","; tiersCsv+=tiers[i]; }
+  const char* armEnv=getenv("RABADON_ARM"); string arm=armEnv?armEnv:"";
+
   string goal=obj_str(plan,"goal");
-  em.ev("RUN_START",(goal.empty()?"":"\"goal\":\""+json_escape(goal)+"\",")+"\"steps\":"+std::to_string(steps.size())+",\"bound\":{\"maxRepairsPerStep\":"+std::to_string(maxRepairs)+"}");
-  fprintf(stderr,"rabadon: %zu-step pipeline, arbiter=rabadon-verify, proposer bounded to %d repair(s)/step\n",steps.size(),maxRepairs);
+  em.ev("RUN_START",(goal.empty()?"":"\"goal\":\""+json_escape(goal)+"\",")+"\"steps\":"+std::to_string(steps.size())
+        +(arm.empty()?"":",\"arm\":\""+json_escape(arm)+"\"")
+        +(tiersCsv.empty()?"":",\"tiers\":\""+json_escape(tiersCsv)+"\"")
+        +",\"bound\":{\"maxRepairsPerStep\":"+std::to_string(maxRepairs)+"}");
+  if(routed) fprintf(stderr,"rabadon: %zu-step pipeline, arbiter=rabadon-verify, tiers=%s (cheap first, proven or escalated), %d repair(s)/step at the top tier\n",steps.size(),tiersCsv.c_str(),maxRepairs);
+  else       fprintf(stderr,"rabadon: %zu-step pipeline, arbiter=rabadon-verify, proposer bounded to %d repair(s)/step\n",steps.size(),maxRepairs);
 
   for(const string& step:steps){
     string id=obj_str(step,"id"); string kind=obj_str(step,"kind"); string doWhat=obj_str(step,"do");
     string contract=extract_array(step,"contract");
-    em.ev("STEP_START","\"step\":\""+json_escape(id)+"\"");
+    em.ev("STEP_START","\"step\":\""+json_escape(id)+"\""+(routed?",\"tiers\":\""+json_escape(tiersCsv)+"\"":""));
 
-    // execute the step
-    if(kind=="cmd") shell(doWhat,dir);
-    else proposer_run(proposer,dir,"You are one step in a rabadon pipeline. Do EXACTLY this, nothing more:\n"+doWhat+"\nWork in the current directory, then stop.");
+    string reason; int rc=0; size_t ti=0;
 
-    // gate it
-    string reason; int rc=verify_contract(contract,reason);
+    // ---- the tier ladder -------------------------------------------------
+    // Run the step on the cheapest tier, put the result in front of the SAME
+    // arbiter, and only climb when the arbiter says no. A cmd step has no model
+    // in it, so it executes once and skips straight to the repair budget.
+    if(kind=="cmd"){
+      shell(doWhat,dir);
+      rc=verify_contract(contract,reason);
+      ti=tiers.size()-1;
+    } else {
+      for(ti=0; ti<tiers.size(); ti++){
+        const string& model=tiers[ti];
+        if(ti==0){
+          proposer_run(proposer,dir,"You are one step in a rabadon pipeline. Do EXACTLY this, nothing more:\n"+doWhat+"\nWork in the current directory, then stop.",model);
+        } else {
+          // escalation: the identical step, one tier up, told what the arbiter
+          // rejected. The contract itself is never shown — the judge stays out
+          // of the proposer's reach on every tier.
+          proposer_run(proposer,dir,
+            "You are one step in a rabadon pipeline, running as the ESCALATION tier. A cheaper model attempted this step and the deterministic arbiter REJECTED its result.\nStep: "+doWhat+
+            "\nWhat the arbiter reported:\n"+reason+
+            "\nDo the step properly in the current directory so those checks pass for real — the arbiter runs the code and compares behavior, so faking a file or a string will NOT pass. Then stop.",model);
+        }
+        string m=attempt_metrics();
+        em.ev("STEP_TRY","\"step\":\""+json_escape(id)+"\",\"tier\":"+std::to_string(ti+1)
+              +(model.empty()?"":",\"tier_name\":\""+json_escape(model)+"\"")+m);
+        rc=verify_contract(contract,reason);
+        if(rc==0) break;
+        em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"tier\":"+std::to_string(ti+1)
+              +(model.empty()?"":",\"tier_name\":\""+json_escape(model)+"\"")
+              +",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,600))+"\"}]");
+        if(ti+1<tiers.size()){
+          em.ev("ESCALATE","\"step\":\""+json_escape(id)+"\",\"from\":\""+json_escape(tiers[ti])+"\",\"to\":\""+json_escape(tiers[ti+1])+"\",\"why\":\""+json_escape(reason.substr(0,300))+"\"");
+          fprintf(stderr,"rabadon: %s failed the arbiter on %s — escalating to %s\n",id.c_str(),tiers[ti].c_str(),tiers[ti+1].c_str());
+        } else {
+          ti=tiers.size()-1; break;   // top tier failed: the repair budget takes over
+        }
+      }
+      if(ti>=tiers.size()) ti=tiers.size()-1;
+    }
+
+    // the repair budget picks up where the ladder stopped, always at the top
+    // tier — a repair IS an escalation. The ladder already reported the failure
+    // it stopped on, so it is never logged twice: one CHECK_FAIL per distinct
+    // rejection, which keeps the ledger countable.
+    bool failReported = (rc!=0 && kind!="cmd");
     int attempt=0;
     while(rc!=0 && attempt<maxRepairs){
       attempt++;
-      em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,600))+"\"}]");
-      em.ev("REPAIR_START","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt));
+      if(!failReported) em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,600))+"\"}]");
+      failReported=false;
+      em.ev("REPAIR_START","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)+(topTier.empty()?"":",\"tier_name\":\""+json_escape(topTier)+"\""));
       fprintf(stderr,"rabadon: gate %s failed — repairing (attempt %d/%d)\n  %s",id.c_str(),attempt,maxRepairs,reason.c_str());
       proposer_run(proposer,dir,
         "You are rabadon's repair inside a pipeline. Step \""+id+"\" ("+doWhat+") failed its contract:\n"+reason+
-        "\nFix the PROJECT STATE so the contract passes. Do the real work — the contract runs the code and compares behavior, so faking a file or a string will NOT pass. Smallest correct fix, nothing beyond this step.");
-      string rmetrics=repair_metrics();
+        "\nFix the PROJECT STATE so the contract passes. Do the real work — the contract runs the code and compares behavior, so faking a file or a string will NOT pass. Smallest correct fix, nothing beyond this step.",topTier);
+      string rmetrics=attempt_metrics();
       rc=verify_contract(contract,reason);
-      em.ev(rc==0?"REPAIR_OK":"REPAIR_FAIL","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)+rmetrics);
+      em.ev(rc==0?"REPAIR_OK":"REPAIR_FAIL","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)
+            +(topTier.empty()?"":",\"tier_name\":\""+json_escape(topTier)+"\"")+rmetrics);
     }
     if(rc!=0){
       em.ev("STOP","\"reason\":\"BLOCKED\",\"detail\":\""+json_escape(id+" would not pass its contract; repair budget spent")+"\"");
@@ -189,8 +275,12 @@ int main(int argc,char** argv){
       fprintf(stderr,"rabadon: STOP — %s cannot pass. Fail-closed, nothing eclectic produced.\n%s\n",id.c_str(),reason.c_str());
       return 1;
     }
-    em.ev("STEP_OK","\"step\":\""+json_escape(id)+"\"");
-    fprintf(stderr,"rabadon: %s ok\n",id.c_str());
+    // which tier actually carried this step is the routing ledger's core fact:
+    // tier 1 = proven cheap (money kept), higher = the arbiter made us climb.
+    em.ev("STEP_OK","\"step\":\""+json_escape(id)+"\",\"tier\":"+std::to_string(ti+1)
+          +(tiers[ti].empty()?"":",\"tier_name\":\""+json_escape(tiers[ti])+"\""));
+    if(routed) fprintf(stderr,"rabadon: %s ok — proven on %s (tier %zu/%zu)\n",id.c_str(),tiers[ti].c_str(),ti+1,tiers.size());
+    else       fprintf(stderr,"rabadon: %s ok\n",id.c_str());
   }
 
   // acceptance — the task-level definition of done, fail-closed if absent
