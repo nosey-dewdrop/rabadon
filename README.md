@@ -2,7 +2,7 @@
 
 Supervise your coding agent. rabadon stands at the gate of a live Claude Code session and enforces your project's own laws deterministically, **before** every action — then keeps a tamper-evident record of everything it did.
 
-A hook is advice. rabadon is the layer that also makes the advice **hold**: the deterministic gate refuses the force-push before it rewrites history, stops the loop on its third identical spin, refuses the assertion-strip while the suite is red, holds the untested push. When you ask for it, the same rules compile into a kernel sandbox, so a forbidden write fails with `EPERM` even if the gate was bypassed. Every event is chained by SHA-256 to the one before it, so the ledger you show people can be verified, not just trusted.
+A hook is advice. rabadon is the layer that also makes the advice **hold**: the deterministic gate refuses the force-push before it rewrites history, stops the loop on its third identical spin, refuses the assertion-strip while the suite is red, holds the untested push. Three of those laws — force-push to a shared branch, a recursive delete resolving outside the project tree, a hard reset onto a shared branch — are compiled in and hold from the first minute, in a repo with no configuration at all; your `guard.json` extends that floor and can switch any of the three off by id. When you ask for it, the same rules compile into a kernel sandbox, so a forbidden write fails with `EPERM` even if the gate was bypassed. Every event is chained by SHA-256 to the one before it, so the ledger you show people can be verified, not just trusted.
 
 Everything is local, by law: events append to `~/.rabadon/spool/` on your machine over a unix socket. No account, no upload, nothing leaves.
 

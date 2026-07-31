@@ -1,9 +1,32 @@
 # guard.json — the project's law
 
 `guard.json` is the machine-checkable law for one project. It lives at
-`<project>/.rabadon/guard.json`. Every rule the gate enforces comes from this
-file (plus a few built-in structural rules). `rabadon init` authors a starting
-guard for you — **you must review it before you trust it.**
+`<project>/.rabadon/guard.json`. `rabadon init` authors a starting guard for
+you — **you must review it before you trust it.**
+
+## The floor you get without this file
+
+Three laws are compiled into the gate and hold in any repo, with no
+`guard.json` at all. `guard.json` extends this floor; it does not create it.
+
+| id | refuses |
+| --- | --- |
+| `baseline-force-push` | a force-push to a shared branch (`main`, `master`, `trunk`, `develop`) — `--force`, `-f` and the `+refspec` form alike. `--force-with-lease` is the safe form and passes. Pushing `--force` to your own branch passes. |
+| `baseline-rm-rf-outside` | a recursive `rm` whose target lands outside the project tree. The target is **resolved**, not pattern-matched: `..`, `~`, a symlinked parent and a glob's directory part all count. `rm -rf ./build` and `rm -rf node_modules` pass. |
+| `baseline-hard-reset` | `git reset --hard` onto a shared branch. `git reset --hard HEAD~1` passes. |
+
+Each is judged per command segment (`&&`, `||`, `;`, `|`, newline) after
+parsing, so `npm test && git push origin feature/x` is two commands and
+`echo "git push --force origin main"` is an echo. Silence any of them by id:
+
+```json
+{ "disabled": ["baseline-force-push"] }
+```
+
+Your rules run **first**, so a refusal carries your id and your reason; the
+baseline is the backstop underneath. What it deliberately does not do: an
+operand only a shell can resolve (`$VAR`, `$(cmd)`) is not guessed at — see
+[threat-model.md](threat-model.md).
 
 ## The schema
 

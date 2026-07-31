@@ -4,7 +4,7 @@ CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
 all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h
@@ -51,6 +51,8 @@ bench: native/rabadon-gate
 # native proofs: the direction check fires in both directions and fails open.
 test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-truth
 	./native/audit_test.sh
+	./native/baseline_test.sh
+	./native/bypass_test.sh
 	./native/repair_session_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh

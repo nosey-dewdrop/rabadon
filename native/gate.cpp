@@ -34,7 +34,8 @@
 
 #include "usage.h"   // the shared token/cost meter (budget cap here + rabadon-lens)
 #include "sha256.h"  // the hash-chained spool (emitter here + rabadon-audit)
-#include "chain.h"   // the ledger's one writer: chained line + .head sidecar
+#include "chain.h"    // the ledger's one writer: chained line + .head sidecar
+#include "baseline.h" // the three laws that hold with no guard.json at all
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
 
@@ -492,25 +493,26 @@ static bool rx_test(const string& pattern, const string& text) {
   } catch (...) { return false; } // a broken rule must not take the gate down
 }
 
-// Agents write `git -C /path push --force` — global git options between "git"
-// and the subcommand slide past every `git\s+push` rule (caught live on the
-// first wild repo, 31.07). Strip them for a SECOND match attempt; the raw
-// command is always tried first, so this can only catch more, never less.
-static string strip_git_globals(const string& cmd) {
-  try {
-    static const std::regex re(
-      "\\b(git)((?:\\s+(?:-C\\s+\\S+|-c\\s+\\S+|--git-dir(?:=\\S+|\\s+\\S+)|"
-      "--work-tree(?:=\\S+|\\s+\\S+)|--no-pager|-P|--paginate))+)\\s+",
-      std::regex::ECMAScript | std::regex::icase);
-    return std::regex_replace(cmd, re, "$1 ");
-  } catch (...) { return cmd; }
-}
-
-// a bash rule fires on the raw command OR on the git-global-stripped form
+// A user rule is judged PER SEGMENT of the command, and each segment is tried
+// both as written and with git's global options stripped.
+//
+// Segments, because a rule that matched the whole line refused ordinary work:
+// four of the five guards written for the wild repos blocked
+// `npm test && git push origin feature/x` — a `-f` in one command matching a
+// `git push` in another. A false refusal costs more than a missed one; it is
+// the thing that makes people turn the gate off.
+//
+// Stripped, because agents write `git -C /path push --force` and
+// `git --exec-path=/x push --force`, and every `git\s+push` rule slides right
+// past them (both caught live, 31.07). The walk is structural now — every
+// leading option, not a hand-kept list (baseline.h).
 static bool rx_test_cmd(const string& pattern, const string& cmd) {
-  if (rx_test(pattern, cmd)) return true;
-  const string norm = strip_git_globals(cmd);
-  return norm != cmd && rx_test(pattern, norm);
+  for (const string& seg : rbbase::raw_segments(cmd)) {
+    if (rx_test(pattern, seg)) return true;
+    const string norm = rbbase::strip_git_globals(seg);
+    if (norm != seg && rx_test(pattern, norm)) return true;
+  }
+  return false;
 }
 
 // plain ["a","b"] string array under `key` (regex escapes preserved)
@@ -1638,11 +1640,24 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (!guardRaw.empty()) {
-    if (toolName == "Bash" && !command.empty()) {
+  // ---------- the project's own law first, then the floor nobody configures ----
+  // The user's rules run first so a refusal carries THEIR rule id and THEIR
+  // reason. The baseline is the backstop underneath: three laws compiled into
+  // the binary that hold in a repo with no guard.json at all, because
+  // `npm i -g rabadon` promised a gate that refuses the force-push and until
+  // now a fresh install refused nothing. guard.json extends this floor;
+  // disabled[] can remove any of the three by id.
+  if (toolName == "Bash" && !command.empty()) {
+    if (!guardRaw.empty())
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
         if (rx_test_cmd(r.pattern, command))
           block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
+    rbbase::Hit bh;
+    if (rbbase::check(command, cwd, disabled, bh)) block(bh.id, bh.why, bh.detail);
+  }
+
+  if (!guardRaw.empty()) {
+    if (toolName == "Bash" && !command.empty()) {
       // push gate: rabadon RUNS the project's own suite here and opens the gate
       // on the REAL result — telling is a warning, solving is the product. This
       // was the last thing that delegated to node; it is native now.

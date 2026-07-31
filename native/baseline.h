@@ -1,0 +1,414 @@
+// baseline.h — the three laws rabadon holds with NO configuration. (C++17)
+//
+// Until now a repo with no `.rabadon/guard.json` got a gate that refused
+// nothing: `git push --force origin main` and `rm -rf /` both returned 0 with
+// enforce ON. The README promised "the deterministic gate refuses the
+// force-push before it rewrites history" to everyone who runs `npm i -g
+// rabadon`, and for a fresh install that sentence was false. These three are
+// now compiled in. guard.json EXTENDS them; it does not bring them into being.
+//
+//   baseline-force-push     force-push to a shared branch (main/master/trunk/
+//                           develop). --force, -f, and the +refspec form are
+//                           each recognized. --force-with-lease is legitimate
+//                           and passes.
+//   baseline-rm-rf-outside  recursive rm whose target resolves OUTSIDE the
+//                           project tree. The target is resolved, not matched:
+//                           `..`, `~`, a symlink and a glob's directory part
+//                           all land where they really land. (Five hand-written
+//                           guards in five wild repos all baked the machine's
+//                           path into a regex, and all five failed open on
+//                           `..` — which is why this is code, not a pattern.)
+//   baseline-hard-reset     `git reset --hard` onto a shared branch.
+//
+// Any of them can be silenced by id in guard.json's disabled[].
+//
+// WHY THIS IS A PARSER AND NOT A REGEX. A regex over the whole command string
+// gets both directions wrong, and the audit caught both in the wild:
+//   - it MISSES `git --exec-path=/x push --force`, `git -C /path push -f`, and
+//     `git push origin +master` — the canonical force refspec slipped past four
+//     of five hand-written guards;
+//   - it FIRES on `npm test && git push origin feature/x`, because a `-f`
+//     anywhere in the line matches a `git push` anywhere else in the line. Four
+//     of five wild guards blocked an ordinary feature-branch push this way.
+// So the command is split into segments (&& || ; | newline, quote-aware) and
+// each segment is tokenized and read as a command: name, options, operands.
+// `echo "git push --force origin main"` is an echo with one argument.
+//
+// KNOWN LIMITS, by design (the sandbox is the hard boundary, not this):
+//   - an operand that only a shell can resolve ($VAR, $(cmd), backticks) is not
+//     guessed at — it passes. A false refusal costs more than a missed
+//     obfuscation here, and `rabadon exec` is the answer for adversarial input.
+//   - `cd` is followed across segments only when its argument is a literal path.
+
+#pragma once
+
+#include <climits>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <sys/stat.h>
+#include <unistd.h>
+
+namespace rbbase {
+
+using std::string;
+using std::vector;
+
+struct Hit { string id, why, detail; };
+
+struct Tok { string text; bool quoted = false; };
+
+// ---------- shell shape: quote-aware segments of tokens ----------
+inline vector<vector<Tok>> segments(const string& cmd) {
+  vector<vector<Tok>> segs;
+  segs.push_back({});
+  Tok cur; bool has = false;
+  auto endTok = [&]() { if (has) { segs.back().push_back(cur); cur = Tok(); has = false; } };
+  auto endSeg = [&]() { endTok(); if (!segs.back().empty()) segs.push_back({}); };
+  for (size_t i = 0; i < cmd.size(); i++) {
+    const char c = cmd[i];
+    if (c == '\\' && i + 1 < cmd.size()) { cur.text += cmd[++i]; has = true; continue; }
+    if (c == '\'') {
+      size_t j = cmd.find('\'', i + 1);
+      if (j == string::npos) j = cmd.size();
+      cur.text += cmd.substr(i + 1, j - i - 1); cur.quoted = true; has = true; i = j;
+      continue;
+    }
+    if (c == '"') {
+      size_t j = i + 1;
+      while (j < cmd.size() && cmd[j] != '"') {
+        if (cmd[j] == '\\' && j + 1 < cmd.size()) { cur.text += cmd[j + 1]; j += 2; }
+        else cur.text += cmd[j++];
+      }
+      cur.quoted = true; has = true; i = j;
+      continue;
+    }
+    if (c == '&' || c == '|' || c == ';' || c == '\n') {
+      if ((c == '&' || c == '|') && i + 1 < cmd.size() && cmd[i + 1] == c) i++;
+      endSeg(); continue;
+    }
+    if (c == ' ' || c == '\t' || c == '\r') { endTok(); continue; }
+    cur.text += c; has = true;
+  }
+  endSeg();
+  if (!segs.empty() && segs.back().empty()) segs.pop_back();
+  return segs;
+}
+
+// the same split, as raw text slices — user rules are regexes and must be
+// judged against the command as it was written, one segment at a time.
+inline vector<string> raw_segments(const string& cmd) {
+  vector<string> out;
+  size_t start = 0;
+  for (size_t i = 0; i < cmd.size(); i++) {
+    const char c = cmd[i];
+    if (c == '\\' && i + 1 < cmd.size()) { i++; continue; }
+    if (c == '\'') { size_t j = cmd.find('\'', i + 1); i = (j == string::npos) ? cmd.size() : j; continue; }
+    if (c == '"') {
+      size_t j = i + 1;
+      while (j < cmd.size() && cmd[j] != '"') j += (cmd[j] == '\\' && j + 1 < cmd.size()) ? 2 : 1;
+      i = j;
+      continue;
+    }
+    if (c == '&' || c == '|' || c == ';' || c == '\n') {
+      out.push_back(cmd.substr(start, i - start));
+      if ((c == '&' || c == '|') && i + 1 < cmd.size() && cmd[i + 1] == c) i++;
+      start = i + 1;
+    }
+  }
+  out.push_back(cmd.substr(start));
+  vector<string> kept;
+  for (string s : out) {
+    size_t a = s.find_first_not_of(" \t\r\n");
+    if (a == string::npos) continue;
+    size_t b = s.find_last_not_of(" \t\r\n");
+    kept.push_back(s.substr(a, b - a + 1));
+  }
+  return kept;
+}
+
+inline string base_name(const string& s) {
+  const size_t p = s.rfind('/');
+  return p == string::npos ? s : s.substr(p + 1);
+}
+
+// index of the actual command word: skip FOO=bar assignments and wrappers
+inline size_t cmd_index(const vector<Tok>& t) {
+  size_t i = 0;
+  while (i < t.size()) {
+    const string& s = t[i].text;
+    const size_t eq = s.find('=');
+    const bool assign = eq != string::npos && eq > 0 && s.find('/') == string::npos &&
+                        (isalpha((unsigned char)s[0]) || s[0] == '_');
+    const string b = base_name(s);
+    if (assign || b == "sudo" || b == "doas" || b == "env" || b == "command" ||
+        b == "nohup" || b == "time" || b == "exec") { i++; continue; }
+    break;
+  }
+  return i;
+}
+
+// ---------- paths: resolve, do not match ----------
+inline string lexical_abs(const string& raw, const string& cwd) {
+  string p = raw;
+  if (!p.empty() && p[0] == '~') {
+    const char* h = getenv("HOME");
+    if (!h || !h[0]) return "";
+    if (p.size() == 1) p = h;
+    else if (p[1] == '/') p = string(h) + p.substr(1);
+    else return "";                       // ~otheruser: not ours to guess
+  }
+  if (p.empty()) return "";
+  if (p[0] != '/') p = cwd + "/" + p;
+  vector<string> out;
+  size_t i = 0;
+  while (i < p.size()) {
+    size_t j = p.find('/', i);
+    if (j == string::npos) j = p.size();
+    const string part = p.substr(i, j - i);
+    if (part == "..") { if (!out.empty()) out.pop_back(); }
+    else if (!part.empty() && part != ".") out.push_back(part);
+    i = j + 1;
+  }
+  string abs;
+  for (const string& s : out) { abs += "/"; abs += s; }
+  return abs.empty() ? "/" : abs;
+}
+
+// realpath the longest existing prefix so a symlinked parent cannot smuggle a
+// target out of the tree; the non-existent tail is re-appended as written.
+inline string resolve_real(const string& absLexical) {
+  string p = absLexical, tail;
+  for (;;) {
+    char buf[PATH_MAX];
+    if (realpath(p.c_str(), buf)) {
+      string r = buf;
+      if (!tail.empty()) { if (r != "/") r += "/"; else r = "/"; r += tail; }
+      return r;
+    }
+    const size_t s = p.rfind('/');
+    if (s == string::npos || s == 0) return absLexical;
+    tail = tail.empty() ? p.substr(s + 1) : p.substr(s + 1) + "/" + tail;
+    p = p.substr(0, s);
+  }
+}
+
+inline bool inside(const string& root, const string& path) {
+  if (path == root) return true;
+  return path.size() > root.size() && path.compare(0, root.size(), root) == 0 &&
+         path[root.size()] == '/';
+}
+
+// the project tree: the git worktree containing cwd, else cwd itself
+inline string project_root(const string& cwd) {
+  string p = resolve_real(lexical_abs(cwd, "/"));
+  while (!p.empty()) {
+    struct stat st;
+    if (stat((p + "/.git").c_str(), &st) == 0) return p;
+    const size_t s = p.rfind('/');
+    if (s == string::npos || s == 0) break;
+    p = p.substr(0, s);
+  }
+  return resolve_real(lexical_abs(cwd, "/"));
+}
+
+// ---------- shared branches ----------
+inline bool shared_branch(const string& refIn) {
+  string r = refIn;
+  const size_t colon = r.rfind(':');            // src:dst — the destination decides
+  if (colon != string::npos) r = r.substr(colon + 1);
+  while (!r.empty() && r[0] == '+') r = r.substr(1);
+  if (r.compare(0, 11, "refs/heads/") == 0) r = r.substr(11);
+  const size_t slash = r.find('/');
+  if (slash != string::npos) {
+    const string remote = r.substr(0, slash);
+    if (remote != "origin" && remote != "upstream") return false;
+    r = r.substr(slash + 1);
+    if (r.find('/') != string::npos) return false;
+  }
+  return r == "main" || r == "master" || r == "trunk" || r == "develop";
+}
+
+inline string current_branch(const string& root) {
+  std::ifstream f(root + "/.git/HEAD");
+  if (!f) return "";
+  string h;
+  std::getline(f, h);
+  const string pre = "ref: refs/heads/";
+  if (h.compare(0, pre.size(), pre) != 0) return "";
+  string b = h.substr(pre.size());
+  while (!b.empty() && (b.back() == '\n' || b.back() == '\r' || b.back() == ' ')) b.pop_back();
+  return b;
+}
+
+// ---------- git option walk: EVERY leading option, not a list of known ones ----
+// `git --exec-path=/x push --force` slipped through a hand-listed set (31.07).
+// The rule is structural: after `git`, skip every token that starts with '-',
+// consuming a value only for the options that genuinely take a separate one.
+inline bool git_subcommand(const vector<Tok>& t, size_t gi, size_t& subIdx) {
+  size_t i = gi + 1;
+  while (i < t.size()) {
+    const string& s = t[i].text;
+    if (s.empty() || s[0] != '-') { subIdx = i; return true; }
+    const bool takesValue = (s == "-C" || s == "-c" || s == "--git-dir" || s == "--work-tree");
+    i += takesValue ? 2 : 1;
+  }
+  return false;
+}
+
+// the same walk, as a string rewrite, so USER regexes written as `git\s+push`
+// still see a command an agent wrote as `git -C /path push`.
+inline string strip_git_globals(const string& cmd) {
+  const vector<vector<Tok>> segs = segments(cmd);
+  string out;
+  for (const auto& t : segs) {
+    if (!out.empty()) out += " ; ";
+    const size_t ci = cmd_index(t);
+    size_t sub = 0;
+    const bool isGit = ci < t.size() && base_name(t[ci].text) == "git" &&
+                       git_subcommand(t, ci, sub);
+    for (size_t i = 0; i < t.size(); i++) {
+      if (isGit && i > ci && i < sub) continue;      // the globals, dropped
+      if (i) out += " ";
+      out += t[i].text;
+    }
+  }
+  return out;
+}
+
+// ---------- the three laws ----------
+inline bool disabled_has(const vector<string>& disabled, const string& id) {
+  for (const auto& d : disabled) if (d == id) return true;
+  return false;
+}
+
+inline bool check_segment(const vector<Tok>& t, const string& cwd, const string& root,
+                          const vector<string>& disabled, Hit& hit, int depth);
+
+inline bool check_tokens(const vector<vector<Tok>>& segs, const string& cwd0, const string& root,
+                         const vector<string>& disabled, Hit& hit, int depth) {
+  string cwd = cwd0;
+  for (const auto& t : segs) {
+    if (check_segment(t, cwd, root, disabled, hit, depth)) return true;
+    // follow a literal `cd` so a later segment is judged where it really runs
+    const size_t ci = cmd_index(t);
+    if (ci < t.size() && base_name(t[ci].text) == "cd" && ci + 1 < t.size()) {
+      const string next = lexical_abs(t[ci + 1].text, cwd);
+      if (!next.empty() && t[ci + 1].text.find('$') == string::npos) cwd = next;
+    }
+  }
+  return false;
+}
+
+inline bool check_segment(const vector<Tok>& t, const string& cwd, const string& root,
+                          const vector<string>& disabled, Hit& hit, int depth) {
+  const size_t ci = cmd_index(t);
+  if (ci >= t.size()) return false;
+  const string name = base_name(t[ci].text);
+
+  // `sh -c "<command>"` is a command, not an argument
+  if ((name == "sh" || name == "bash" || name == "zsh" || name == "dash") && depth < 2) {
+    for (size_t i = ci + 1; i < t.size(); i++)
+      if (t[i].text == "-c" && i + 1 < t.size())
+        return check_tokens(segments(t[i + 1].text), cwd, root, disabled, hit, depth + 1);
+  }
+
+  if (name == "git") {
+    size_t sub = 0;
+    if (!git_subcommand(t, ci, sub)) return false;
+    const string subcmd = t[sub].text;
+
+    if (subcmd == "push" && !disabled_has(disabled, "baseline-force-push")) {
+      bool force = false, lease = false;
+      vector<string> operands;
+      for (size_t i = sub + 1; i < t.size(); i++) {
+        const string& s = t[i].text;
+        if (s.compare(0, 18, "--force-with-lease") == 0 ||
+            s.compare(0, 20, "--force-if-includes") == 0) { lease = true; continue; }
+        if (s == "--force" || s == "-f") { force = true; continue; }
+        if (!s.empty() && s[0] == '-') continue;
+        if (!s.empty() && s[0] == '+') force = true;       // the canonical force refspec
+        operands.push_back(s);
+      }
+      if (force && !lease) {
+        // operands are <remote> [<refspec>...]; with no refspec git pushes the
+        // current branch, so HEAD is the target.
+        vector<string> refs(operands.begin() + (operands.empty() ? 0 : 1), operands.end());
+        if (refs.empty()) {
+          const string b = current_branch(root);
+          if (!b.empty()) refs.push_back(b);
+        }
+        for (const string& r : refs) {
+          if (!shared_branch(r)) continue;
+          hit = {"baseline-force-push",
+                 "a force-push to a shared branch rewrites history other people already have",
+                 "force-push to shared branch '" + r + "' — use --force-with-lease, or push to your own branch"};
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (subcmd == "reset" && !disabled_has(disabled, "baseline-hard-reset")) {
+      bool hard = false;
+      for (size_t i = sub + 1; i < t.size(); i++) if (t[i].text == "--hard") hard = true;
+      if (!hard) return false;
+      for (size_t i = sub + 1; i < t.size(); i++) {
+        const string& s = t[i].text;
+        if (!s.empty() && s[0] == '-') continue;
+        if (!shared_branch(s)) continue;
+        hit = {"baseline-hard-reset",
+               "a hard reset onto a shared branch discards local work with no way back",
+               "git reset --hard onto '" + s + "' — commit or stash first, or reset to a local ref"};
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (name == "rm" && !disabled_has(disabled, "baseline-rm-rf-outside")) {
+    bool recursive = false, endOfFlags = false;
+    vector<string> targets;
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (!endOfFlags && s == "--") { endOfFlags = true; continue; }
+      if (!endOfFlags && s.size() > 1 && s[0] == '-') {
+        if (s.compare(0, 2, "--") == 0) { if (s == "--recursive") recursive = true; }
+        else for (size_t k = 1; k < s.size(); k++) if (s[k] == 'r' || s[k] == 'R') recursive = true;
+        continue;
+      }
+      targets.push_back(s);
+    }
+    if (!recursive) return false;
+    for (const string& raw : targets) {
+      if (raw.find('$') != string::npos || raw.find('`') != string::npos) continue;
+      string t2 = raw;
+      const size_t g = t2.find_first_of("*?[");
+      if (g != string::npos) {                  // judge the glob's directory part
+        const size_t s = t2.rfind('/', g);
+        t2 = (s == string::npos) ? "." : t2.substr(0, s ? s : 1);
+      }
+      const string abs = lexical_abs(t2, cwd);
+      if (abs.empty()) continue;
+      const string real = resolve_real(abs);
+      if (inside(root, real)) continue;
+      hit = {"baseline-rm-rf-outside",
+             "a recursive delete outside the project tree cannot be undone by git",
+             "rm -r '" + raw + "' resolves to " + real + ", outside the project tree (" + root + ")"};
+      return true;
+    }
+  }
+  return false;
+}
+
+// The entry point: true = one of the three laws refuses this command.
+inline bool check(const string& command, const string& cwd, const vector<string>& disabled, Hit& hit) {
+  if (command.empty()) return false;
+  const string root = project_root(cwd);
+  const string realCwd = resolve_real(lexical_abs(cwd, "/"));
+  return check_tokens(segments(command), realCwd, root, disabled, hit, 0);
+}
+
+}  // namespace rbbase
