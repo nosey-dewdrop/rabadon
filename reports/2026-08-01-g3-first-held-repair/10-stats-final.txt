@@ -1,0 +1,210 @@
+rabadon usage — last 1 day(s) · local, nothing leaves this machine
+source: /Users/damummyphus/.rabadon/spool
+
+  3 refused before they happened · 6,648 actions gated · 2 repairs held · 103 would-have-refused (watch)
+
+  rabadon                                                               last event: 2026-08-01 02:58
+    actions gated:            1,987
+    caught before happening:  3
+        2x  promise-tamper
+            attempt to edit the promise itself: /Users/damummyphus/damla_projects_2026/rabadon/.rab…
+        1x  promise-anti-path
+            hooks/install.mjs matches anti-path '\.mjs$' — the promise swore off this ground: rabad…
+    would have caught (watch): 38
+       23x  no-force-push-main
+            command matched deny rule: source /tmp/rbtest_prefix; export HOME="$T2/home"; PFX="$T2/…
+        9x  baseline-rm-rf-outside
+            rm -r 'latbench' resolves to /private/tmp/latbench, outside the project tree (/Users/da…
+        5x  promise-off-target
+            star: rabadon becomes installable by strangers and provable: portable npm package with …
+        1x  no-rm-rf-outside
+            command matched deny rule: PROBE=$(cat /tmp/rbprobe.path); BIN=/Users/damummyphus/damla…
+    checks failed (caught):   78
+    repairs held (locked):    0
+    repairs unverified:       0
+    rules written:            1
+
+  youkiddingme                                                          last event: 2026-08-01 02:58
+    actions gated:            1,741
+    caught before happening:  0
+    would have caught (watch): 15
+       15x  baseline-rm-rf-outside
+            rm -r '/tmp/lulupro' resolves to /private/tmp/lulupro, outside the project tree (/Users…
+    checks failed (caught):   21
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  express                                                               last event: 2026-08-01 02:56
+    actions gated:            0
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    2
+    repairs unverified:       0
+
+  stitchu                                                               last event: 2026-08-01 02:43
+    actions gated:            1,052
+    caught before happening:  0
+    would have caught (watch): 16
+       13x  push-gate
+            code was edited after the last passing test run — run the test suite first
+        2x  no-wrangler-deploy
+            command matched deny rule: cat >> /tmp/stitchu-merge/08-golden-v1.txt <<'EOF'  ## PAZAR…
+        1x  baseline-rm-rf-outside
+            rm -r 'kalip' resolves to /private/tmp/kalip, outside the project tree (/Users/damummyp…
+    checks failed (caught):   20
+    repairs held (locked):    0
+    repairs unverified:       0
+    rules written:            1
+
+  damla_projects_2026                                                   last event: 2026-08-01 02:42
+    actions gated:            394
+    caught before happening:  0
+    would have caught (watch): 10
+       10x  baseline-rm-rf-outside
+            rm -r 'e2e-run1' resolves to /private/tmp/e2e-run1, outside the project tree (/Users/da…
+    checks failed (caught):   17
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  icerik                                                                last event: 2026-08-01 02:15
+    actions gated:            229
+    caught before happening:  0
+    would have caught (watch): 10
+       10x  baseline-rm-rf-outside
+            rm -r '/tmp/f1' resolves to /private/tmp/f1, outside the project tree (/Users/damummyph…
+    checks failed (caught):   16
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  damummyphus                                                           last event: 2026-08-01 02:00
+    actions gated:            852
+    caught before happening:  0
+    would have caught (watch): 14
+       13x  no-force-push-main
+            command matched deny rule: source /tmp/rbtest_prefix; export HOME="$T2/home"; PFX="$T2/…
+        1x  no-hard-reset-main
+            command matched deny rule: export RABADON_DIR=/tmp/rabadon-wild/rhome run() { cd /tmp/r…
+    checks failed (caught):   17
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  scripts                                                               last event: 2026-08-01 01:58
+    actions gated:            44
+    caught before happening:  0
+    checks failed (caught):   1
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  lulumelon                                                             last event: 2026-08-01 01:58
+    actions gated:            48
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  garmentcode                                                           last event: 2026-08-01 01:01
+    actions gated:            9
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  .claude                                                               last event: 2026-08-01 00:52
+    actions gated:            8
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  damla_portfolio                                                       last event: 2026-07-31 23:25
+    actions gated:            47
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  hooks                                                                 last event: 2026-07-31 21:18
+    actions gated:            1
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  nosey-dewdrop.github.io                                               last event: 2026-07-31 21:10
+    actions gated:            7
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  memory                                                                last event: 2026-07-31 21:00
+    actions gated:            11
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  spool                                                                 last event: 2026-07-31 20:19
+    actions gated:            10
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  2026-07-31-rabadon-vahsi-kanit                                        last event: 2026-07-31 19:24
+    actions gated:            6
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  2026-07-30-maya-b2b                                                   last event: 2026-07-31 19:22
+    actions gated:            1
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  reports                                                               last event: 2026-07-31 19:21
+    actions gated:            15
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  2026-07-31-stitchu-malzeme                                            last event: 2026-07-31 19:00
+    actions gated:            3
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  cv                                                                    last event: 2026-07-31 18:05
+    actions gated:            13
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  engine                                                                last event: 2026-07-31 17:41
+    actions gated:            33
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  2026-07-31-maya-teslim                                                last event: 2026-07-31 17:24
+    actions gated:            9
+    caught before happening:  0
+    checks failed (caught):   0
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  maya-case                                                             last event: 2026-07-31 17:22
+    actions gated:            128
+    caught before happening:  0
+    checks failed (caught):   1
+    repairs held (locked):    0
+    repairs unverified:       0
+
+  (23 event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)

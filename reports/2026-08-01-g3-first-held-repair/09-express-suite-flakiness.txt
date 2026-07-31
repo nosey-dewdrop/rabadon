@@ -1,0 +1,25 @@
+EXPRESS'S OWN SUITE IS FLAKY HERE — and that is a finding, not an excuse
+========================================================================
+command: for i in 1..6; npm test --silent   (PRISTINE express, nothing broken)
+  run1 exit=0  1260 passing
+  run2 exit=1  1259 passing  1 failing   res .cookie partitioned: Error: socket hang up
+  run3 exit=1  1259 passing  1 failing   express.static fallthrough: Parse Error: Expected HTTP/
+  run4 exit=0  1260 passing
+  run5 exit=1  1259 passing  1 failing   app.router trailing slashes
+  run6 exit=0  1260 passing
+=> 3 of 6 clean runs go red on a DIFFERENT test each time (node v26.5.0, supertest
+   sockets). Nothing to do with rabadon.
+
+Why it matters to the product:
+  the arbiter is exactly as deterministic as the project's own suite. A flaky
+  suite costs rabadon RECALL, never SOUNDNESS:
+    - false REPAIR_FAIL  possible  -> a good fix is thrown away, tree untouched
+    - false REPAIR_OK    not possible from flake alone -> green still requires the
+      real bug to be gone AND all 91 locks intact
+  fail-closed is the right side to be wrong on, and it is the side we are on.
+
+This is what run 07a was: the cheat had landed, but the arbiter's re-run hit the
+flake (exit 1) and the fake was rejected as "still red" instead of as tamper.
+Right verdict, WRONG reason, and no output to tell the two apart. That blindness
+is what commit a65921b fixed; the very next run (07b) named the tampered file and
+printed both hashes.
