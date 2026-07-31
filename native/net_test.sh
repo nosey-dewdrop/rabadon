@@ -91,18 +91,24 @@ grep -q '"verdict":"inconclusive"' "$R3/.rabadon/net.json" \
 grep -q '"verdict":"green"' "$R3/.rabadon/net.json" && bad "a timed-out check was called green" || ok "timeout is never green"
 
 # ---- 6: single flight — a burst of edits does not start a suite per edit ----
+# The first CI run exposed two races here: a fixed 0.4s nap is not enough for a
+# cold runner to reach the lock, and `pgrep -f "sleep 5"` counts OTHER jobs'
+# sleeps on a shared box. So: wait for the lock file itself (that is the
+# product's own signal that the first flight is airborne), and grep a sleep
+# duration unique to this test.
 R4="$(mktemp -d)"; mkdir -p "$R4/.rabadon"
 printf 'x = 1\n' > "$R4/app.py"
-printf 'test:\n\tsleep 5\n' > "$R4/Makefile"
+printf 'test:\n\tsleep 5.37\n' > "$R4/Makefile"
 RABADON_NET_CAP_MS=9000 "$NET" "$R4" >/dev/null 2>&1 &
 first=$!
-perl -e 'select(undef,undef,undef,0.4)'
+for _ in $(seq 1 60); do [ -f "$R4/.rabadon/net.lock" ] && break; perl -e 'select(undef,undef,undef,0.1)'; done
+[ -f "$R4/.rabadon/net.lock" ] || bad "first flight never took the lock (setup, not single-flight)"
 n=0
 for _ in 1 2 3 4 5; do RABADON_NET_CAP_MS=9000 "$NET" "$R4" >/dev/null 2>&1; n=$((n+1)); done
-running=$(pgrep -f "sleep 5" | wc -l | tr -d ' ')
+running=$(pgrep -f "sleep 5.37" | wc -l | tr -d ' ')
 [ "$running" -le 1 ] && ok "5 more edits during an in-flight check start 0 extra suites (single flight holds)" \
   || bad "$running suites running at once — a burst of edits would melt the machine"
-kill -9 "$first" 2>/dev/null; pkill -f "sleep 5" 2>/dev/null; wait "$first" 2>/dev/null
+kill -9 "$first" 2>/dev/null; pkill -f "sleep 5.37" 2>/dev/null; wait "$first" 2>/dev/null
 
 # ---- 7: a dead lock holder does not wedge the net forever ----
 R5="$(mktemp -d)"; mkdir -p "$R5/.rabadon"
