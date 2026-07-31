@@ -58,6 +58,20 @@ printf '%s' "$PR" | grep -q "$PROJ/protected" && pass "--print compiles guard.js
 # 5) the pure-regex rule is reported, not silently enforced
 "$SB" --print --dir "$PROJ" 2>&1 >/dev/null | grep -q "no literal path prefix" && pass "a pure-regex path is reported (kernel cannot fence it), not faked" || fail "regex-only rule not reported"
 
+# 0) THE FENCE MUST ACTUALLY START. A backend that fails to launch produces a
+# non-zero exit and an unchanged file — which is exactly what a kernel refusal
+# looks like from the outside. Without this check the refusal test below passes
+# on a sandbox that never ran, and the suite reports kernel enforcement it never
+# performed. That false pass is how "1 passed, 0 failed" hid a broken linux
+# backend through every release.
+SANE=$("$SB" --dir "$PROJ" -- /bin/sh -c "echo sane" 2>"$TMP/sane.err"); SRC=$?
+if [ "$SANE" = "sane" ]; then
+  pass "the sandbox launches and runs a command under enforcement (exit 0)"
+else
+  fail "the fence never started (rc=$SRC) — every refusal below would be a FALSE pass"
+  sed 's/^/    | /' "$TMP/sane.err" | head -5
+fi
+
 # 1) a write into the protected subtree is refused by the KERNEL
 OUT=$("$SB" --dir "$PROJ" -- /bin/sh -c "echo HACKED > '$PROJ/protected/reference.txt'" 2>&1); RC=$?
 if [ $RC -ne 0 ] && grep -q "golden" "$PROJ/protected/reference.txt"; then
@@ -67,12 +81,14 @@ else
 fi
 
 # 2) a write elsewhere still works — the fence is scoped
-"$SB" --dir "$PROJ" -- /bin/sh -c "echo ok > '$PROJ/src/out.txt'" 2>/dev/null
-[ -f "$PROJ/src/out.txt" ] && pass "a write OUTSIDE the protected path still succeeds (scoped, not a brick)" || fail "unprotected write was blocked"
+"$SB" --dir "$PROJ" -- /bin/sh -c "echo ok > '$PROJ/src/out.txt'" 2>"$TMP/w.err"
+[ -f "$PROJ/src/out.txt" ] && pass "a write OUTSIDE the protected path still succeeds (scoped, not a brick)" \
+  || { fail "unprotected write was blocked"; sed 's/^/    | /' "$TMP/w.err" | head -5; }
 
 # 3) reads of the protected path still work
-RD=$("$SB" --dir "$PROJ" -- /bin/sh -c "cat '$PROJ/protected/reference.txt'" 2>/dev/null)
-[ "$RD" = "golden" ] && pass "the protected path is still READABLE (read-only, not invisible)" || fail "protected read failed"
+RD=$("$SB" --dir "$PROJ" -- /bin/sh -c "cat '$PROJ/protected/reference.txt'" 2>"$TMP/r.err")
+[ "$RD" = "golden" ] && pass "the protected path is still READABLE (read-only, not invisible)" \
+  || { fail "protected read failed"; sed 's/^/    | /' "$TMP/r.err" | head -5; }
 
 # empty guard -> runs bare (nothing to enforce)
 BARE="$TMP/bare"; mkdir -p "$BARE/.rabadon"; echo '{"project":"bare"}' > "$BARE/.rabadon/guard.json"

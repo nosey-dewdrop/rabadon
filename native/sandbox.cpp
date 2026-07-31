@@ -29,6 +29,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <deque>
 #include <vector>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -238,13 +239,18 @@ int main(int argc, char** argv) {
   args.push_back(nullptr);
   execvp("sandbox-exec", args.data());
 #else
-  vector<string> hold;
+  // The argv holds raw pointers INTO these strings, so the storage must never
+  // move. A vector<string> reallocates as it grows and every pointer taken from
+  // an earlier element dangles — with two protected paths bwrap was handed
+  // freed memory. A deque never moves an element it has already placed.
+  std::deque<string> hold;
   args.push_back((char*)"bwrap");
   args.push_back((char*)"--dev-bind"); args.push_back((char*)"/"); args.push_back((char*)"/");
+  args.push_back((char*)"--die-with-parent");
   for (const string& pre : prefixes) {
-    string ap = abspath(dir, pre);
-    args.push_back((char*)"--ro-bind"); hold.push_back(ap); args.push_back((char*)hold.back().c_str());
-    args.push_back((char*)hold.back().c_str());
+    hold.push_back(abspath(dir, pre));
+    char* ap = (char*)hold.back().c_str();
+    args.push_back((char*)"--ro-bind"); args.push_back(ap); args.push_back(ap);
   }
   if (netDeny) args.push_back((char*)"--unshare-net");
   for (auto& c : cmd) args.push_back((char*)c.c_str());
