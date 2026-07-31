@@ -57,14 +57,14 @@ echo "$show" | grep -qF "200,000 tokens" && ok "setter: show prints the current 
 # ============ the gate enforces it — halt before burn ============
 
 # --- E1: under cap -> tool passes ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-opus-4-8" 100 300 600 50 > "$T"   # 1050 tokens total
 "$BUDGET" 2000 "$C" >/dev/null 2>&1
 fire "$C" "$T" "$RD" >/dev/null 2>&1; rc=$?
 [ "$rc" = "0" ] && ok "under cap (1050/2000): the tool is allowed" || bad "under cap blocked (rc=$rc)"
 
 # --- E2: over cap -> exit 2 + halt message ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-opus-4-8" 100 300 600 50 > "$T"   # 1050
 "$BUDGET" 1000 "$C" >/dev/null 2>&1
 err="$(fire "$C" "$T" "$RD" 2>&1 1>/dev/null)"; rc=$?
@@ -72,7 +72,7 @@ err="$(fire "$C" "$T" "$RD" 2>&1 1>/dev/null)"; rc=$?
   && ok "over cap (1050/1000): halted before burn, exit 2 + message" || bad "over cap not halted (rc=$rc) [$err]"
 
 # --- E3: all four token classes count — a cache-only burn still trips it ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-opus-4-8" 0 0 1200 0 > "$T"   # cache_read only = 1200, in/out = 0
 "$BUDGET" 1000 "$C" >/dev/null 2>&1
 err="$(fire "$C" "$T" "$RD" 2>&1 1>/dev/null)"; rc=$?
@@ -81,13 +81,13 @@ err="$(fire "$C" "$T" "$RD" 2>&1 1>/dev/null)"; rc=$?
   || bad "cache tokens not counted (rc=$rc) [$err]"
 
 # --- E4: no cap set -> the meter is opt-in, even a huge session passes ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-opus-4-8" 100000 300000 600000 50000 > "$T"   # ~1.05M tokens
 fire "$C" "$T" "$RD" >/dev/null 2>&1; rc=$?
 [ "$rc" = "0" ] && ok "no budget.json: opt-in meter, huge usage still passes" || bad "opt-in broken (rc=$rc)"
 
 # --- E5: 'budget-cap' in disabled[] is a real override ---
-C="$(mktemp -d)"; mkdir -p "$C/.rabadon"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; mkdir -p "$C/.rabadon"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-opus-4-8" 100 300 600 50 > "$T"   # 1050
 "$BUDGET" 1000 "$C" >/dev/null 2>&1
 echo '{"project":"c","disabled":["budget-cap"]}' > "$C/.rabadon/guard.json"
@@ -95,7 +95,7 @@ fire "$C" "$T" "$RD" >/dev/null 2>&1; rc=$?
 [ "$rc" = "0" ] && ok "override: budget-cap in disabled[] lets the run through" || bad "disabled override ignored (rc=$rc)"
 
 # --- E6: dollar cap, priced model, over -> blocked ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-opus-4-8" 0 0 0 400 > "$T"        # opus out=400 -> $0.01
 "$BUDGET" 0.009usd "$C" >/dev/null 2>&1
 err="$(fire "$C" "$T" "$RD" 2>&1 1>/dev/null)"; rc=$?
@@ -103,7 +103,7 @@ err="$(fire "$C" "$T" "$RD" 2>&1 1>/dev/null)"; rc=$?
   && ok "usd cap (opus \$0.01/\$0.009): halted before burn" || bad "usd cap not enforced (rc=$rc) [$err]"
 
 # --- E7: dollar cap, unpriced model -> usd skipped (no false block) ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"; T="$(mktemp)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; T="$(mktemp)"
 line "claude-mystery-9" 0 0 0 400 > "$T"       # would cost $0.01 IF we could price it
 "$BUDGET" 0.009usd "$C" >/dev/null 2>&1
 fire "$C" "$T" "$RD" >/dev/null 2>&1; rc=$?

@@ -20,7 +20,7 @@ ev() { # $1=cwd $2=tool_use_id $3=command
 }
 
 # --- A: first event creates state.json with the session booked ---
-A="$(mktemp -d)"; RD="$(mktemp -d)"
+A="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 ev "$A" a1 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ -f "$A/.rabadon/state.json" ] && ok "state.json is created by the native gate" || bad "state.json missing"
 python3 - "$A/.rabadon/state.json" <<'EOF' && ok "session booked: recent trail + actionCount live in sessions map" || bad "sessions map wrong"
@@ -32,7 +32,7 @@ EOF
 
 # --- B: the stray top-level "s" alias dies on first native save,
 #         while foreign top-level counters survive the round-trip ---
-B="$(mktemp -d)"; mkdir -p "$B/.rabadon"; RD="$(mktemp -d)"
+B="$(mktemp -d)"; mkdir -p "$B/.rabadon"; RD="$(mktemp -d)"; : > "$RD/enabled"
 cat > "$B/.rabadon/state.json" <<'EOF'
 {"lastTestPass":1753000000000,"lastCodeEdit":42,
  "s":{"goalPrompt":"leaked alias","goalTs":1},
@@ -50,14 +50,14 @@ assert d["sessions"]["sess-alpha"]["actionCount"]==1
 EOF
 
 # --- C: twin delivery (same tool_use_id) books NOTHING twice ---
-C="$(mktemp -d)"; RD="$(mktemp -d)"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 ev "$C" c1 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 ev "$C" c1 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1; rc=$?
 count="$(python3 -c "import json;print(json.load(open('$C/.rabadon/state.json'))['sessions']['sess-alpha']['actionCount'])")"
 [ $rc -eq 0 ] && [ "$count" = "1" ] && ok "twin delivery: exit 0, actionCount stays 1" || bad "twin double-booked (rc=$rc count=$count)"
 
 # --- D: loop-stop counters live in state.json — 3rd identical run refused ---
-D="$(mktemp -d)"; RD="$(mktemp -d)"
+D="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 rcs=""
 for i in 1 2 3; do
   ev "$D" "d$i" "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
@@ -66,7 +66,7 @@ done
 [ "$rcs" = " 0 0 2" ] && ok "loop-stop persists through state.json ($rcs)" || bad "expected ' 0 0 2', got '$rcs'"
 
 # --- E: an edit recorded as lastCodeEdit releases the loop counter ---
-E="$(mktemp -d)"; RD="$(mktemp -d)"
+E="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 ev "$E" e1 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 ev "$E" e2 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 python3 - "$E/.rabadon/state.json" <<'EOF'
@@ -79,7 +79,7 @@ ev "$E" e3 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "a code edit in between resets the loop counter" || bad "edit should release loop-stop"
 
 # --- F: retired state-native-*.txt twin is removed on sight ---
-F="$(mktemp -d)"; mkdir -p "$F/.rabadon"; RD="$(mktemp -d)"
+F="$(mktemp -d)"; mkdir -p "$F/.rabadon"; RD="$(mktemp -d)"; : > "$RD/enabled"
 echo "lastCmd=stale" > "$F/.rabadon/state-native-sess-alpha.txt"
 ev "$F" f1 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ ! -f "$F/.rabadon/state-native-sess-alpha.txt" ] && ok "old state-native twin file is retired on sight" \
@@ -92,7 +92,7 @@ pev() { # $1=cwd $2=hook $3=extra-json-fields (already comma-prefixed or empty)
 }
 
 # --- G: goal capture — first prompt pinned, gate's own recursion refused ---
-G="$(mktemp -d)"; RD="$(mktemp -d)"
+G="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 pev "$G" UserPromptSubmit ',"prompt":"You are rabadon, a reliability runtime supervising"' | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 sleep 2.1
 pev "$G" UserPromptSubmit ',"prompt":"build the native session kernel"' | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
@@ -104,14 +104,14 @@ goal="$(python3 -c "import json;print(json.load(open('$G/.rabadon/state.json'))[
   || bad "goal wrong: '$goal'"
 
 # --- H: non-tool twin (same 2s bucket) books once ---
-H="$(mktemp -d)"; RD="$(mktemp -d)"
+H="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 pev "$H" UserPromptSubmit ',"prompt":"the goal"' | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 pev "$H" UserPromptSubmit ',"prompt":"the goal"' | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 runs="$(grep -c '"ev":"RUN_START"' "$RD/spool/$(date -u +%Y-%m-%d).jsonl" 2>/dev/null || echo 0)"
 [ "$runs" = "1" ] && ok "non-tool twin dedupe: one RUN_START, not two" || bad "expected 1 RUN_START, got $runs"
 
 # --- I: Stop writes the devridaim handoff from the trail ---
-I="$(mktemp -d)"; RD="$(mktemp -d)"
+I="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 pev "$I" UserPromptSubmit ',"prompt":"ship the native stop path"' | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 ev "$I" i1 "make build" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 sleep 2.1
@@ -128,7 +128,7 @@ ac="$(python3 -c "import json;print(json.load(open('$I/.rabadon/state.json'))['s
 [ "$ac" = "0" ] && ok "SessionStart resets the per-session counters" || bad "actionCount not reset ($ac)"
 
 # --- K: Stop reads REAL usage from the transcript, incrementally ---
-K="$(mktemp -d)"; RD="$(mktemp -d)"
+K="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 T="$(mktemp)"
 printf '{"type":"assistant","message":{"usage":{"input_tokens":100,"output_tokens":40}}}\n{"type":"assistant","message":{"usage":{"input_tokens":7,"output_tokens":3}}}\n' > "$T"
 pev "$K" Stop ",\"transcript_path\":\"$T\"" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
@@ -141,7 +141,7 @@ toks2="$(python3 -c "import json;s=json.load(open('$K/.rabadon/state.json'))['se
 [ "$toks2" = "45 108" ] && ok "ledger is incremental: only the new bytes are counted" || bad "incremental read wrong: $toks2"
 
 # --- L: caught-today lands in the handoff ---
-L="$(mktemp -d)"; mkdir -p "$L/.rabadon"; RD="$(mktemp -d)"
+L="$(mktemp -d)"; mkdir -p "$L/.rabadon"; RD="$(mktemp -d)"; : > "$RD/enabled"
 cat > "$L/.rabadon/guard.json" <<'EOF'
 { "project": "l", "bash": [{ "id": "no-rm-rf", "deny": "rm -rf /", "why": "never" }] }
 EOF

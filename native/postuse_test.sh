@@ -134,8 +134,8 @@ DIFF_ENV=""
 differential() {
   local label="$1" evt="$2" guard="${3:-}"
   local Cn RDn Cv RDv
-  Cn="$(mktemp -d)"; RDn="$(mktemp -d)"; mkdir -p "$Cn/.rabadon"
-  Cv="$(mktemp -d)"; RDv="$(mktemp -d)"; mkdir -p "$Cv/.rabadon"
+  Cn="$(mktemp -d)"; RDn="$(mktemp -d)"; : > "$RDn/enabled"; mkdir -p "$Cn/.rabadon"
+  Cv="$(mktemp -d)"; RDv="$(mktemp -d)"; : > "$RDv/enabled"; mkdir -p "$Cv/.rabadon"
   [ -n "$guard" ] && { printf '%s\n' "$guard" > "$Cn/.rabadon/guard.json"; printf '%s\n' "$guard" > "$Cv/.rabadon/guard.json"; }
   local en ev
   en="${evt//CWD/$Cn}"; ev="${evt//CWD/$Cv}"
@@ -187,8 +187,8 @@ seed_both() { # writes FAN_STATE into node+native sandboxes created by different
   :
 }
 # custom driver: seed 4 dirs, fire 5th (e), assert exit2 + why lists a,b,c,d,e
-Cn="$(mktemp -d)"; RDn="$(mktemp -d)"; mkdir -p "$Cn/.rabadon"; printf '%s' "$FAN_STATE" > "$Cn/.rabadon/state.json"
-Cv="$(mktemp -d)"; RDv="$(mktemp -d)"; mkdir -p "$Cv/.rabadon"; printf '%s' "$FAN_STATE" > "$Cv/.rabadon/state.json"
+Cn="$(mktemp -d)"; RDn="$(mktemp -d)"; : > "$RDn/enabled"; mkdir -p "$Cn/.rabadon"; printf '%s' "$FAN_STATE" > "$Cn/.rabadon/state.json"
+Cv="$(mktemp -d)"; RDv="$(mktemp -d)"; : > "$RDv/enabled"; mkdir -p "$Cv/.rabadon"; printf '%s' "$FAN_STATE" > "$Cv/.rabadon/state.json"
 EVT='{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"e1","tool_name":"Edit","tool_input":{"file_path":"CWD/e/f.js"}}'
 sn="$(echo "${EVT//CWD/$Cn}" | RABADON_JUDGE=0 RABADON_DIR="$RDn" node "$GATE" 2>/tmp/pt_bn.$$)"; rn=$?
 sv="$(echo "${EVT//CWD/$Cv}" | RABADON_JUDGE=0 RABADON_DIR="$RDv" "$BIN" 2>/tmp/pt_bv.$$)"; rv=$?
@@ -218,7 +218,7 @@ echo "BR3 active re-anchor (12th action)"
 reanchor() { # $1=actionCount $2=stubjson $3=judgeEnv -> sets RC/STDERR from native
   local ac="$1" sj="$2" je="$3"
   local C RD
-  C="$(mktemp -d)"; RD="$(mktemp -d)"; mkdir -p "$C/.rabadon"
+  C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
   python3 -c "import json;json.dump({'sessions':{'s1':{'goalPrompt':'build the kernel','actionCount':$ac,'recent':[{'t':1,'s':'m'}]}}},open('$C/.rabadon/state.json','w'))"
   local tripwire="$C/tripwire"
   RC=$(echo '{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"ra'"$ac"'","tool_name":"Edit","tool_input":{"file_path":"'"$C"'/src/x.js"}}' \
@@ -293,7 +293,7 @@ python3 -c "import json;d=json.load(open('$LAST_CV/.rabadon/state.json'));import
 grep -q "rabadon: tests are RED. Fix the failure before moving on." /tmp/pt_vs.$$ && ok "BR5a RED stderr (no advice under JUDGE=0)" || bad "BR5a RED stderr wrong"
 
 # RED WITH the stub diagnose (newRule null) -> REPAIR_START + advice, no rule
-C="$(mktemp -d)"; RD="$(mktemp -d)"; mkdir -p "$C/.rabadon"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
 echo '{"project":"p","testCommand":"ctest"}' > "$C/.rabadon/guard.json"
 S="$C/sentinel"; K="$C/calls"
 echo '{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"r2","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"2 failed\nboom"}}' \
@@ -309,7 +309,7 @@ python3 -c "import json;d=json.load(open('$C/.rabadon/state.json'));import sys;s
 # BR6 — incident dedup (same failSig within 15min -> no 2nd diagnose)
 # =====================================================================
 echo "BR6 incident dedup"
-C="$(mktemp -d)"; RD="$(mktemp -d)"; mkdir -p "$C/.rabadon"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
 echo '{"project":"p","testCommand":"ctest"}' > "$C/.rabadon/guard.json"
 K="$C/calls"; echo 0 > "$K"
 EVT='{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"TID","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"2 failed\nsame boom"}}'
@@ -330,7 +330,7 @@ calls2="$(cat "$K")"
 # =====================================================================
 echo "BR7 rule authoring"
 author() { # $1=stubjson $2=guard-extra-json -> native run; sets AC (cwd) / ARD
-  AC="$(mktemp -d)"; ARD="$(mktemp -d)"; mkdir -p "$AC/.rabadon"
+  AC="$(mktemp -d)"; ARD="$(mktemp -d)"; : > "$ARD/enabled"; mkdir -p "$AC/.rabadon"
   printf '%s\n' "$2" > "$AC/.rabadon/guard.json"
   echo '{"hook_event_name":"PostToolUse","cwd":"'"$AC"'","session_id":"s1","tool_use_id":"a'"$RANDOM"'","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"9 failed\ncrash"}}' \
     | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON="$1" RABADON_DIR="$ARD" "$BIN" >/tmp/pt_a.$$ 2>&1
@@ -370,7 +370,7 @@ grep -q '"step":"new gate: bad-rx"' "$ARD/spool/$DAY.jsonl" && bad "BR7 REPAIR_O
 # BR8 — RABADON_OFF=1 in the child env (the recursion root-fix)
 # =====================================================================
 echo "BR8 RABADON_OFF propagated to the claude child"
-C="$(mktemp -d)"; RD="$(mktemp -d)"; mkdir -p "$C/.rabadon"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
 echo '{"project":"p","testCommand":"ctest"}' > "$C/.rabadon/guard.json"
 S="$C/sentinel"
 echo '{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"off1","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"2 failed\nboom"}}' \
@@ -386,7 +386,7 @@ echo '{"hook_event_name":"PostToolUse","cwd":"'"$C2"'","session_id":"s1","tool_u
 
 # BR8b — a hanging stub is killed by the bounded timeout (fail-open to RED)
 echo "BR8b bounded subprocess kills a hanging stub"
-C="$(mktemp -d)"; RD="$(mktemp -d)"; mkdir -p "$C/.rabadon"
+C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
 echo '{"project":"p","testCommand":"ctest"}' > "$C/.rabadon/guard.json"
 # a 1s timeout override is not exposed; instead prove the wall-clock path by a
 # stub that sleeps LONGER than the process should wait for output-less hang.
@@ -426,7 +426,7 @@ n="$(norm_spool "$LAST_RDV/spool/$DAY.jsonl" | grep -c . || true)"
 echo "BR11 twin dedupe on Post"
 twincheck() { # $1=engine ($BIN or 'node GATE') $2=label
   local C RD
-  C="$(mktemp -d)"; RD="$(mktemp -d)"; mkdir -p "$C/.rabadon"
+  C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
   local E='{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"tu1","tool_name":"Edit","tool_input":{"file_path":"'"$C"'/src/x.js"}}'
   if [ "$1" = node ]; then
     echo "$E" | RABADON_JUDGE=0 RABADON_DIR="$RD" node "$GATE" >/dev/null 2>&1; local r1=$?

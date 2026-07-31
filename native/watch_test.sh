@@ -30,8 +30,11 @@ edit_event() { # $1=cwd $2=file_path $3=session
 day="$(date -u +%Y-%m-%d)"
 
 # ---- ENFORCE: the anti-path edit is refused ----
+# RABADON_DIR is the WHOLE rabadon home (flags + spool, one rule): when it is
+# set, the mode flag lives inside it. HOME keeps a flag too for the
+# statusline calls below, which run without RABADON_DIR.
 H1="$(mktemp -d)"; mkdir -p "$H1/.rabadon"; : > "$H1/.rabadon/enabled"
-A="$(scratch)"; RD1="$(mktemp -d)"
+A="$(scratch)"; RD1="$(mktemp -d)"; : > "$RD1/enabled"
 edit_event "$A" "$A/web/feature.mjs" s1 | HOME="$H1" RABADON_DIR="$RD1" "$BIN" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "ENFORCE: the anti-path edit is refused (exit 2)" || bad "enforce should exit 2"
 grep -q '"ev":"STOP"' "$RD1/spool/$day.jsonl" 2>/dev/null \
@@ -64,7 +67,7 @@ edit_event "$C" "$C/native/gate.cpp" s1 | HOME="$H2" RABADON_DIR="$RD3" "$BIN" >
 
 # ---- SILENT: nothing is evaluated and nothing is written ----
 H3="$(mktemp -d)"; mkdir -p "$H3/.rabadon"; : > "$H3/.rabadon/silent"
-D="$(scratch)"; RD4="$(mktemp -d)"
+D="$(scratch)"; RD4="$(mktemp -d)"; : > "$RD4/silent"
 edit_event "$D" "$D/web/feature.mjs" s1 | HOME="$H3" RABADON_DIR="$RD4" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "SILENT: allowed through (exit 0)" || bad "silent should exit 0"
 [ ! -f "$RD4/spool/$day.jsonl" ] \

@@ -19,7 +19,7 @@ PASS=0; FAIL=0
 ok(){ PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad(){ FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
 
-RD="$(mktemp -d)"; mkdir -p "$RD/spool"
+RD="$(mktemp -d)"; mkdir -p "$RD/spool"; : > "$RD/enabled"
 # a watcher that accepts a connection then immediately slams it shut
 python3 - "$RD/rabadon.sock" >/dev/null 2>&1 <<'PY' &
 import socket, os, sys, time
@@ -58,7 +58,7 @@ done
   || bad "$slipped/10 slipped through — the gate was killed mid-block"
 
 # and the control: with NO watcher at all, the deny still blocks
-RD2="$(mktemp -d)"; mkdir -p "$RD2/spool"
+RD2="$(mktemp -d)"; mkdir -p "$RD2/spool"; : > "$RD2/enabled"
 printf '%s' "${ev/__ID__/n1}" | RABADON_DIR="$RD2" "$BIN" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "no watcher: deny still blocks (exit 2)" || bad "no-watcher deny should block"
 

@@ -212,8 +212,9 @@ int main(int argc, char** argv) {
     // DEFAULT-OFF: as a Stop hook, drift speaks only when rabadon is enabled
     // (global ~/.rabadon/enabled or per-project cwd/.rabadon/on). Same law as the gate.
     {
-      const char* h = getenv("HOME"); struct stat sb;
-      bool enabled = (h && stat((string(h) + "/.rabadon/enabled").c_str(), &sb) == 0);
+      const char* rdh = getenv("RABADON_DIR"); const char* h = getenv("HOME"); struct stat sb;
+      const string rhome = (rdh && rdh[0]) ? string(rdh) : string(h ? h : ".") + "/.rabadon";
+      bool enabled = stat((rhome + "/enabled").c_str(), &sb) == 0;
       if (!enabled && !dir.empty() && stat((dir + "/.rabadon/on").c_str(), &sb) == 0) enabled = true;
       if (!enabled) return 0;
     }

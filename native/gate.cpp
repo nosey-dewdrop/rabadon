@@ -134,6 +134,16 @@ static string read_file(const string& p) {
 
 static bool file_exists(const string& p) { struct stat st; return stat(p.c_str(), &st) == 0; }
 
+// The rabadon home: RABADON_DIR when set (test isolation, multi-tenant), else
+// $HOME/.rabadon. ONE rule for the mode flags AND the spool — a split home
+// means `rabadon on` and the ledger disagree about which machine they live on.
+static string rabadon_home() {
+  const char* rd = getenv("RABADON_DIR");
+  if (rd && rd[0]) return string(rd);
+  const char* h = getenv("HOME");
+  return string(h ? h : ".") + "/.rabadon";
+}
+
 static long long now_ms() {
   struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
   return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
@@ -887,11 +897,11 @@ int main(int argc, char** argv) {
     if (dir.empty()) { const char* p = getenv("PWD"); dir = p ? p : "."; }
     string model = get_str(in, "display_name");
     size_t sl = dir.rfind('/'); string project = (sl == string::npos) ? dir : dir.substr(sl + 1);
-    const char* h = getenv("HOME"); string home = h ? h : ".";
+    const string rhome = rabadon_home();
     const char* off = getenv("RABADON_OFF");
     bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off")
-                   || file_exists(home + "/.rabadon/silent");
-    bool on = !hardOff && (file_exists(home + "/.rabadon/enabled") || file_exists(dir + "/.rabadon/on"));
+                   || file_exists(rhome + "/silent");
+    bool on = !hardOff && (file_exists(rhome + "/enabled") || file_exists(dir + "/.rabadon/on"));
     bool watching = !hardOff && !on;
     const string GRAY = "\033[38;5;245m", R = "\033[0m";
 
@@ -943,10 +953,10 @@ int main(int argc, char** argv) {
   if (argc > 1) {
     string a1 = argv[1];
     if (a1 == "--on" || a1 == "--off" || a1 == "--toggle" || a1 == "--status" || a1 == "--silent") {
-      const char* h = getenv("HOME"); string home = h ? h : ".";
-      mkdir((home + "/.rabadon").c_str(), 0755);
-      const string flag = home + "/.rabadon/enabled";
-      const string mute = home + "/.rabadon/silent";
+      const string rhome = rabadon_home();
+      mkdir(rhome.c_str(), 0755);
+      const string flag = rhome + "/enabled";
+      const string mute = rhome + "/silent";
       bool on = file_exists(flag), silent = file_exists(mute);
       if (a1 == "--toggle") a1 = on ? "--off" : "--on";
       if (a1 == "--on") {
@@ -988,11 +998,10 @@ int main(int argc, char** argv) {
   //         opens. It is a free tier by construction, never the product.
   // ENFORCE the arbiter acts: refuse, repair, prove.
   const char* offEnv = getenv("RABADON_OFF");
-  const char* hEnv = getenv("HOME");
-  const string homeDir = hEnv ? hEnv : ".";
+  const string rhome = rabadon_home();
   if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")
-      || file_exists(homeDir + "/.rabadon/silent")) return 0;
-  g_mode = (file_exists(homeDir + "/.rabadon/enabled") || file_exists(cwd + "/.rabadon/on"))
+      || file_exists(rhome + "/silent")) return 0;
+  g_mode = (file_exists(rhome + "/enabled") || file_exists(cwd + "/.rabadon/on"))
              ? MODE_ENFORCE : MODE_WATCH;
 
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
@@ -1046,9 +1055,7 @@ int main(int argc, char** argv) {
   }
 
   // rabadon home (spool/socket) — env override mirrors core/bus.mjs
-  const char* rd = getenv("RABADON_DIR");
-  const char* home = getenv("HOME");
-  const string rdir = rd ? rd : (string(home ? home : ".") + "/.rabadon");
+  const string rdir = rabadon_home();
   mkdir(rdir.c_str(), 0755);
   mkdir((rdir + "/spool").c_str(), 0755);
 

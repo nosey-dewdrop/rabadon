@@ -32,7 +32,7 @@ pushev(){ printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"pg1",
 day=$(date -u +%Y-%m-%d)
 
 # --- A: green suite -> push ALLOWED (exit 0) + REPAIR_OK + lastTestPass stamped ---
-A="$(scratch "echo 100 percent tests passed" "tests passed")"; RD="$(mktemp -d)"
+A="$(scratch "echo 100 percent tests passed" "tests passed")"; RD="$(mktemp -d)"; : > "$RD/enabled"
 pushev "$A" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1; rc=$?
 [ $rc -eq 0 ] && ok "green suite: push allowed (exit 0)" || bad "green push should be exit 0 (got $rc)"
 grep -q '"ev":"REPAIR_OK"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "green: REPAIR_OK on the ledger" || bad "green should emit REPAIR_OK"
@@ -40,7 +40,7 @@ lp=$(python3 -c "import json;print(json.load(open('$A/.rabadon/state.json')).get
 [ "$lp" != "0" ] && ok "green: lastTestPass stamped so the next push is clean" || bad "green should stamp lastTestPass"
 
 # --- B: red suite -> push BLOCKED (exit 2) + REPAIR_FAIL + failing lines ---
-B="$(scratch "echo FAILED 1 test; exit 1" "tests passed")"; RD="$(mktemp -d)"
+B="$(scratch "echo FAILED 1 test; exit 1" "tests passed")"; RD="$(mktemp -d)"; : > "$RD/enabled"
 out="$(pushev "$B" | RABADON_DIR="$RD" "$BIN" 2>&1)"; rc=$?
 [ $rc -eq 2 ] && ok "red suite: push blocked (exit 2)" || bad "red push should be exit 2 (got $rc)"
 echo "$out" | grep -q "ran the tests itself" && ok "red: rabadon says it ran the suite itself" || bad "red should name the self-run"
@@ -50,14 +50,14 @@ grep -q '"ev":"REPAIR_FAIL"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "red: REPA
 C="$(scratch "exit 1" "tests passed")"
 now=$(python3 -c 'import time;print(int(time.time()*1000))')
 printf '{"lastCodeEdit":10,"lastTestPass":%s,"sessions":{}}' "$now" > "$C/.rabadon/state.json"
-RD="$(mktemp -d)"
+RD="$(mktemp -d)"; : > "$RD/enabled"
 pushev "$C" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "tests green since last edit: push flows, suite not re-run" || bad "no-edit push should be exit 0"
 
 # --- D: a hanging suite is killed and the push blocked (the gate never hangs) ---
 D="$(scratch "sleep 5" "tests passed")"
 sed -i.bak 's/"timeoutSec": 30/"timeoutSec": 1/' "$D/.rabadon/guard.json"
-RD="$(mktemp -d)"
+RD="$(mktemp -d)"; : > "$RD/enabled"
 t0=$(python3 -c 'import time;print(time.time())')
 pushev "$D" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1; rc=$?
 t1=$(python3 -c 'import time;print(time.time())')

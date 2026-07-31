@@ -33,8 +33,12 @@ edit_event() { # $1=cwd $2=file_path $3=session
     "$1" "$3" "$(printf %s "$2" | cksum | cut -d' ' -f1)" "$$" "$2"
 }
 
+# RABADON_DIR is the WHOLE rabadon home (flags + spool, one rule) — so the
+# enforce flag lives inside it, not in $HOME.
+rdnew() { d="$(mktemp -d)"; : > "$d/enabled"; echo "$d"; }
+
 # --- A: anti-path edit -> BLOCKED (exit 2) with the star named ---
-A="$(scratch)"; RD="$(mktemp -d)"
+A="$(scratch)"; RD="$(rdnew)"
 out="$(edit_event "$A" "$A/web/feature.mjs" s1 | RABADON_DIR="$RD" "$BIN" 2>&1)"; rc=$?
 [ $rc -eq 2 ] && ok "anti-path edit is refused at attempt time (exit 2)" || bad "anti-path edit should be exit 2 (got $rc)"
 echo "$out" | grep -q "swore off" && ok "the refusal names the promise it protects" || bad "refusal should carry the star"
@@ -43,12 +47,12 @@ grep -q '"check":"promise-anti-path"' "$RD/spool/$day.jsonl" 2>/dev/null \
   && ok "the ledger carries the mid-session catch" || bad "spool must record promise-anti-path"
 
 # --- B: on-area edit -> allowed (exit 0) ---
-B="$(scratch)"; RD="$(mktemp -d)"
+B="$(scratch)"; RD="$(rdnew)"
 edit_event "$B" "$B/native/gate.cpp" s1 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "on-area edit flows freely (exit 0)" || bad "on-area edit should be exit 0"
 
 # --- C: area creep -> 5th off-target edit challenged ONCE, 6th allowed ---
-C="$(scratch)"; RD="$(mktemp -d)"
+C="$(scratch)"; RD="$(rdnew)"
 rc_seq=""
 for i in 1 2 3 4 5 6; do
   edit_event "$C" "$C/docs/note$i.md" s1 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
@@ -58,13 +62,13 @@ done
   || bad "expected ' 0 0 0 0 2 0', got '$rc_seq'"
 
 # --- D: the session cannot rewrite the promise itself ---
-D="$(scratch)"; RD="$(mktemp -d)"
+D="$(scratch)"; RD="$(rdnew)"
 edit_event "$D" "$D/.rabadon/promise.json" s1 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "promise-tamper: the contract cannot be edited by the supervised session" \
   || bad "editing promise.json from the session must be exit 2"
 
 # --- E: no promise / broken promise -> fail OPEN ---
-E="$(mktemp -d)"; mkdir -p "$E/.rabadon"; RD="$(mktemp -d)"
+E="$(mktemp -d)"; mkdir -p "$E/.rabadon"; RD="$(rdnew)"
 edit_event "$E" "$E/web/x.mjs" s1 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "no promise -> nothing to enforce (exit 0)" || bad "missing promise must fail open"
 echo '{ not json' > "$E/.rabadon/promise.json"
@@ -72,7 +76,7 @@ edit_event "$E" "$E/web/y.mjs" s2 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "broken promise -> fails open, no crash (exit 0)" || bad "broken promise must fail open"
 
 # --- F: disabled[] in guard.json silences a promise rule (the override is real) ---
-F="$(scratch)"; RD="$(mktemp -d)"
+F="$(scratch)"; RD="$(rdnew)"
 echo '{ "project": "f", "disabled": ["promise-anti-path"] }' > "$F/.rabadon/guard.json"
 edit_event "$F" "$F/web/feature.mjs" s1 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "disabled[] override silences the promise rule (exit 0)" \

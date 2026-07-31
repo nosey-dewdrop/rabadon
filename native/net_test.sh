@@ -45,7 +45,7 @@ wait_for_net() {  # $1=dir $2=ts-to-beat — the net is detached, so wait for a 
 }
 
 # ---- 1: ON — an edit starts the net, and the net finds the project green ----
-R1="$(mkrepo)"; RD1="$(mktemp -d)"
+R1="$(mkrepo)"; RD1="$(mktemp -d)"; : > "$RD1/enabled"
 post_edit "$R1" "$R1/app.py" "$H_ON" "$RD1" >/dev/null
 wait_for_net "$R1" && ok "an edit in ON mode starts the net without the agent waiting" || bad "net never produced a verdict"
 grep -q '"verdict":"green"' "$R1/.rabadon/net.json" 2>/dev/null \
