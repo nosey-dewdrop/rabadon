@@ -31,6 +31,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <regex>
 #include <dirent.h>
 #include <sys/stat.h>
 
@@ -78,8 +79,37 @@ struct Scan {
   int js = 0, ts = 0, py = 0, cpp = 0, go = 0, rs = 0, swift = 0, java = 0;
   vector<string> codeDirs;
   vector<string> testFiles;
+  vector<std::regex> guardTestRx;   // guard.json testPaths — the project's own law
   int total() const { return js + ts + py + cpp + go + rs + swift + java; }
 };
+
+// guard.json's testPaths are authored per-project (LLM or hand); when they
+// exist they beat any heuristic — express keeps its suite in test/*.js, which
+// no test_*/tests/ pattern sees. Caught live in the wild, 31.07: an empty
+// testFiles list meant ZERO hash locks, and a test-neutering fake fix sailed
+// through repair as VERIFIED.
+static void load_guard_test_rx(const string& dir, Scan& s) {
+  const string g = read_file(dir + "/.rabadon/guard.json");
+  if (g.empty()) return;
+  size_t k = g.find("\"testPaths\"");
+  if (k == string::npos) return;
+  size_t a = g.find('[', k), b = g.find(']', a);
+  if (a == string::npos || b == string::npos) return;
+  size_t i = a;
+  while (i < b) {
+    size_t q = g.find('"', i + 1);
+    if (q == string::npos || q >= b) break;
+    string pat; size_t j = q + 1;
+    for (; j < b; j++) {
+      if (g[j] == '\\' && j + 1 < b) { pat += g[j + 1]; j++; continue; }  // JSON unescape
+      if (g[j] == '"') break;
+      pat += g[j];
+    }
+    try { s.guardTestRx.emplace_back(pat, std::regex::ECMAScript | std::regex::icase); }
+    catch (...) { /* a broken pattern must not kill discovery */ }
+    i = j;
+  }
+}
 
 static void scan_into(const string& dir, const string& rel, Scan& s, int depth, int& budget) {
   if (depth > 4 || budget <= 0) return;
@@ -111,11 +141,15 @@ static void scan_into(const string& dir, const string& rel, Scan& s, int depth, 
       s.codeDirs.push_back(top);
     // a test file is one the arbiter must later LOCK, so a fix cannot be faked
     // by weakening the check that caught it
-    const bool looksTest =
+    bool looksTest =
         n.rfind("test_", 0) == 0 || n.find("_test.") != string::npos ||
         n.find(".test.") != string::npos || n.find(".spec.") != string::npos ||
+        r.rfind("test/", 0) == 0 || r.find("/test/") != string::npos ||
         r.find("tests/") != string::npos || r.find("__tests__/") != string::npos;
-    if (looksTest && s.testFiles.size() < 64) s.testFiles.push_back(r);
+    if (!looksTest)
+      for (const auto& rx : s.guardTestRx)
+        if (std::regex_search(r, rx)) { looksTest = true; break; }
+    if (looksTest && s.testFiles.size() < 512) s.testFiles.push_back(r);
   }
 }
 
@@ -235,6 +269,7 @@ int main(int argc, char** argv) {
   while (dir.size() > 1 && dir.back() == '/') dir.pop_back();
 
   Scan s;
+  load_guard_test_rx(dir, s);
   int budget = 20000;             // bounded walk: a huge repo must not stall a hook
   scan_into(dir, "", s, 0, budget);
   Truth t = detect(dir, s);
@@ -246,7 +281,7 @@ int main(int argc, char** argv) {
       dirs += "\"" + json_escape(s.codeDirs[i]) + "\"";
     }
     string tests;
-    for (size_t i = 0; i < s.testFiles.size() && i < 32; i++) {
+    for (size_t i = 0; i < s.testFiles.size() && i < 512; i++) {
       if (i) tests += ",";
       tests += "\"" + json_escape(s.testFiles[i]) + "\"";
     }

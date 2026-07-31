@@ -345,9 +345,16 @@ int main(int argc, char** argv) {
     }
     std::ofstream pf(patchPath, std::ios::trunc); pf << patch;
   }
-  em.emit("REPAIR_OK", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\"");
+  em.emit("REPAIR_OK", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()));
+  // grade the evidence out loud: "hash-locked" is only a claim when there WAS
+  // a lock. Zero discovered test files means the tamper check could not run —
+  // say so, never imply a protection that did not happen.
+  if (locks.empty())
+    printf("  VERIFIED: the same check re-ran GREEN in the isolated copy.\n"
+           "  WARNING: 0 test files were discovered to hash-lock — the anti-tamper check had nothing to hold. Review the diff with extra care.\n");
+  else
+    printf("  VERIFIED: the same check re-ran GREEN in the isolated copy and all %zu hash-locked test file(s) are untouched.\n", locks.size());
   printf(
-    "  VERIFIED: the same check re-ran GREEN in the isolated copy and every test file's hash is untouched.\n"
     "  the fix is HELD, not applied — review and apply it yourself:\n"
     "      cd %s\n"
     "      patch -p1 < .rabadon/%s\n"
