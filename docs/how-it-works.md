@@ -126,8 +126,11 @@ The honest split between what each can and cannot stop is in
 ## Measured latency
 
 The hot path is deterministic C++, never a model. The native gate decides in
-roughly **1ms**, against Claude Code's **900ms** hook timeout budget — so
-supervision is effectively free on the critical path. Reproduce the measurement
+**2.3 ms** at the median — 2.29 ms to allow, 2.33 ms to refuse, n=40 — against
+the legacy Node gate's 101 ms, a 44x median gap that is mostly process startup.
+The hook timeout it runs inside is measured in seconds, so supervision is
+effectively free on the critical path. Every figure here comes out of
+[BENCHMARK.md](../BENCHMARK.md) and nowhere else. Reproduce the measurement
 yourself:
 
 ```

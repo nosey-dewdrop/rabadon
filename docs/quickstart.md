@@ -133,7 +133,8 @@ claude
 ```
 
 Nothing changes in how you use Claude Code. The gate runs on every tool action
-in single-digit milliseconds (native path ~1ms against a 900ms hook budget). If
+in single-digit milliseconds — 2.3 ms at the median, measured, see
+[BENCHMARK.md](../BENCHMARK.md). If
 the agent tries something the guard forbids, the action is refused (exit 2) and
 the reason is written back to the agent so it self-corrects.
 
@@ -147,7 +148,7 @@ rabadon usage
 rabadon usage — last 7 day(s) · local, nothing leaves this machine
 source: ~/.rabadon/spool
 
-  3 refused before they happened · 41 actions gated · 0 repairs accepted
+  3 refused before they happened · 41 actions gated · 0 repairs held
 
   my-project                                          last event: 2026-07-31 14:22:07
         2x  no-force-push-main

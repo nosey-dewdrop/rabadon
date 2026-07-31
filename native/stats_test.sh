@@ -38,6 +38,10 @@ cat > "$SPOOL/$DAY.jsonl" <<EOF
 {"v":1,"seq":1,"ts":$TS1,"run":"r4","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","detail":"legacy-rule-prefix — some long explanation after the em dash"}
 {"v":1,"seq":1,"ts":$TS1,"run":"r5","pipe":"alpha:session","ev":"WOULD_BLOCK","reason":"no-rm-rf-outside","rule":"no-rm-rf-outside","sid":"s1","detail":"command matched deny rule: rm -rf /"}
 {"v":1,"seq":1,"ts":$TS1,"run":"r6","pipe":"alpha:session","ev":"REPAIR_OK","step":"fix"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r6b","pipe":"alpha:session","ev":"REPAIR_OK","step":"session-repair","cmd":"npm test","patch":".rabadon/x.patch","locks":3}
+{"v":1,"seq":1,"ts":$TS1,"run":"r6c","pipe":"alpha:session","ev":"REPAIR_OK","step":"session-repair","cmd":"npm test","patch":".rabadon/y.patch","locks":0}
+{"v":1,"seq":1,"ts":$TS1,"run":"r6d","pipe":"alpha:session","ev":"REPAIR_OK","step":"push-gate","attempt":1,"repair_kind":"testrun"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r6e","pipe":"alpha:session","ev":"REPAIR_OK","step":"new gate: no-x","attempt":1,"repair_kind":"rule"}
 {"v":1,"seq":1,"ts":$TS1,"run":"r7","pipe":"beta:session","ev":"STEP_START","step":"bash: pwd"}
 {"v":1,"seq":1,"ts":$TS1,"run":"r8","pipe":"beta:session","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"loop-stop","why":"same command 3x"}]}
 {"v":1,"seq":1,"ts":$TS1,"run":"d1","pipe":"gamma:session","ev":"STOP","reason":"BLOCKED","rule":"tagged-drill","detail":"x","drill":true}
@@ -62,7 +66,15 @@ check_not() {
 echo "stats_test: usage renderer contract"
 
 U="$(run --days 7)"
-check "headline totals: 3 refused, 2 gated, 1 repair" '3 refused before they happened · 2 actions gated · 1 repairs accepted' "$U"
+check "headline totals: 3 refused, 2 gated, 1 repair HELD" '3 refused before they happened · 2 actions gated · 1 repairs held' "$U"
+# five REPAIR_OK events, four different facts. The headline may only claim the
+# one that is proven: a fix re-checked while the test files were hash-locked.
+check "headline keeps unverified out of the held count" '1 repairs held · 2 unverified' "$U"
+check "bucket: only a hash-locked fix counts as held" 'repairs held \(locked\): +1' "$U"
+check "bucket: locks:0 and no-locks land in unverified" 'repairs unverified: +2' "$U"
+check "bucket: a green push-gate suite repaired nothing" 'push gates passed: +1' "$U"
+check "bucket: writing a rule repaired nothing" 'rules written: +1' "$U"
+check_not "the old lumped counter is gone" 'repairs accepted' "$U"
 check "watch bucket in headline" '1 would-have-refused \(watch\)' "$U"
 check "rule-id grouping: 2x no-force-push-main (rule field + run-join)" '2x  no-force-push-main' "$U"
 check "rule why rendered under the id" 'force-pushing a shared branch destroys history' "$U"
@@ -85,6 +97,8 @@ J="$(run --days 7 --json)"
 check "--json totals" '"totals":\{"refused":3,"wouldRefuse":1,"gated":2,' "$J"
 check "--json rule objects" '\{"rule":"no-force-push-main","n":2,' "$J"
 check "--json drills counter" '"drillsExcluded":3' "$J"
+check "--json splits the repair buckets too" '"repairsHeld":1,"repairsUnverified":2,"pushGatesPassed":1,"rulesWritten":1' "$J"
+check_not "--json no longer ships one lumped repair number" 'repairsAccepted' "$J"
 
 M="$(run --days 7 --md)"
 check "--md headline" '\*\*3 refused before they happened' "$M"

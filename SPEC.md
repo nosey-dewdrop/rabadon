@@ -35,7 +35,7 @@ is deterministic C++, never a model.
    (`@rabadon/<os>-<cpu>` optional deps), with a source-build fallback. Gate,
    session kernel, drift, verify, loop, task engine, stats, audit, repair,
    sandbox, export, doctor, init — all native. Median per-event overhead under
-   5ms [proven for gate: 2.1ms vs 101ms node]. [proven: prebuilt packaging +
+   5ms [proven for gate: 2.3ms vs 101ms node]. [proven: prebuilt packaging +
    provenance workflow wired; first npm publish pending the maintainer]
 
 2. **The law writes itself.** The builder does not hand-author rules. Law is
@@ -84,8 +84,9 @@ passed when its number is real on this machine's ledger.
   in which no rule is hand-written anywhere in the fleet — every new rule
   machine-authored — and goal-drift is blocked mid-session with counted
   events on real sessions.
-- **G3 — repair is real.** `repairs accepted > 0` on real, non-demo breakage,
-  verified by the broken project's own suite.
+- **G3 — repair is real.** `repairs held > 0` on real, non-demo breakage,
+  verified by the broken project's own suite while its test files were
+  hash-locked. Accepted-but-unwitnessed does not clear this gate.
 - **G4 — first stranger.** One external builder installs rabadon and gets one
   real catch on their machine.
 - **G5 — the benchmark.** A public, reproducible numbers page: overhead in

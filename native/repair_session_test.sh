@@ -120,9 +120,12 @@ if [ $RC -eq 3 ] && printf '%s' "$OUT" | grep -q "proposer unavailable"; then pa
 OUT=$("$AUDIT" --days 2); RC=$?
 if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "INTACT"; then pass "audit: repair events are chained, verdict INTACT"; else fail "audit rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 
-# usage counts exactly the accepted repair
+# usage counts exactly the accepted repair — and in the bucket it EARNED. A fix
+# only reaches "held" if test files were hash-locked while it was re-checked;
+# landing in "unverified" here would mean the anti-tamper evidence never
+# existed, which is the one thing this path sells.
 U=$(RABADON_DIR="$RABADON_DIR" "$STATS" --days 2)
-printf '%s' "$U" | grep -q "1 repairs accepted" && pass "usage headline counts exactly 1 repair accepted" || { fail "usage count"; printf '%s\n' "$U" | sed 's/^/    | /'; }
+printf '%s' "$U" | grep -q "1 repairs held" && pass "usage headline counts exactly 1 repair HELD (hash-locked, not merely accepted)" || { fail "usage count"; printf '%s\n' "$U" | sed 's/^/    | /'; }
 
 echo "repair session: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

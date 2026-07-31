@@ -339,6 +339,13 @@ struct Event {
   string fail_check;  // fails[0].check
   u16string fail_why; // fails[0].why
   u16string detail;   // STOP / WOULD_BLOCK
+  // REPAIR_OK carries FOUR different facts under one event name. repair_kind
+  // separates them at the source: "testrun" = the push gate ran the suite and
+  // it went green, "rule" = a guard rule was written, absent = an actual code
+  // repair. For a repair, `locks` is how many test files were hash-locked while
+  // the fix was re-checked — 0 means the anti-tamper check had nothing to hold.
+  string repair_kind;
+  long long locks = 0;
   bool marker_hit = false;
 };
 
@@ -419,7 +426,9 @@ struct Rule {
 };
 struct Proj {
   string name;
-  long long gated = 0, blocked = 0, wouldBlocked = 0, checkFails = 0, loopsStopped = 0, repairsOk = 0;
+  long long gated = 0, blocked = 0, wouldBlocked = 0, checkFails = 0, loopsStopped = 0;
+  // one bucket per FACT, never one bucket for the word "repair"
+  long long repairsHeld = 0, repairsUnverified = 0, pushGates = 0, rulesWritten = 0;
   double lastTs = 0;
   std::vector<Rule> rules;      // blocked, grouped by rule id
   std::vector<Rule> wouldRules; // watch-mode verdicts, grouped by rule id
@@ -551,6 +560,10 @@ int main(int argc, char** argv) {
           }
         }
       }
+      if (e.ev == "REPAIR_OK") {
+        if (const JV* rk = root.get("repair_kind")) if (rk->t == JV::STR) e.repair_kind = u16_to_utf8(json_body_to_u16(rk->s));
+        if (const JV* lk = root.get("locks")) if (lk->t == JV::NUM) e.locks = (long long)lk->num();
+      }
       e.drill = e.drill_emit;
       e.marker_hit = !e.drill_emit && drill_marker(line);
       events.push_back(std::move(e));
@@ -643,7 +656,16 @@ int main(int argc, char** argv) {
       r.n++;
       r.hits.push_back({e.ts, e.detail});
     }
-    if (e.ev == "REPAIR_OK") s.repairsOk++;
+    // A single "repairs accepted" number counted a green test suite, an
+    // installed rule and an unwitnessed fix as if they were the same
+    // achievement. They are not, and the one that sells the product is the
+    // smallest of them, so it gets counted alone.
+    if (e.ev == "REPAIR_OK") {
+      if (e.repair_kind == "testrun") s.pushGates++;
+      else if (e.repair_kind == "rule") s.rulesWritten++;
+      else if (e.locks > 0) s.repairsHeld++;
+      else s.repairsUnverified++;
+    }
   }
   std::stable_sort(projects.begin(), projects.end(), [](const Proj& a, const Proj& b) { return a.lastTs > b.lastTs; });
   for (Proj& p : projects) {
@@ -656,10 +678,13 @@ int main(int argc, char** argv) {
     projects = std::move(kept);
   }
 
-  long long tBlocked = 0, tWould = 0, tGated = 0, tRepairs = 0, tFails = 0;
+  long long tBlocked = 0, tWould = 0, tGated = 0, tFails = 0;
+  long long tHeld = 0, tUnverified = 0, tPushGates = 0, tRules = 0;
   for (const Proj& p : projects) {
     tBlocked += p.blocked; tWould += p.wouldBlocked; tGated += p.gated;
-    tRepairs += p.repairsOk; tFails += p.checkFails;
+    tFails += p.checkFails;
+    tHeld += p.repairsHeld; tUnverified += p.repairsUnverified;
+    tPushGates += p.pushGates; tRules += p.rulesWritten;
   }
 
   // ---- render: --json ----
@@ -667,7 +692,9 @@ int main(int argc, char** argv) {
     string out = "{\"days\":" + js_num_str(days) + ",\"spool\":\"" + json_escape(spool) + "\",";
     out += "\"totals\":{\"refused\":" + std::to_string(tBlocked) + ",\"wouldRefuse\":" + std::to_string(tWould)
         + ",\"gated\":" + std::to_string(tGated) + ",\"checkFails\":" + std::to_string(tFails)
-        + ",\"repairsAccepted\":" + std::to_string(tRepairs) + ",\"drillsExcluded\":" + std::to_string(drills) + "},";
+        + ",\"repairsHeld\":" + std::to_string(tHeld) + ",\"repairsUnverified\":" + std::to_string(tUnverified)
+        + ",\"pushGatesPassed\":" + std::to_string(tPushGates) + ",\"rulesWritten\":" + std::to_string(tRules)
+        + ",\"drillsExcluded\":" + std::to_string(drills) + "},";
     out += "\"projects\":[";
     for (size_t i = 0; i < projects.size(); i++) {
       const Proj& p = projects[i];
@@ -675,7 +702,9 @@ int main(int argc, char** argv) {
       out += "{\"name\":\"" + json_escape(p.name) + "\",\"gated\":" + std::to_string(p.gated)
           + ",\"refused\":" + std::to_string(p.blocked) + ",\"wouldRefuse\":" + std::to_string(p.wouldBlocked)
           + ",\"checkFails\":" + std::to_string(p.checkFails) + ",\"loopsStopped\":" + std::to_string(p.loopsStopped)
-          + ",\"repairsAccepted\":" + std::to_string(p.repairsOk) + ",\"lastTs\":" + js_num_str(p.lastTs) + ",";
+          + ",\"repairsHeld\":" + std::to_string(p.repairsHeld) + ",\"repairsUnverified\":" + std::to_string(p.repairsUnverified)
+          + ",\"pushGatesPassed\":" + std::to_string(p.pushGates) + ",\"rulesWritten\":" + std::to_string(p.rulesWritten)
+          + ",\"lastTs\":" + js_num_str(p.lastTs) + ",";
       auto rules_json = [&](const std::vector<Rule>& v) {
         string o = "[";
         for (size_t k = 0; k < v.size(); k++) {
@@ -696,7 +725,8 @@ int main(int argc, char** argv) {
   if (md) {
     string out = "# rabadon usage — last " + js_num_str(days) + " day(s)\n\n";
     out += "**" + commas(tBlocked) + " refused before they happened · " + commas(tGated)
-         + " actions gated · " + commas(tRepairs) + " repairs accepted**";
+         + " actions gated · " + commas(tHeld) + " repairs held**";
+    if (tUnverified) out += " · " + commas(tUnverified) + " repair(s) unverified";
     if (tWould) out += " · " + commas(tWould) + " would-have-refused (watch mode)";
     out += "\n\n";
     if (projects.empty()) out += "_no events in this window._\n\n";
@@ -708,7 +738,11 @@ int main(int argc, char** argv) {
       if (p.wouldBlocked) out += "| would have caught (watch) | " + commas(p.wouldBlocked) + " |\n";
       out += "| checks failed (caught) | " + commas(p.checkFails) + " |\n";
       if (p.loopsStopped) out += "| loops stopped | " + commas(p.loopsStopped) + " |\n";
-      out += "| repairs accepted | " + commas(p.repairsOk) + " |\n\n";
+      out += "| repairs held (test files hash-locked) | " + commas(p.repairsHeld) + " |\n";
+      out += "| repairs unverified (nothing was locked) | " + commas(p.repairsUnverified) + " |\n";
+      if (p.pushGates) out += "| push gates passed (suite ran green) | " + commas(p.pushGates) + " |\n";
+      if (p.rulesWritten) out += "| rules written | " + commas(p.rulesWritten) + " |\n";
+      out += "\n";
       auto md_rules = [&](const std::vector<Rule>& v, const char* title) {
         if (v.empty()) return;
         out += string("**") + title + "**\n\n";
@@ -744,7 +778,8 @@ int main(int argc, char** argv) {
   }
 
   out += "  " + commas(tBlocked) + " refused before they happened · " + commas(tGated)
-       + " actions gated · " + commas(tRepairs) + " repairs accepted";
+       + " actions gated · " + commas(tHeld) + " repairs held";
+  if (tUnverified) out += " · " + commas(tUnverified) + " unverified";
   if (tWould) out += " · " + commas(tWould) + " would-have-refused (watch)";
   out += "\n\n";
 
@@ -778,7 +813,11 @@ int main(int argc, char** argv) {
     out += "    checks failed (caught):   " + commas(s.checkFails);
     if (s.loopsStopped > 0) out += "  (loops stopped: " + commas(s.loopsStopped) + ")";
     out += "\n";
-    out += "    repairs accepted:         " + commas(s.repairsOk) + "\n\n";
+    out += "    repairs held (locked):    " + commas(s.repairsHeld) + "\n";
+    out += "    repairs unverified:       " + commas(s.repairsUnverified) + "\n";
+    if (s.pushGates) out += "    push gates passed:        " + commas(s.pushGates) + "\n";
+    if (s.rulesWritten) out += "    rules written:            " + commas(s.rulesWritten) + "\n";
+    out += "\n";
   }
   if (drills > 0) out += "  (" + commas(drills) + " event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)\n";
   fwrite(out.data(), 1, out.size(), stdout);

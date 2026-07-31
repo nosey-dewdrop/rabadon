@@ -24,8 +24,12 @@ test('fresh project: settings created with every gate hook + drift on Stop + sta
   assert.ok(JSON.stringify(s.hooks.Stop).includes('rabadon-drift'), 'Stop must also carry drift');
   for (const evName of ['PreToolUse', 'PostToolUse']) {
     assert.equal(s.hooks[evName][0].matcher, '*', `${evName} covers every tool, MCP included`);
-    assert.equal(s.hooks[evName][0].hooks[0].timeout, 900, `${evName} carries the hook budget`);
   }
+  // seconds, not milliseconds — and each ceiling sits ABOVE the gate's own
+  // internal cap, so rabadon's bounded timer fires first and every outcome
+  // carries a verdict instead of an unattributed hook kill
+  assert.equal(s.hooks.PreToolUse[0].hooks[0].timeout, 960, 'PreToolUse outlasts the 900s push-gate suite budget');
+  assert.equal(s.hooks.PostToolUse[0].hooks[0].timeout, 120, 'PostToolUse outlasts the 90s incident brain');
   assert.ok(s.statusLine.command.includes('--statusline'));
   assert.ok(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').includes('.rabadon/state.json'));
 });

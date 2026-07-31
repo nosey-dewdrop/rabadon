@@ -28,20 +28,36 @@ times each over 40 runs per case.
 - native — `native/rabadon-gate` (the C++ core)
 - node — `hooks/gate.mjs` (the legacy Node gate)
 
-Parity held: native == node on both verdicts (allow=0, deny=2).
+Parity held: native == node on both verdicts (allow=0, deny=2). It only holds
+because the harness now ARMS the isolated home it benchmarks in. `RABADON_DIR`
+relocates the whole rabadon home, mode flags included, so a fresh temp home
+starts in WATCH — where the native gate records a deny and exits 0 while the
+node gate, which has no watch mode, exits 2. That read as a parity break for as
+long as the isolation existed; it was an unset switch, and a bench that leaves
+it unset is timing a gate nobody runs.
 
-| gate   | case  | median   | p95       | n  |
-|--------|-------|----------|-----------|----|
-| native | allow | 2.15 ms  | 2.59 ms   | 40 |
-| native | deny  | 2.16 ms  | 2.39 ms   | 40 |
-| node   | allow | 98.11 ms | 129.76 ms | 40 |
-| node   | deny  | 98.57 ms | 116.29 ms | 40 |
+| gate   | case  | median    | p95       | n  |
+|--------|-------|-----------|-----------|----|
+| native | allow | 2.29 ms   | 3.36 ms   | 40 |
+| native | deny  | 2.33 ms   | 2.53 ms   | 40 |
+| node   | allow | 100.77 ms | 112.49 ms | 40 |
+| node   | deny  | 102.00 ms | 125.23 ms | 40 |
 
-Median hook tax drops from ~98 ms (node process startup dominates) to ~2 ms
-(native) — about 45x faster at the median. Medians are stable run to run
-(three runs this session: native allow 2.15 / 2.17 / 2.17 ms, node allow
-98.11 / 96.04 / ~97 ms). The native p95 is noisier on a laptop (scheduler /
-spawn jitter) — the median is the robust number.
+Median hook tax drops from ~101 ms (node process startup dominates) to 2.3 ms
+(native) — 44x faster at the median. Medians are stable run to run (five runs
+this session: native allow 2.44 / 2.36 / 2.31 / 2.26 / 2.29 ms, node allow
+100.49 / 99.87 / 99.88 / 100.78 / 100.77 ms). The native p95 is noisier on a
+laptop (scheduler / spawn jitter) — the median is the robust number.
+
+Every latency figure in README.md and docs/ is this table's number. There is no
+second source, and there is no rounding in either direction.
+
+One path is deliberately not 2.3 ms: a `git push` after code changed since the
+last green test run makes the gate run the project's suite inside that same
+hook call. That is bounded by `pushGate.timeoutSec` (default 900 s), and the
+installed hook ceiling sits above it at 960 s on purpose — if the outer timeout
+fired first, the action would be neither allowed with a verdict nor refused
+with a reason.
 
 Command: `RABADON_NOTIFY=0 make bench`.
 
@@ -82,46 +98,60 @@ Commands:
 
 ## 3. The ledger — rabadon's own word about what it caught  `[proven]`
 
-`rabadon stats --days 30` aggregates the local spool (`~/.rabadon/spool/`). The
-tool already excludes its own self-drills/demos/self-tests at emit. On top of
-that, the numbers below split RAW (every project the report lists) from
-REAL-WORK (excluding rabadon's synthetic benchmark harnesses `rabadon-bench-*`
-and the `rbd-*` probe scaffolds), so the number is not gamed.
+`rabadon usage --days 30` aggregates the local spool (`~/.rabadon/spool/`). It
+excludes its own drills, demos and self-tests at emit — 3,495 events in this
+window — so a tool that counts its own test runs as catches never happens here.
+59 projects, one machine, real work:
 
-| view          | actions gated | caught before happening | checks failed | loops stopped | repairs accepted |
-|---------------|---------------|-------------------------|---------------|---------------|------------------|
-| RAW (29 projects) | 3707      | 690                     | 772           | 2             | **0**            |
-| REAL-WORK only    | 3047      | 33                      | 115           | 2             | **0**            |
+| view                    | actions gated | caught before happening | would have caught (watch) | checks failed | loops stopped |
+|-------------------------|---------------|-------------------------|---------------------------|---------------|---------------|
+| all projects (30 days)  | 15,188        | 61                      | 68                        | 314           | 2             |
 
-The gap between RAW and REAL is entirely synthetic: 8 `rabadon-bench-*`
-harnesses each fired 82 identical `git push --force origin main` deny-rule
-catches — that is rabadon testing itself, not catches on real projects. Both
-views are reported so the headline number is honest.
+Biggest signal, by project:
 
-Biggest REAL signal (from the ledger):
+| project     | actions gated | caught before happening | checks failed | loops stopped |
+|-------------|---------------|-------------------------|---------------|---------------|
+| stitchu     | 4,196         | 43                      | 107           | 2             |
+| rabadon     | 3,640         | 12                      | 112           | 0             |
+| damummyphus | 2,162         | 3                       | 27            | 0             |
 
-| project | actions gated | caught before happening | checks failed | loops stopped | repairs accepted |
-|---------|---------------|-------------------------|---------------|---------------|------------------|
-| stitchu | 1588          | 26                      | 57            | 2             | **0**            |
-| rabadon | 509           | 4                       | 43            | 0             | **0**            |
+What was caught on stitchu (verbatim rule ids from the ledger): `push-gate` 14x
+(code edited after the last passing test run), `no-rm-rf-outside-project` 9x,
+`no-wrangler-deploy` 6x, `generated-web-html` 5x, `ctest-tail-hides-verdict` 3x,
+`loop-stop` 2x, `test-tamper` 2x (assertions being removed from
+`test_style.cpp` while the suite was red), `golden-reference` 1x,
+`no-force-push-main` 1x.
 
-What was caught on stitchu (verbatim from the ledger): code edited after the
-last passing test (6x), `npx wrangler deploy` blocked by a deny rule (4x),
-protected files refused overwrite, `git push --force origin main` refused,
-2 loops stopped, an assertion-removal on `test_style.cpp` and a skip-marker on
-`x.test.mjs` refused while the suite was red.
+### The repair counter, split — and what the split cost
 
-`repairs accepted: 0` — on EVERY project, RAW and REAL, including the drills.
-Nothing has flowed through the auto-repair path yet on this machine.
+This page used to carry one number called **repairs accepted**, and it was 0,
+and that was reported as honesty. It was worse than a wrong number: it was one
+bucket holding four different events, because `REPAIR_OK` is emitted by the
+push gate when a suite goes green, by the gate when a new rule is written, and
+by the repair path whether or not any test file was hash-locked while the fix
+was re-checked. Counting those together means the headline can grow without a
+single line of code ever being repaired.
 
-Command: `RABADON_NOTIFY=0 node bin/rabadon.mjs stats --days 30`.
+Split by what actually happened:
 
-Note: as of this session the bench harness writes to an ISOLATED spool
-(`RABADON_DIR` set per run), so bench drills no longer inflate the real ledger —
-RAW stops growing from self-tests here. Historical RAW still carries earlier
-bench drills, which is exactly why REAL-WORK is the honest headline. The stable
-facts this page rests on: node/native parity held, stitchu is the largest real
-signal, and repairs-accepted is 0 across the board.
+| bucket                                        | 30 days |
+|-----------------------------------------------|---------|
+| repairs **held** — fix re-checked with test files hash-locked | **0** |
+| repairs unverified — nothing was locked, so nothing witnessed it | 3 |
+| push gates passed — a suite ran green, nothing was repaired    | 0 |
+| rules written — law was authored, nothing was repaired         | 1 |
+
+The three that used to read as "repairs accepted" are all unverified, all on
+stitchu. The number that sells the product — a fix proven against test files
+that provably did not move — is still **0**, and it stays on this page as 0
+until it isn't.
+
+Command: `RABADON_NOTIFY=0 rabadon usage --days 30`.
+
+Note: the bench harness writes to an ISOLATED spool (`RABADON_DIR` per run), so
+bench drills do not inflate this ledger. The stable facts this page rests on:
+node/native parity held, stitchu is the largest real signal, and repairs-held is
+0 across the board.
 
 ---
 
@@ -137,21 +167,24 @@ signal, and repairs-accepted is 0 across the board.
 Passive tracers (Langfuse, Braintrust) wrap the client and watch; they cannot
 stop a bad call and cannot repair it. Galileo's inline gate CAN stop a call
 (block or canned override) but does not repair. rabadon is inline, fail-closed,
-pre-spend on real projects (29 real catches: stitchu 26, rabadon 3–4, drills
-excluded), overhead is deterministic C++ single-digit ms. The repair loop is
-proven in the test suite but has accepted 0 repairs on real breakage so far.
+pre-spend on real projects (61 real catches in 30 days: stitchu 43, rabadon 12,
+drills excluded), overhead is deterministic C++ at 2.3 ms. The repair loop is
+proven in the test suite but has held 0 hash-locked repairs on real breakage so
+far.
 
 ---
 
 ## 5. Not yet — the next gate
 
-**repairs accepted = 0.** `[building]`
+**repairs held = 0.** `[building]`
 
-That number is 0 on every project here, RAW and REAL, drills included. The
-repair path is proven in-suite (a real repair is accepted, a gamed repair is
-rejected and the loop fails closed) but has never accepted a repair on real,
-non-demo breakage. G3 — the first accepted repair on real breakage, moving that
-counter above 0 — is the next gate. It stays 0 on this page until it isn't.
+That number is 0 on every project here, drills included. The repair path is
+proven in-suite (a real repair is accepted, a gamed repair is rejected and the
+loop fails closed) but has never held a hash-locked repair on real, non-demo
+breakage. The 3 the ledger does carry are unverified — the anti-tamper check
+had no test file to hold, so nothing witnessed them, so they do not count. G3 —
+the first HELD repair on real breakage, moving that counter above 0 — is the
+next gate. It stays 0 on this page until it isn't.
 
 ---
 
@@ -161,7 +194,7 @@ counter above 0 — is the next gate. It stays 0 on this page until it isn't.
 RABADON_NOTIFY=0 bench/reproduce.sh
 ```
 
-Numbers vary slightly with machine load. The reproducible facts: ~2 ms native
-gate median, ~45x median gap over node, 13/13 node==native parity + 53/0 and
-9/0 native suites, 29 real catches on stitchu+rabadon (drills excluded), and
-repairs-accepted = 0.
+Numbers vary slightly with machine load. The reproducible facts: 2.3 ms native
+gate median, 44x median gap over node, 13/13 node==native parity + 53/0 and
+9/0 native suites, 55 real catches on stitchu+rabadon in 30 days (drills
+excluded), and repairs-held = 0.

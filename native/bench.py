@@ -65,8 +65,17 @@ def main():
     # spool/socket at a throwaway dir so the real ledger stays clean by
     # construction, not just by filtering the report. (RABADON_NOTIFY=0 too, so
     # a bench run never pops a macOS notification.)
-    os.environ["RABADON_DIR"] = tempfile.mkdtemp(prefix="rabadon-bench-spool-")
+    home = tempfile.mkdtemp(prefix="rabadon-bench-spool-")
+    os.environ["RABADON_DIR"] = home
     os.environ["RABADON_NOTIFY"] = "0"
+    # ...and carry the MODE across with it. RABADON_DIR moves the whole rabadon
+    # home, mode flags included, so an isolated home starts in WATCH — where the
+    # native gate records a deny and exits 0 while the node gate, which has no
+    # watch mode, exits 2. That reads as a parity break and is really an unset
+    # switch: the bench must arm the isolated home the way a real install is
+    # armed, or it benchmarks a gate nobody runs.
+    with open(os.path.join(home, "enabled"), "w") as f:
+        f.write("on\n")
     forbidden = "git pu" + "sh --for" + "ce origin ma" + "in"  # never through a shell
     cases = {
         "allow": event(scratch, "ls -la", "bench"),

@@ -17,10 +17,10 @@
 //     first-class operation, not manual settings surgery.
 //
 // The commands written are the NATIVE binaries by absolute install path: the
-// gate runs on every tool call inside a 900ms hook budget — native is ~1ms,
-// a node shim is 50-80ms cold, npx is worse and fragile. The path is resolved
-// from THIS file's location, so it is correct for npm -g, npm link, and git
-// clones alike.
+// gate runs on every tool call, native decides in 2.3ms (BENCHMARK.md), a node
+// shim is 50-80ms cold, npx is worse and fragile. The path is resolved from
+// THIS file's location, so it is correct for npm -g, npm link, and git clones
+// alike.
 //
 // Used by `rabadon init` (one project) and `rabadon fleet` (all of them) —
 // one merge implementation, not two that drift apart.
@@ -114,15 +114,29 @@ function stripOurs(settings) {
   return removed;
 }
 
+// Claude Code's hook `timeout` is SECONDS (default 600). Two hooks, two
+// ceilings, because they do two different jobs — and each ceiling sits ABOVE
+// the gate's own internal cap on purpose. If the outer timeout fires first the
+// fail-closed promise decays into an unattributed kill: the action is neither
+// allowed with a verdict nor refused with a reason. rabadon's own bounded
+// timer has to be the one that wins.
+//   PreToolUse   2.3ms for an ordinary call, but the push-gate branch RUNS the
+//                project's suite before it opens (native/gate.cpp, pushGate
+//                .timeoutSec, default 900s) — 960 leaves that timer first.
+//   PostToolUse  no suite, but the incident brain is a bounded `claude -p`
+//                capped at 90s — 120 leaves that timer first.
+const PRE_TIMEOUT_SEC = 960;
+const POST_TIMEOUT_SEC = 120;
+
 function desiredHooks(gateCmd, driftCmd) {
   const bare = { hooks: [{ type: 'command', command: gateCmd }] };
-  const matched = { matcher: TOOL_MATCHER, hooks: [{ type: 'command', command: gateCmd, timeout: 900 }] };
+  const matched = (timeout) => ({ matcher: TOOL_MATCHER, hooks: [{ type: 'command', command: gateCmd, timeout }] });
   return {
     SessionStart: [bare],
     UserPromptSubmit: [bare],
     Stop: [bare, { hooks: [{ type: 'command', command: driftCmd }] }],
-    PreToolUse: [matched],
-    PostToolUse: [matched],
+    PreToolUse: [matched(PRE_TIMEOUT_SEC)],
+    PostToolUse: [matched(POST_TIMEOUT_SEC)],
   };
 }
 

@@ -35,9 +35,14 @@ rule id so you always know which one to add.
 
 ## Will it slow my session?
 
-No meaningfully. The gate is deterministic native C++ and decides in roughly
-**1ms**, against Claude Code's 900ms hook budget. The hot path never calls a
-model. Reproduce the number with `make bench`.
+No meaningfully. The gate is deterministic native C++ and decides in **2.3 ms**
+at the median (2.29 ms allow, 2.33 ms deny, n=40); the hook timeout it runs
+inside is measured in seconds. The hot path never calls a model. Reproduce the
+number with `make bench` — it prints the table BENCHMARK.md is built from.
+
+One action is deliberately not free: a `git push` when code changed after the
+last green test run. There the gate runs your suite before it opens, so that
+one hook call costs whatever your tests cost.
 
 ## Does anything leave my machine?
 

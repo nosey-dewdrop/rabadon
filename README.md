@@ -39,22 +39,27 @@ From the author's own week, replayable from the spool — a mid-session `wrangle
 ```
 rabadon usage — last 7 day(s) · local, nothing leaves this machine
 
-  61 refused before they happened · 10,564 actions gated · 3 repairs accepted
+  61 refused before they happened · 15,178 actions gated · 0 repairs held · 3 unverified
 
-  stitchu                                            last event: today 15:56
-    actions gated             3,330
-    caught before happening      43
-      13x  push-gate           code was edited after the last passing test run
-       6x  no-wrangler-deploy  deploys go through CI, never from a live session
-       5x  no-rm-rf-outside    recursive delete outside the project tree is unrecoverable
-       2x  loop-stop           the same command a 3rd time with no code change in between
-    checks failed (caught)       98   (loops stopped: 2)
-    repairs accepted              3
+  stitchu                                            last event: today 23:40
+    actions gated                     4,195
+    caught before happening              43
+      14x  push-gate                   code was edited after the last passing test run
+       9x  no-rm-rf-outside-project    recursive delete outside the project tree is unrecoverable
+       6x  no-wrangler-deploy          deploys go through CI, never from a live session
+       5x  generated-web-html          a generated file was about to be hand-edited
+       3x  ctest-tail-hides-verdict    piping the suite through tail buries the real verdict
+       2x  loop-stop                   the same command a 3rd time with no code change in between
+    checks failed (caught)              105   (loops stopped: 2)
+    repairs held (locked)                 0
+    repairs unverified                    3
 
-  (312 event(s) from rabadon's own drills and self-tests — excluded from every number above)
+  (3,495 event(s) from rabadon's own drills and self-tests — excluded from every number above)
 ```
 
 The drill exclusion is load-bearing: a tool that counts its own self-tests as catches is worthless, so rabadon tags them at emit and never counts them. That honesty is the brand.
+
+So is the second line. `repairs held` and `repairs unverified` used to be one number called "repairs accepted", and that number also swept in green push-gate suites and freshly written rules — four different events sharing one name in the ledger. Split apart, the honest reading of this machine is that the repair path has produced **zero** fixes proven against hash-locked test files, and three that nothing was holding. A fix nobody could witness is not a fix rabadon gets to count.
 
 ## The built-in laws
 
