@@ -161,6 +161,16 @@ static RunResult run_shell(const string& cmd, const string& cwd, int timeoutSec,
   return r;
 }
 
+// A failure the operator cannot read is a failure they cannot act on. Every
+// fail-closed path prints the last lines of the run that produced the verdict.
+static void print_tail(const string& what, const string& tail) {
+  if (tail.empty()) { fprintf(stderr, "  %s printed nothing.\n", what.c_str()); return; }
+  const size_t keep = 1200;
+  const string t = tail.size() > keep ? tail.substr(tail.size() - keep) : tail;
+  fprintf(stderr, "  --- %s, last %zu bytes ---\n", what.c_str(), t.size());
+  fprintf(stderr, "%s\n  --- end ---\n", t.c_str());
+}
+
 static string shell_quote(const string& s) {
   string out = "'";
   for (char c : s) { if (c == '\'') out += "'\\''"; else out += c; }
@@ -310,14 +320,26 @@ int main(int argc, char** argv) {
   // ---- 5. the arbiter: same check, work copy ----
   RunResult after = run_shell(cmd, work, checkTimeout);
   if (after.exit_code != 0) {
-    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"check still red after proposal\"");
+    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"check still red after proposal\",\"exit\":" +
+            std::to_string(after.exit_code));
     fprintf(stderr, "rabadon repair: the proposed fix did NOT turn the check green (exit %d) — REPAIR_FAIL (fail closed, your tree untouched)\n", after.exit_code);
+    // A rejection with no output is an unactionable rejection: the operator cannot
+    // tell a wrong fix from a flaky suite, and the next question is always "red HOW?".
+    // The arbiter already holds the answer, so it says it. The work copy is kept on
+    // this path (it is the only remaining record of what the proposer did) and named
+    // out loud, because a temp dir that leaks silently is a leak, not evidence.
+    print_tail("the arbiter's re-run", after.tail);
+    fprintf(stderr, "  the proposal is in: %s\n", work.c_str());
     return 2;
   }
   for (auto& lk : locks) {
     if (rbsha::hex(read_file(work + "/" + lk.first)) != lk.second) {
       em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"test-tamper: " + json_escape(lk.first) + " was modified\"");
       fprintf(stderr, "rabadon repair: REJECTED — the proposal modified a hash-locked test file (%s). A fix that weakens the check is a fake fix.\n", lk.first.c_str());
+      fprintf(stderr, "  locked sha256 %s, found %s\n  the check went GREEN, and that green is exactly what the lock refuses to sell.\n"
+                      "  the rejected proposal is in: %s\n",
+              lk.second.substr(0, 16).c_str(),
+              rbsha::hex(read_file(work + "/" + lk.first)).substr(0, 16).c_str(), work.c_str());
       return 2;
     }
   }
