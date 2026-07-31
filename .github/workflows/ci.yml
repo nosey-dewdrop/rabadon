@@ -30,6 +30,14 @@ jobs:
     strategy:
       fail-fast: false          # a red macOS must not hide a green linux
       matrix:
+        # ubuntu-latest ON PURPOSE, while release.yml pins ubuntu-22.04. They
+        # want opposite things and both are right: a release must build against
+        # the OLDEST glibc it supports, so its binaries run everywhere; CI must
+        # build against the NEWEST toolchain, so a header that only compiles by
+        # accident is caught here instead of in someone's terminal. The very
+        # first run of this file proved the gap — verify.cpp used uint64_t
+        # without including <cstdint> and had never compiled on a modern
+        # libstdc++, while the release matrix stayed green on the older one.
         os: [ubuntu-latest, macos-15]
     steps:
       - uses: actions/checkout@v4

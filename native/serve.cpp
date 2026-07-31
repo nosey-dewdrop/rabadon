@@ -31,6 +31,7 @@
 //
 // exit 0 on clean shutdown (SIGINT/SIGTERM), 1 on a fatal bind/listen error.
 
+#include <cstdint>   // uint16_t/uint64_t: libc++ leaks this transitively, libstdc++ does not
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

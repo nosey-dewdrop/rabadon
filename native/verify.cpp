@@ -25,6 +25,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstdint>   // uint64_t: libc++ leaks this transitively, libstdc++ does not
 #include <string>
 #include <vector>
 #include <fstream>
