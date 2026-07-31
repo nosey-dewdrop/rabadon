@@ -21,3 +21,6 @@ native/rabadon-*
 # platform packages carry binaries only in CI (copied in before publish),
 # never committed — the package.json/README templates ARE committed.
 npm/*/rabadon-*
+
+# npm pack output
+*.tgz
