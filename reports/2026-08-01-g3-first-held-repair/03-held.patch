@@ -1,0 +1,12 @@
+diff -ruN --exclude=.git --exclude=.rabadon base/lib/request.js work/lib/request.js
+--- base/lib/request.js	2026-08-01 02:43:58
++++ work/lib/request.js	2026-08-01 02:44:28
+@@ -390,7 +390,7 @@
+     ? hostname.split('.').reverse()
+     : [hostname];
+ 
+-  return subdomains.slice(offset - 1);
++  return subdomains.slice(offset);
+ });
+ 
+ /**

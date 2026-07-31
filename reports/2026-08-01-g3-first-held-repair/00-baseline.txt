@@ -1,0 +1,11 @@
+BASELINE — before this run
+===========================
+command: ./native/rabadon-stats --days 1   (run 2026-08-01 02:40 local, before any repair)
+headline line captured verbatim:
+  3 refused before they happened . 6,487 actions gated . 0 repairs held . 93 would-have-refused (watch)
+  repairs held (locked):    0     (every project block)
+  repairs unverified:       0
+
+Re-runnable form of the same claim (does not depend on my transcript):
+  count of REPAIR_OK events with locks>0 in today's ledger BEFORE ts 1785541480262 = 0
+  ledger: /Users/damummyphus/.rabadon/spool/2026-07-31.jsonl
