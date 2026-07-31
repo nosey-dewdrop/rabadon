@@ -27,10 +27,15 @@ jobs:
       fail-fast: true
       matrix:
         include:
+          # A retired runner label does not fail the job — it QUEUES FOREVER,
+          # and with fail-fast that silently strands the whole release. Caught
+          # on the 31.07 dry-run: macos-13 (retired 2025-12) sat queued while
+          # the other three targets went green. macos-14 entered deprecation
+          # on 2026-07-06. Re-check these labels before every release.
           - target: darwin-arm64
-            os: macos-14         # Apple silicon runner
+            os: macos-15         # Apple silicon runner
           - target: darwin-x64
-            os: macos-13         # Intel runner
+            os: macos-15-intel   # Intel runner (last Intel line, retires Fall 2027)
           - target: linux-x64
             os: ubuntu-22.04
           - target: linux-arm64
