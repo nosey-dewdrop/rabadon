@@ -1,16 +1,21 @@
 {
   "name": "rabadon",
-  "version": "0.1.0",
-  "description": "The reliability runtime for AI agent pipelines. Runs the pipeline and checks itself: bounds runaway loops, verifies each step's output against intent, and stops on drift.",
+  "version": "0.2.0",
+  "description": "The reliability runtime for AI coding agents. Stands between a live agent session and the world: refuses the force-push before it rewrites history, stops the loop on its third identical spin, holds untested pushes, and keeps a tamper-evident ledger of everything it caught.",
   "type": "module",
   "engines": {
     "node": ">=18"
   },
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "bin": {
-    "rabadon": "./bin/rabadon.mjs"
+    "rabadon": "./native/rabadon-cli.sh"
   },
   "exports": "./index.mjs",
   "scripts": {
+    "postinstall": "node scripts/build.mjs",
     "test": "node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs core/store.test.mjs ui/server.test.mjs hooks/install.test.mjs hooks/gate.test.mjs demo/live-repair-evidence.test.mjs",
     "demo": "node demo/vibecoded-pipeline.mjs",
     "watch": "node bin/rabadon.mjs watch"
@@ -27,6 +32,7 @@
     "claude-code",
     "hooks",
     "guardrails",
+    "sandbox",
     "self-healing",
     "pipeline"
   ],
@@ -36,11 +42,15 @@
     "bin/",
     "hooks/",
     "repair/",
-    "engine/",
     "ui/",
     "packs/",
-    "README.md",
     "demo/",
+    "scripts/",
+    "native/*.cpp",
+    "native/*.h",
+    "native/rabadon-cli.sh",
+    "Makefile",
+    "README.md",
     "SPEC.md"
   ]
 }
