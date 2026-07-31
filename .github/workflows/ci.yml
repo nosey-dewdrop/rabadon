@@ -1,0 +1,51 @@
+name: ci
+
+# Until now the only workflow in this repo was release.yml, which runs when a
+# tag is pushed. Nothing ran on a push or a pull request — the suites that prove
+# every claim in the README were run by hand, on one machine, on one OS. A
+# stranger reading the repo had no way to see them pass, and a regression had
+# nothing to trip over.
+#
+# Both halves run here, on both supported platforms:
+#   make all && make test   the native core (gate, ledger, sandbox, repair)
+#   npm test                the JS half (installer, ui server, store, bus)
+# `make test` includes npm_install_test.sh, which packs the tarballs and
+# installs them into a clean prefix — the published path is exercised on every
+# push, because it is the path that was broken and nobody noticed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false          # a red macOS must not hide a green linux
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: compiler
+        run: c++ --version
+
+      - name: build the native core
+        run: make all
+
+      - name: native suites
+        run: make test
+
+      - name: js suites
+        run: npm test

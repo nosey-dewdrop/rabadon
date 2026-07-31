@@ -49,10 +49,14 @@ bench: native/rabadon-gate
 	python3 native/bench.py
 
 # native proofs: the direction check fires in both directions and fails open.
-test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-truth
+# `test: all` and not a hand-kept list: the list named 11 binaries while the
+# suites run 16, so a clean checkout ran `make test` straight into a missing
+# binary. the dependency is 'everything this repo builds'.
+test: all
 	./native/audit_test.sh
 	./native/baseline_test.sh
 	./native/bypass_test.sh
+	./native/npm_install_test.sh
 	./native/repair_session_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh

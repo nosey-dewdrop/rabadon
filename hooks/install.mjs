@@ -31,9 +31,48 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const NATIVE_DIR = path.resolve(HERE, '..', 'native');
-export const GATE_BIN = path.join(NATIVE_DIR, 'rabadon-gate');
-export const DRIFT_BIN = path.join(NATIVE_DIR, 'rabadon-drift');
+const PKG_DIR = path.resolve(HERE, '..');
+
+// Where a native binary actually is. `npm i -g rabadon` — the paved road, the
+// one line of the README everybody runs — does NOT put the binaries in
+// <pkg>/native. It puts them in the prebuilt platform package, which npm places
+// either under this package's node_modules or hoisted as a sibling. This file
+// knew only <pkg>/native, so on a prebuilt install `rabadon doctor` reported
+// "native binaries missing" with all sixteen sitting right there, `rabadon init`
+// exited 3 and wrote no hooks at all, and nothing was ever guarded. Proven by
+// packing both tarballs and installing them into a clean prefix, 31.07.
+//
+// native/rabadon-cli.sh already resolved all three locations; the JS half is
+// what disagreed with it. Both now answer the same question the same way, and
+// the order is the same: a local build wins, because someone who ran `make` in
+// a clone means the thing they just compiled.
+const PLATFORM = (() => {
+  const o = { darwin: 'darwin', linux: 'linux' }[process.platform];
+  const c = { arm64: 'arm64', x64: 'x64' }[process.arch];
+  return o && c ? `${o}-${c}` : null;
+})();
+
+export const NATIVE_DIRS = [
+  path.join(PKG_DIR, 'native'),
+  ...(PLATFORM
+    ? [path.join(PKG_DIR, 'node_modules', '@rabadon', PLATFORM),
+       path.resolve(PKG_DIR, '..', '@rabadon', PLATFORM)]
+    : []),
+];
+
+// The resolved path of one native binary, or — when it exists nowhere — the
+// source-build path, which is the one every "not built yet" message should name.
+export function nativeBin(name) {
+  for (const d of NATIVE_DIRS) {
+    const p = path.join(d, name);
+    if (fs.existsSync(p)) return p;
+  }
+  return path.join(NATIVE_DIRS[0], name);
+}
+
+export const NATIVE_DIR = NATIVE_DIRS[0];
+export const GATE_BIN = nativeBin('rabadon-gate');
+export const DRIFT_BIN = nativeBin('rabadon-drift');
 // legacy JS gate path — still recognized (and replaced) when found in settings
 export const GATE_PATH = path.join(HERE, 'gate.mjs');
 export const BIN_PATH = path.resolve(HERE, '..', 'bin', 'rabadon.mjs');

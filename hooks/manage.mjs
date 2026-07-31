@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installHooks, removeHooks, GATE_BIN, DRIFT_BIN, NATIVE_DIR, RABADON_CMD_RE } from './install.mjs';
+import { installHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, RABADON_CMD_RE } from './install.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, '..');
@@ -178,7 +178,7 @@ function cmdDoctor() {
 
   // 1) binaries
   const binaries = ['rabadon-gate', 'rabadon-stats', 'rabadon-drift', 'rabadon-audit', 'rabadon-repair', 'rabadon-sandbox'];
-  const missing = binaries.filter((b) => !fs.existsSync(path.join(NATIVE_DIR, b)));
+  const missing = binaries.filter((b) => !fs.existsSync(nativeBin(b)));
   if (missing.length === 0) ok(`native core built (${binaries.length} binaries)`);
   else {
     warn(`native binaries missing: ${missing.join(', ')}`);
@@ -197,8 +197,8 @@ function cmdDoctor() {
   }
 
   // 3) sandbox backend
-  if (fs.existsSync(path.join(NATIVE_DIR, 'rabadon-sandbox'))) {
-    const sc = spawnSync(path.join(NATIVE_DIR, 'rabadon-sandbox'), ['--check'], { encoding: 'utf8' });
+  if (fs.existsSync(nativeBin('rabadon-sandbox'))) {
+    const sc = spawnSync(nativeBin('rabadon-sandbox'), ['--check'], { encoding: 'utf8' });
     if (sc.status === 0) ok((sc.stdout || '').trim().replace(/^rabadon sandbox:\s*/, 'kernel sandbox: '));
     else warn('no kernel sandbox backend (rabadon exec falls back to hook-only enforcement)');
   }
