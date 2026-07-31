@@ -88,7 +88,16 @@ echo "$OUT2" | grep -q '\-\$0.0400' && ok "the loss is quantified (-\$0.0400), s
 
 # ---- fixture 3: a single-arm run must NOT print an A/B ----
 S3="$TMP/one.jsonl"; grep 'loop-r"' "$S" > "$S3"
-"$TRACE" "$S3" --no-color | grep -q 'ÖLÇÜLEN A/B' \
+# A NEGATIVE assertion has to be pinned to a string that still exists, or it
+# passes because the needle was renamed rather than because the haystack is
+# clean. This one grepped for the pre-translation wording and would have gone
+# on passing even if a one-armed run DID print a comparison. So the positive
+# case is asserted first: the two-arm fixture MUST print the banner, which
+# proves the needle is real before the single-arm case asserts its absence.
+"$TRACE" "$S" --no-color | grep -q 'MEASURED A/B' \
+  && ok "the A/B banner exists to look for (two-arm fixture prints it)" \
+  || bad "the A/B banner string is gone — the single-arm check below would be vacuous"
+"$TRACE" "$S3" --no-color | grep -q 'MEASURED A/B' \
   && bad "printed an A/B comparison with only one arm on the ledger" \
   || ok "no second arm -> no comparison printed (never a half-measured claim)"
 
