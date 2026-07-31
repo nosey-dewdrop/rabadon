@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair
+all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox
 
 native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -11,6 +11,9 @@ native/rabadon-audit: native/audit.cpp native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-repair: native/repair.cpp native/sha256.h
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+native/rabadon-sandbox: native/sandbox.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-trace: native/trace.cpp
@@ -46,6 +49,7 @@ bench: native/rabadon-gate
 test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-truth
 	./native/audit_test.sh
 	./native/repair_session_test.sh
+	./native/sandbox_test.sh
 	./native/gate_promise_test.sh
 	./native/lamp_test.sh
 	./native/watch_test.sh
@@ -66,7 +70,7 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/regression_demo.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox
 
 .PHONY: all bench clean
 

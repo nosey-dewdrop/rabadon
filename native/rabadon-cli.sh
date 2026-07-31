@@ -47,6 +47,8 @@ case "${1:-toggle}" in
   trace)           T="$(nbin trace)" || exit 1; shift; exec "$T" "$@" ;;
   audit)           A="$(nbin audit)" || exit 1; shift; exec "$A" "$@" ;;
   repair)          R="$(nbin repair)" || exit 1; shift; exec "$R" "$@" ;;
+  exec)            B="$(nbin sandbox)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
+  sandbox)         B="$(nbin sandbox)" || exit 1; shift; exec "$B" "$@" ;;
   replay)          A="$(nbin audit)" || exit 1; shift; exec "$A" --replay "$@" ;;
   drill)
     # one tagged test event through the REAL gate — see the refusal text an
