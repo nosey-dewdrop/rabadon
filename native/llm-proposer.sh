@@ -31,7 +31,7 @@ prompt="$(cat)"                        # rabadon-loop pipes the repair prompt on
 # Nothing else changes — same proposer, same bounds, same sidecar. Unset = the
 # account default, so every existing caller behaves exactly as before.
 MODEL_ARG=()
-[ -n "${RABADON_MODEL:-}" ] && MODEL_ARG=(--model "$RABADON_MODEL")
+if [ -n "${RABADON_MODEL:-}" ]; then MODEL_ARG=(--model "$RABADON_MODEL"); fi
 
 # stream-json emits one event per line and ends with a terminal {"type":"result"}
 # event. The measured problem: the claude process does its work in ~21s but then
@@ -41,10 +41,18 @@ MODEL_ARG=()
 # seen, or the process exited). The poll loop IS the wall-clock cap (CAP*4 * 0.25s),
 # so no separate watchdog subshell can orphan a sleep.
 tmpout=$(mktemp /tmp/rabadon-llm-out.XXXXXX)
+# ${MODEL_ARG[@]+"${MODEL_ARG[@]}"} and NOT the plain "${MODEL_ARG[@]}" it looks
+# like. /bin/bash on macOS is 3.2.57, where expanding a zero-length array is an
+# unbound-variable abort under `set -u` — the array being assigned above does not
+# save you; only bash >=4.4 exempts it. Un-routed runs (the common case: loop.cpp
+# leaves RABADON_MODEL unset unless a tier is named) therefore killed the shell
+# right here, before claude was ever spawned, and the `&` hid the exit code. The
+# `+` form is the portable one: nothing when the array is empty, the two words
+# when it is not. Do not "simplify" this back.
 claude -p "$prompt" \
   --output-format stream-json --verbose \
   --permission-mode acceptEdits \
-  "${MODEL_ARG[@]}" \
+  ${MODEL_ARG[@]+"${MODEL_ARG[@]}"} \
   --allowedTools "$ALLOWED" >"$tmpout" 2>/dev/null &
 pid=$!
 iters=$(( CAP * 4 )); i=0
