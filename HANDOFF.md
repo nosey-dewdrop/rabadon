@@ -4,7 +4,31 @@
 > **§1'i okumadan tek satır yazma.** Bugün en pahalı şey kod değil, yanlış ürün modeliydi.
 
 ═══════════════════════════════════════════════════════════════
-GÜNCELLEME 31.07 — v0.2 REWORK SHIP'LENDİ (yeni milestone)
+GÜNCELLEME 31.07 GECE — v0.3 "EVDEN ÇIKIŞ": VAHŞİ KANIT ALINDI
+═══════════════════════════════════════════════════════════════
+Plan: reports/2026-07-31-rabadon-v03-plan.txt — 4 fazın 4'ü gate'ini geçti.
+- **İlk yabancı yakalamalar GERÇEK:** 5 non-Damla repoda (express, flask, ripgrep,
+  babel, cli/cli) gerçek `claude -p` seanslarından 5 yakalama; 97 zincirli olay,
+  audit INTACT. Kanıt: ~/damla_projects_2026/reports/2026-07-31-rabadon-vahsi-kanit/
+- **Canlı repair:** express'te gerçek off-by-one → gerçek claude -p → 91 hash-kilitli
+  test dosyası → HELD patch → uygulandı → 20/20; test-boyayan sahte fix canlı REJECTED.
+- **Vahşi koşunun bulduğu + kapattığı 3 açık (commit'ler):**
+  5a99fd8 guard authoring yabancıda çalışmıyordu → kanıt=YASA(README/CONTRIBUTING/AGENTS.md)
+          +OLGU(manifest/CI); lint pushGate/evidence tanır. 8708e05 RABADON_DIR tek-ev
+          kuralı (bayraklar+spool birlikte taşınır). 93d966e `git -C` bypass kapandı
+          (iki gate git-global-soyulmuş formu da eşler). ad6bfe3 hash-lock gerçekten
+          tutar (tekil test/ keşfi + guard testPaths yasası + sessiz cap yok + dürüst
+          kilit sayısı — öncesinde sahte fix VERIFIED geçiyordu!).
+- **Launch hazır:** prepare-release --check OK, npm publish --dry-run (ana+4 platform)
+  temiz, release.yml dispatch kuru-koşumu (ilk koşum net testinin CI yarışını yakaladı
+  → test sağlamlaştı → yeniden koşuldu). Show HN taslağı: icerik/rabadon-show-hn.md;
+  dewrites'a kalem düştü. Testler: make test EXIT=0 (20+ suite) + 59 JS.
+AÇIK (Faz 5, DAMLA'nın manuel adımları): npm org create rabadon → NPM_TOKEN secret →
+git tag v0.2.0 && git push --tags → Show HN postu. Spool notu: usage'daki "3 repairs
+accepted"ın biri hash-lock fixi ÖNCESİ sahte kabul — post o sayıyı kullanmıyor.
+
+═══════════════════════════════════════════════════════════════
+GÜNCELLEME 31.07 — v0.2 REWORK SHIP'LENDİ (önceki milestone)
 ═══════════════════════════════════════════════════════════════
 Milestone artık: **yabancı kurabilir + kernel enforcement + kanıtlanabilir defter
 + gerçek repair + dürüst docs.** Bu oturumda ship'lenen, hepsi test+commit'li:
