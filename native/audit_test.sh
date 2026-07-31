@@ -158,6 +158,43 @@ OUT=$("$AUDIT" --days 2); RC=$?
 if [ $RC -eq 1 ] && printf '%s' "$OUT" | grep -q "head commits"; then pass "a line removed and the chain RE-STITCHED -> the committed line count convicts it (exit 1)"; else fail "re-stitch not caught: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 restore
 
+# strip ONE middle line's prev -> still BREAK. this is why "an unchained line in
+# a chained file" does not have to be a break on its own: the chain catches it at
+# the NEXT chained line, whose prev no longer matches.
+python3 - "$F" <<'PY'
+import re, sys
+p = sys.argv[1]
+lines = [l for l in open(p).read().rstrip("\n").split("\n") if l]
+lines[2] = re.sub(r',"prev":"(genesis|[0-9a-f]{64})"\}$', '}', lines[2])
+open(p, "w").write("\n".join(lines) + "\n")
+PY
+OUT=$("$AUDIT" --days 2); RC=$?
+if [ $RC -eq 1 ] && printf '%s' "$OUT" | grep -q "chain BROKEN at line 4"; then pass "one middle prev stripped -> the NEXT chained line convicts it (exit 1)"; else fail "single strip not caught: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+restore
+
+# strip the LAST line's prev -> no later link to catch it, so the head hash does
+python3 - "$F" <<'PY'
+import re, sys
+p = sys.argv[1]
+lines = [l for l in open(p).read().rstrip("\n").split("\n") if l]
+lines[-1] = re.sub(r',"prev":"(genesis|[0-9a-f]{64})"\}$', '}', lines[-1])
+open(p, "w").write("\n".join(lines) + "\n")
+PY
+OUT=$("$AUDIT" --days 2); RC=$?
+if [ $RC -eq 1 ] && printf '%s' "$OUT" | grep -q "head sidecar does not match"; then pass "the LAST line's prev stripped -> the head hash convicts it (exit 1)"; else fail "tail strip not caught: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+restore
+
+# a second writer that does not chain (the legacy JS gate is one, and it appends
+# to the SAME day file) must not read as an attack — but its lines are not
+# provable either, so the file is chain OK and the verdict is PARTIAL.
+printf '{"v":1,"seq":1,"ts":%s,"run":"ng-1","pipe":"engine:session","ev":"STEP_OK","step":"legacy js writer"}\n' \
+  "$(python3 -c 'import time;print(int(time.time()*1000))')" >> "$F"
+OUT=$("$AUDIT" --days 2); RC=$?
+if [ $RC -eq 2 ] && printf '%s' "$OUT" | grep -q "chain OK · UNPROVEN" && printf '%s' "$OUT" | grep -q "verdict: PARTIAL"; then
+  pass "a non-chaining writer beside the chain -> chain OK, verdict PARTIAL (exit 2), not an accusation"
+else fail "mixed-writer file: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+restore
+
 # --replay renders the verified timeline
 OUT=$("$AUDIT" --days 2 --replay)
 if printf '%s' "$OUT" | grep -q "✓ .*STOP" && printf '%s' "$OUT" | grep -q "CHECK_FAIL"; then pass "--replay renders the timeline with chain marks"; else fail "--replay"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi

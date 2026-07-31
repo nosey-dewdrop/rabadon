@@ -38,8 +38,10 @@ using std::string;
 
 // number of chained lines already in the file. Only ever called once per day
 // file, to migrate a pre-0.4 sidecar that carries no count. A chained line ends
-// in exactly `,"prev":"<64 hex>"}` — matched as a suffix so an escaped payload
-// cannot forge one.
+// in `,"prev":"<value>"}` — matched as a suffix, and the value is read as
+// whatever sits there, because the FIRST line of every day carries
+// prev:"genesis", not a hash. Requiring 64 hex here undercounted every migrated
+// file by exactly one and made it read as tampered forever.
 inline long long count_chained_lines(const string& path) {
   std::ifstream f(path);
   if (!f) return 0;
@@ -47,9 +49,13 @@ inline long long count_chained_lines(const string& path) {
   string line;
   const string tag = ",\"prev\":\"";
   while (std::getline(f, line)) {
-    if (line.size() < tag.size() + 66) continue;
+    if (line.size() < tag.size() + 2) continue;
     if (line.compare(line.size() - 2, 2, "\"}") != 0) continue;
-    if (line.compare(line.size() - 66 - tag.size(), tag.size(), tag) == 0) n++;
+    const size_t p = line.rfind(tag);
+    if (p == string::npos || p + tag.size() > line.size() - 2) continue;
+    // the value must be one unbroken run with no quote in it
+    if (line.find('"', p + tag.size()) != line.size() - 2) continue;
+    n++;
   }
   return n;
 }

@@ -242,9 +242,6 @@ int main(int argc, char** argv) {
         sidecarNote = "head sidecar is malformed (expected \"<sha256> <count>\")";
       else if (chained == 0)
         sidecarNote = "head sidecar present but NOT ONE line carries prev — the chain was stripped out";
-      else if (unchained > 0)
-        sidecarNote = "line " + std::to_string(firstUnchainedLine) +
-                      " carries no prev in a chained file — that link was cut out";
       else if (hd.hash != last)
         sidecarNote = "head sidecar does not match the last chained line (truncated or rewritten tail)";
       else if (hd.count < 0) {
@@ -263,6 +260,28 @@ int main(int argc, char** argv) {
     }
     if (!sidecarNote.empty() && !unverifiable) broken = true;
 
+    // Lines with no prev sitting BESIDE a verified chain are not evidence of
+    // tampering, and calling them that was a false alarm on the first real
+    // ledger it met: a second, non-chaining writer (the legacy JS gate) appends
+    // to the same day file, and every day would have read as attacked.
+    //
+    // Nothing is lost by not calling it a break, because stripping prev from a
+    // line the chain covers is ALREADY caught elsewhere, always:
+    //   - strip a middle line's prev -> the next chained line's prev no longer
+    //     matches the hash chain -> BREAK at that line;
+    //   - strip the last chained line's prev -> the head hash no longer matches
+    //     -> BREAK;
+    //   - strip every line's prev -> chained == 0 -> BREAK (above).
+    // So the rule was redundant against an attacker and wrong against a friend.
+    // What is true is that those lines cannot be proven, and the verdict says so
+    // rather than folding them into a clean bill of health.
+    if (!broken && unchained > 0 && chained > 0) {
+      unverifiable = true;
+      sidecarNote = std::to_string(unchained) + " line(s) from a writer that does not chain — " +
+                    "verified events and unprovable ones share this file (first at line " +
+                    std::to_string(firstUnchainedLine) + ")";
+    }
+
     // old file, verified clean: keep the report short. anything unresolved prints.
     if (!broken && !unverifiable && !inWindow && !replay) continue;
 
@@ -274,7 +293,8 @@ int main(int argc, char** argv) {
       printf("\n");
       totalBreaks++;
     } else if (unverifiable) {
-      printf(" · UNVERIFIABLE — %s\n", sidecarNote.c_str());
+      if (chained > 0) printf(" · chain OK · UNPROVEN: %s\n", sidecarNote.c_str());
+      else printf(" · UNVERIFIABLE — %s\n", sidecarNote.c_str());
       totalUnverifiable++;
     } else {
       printf(" · chain OK · head verified (%lld line(s))\n", hd.count);
