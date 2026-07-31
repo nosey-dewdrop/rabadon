@@ -17,3 +17,7 @@ native/rabadon-*
 !native/rabadon-*.h
 !native/rabadon-*.sh
 *.o
+
+# platform packages carry binaries only in CI (copied in before publish),
+# never committed — the package.json/README templates ARE committed.
+npm/*/rabadon-*

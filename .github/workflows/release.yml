@@ -1,0 +1,103 @@
+# rabadon release — build the native core on every target, publish the four
+# prebuilt platform packages + the main package with npm provenance.
+#
+# Triggered by pushing a tag like v0.2.0. The build is reproducible
+# (SOURCE_DATE_EPOCH + -ffile-prefix-map); Linux binaries are statically
+# linked so they run on any glibc/musl box. Provenance (--provenance) mints a
+# sigstore attestation tying each npm tarball to THIS workflow run and commit,
+# which a security-minded audience can verify.
+#
+# Secrets required (set once by the maintainer):
+#   NPM_TOKEN — an npm automation token with publish rights to `rabadon`
+#               and the `@rabadon` scope (create the org: npm org create rabadon).
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write   # required for npm provenance (sigstore OIDC)
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: darwin-arm64
+            os: macos-14         # Apple silicon runner
+          - target: darwin-x64
+            os: macos-13         # Intel runner
+          - target: linux-x64
+            os: ubuntu-22.04
+          - target: linux-arm64
+            os: ubuntu-22.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the native core (reproducible)
+        env:
+          SOURCE_DATE_EPOCH: "1"
+        run: |
+          set -euo pipefail
+          EXTRA="-ffile-prefix-map=$PWD=."
+          case "${{ matrix.target }}" in
+            linux-*) EXTRA="$EXTRA -static-libstdc++ -static-libgcc" ;;
+          esac
+          make all CXXFLAGS="-std=c++17 -O2 -Wall -Wextra $EXTRA"
+          make test
+      - name: Stage binaries into the platform package
+        run: |
+          set -euo pipefail
+          cp native/rabadon-gate native/rabadon-stats native/rabadon-drift \
+             native/rabadon-trace native/rabadon-verify native/rabadon-loop \
+             native/rabadon-do native/rabadon-budget native/rabadon-lens \
+             native/rabadon-net native/rabadon-truth native/rabadon-serve \
+             native/rabadon-audit native/rabadon-repair native/rabadon-sandbox \
+             native/rabadon-export \
+             npm/${{ matrix.target }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.target }}
+          path: npm/${{ matrix.target }}/
+          retention-days: 3
+
+  publish:
+    name: publish to npm
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Restore the built platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          path: npm-staged
+      - name: Place binaries back under npm/<target>
+        run: |
+          set -euo pipefail
+          for t in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            cp npm-staged/pkg-$t/rabadon-* npm/$t/
+            chmod +x npm/$t/rabadon-*
+          done
+      - name: Version sanity — every manifest matches the tag
+        run: node scripts/prepare-release.mjs --check "${GITHUB_REF_NAME#v}"
+      - name: Publish platform packages (with provenance)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          for t in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            npm publish --access public --provenance ./npm/$t
+          done
+      - name: Publish the main package (with provenance)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
