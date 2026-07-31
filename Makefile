@@ -74,6 +74,7 @@ test: all
 	./native/verify_test.sh
 	./native/loop_test.sh
 	./native/route_test.sh
+	./native/llm_proposer_test.sh
 	./native/truth_test.sh
 	./native/net_test.sh
 	./native/stats_test.sh
