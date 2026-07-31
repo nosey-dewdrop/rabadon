@@ -34,6 +34,13 @@ ok=0; bad=0
 pass() { ok=$((ok+1)); echo "  ok   - $1"; }
 fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
 
+# word-exact match. NOT grep: BSD grep (macOS) has no -P, and more importantly a
+# plain substring test for "VERIFIED" ALSO matches inside "UNVERIFIED" — which is
+# precisely the confusion case 7 exists to catch. python3 \b keeps them apart.
+has_word() { # has_word WORD TEXT
+  printf '%s' "$2" | python3 -c 'import sys,re; sys.exit(0 if re.search(r"\b"+sys.argv[1]+r"\b", sys.stdin.read()) else 1)' "$1"
+}
+
 TMP=$(mktemp -d /tmp/rabadon-repair-session.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home"; mkdir -p "$HOME"
@@ -43,6 +50,17 @@ mkproj() { # broken python project with its own real test
   local d="$1"; rm -rf "$d"; mkdir -p "$d"
   printf 'def add(a, b):\n    return a - b  # BUG\n' > "$d/calc.py"
   cat > "$d/test_calc.py" <<'EOF'
+import calc
+assert calc.add(2, 3) == 5, "add(2,3) must be 5"
+print("ok")
+EOF
+}
+
+mkproj_nolocks() { # same bug, but NO file `rabadon truth` will call a test ->
+  # zero hash locks. The check is handed in with --cmd, so repair still runs.
+  local d="$1"; rm -rf "$d"; mkdir -p "$d"
+  printf 'def add(a, b):\n    return a - b  # BUG\n' > "$d/calc.py"
+  cat > "$d/check.py" <<'EOF'
 import calc
 assert calc.add(2, 3) == 5, "add(2,3) must be 5"
 print("ok")
@@ -89,7 +107,7 @@ if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "nothing to repair"; then pass 
 # 2) honest proposer
 P1="$TMP/p1"; mkproj "$P1"
 OUT=$(RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P1" --cmd "$CHECK"); RC=$?
-if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "VERIFIED"; then pass "honest fix: arbiter re-ran green, REPAIR_OK (exit 0)"; else fail "honest rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+if [ $RC -eq 0 ] && has_word VERIFIED "$OUT"; then pass "honest fix: arbiter re-ran green, REPAIR_OK (exit 0)"; else fail "honest rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 grep -q 'return a - b' "$P1/calc.py" && pass "propose-and-hold: the user's tree is UNTOUCHED" || fail "user tree was modified!"
 PATCH=$(ls "$P1/.rabadon/"repair-*.patch 2>/dev/null | head -1)
 [ -n "$PATCH" ] && pass "verified patch is held at .rabadon/$(basename "$PATCH")" || fail "no held patch"
@@ -126,6 +144,36 @@ if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "INTACT"; then pass "audit: rep
 # existed, which is the one thing this path sells.
 U=$(RABADON_DIR="$RABADON_DIR" "$STATS" --days 2)
 printf '%s' "$U" | grep -q "1 repairs held" && pass "usage headline counts exactly 1 repair HELD (hash-locked, not merely accepted)" || { fail "usage count"; printf '%s\n' "$U" | sed 's/^/    | /'; }
+
+# 7) the headline word must match the evidence that actually exists.
+# "VERIFIED" is earned by the anti-tamper check RUNNING, not by the check going
+# green. With zero test files there was nothing to lock, so the tamper check
+# never ran and the word must not be printed. Own ledger: these two runs must not
+# move the counts case 2/6 just asserted.
+L7="$TMP/ledger7"; mkdir -p "$L7/spool"
+
+# 7a POSITIVE FIRST (K2): locks exist -> the word IS printed. Without this, a
+# later rename of the headline would make 7b pass by simply saying nothing.
+P5="$TMP/p5"; mkproj "$P5"
+OUT=$(RABADON_DIR="$L7" RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P5" --cmd "$CHECK" 2>&1); RC=$?
+LOCKED=$(printf '%s' "$OUT" | python3 -c 'import sys,re; m=re.search(r"all (\d+) hash-locked", sys.stdin.read()); print(m.group(1) if m else 0)')
+if [ $RC -eq 0 ] && [ "$LOCKED" -gt 0 ] && has_word VERIFIED "$OUT"; then
+  pass "locks>0 ($LOCKED locked): headline says VERIFIED — the tamper check really ran"
+else fail "locks>0 case rc=$RC locked=$LOCKED"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+# 7b NEGATIVE: zero locks -> the word must be GONE, replaced by UNVERIFIED
+P6="$TMP/p6"; mkproj_nolocks "$P6"
+OUT=$(RABADON_DIR="$L7" RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P6" --cmd "python3 check.py" 2>&1); RC=$?
+if [ $RC -eq 0 ] && ! has_word VERIFIED "$OUT"; then
+  pass "locks==0: headline does NOT claim VERIFIED"
+else fail "locks==0 still claims VERIFIED (rc=$RC)"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+if has_word UNVERIFIED "$OUT"; then
+  pass "locks==0: headline says UNVERIFIED instead"
+else fail "locks==0 headline never says UNVERIFIED"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+# and it must say WHY, so the screen and the ledger tell the same story
+if printf '%s' "$OUT" | grep -q "0 test files" && printf '%s' "$OUT" | grep -q "anti-tamper"; then
+  pass "locks==0: the reason is stated (0 test files, anti-tamper never ran)"
+else fail "locks==0 gives no reason"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 
 echo "repair session: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
