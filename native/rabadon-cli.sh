@@ -38,9 +38,57 @@ nbin() {
 }
 
 JS="$ROOT/bin/rabadon.mjs"
-case "${1:-toggle}" in
+# A BARE `rabadon` REPORTS, it does not act. It used to default to `toggle`, so
+# the first thing a new user typed silently flipped machine-wide enforcement —
+# and typing it again to see what happened put it back, which reads as "nothing
+# happened". A supervision tool whose state you change by accident is not one
+# you can trust about anything else. Changing it is still one word away.
+VERB="${1:-status}"   # resolved once: the branches below read VERB, never a bare $1
+case "$VERB" in
   toggle)          G="$(nbin gate)" || exit 1; exec "$G" --toggle ;;
-  on|off|status)   G="$(nbin gate)" || exit 1; exec "$G" "--$1" ;;
+  help|--help|-h)
+    cat <<'HELP'
+rabadon — a deterministic gate for coding agents. It refuses a bad action
+before it happens, records what it refused, and can prove a repair.
+
+usage: rabadon <command> [args]
+       rabadon                     show whether supervision is on, change nothing
+
+supervision
+  on | off | toggle   turn enforcement on or off (machine-wide)
+  status              print the current mode and the file it was read from
+  drill               feed one synthetic dangerous command through the REAL gate
+  doctor              check the install: binaries, hooks, sandbox backend
+
+setting up
+  init [dir]          write the hooks into a project and author its guard.json
+  lint [dir]          find rules in a project's guard.json that cannot fire
+  fleet [root]        install the hooks across every git repo under root
+  remove              uninstall the hooks from a project
+
+seeing what happened
+  usage [--days N]    what was refused, in which project, by which rule
+  report [--days N]   the same, as markdown
+  trace [run]         one run step by step: caught, repaired, refused
+  audit [--days N]    verify the ledger has not been tampered with
+  replay              re-run a recorded session against the current rules
+  export [--otlp]     the ledger in an open format, for your own tooling
+
+acting
+  exec -- <cmd>       run a command under the project's law AND a kernel sandbox
+  repair              attempt a bounded, re-checked fix for a failing check
+  watch | ui          live view of the current session
+
+examples
+  rabadon init                    set up the project you are standing in
+  rabadon drill                   see the refusal an agent would get
+  rabadon usage --days 7          what it caught this week
+  rabadon exec -- npm run deploy  run it under the guard, refused if forbidden
+
+docs: https://github.com/nosey-dewdrop/rabadon
+HELP
+    exit 0 ;;
+  on|off|status)   G="$(nbin gate)" || exit 1; exec "$G" "--$VERB" ;;
   statusline)      G="$(nbin gate)" || exit 1; exec "$G" --statusline ;;
   stats|usage)     S="$(nbin stats)" || exit 1; shift; exec "$S" "$@" ;;
   report)          S="$(nbin stats)" || exit 1; shift; exec "$S" --md "$@" ;;

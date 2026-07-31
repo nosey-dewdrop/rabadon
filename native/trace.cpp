@@ -192,7 +192,7 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
     armLabel.empty()?"—":armLabel.c_str(),
     fmt_ms(r.lastTs-r.firstTs).c_str(), (usd>0?fmt_usd(usd):"$0").c_str());
   out+=h;
-  if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="görev: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
+  if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="goal: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
   out+="\n";
 
   // a control arm has ONE tier: nothing there is "cheap", and calling it that
@@ -209,7 +209,7 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
       if(n.ok && n.wonTier<=1) cheapProven++;
       snprintf(line,sizeof line,"  %s▸%s %2d  %s   %s%s%s  %-12s %s\n",
         C.dim,C.rst, n.no, pad(n.id).c_str(), C.grn,
-        ladder?"✓ ucuzda GEÇTİ":"✓ geçti       ",C.rst,
+        ladder?"✓ proven cheap":"✓ passed       ",C.rst,
         (n.wonTierName.empty()?"—":n.wonTierName).c_str(), metrics.c_str());
       out+=line;
       continue;
@@ -217,20 +217,20 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
     escalated++;
     string cheapMetrics = n.cheapTok>0 ? (commafy(n.cheapTok)+" tok  "+fmt_usd(n.cheapUsd_e6)) : string("—");
     snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s%s%s  %-12s %s\n",
-      C.dim,C.rst, n.no, pad(n.id).c_str(), C.amb,"⚠ hakem RED   ",C.rst,
+      C.dim,C.rst, n.no, pad(n.id).c_str(), C.amb,"⚠ judge REJECT",C.rst,
       (n.firstTier.empty()?n.escFrom:n.firstTier).c_str(), cheapMetrics.c_str());
     out+=line;
-    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s   %s◀── ucuz cevap KANITLANAMADI (umut değil, ölçü)%s\n",
+    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s   %s◀── the cheap answer was NOT PROVEN (measured, not hoped)%s\n",
       C.dim,C.rst, C.red,check_kind(n.why).c_str(),C.rst, C.red,failing_test(n.why).c_str(),C.rst, C.amb,C.rst);
     out+=line;
     if(n.ok){
       // the climb's OWN cost, not the step total — the wasted cheap attempt is
       // counted once, in the arm total, and must not be smuggled in twice here.
       string topMetrics = n.topTok>0 ? (commafy(n.topTok)+" tok  "+fmt_usd(n.topUsd_e6)+"  "+fmt_ms(n.topDur)) : string("—");
-      snprintf(line,sizeof line,"     %s└%s %s↑ %s ile tekrar%s → %shakem GREEN → KANITLANDI%s   %s\n",
+      snprintf(line,sizeof line,"     %s└%s %s↑ retried with %s%s → %sjudge GREEN → PROVEN%s   %s\n",
         C.dim,C.rst, C.bold, (n.wonTierName.empty()?n.escTo:n.wonTierName).c_str(), C.rst, C.grn,C.rst, topMetrics.c_str());
     } else {
-      snprintf(line,sizeof line,"     %s└%s %sSTOP: %s — üst tier de geçemedi, fail-closed%s\n",
+      snprintf(line,sizeof line,"     %s└%s %sSTOP: %s — the higher tier could not pass either, fail-closed%s\n",
         C.dim,C.rst, C.red, stopReason.empty()?"BLOCKED":stopReason.c_str(), C.rst);
     }
     out+=line;
@@ -239,12 +239,12 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
   out+="  "; out+=C.dim; out+="──────────────────────────────────────────────────────────────"; out+=C.rst; out+="\n";
   char f[600];
   if(ladder)
-    snprintf(f,sizeof f,"  UCUZDA KANITLANAN %s%d/%zu%s · YÜKSELTİLEN %s%d%s · bu kol: %s%s%s · verdict: %s%s%s\n",
+    snprintf(f,sizeof f,"  PROVEN CHEAP %s%d/%zu%s · ESCALATED %s%d%s · this arm: %s%s%s · verdict: %s%s%s\n",
       C.grn,cheapProven,nodes.size(),C.rst, C.amb,escalated,C.rst,
       C.bold,(usd>0?fmt_usd(usd):"$0").c_str(),C.rst,
       (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
   else
-    snprintf(f,sizeof f,"  TEK TIER (%s) · %zu adım · bu kol: %s%s%s · verdict: %s%s%s\n",
+    snprintf(f,sizeof f,"  SINGLE TIER (%s) · %zu steps · this arm: %s%s%s · verdict: %s%s%s\n",
       r.tiers.c_str(), nodes.size(), C.bold,(usd>0?fmt_usd(usd):"$0").c_str(),C.rst,
       (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
   out+=f;
@@ -289,7 +289,7 @@ static void render_run(const Run& r, const Pal& C, string& out){
            C.bold,C.rst, C.bold, r.id.c_str(), C.rst,
            proj.c_str(), mdl.c_str(), dur.c_str(), toks.c_str(), cost.c_str());
   out+=h;
-  if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="görev: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
+  if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="goal: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
   out+="\n";
 
   // ---- steps ----
@@ -309,27 +309,27 @@ static void render_run(const Run& r, const Pal& C, string& out){
     // caught (the repair's own byte-exact token/$/time is the metrics; the step
     // wall-time equals it here, so we don't print it twice)
     (void)sdur;
-    snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s⚠ YAKALANDI%s  %s\n",
+    snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s⚠ CAUGHT%s  %s\n",
       C.amb,C.rst, n.no, pad(n.id).c_str(), C.amb,C.rst, metrics.c_str());
     out+=line;
 
     string kind=check_kind(n.why), test=failing_test(n.why);
-    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s     %s◀── ağ BURADA yakaladı (o AN)%s\n",
+    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s     %s◀── the net caught it HERE, at that moment%s\n",
       C.dim,C.rst, C.red,kind.c_str(),C.rst, C.red,test.c_str(),C.rst, C.amb,C.rst);
     out+=line;
 
     if(n.repaired){
-      snprintf(line,sizeof line,"     %s│%s    %ssuite RED (%s)%s → REPAIR → %sgerçek suite GREEN%s → %sREPAIR_OK ✓%s\n",
+      snprintf(line,sizeof line,"     %s│%s    %ssuite RED (%s)%s → REPAIR → %sthe REAL suite went GREEN%s → %sREPAIR_OK ✓%s\n",
         C.dim,C.rst, C.red,test.c_str(),C.rst, C.grn,C.rst, C.grn,C.rst);
       out+=line;
-      snprintf(line,sizeof line,"     %s└%s %s   %s✓ tamirden sonra yeşil%s\n",
+      snprintf(line,sizeof line,"     %s└%s %s   %s✓ green after the repair%s\n",
         C.dim,C.rst, pad(n.id).c_str(), C.grn,C.rst);
       out+=line;
     } else { // rejected -> fail-closed
-      snprintf(line,sizeof line,"     %s│%s    %ssahte fix (testi neuter'lar)%s → %sforbidden-sha%s → %sREPAIR_FAIL ✗%s\n",
+      snprintf(line,sizeof line,"     %s│%s    %sfake fix (it neuters the test)%s → %sforbidden-sha%s → %sREPAIR_FAIL ✗%s\n",
         C.dim,C.rst, C.red,C.rst, C.bold,C.rst, C.red,C.rst);
       out+=line;
-      snprintf(line,sizeof line,"     %s└%s %sSTOP: %s%s — fail-closed, sonraki adımlar HİÇ koşmadı%s\n",
+      snprintf(line,sizeof line,"     %s└%s %sSTOP: %s%s — fail-closed, the remaining steps NEVER ran%s\n",
         C.dim,C.rst, C.red, stopReason.empty()?"BLOCKED":stopReason.c_str(), C.rst, "");
       out+=line;
     }
@@ -342,8 +342,8 @@ static void render_run(const Run& r, const Pal& C, string& out){
   out+="  ";
   out+=C.dim; out+="──────────────────────────────────────────────────────────────"; out+=C.rst; out+="\n";
   char f[512];
-  snprintf(f,sizeof f,"  YAKALANAN %s%d%s%s · TAMİR %s%d%s · REDDEDİLEN sahte %s%d%s · verdict: %s%s%s\n",
-    C.amb,caught,C.rst, caught?(" (adım "+caughtNos+")").c_str():"",
+  snprintf(f,sizeof f,"  CAUGHT %s%d%s%s · REPAIRED %s%d%s · FAKE FIX REJECTED %s%d%s · verdict: %s%s%s\n",
+    C.amb,caught,C.rst, caught?(" (step "+caughtNos+")").c_str():"",
     C.grn,repaired,C.rst, C.red,rejected,C.rst,
     (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
   out+=f;
@@ -351,10 +351,10 @@ static void render_run(const Run& r, const Pal& C, string& out){
   if(caught){
     string saved;
     if(rejected){
-      snprintf(f,sizeof f,"  %skurtarılan:%s adım %d'de yakalandı → STOP, adım %d–%d KÖR tabanda HİÇ koşmadı · param cepte   %s◀── Langfuse'da bu satır YOK%s\n",
+      snprintf(f,sizeof f,"  %ssaved:%s caught at step %d → STOP, steps %d–%d NEVER ran on a blind base · the spend stayed in your pocket   %s◀── a passive tracer has no such line%s\n",
         C.bold,C.rst, firstCaught, firstCaught+1, N, C.dim,C.rst);
     } else {
-      snprintf(f,sizeof f,"  %skurtarılan:%s adım %d'de yakalandı+tamir → adım %d–%d TEMİZ tabanda ilerledi (bug 10. adıma sıçramadı) · tamir maliyeti %s, %s tok   %s◀── Langfuse'da bu satır YOK%s\n",
+      snprintf(f,sizeof f,"  %ssaved:%s caught and repaired at step %d → steps %d–%d ran on a CLEAN base (the bug never reached step 10) · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
         C.bold,C.rst, firstCaught, firstCaught+1, N, fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
     }
     out+=f;
@@ -462,8 +462,8 @@ int main(int argc,char** argv){
     long long d = control.usd_e6 - routedArm.usd_e6;
     int pct = control.usd_e6>0 ? (int)((double)d*100.0/(double)control.usd_e6 + (d<0?-0.5:0.5)) : 0;
     char b[700];
-    out+="  "; out+=C.bold; out+="ÖLÇÜLEN A/B"; out+=C.rst; out+=C.dim;
-    out+="  — aynı plan, aynı hakem, aynı kontratlar; iki gerçek koşu"; out+=C.rst; out+="\n";
+    out+="  "; out+=C.bold; out+="MEASURED A/B"; out+=C.rst; out+=C.dim;
+    out+="  — same plan, same judge, same contracts; two real runs"; out+=C.rst; out+="\n";
     snprintf(b,sizeof b,"    control · %-16s %10s   %12s tok   %s\n",control.tiers.c_str(),
       fmt_usd(control.usd_e6).c_str(), commafy(control.tokens).c_str(), control.verdict.c_str());
     out+=b;
@@ -471,26 +471,26 @@ int main(int argc,char** argv){
       routedArm.tiers.c_str(), fmt_usd(routedArm.usd_e6).c_str(), commafy(routedArm.tokens).c_str(),
       routedArm.verdict.c_str());
     out+=b;
-    snprintf(b,sizeof b,"    %s          %d/%d adım ucuzda KANITLANDI, %d yükseltildi — boşa yanan ucuz denemeler bu rakamın İÇİNDE%s\n",
+    snprintf(b,sizeof b,"    %s          %d/%d steps PROVEN cheap, %d escalated — the wasted cheap attempts are INSIDE this number%s\n",
       C.dim, routedArm.cheapProven, routedArm.steps, routedArm.escalated, C.rst);
     out+=b;
     if(control.verdict!="PASS"||routedArm.verdict!="PASS"){
-      snprintf(b,sizeof b,"    %sUYARI: iki kol da PASS değil — karşılaştırma sadece iki kol da kabul edildiğinde dürüsttür%s\n",C.amb,C.rst);
+      snprintf(b,sizeof b,"    %sWARNING: not both arms PASS — the comparison is only honest when both were accepted%s\n",C.amb,C.rst);
       out+=b;
     }
     // no measured money on either side (a scripted proposer, no result event)
-    // means there is no saving to report. Printing "$0.0000 cepte" there would
+    // means there is no saving to report. Printing "$0.0000 kept" there would
     // be a claim about a run that never priced anything.
     if(control.usd_e6==0 && routedArm.usd_e6==0){
-      snprintf(b,sizeof b,"    %sÖLÇÜM YOK: bu koşuda model faturası yok (scripted proposer) — para iddiası YAPILMIYOR%s\n\n",C.dim,C.rst);
+      snprintf(b,sizeof b,"    %sNOT MEASURED: no model bill on this run (scripted proposer) — NO money claim is made%s\n\n",C.dim,C.rst);
       out+=b;
       if(shown==0) out+="  (no matching run)\n";
       fwrite(out.data(),1,out.size(),stdout);
       return 0;
     }
-    if(d>=0) snprintf(b,sizeof b,"    %sfark%s    · %-16s %s%10s cepte (%%%d)%s   %s◀── kanıtlanmış tasarruf: yönlendirme değil, hakem kararı%s\n",
+    if(d>=0) snprintf(b,sizeof b,"    %sdelta%s   · %-16s %s%10s kept (%d%%)%s   %s◀── proven saving: a judge decided it, not a router%s\n",
                       C.bold,C.rst, "olculen net", C.grn, fmt_usd(d).c_str(), pct, C.rst, C.dim,C.rst);
-    else     snprintf(b,sizeof b,"    %sfark%s    · %-16s %s%10s%s   %s◀── routed PAHALIYA geldi: yükseltme tasarrufu yedi%s\n",
+    else     snprintf(b,sizeof b,"    %sdelta%s   · %-16s %s%10s%s   %s◀── routing came out MORE expensive: the escalation ate the saving%s\n",
                       C.bold,C.rst, "olculen net", C.red, ("-"+string(fmt_usd(-d))).c_str(), C.rst, C.red,C.rst);
     out+=b; out+="\n";
   }

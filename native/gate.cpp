@@ -872,6 +872,15 @@ int main(int argc, char** argv) {
              silent ? "SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)"
                     : on ? "ON — the arbiter acts: refuses, repairs, proves"
                          : "WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)");
+      // Name the file the state was read from. A user who cannot see WHERE the
+      // mode lives cannot tell an unset switch from a broken install, and this
+      // exact confusion cost a benchmark that spent weeks timing a gate in the
+      // wrong mode because RABADON_DIR had moved the flag out from under it.
+      if (a1 == "--status")
+        printf("  read from: %s (%s)\n",
+               silent ? mute.c_str() : flag.c_str(),
+               silent ? "present"
+                      : on ? "present" : "absent — no file means WATCH");
       return 0;
     }
   }

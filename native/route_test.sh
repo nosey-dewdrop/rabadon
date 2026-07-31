@@ -54,10 +54,10 @@ OUT="$("$TRACE" "$S" --no-color)"
 # control total = 5*280000 = 1400000 e6 = $1.4000  -> delta $1.0020 (72%)
 echo "$OUT" | grep -q '\$0.3980' && ok "routed arm total includes the REJECTED cheap attempt (\$0.3980)" || bad "routed total wrong: $(echo "$OUT" | grep routed)"
 echo "$OUT" | grep -q '\$1.4000' && ok "control arm total is the sum of its own measured calls (\$1.4000)" || bad "control total wrong"
-echo "$OUT" | grep -q '\$1.0020 cepte (%72)' && ok "delta + percent are computed from the two arms (\$1.0020, %72)" || bad "delta line wrong: $(echo "$OUT" | grep -i fark)"
-echo "$OUT" | grep -q 'UCUZDA KANITLANAN 4/5' && ok "counts 4/5 steps as proven-cheap, 1 escalated" || bad "cheap/escalated counters wrong"
-echo "$OUT" | grep -q 'ucuz cevap KANITLANAMADI' && ok "the rejected cheap answer is shown with the failing check" || bad "escalation detail line missing"
-echo "$OUT" | grep -q '↑ opus' && ok "the climb to the expensive tier is drawn under the step" || bad "escalation climb line missing"
+echo "$OUT" | grep -q '\$1.0020 kept (72%)' && ok "delta + percent are computed from the two arms (\$1.0020, %72)" || bad "delta line wrong: $(echo "$OUT" | grep -i delta)"
+echo "$OUT" | grep -q 'PROVEN CHEAP 4/5' && ok "counts 4/5 steps as proven-cheap, 1 escalated" || bad "cheap/escalated counters wrong"
+echo "$OUT" | grep -q 'the cheap answer was NOT PROVEN' && ok "the rejected cheap answer is shown with the failing check" || bad "escalation detail line missing"
+echo "$OUT" | grep -q '↑ retried with opus' && ok "the climb to the expensive tier is drawn under the step" || bad "escalation climb line missing"
 
 # ---- fixture 2: routing LOSES — the report must say so, not hide it ----
 S2="$TMP/lose.jsonl"
@@ -83,7 +83,7 @@ echo '{"v":1,"ts":2300,"run":"loop-c2","pipe":"demo:do","ev":"RUN_DONE","verdict
 
 OUT2="$("$TRACE" "$S2" --no-color)"
 # routed 2*(20000+300000)=640000 vs control 600000 -> routing LOST by $0.0400
-echo "$OUT2" | grep -q 'routed PAHALIYA geldi' && ok "when routing loses, the report says it lost (no hiding)" || bad "loss case not reported: $(echo "$OUT2" | grep -i fark)"
+echo "$OUT2" | grep -q 'routing came out MORE expensive' && ok "when routing loses, the report says it lost (no hiding)" || bad "loss case not reported: $(echo "$OUT2" | grep -i delta)"
 echo "$OUT2" | grep -q '\-\$0.0400' && ok "the loss is quantified (-\$0.0400), same measured way" || bad "loss amount wrong"
 
 # ---- fixture 3: a single-arm run must NOT print an A/B ----
@@ -108,7 +108,7 @@ echo '{"v":1,"ts":1050,"run":"sess-1","pipe":"demo:session","ev":"STEP_OK","step
 echo '{"v":1,"ts":1060,"run":"sess-1","pipe":"demo:session","ev":"RUN_DONE","verdict":"PASS"}'
 } > "$S4"
 OUT4="$("$TRACE" "$S4" --no-color)"
-echo "$OUT4" | grep -q 'TAMİR 0'   && ok "installing a rule and observing a green run are NOT counted as repairs (TAMİR 0)"   || bad "the ledger counted a non-repair as a repair: $(echo "$OUT4" | grep -i 'TAMİR')"
+echo "$OUT4" | grep -q 'REPAIRED 0'   && ok "installing a rule and observing a green run are NOT counted as repairs (REPAIRED 0)"   || bad "the ledger counted a non-repair as a repair: $(echo "$OUT4" | grep -i 'REPAIRED')"
 
 # and the real thing still counts
 S5="$TMP/realrepair.jsonl"
@@ -120,7 +120,7 @@ echo '{"v":1,"ts":1030,"run":"loop-x","pipe":"demo:do","ev":"REPAIR_OK","step":"
 echo '{"v":1,"ts":1040,"run":"loop-x","pipe":"demo:do","ev":"STEP_OK","step":"s1"}'
 echo '{"v":1,"ts":1050,"run":"loop-x","pipe":"demo:do","ev":"RUN_DONE","verdict":"PASS"}'
 } > "$S5"
-"$TRACE" "$S5" --no-color | grep -q 'TAMİR 1'   && ok "a real repair from the loop is still counted (TAMİR 1)" || bad "a genuine repair stopped counting"
+"$TRACE" "$S5" --no-color | grep -q 'REPAIRED 1'   && ok "a real repair from the loop is still counted (REPAIRED 1)" || bad "a genuine repair stopped counting"
 
 echo ""
 echo "route: $PASS passed, $FAIL failed"

@@ -53,6 +53,7 @@ bench: native/rabadon-gate
 # suites run 16, so a clean checkout ran `make test` straight into a missing
 # binary. the dependency is 'everything this repo builds'.
 test: all
+	./native/cli_test.sh
 	./native/audit_test.sh
 	./native/baseline_test.sh
 	./native/bypass_test.sh
