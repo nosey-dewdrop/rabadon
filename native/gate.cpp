@@ -513,6 +513,27 @@ static bool rx_test(const string& pattern, const string& text) {
   } catch (...) { return false; } // a broken rule must not take the gate down
 }
 
+// Agents write `git -C /path push --force` — global git options between "git"
+// and the subcommand slide past every `git\s+push` rule (caught live on the
+// first wild repo, 31.07). Strip them for a SECOND match attempt; the raw
+// command is always tried first, so this can only catch more, never less.
+static string strip_git_globals(const string& cmd) {
+  try {
+    static const std::regex re(
+      "\\b(git)((?:\\s+(?:-C\\s+\\S+|-c\\s+\\S+|--git-dir(?:=\\S+|\\s+\\S+)|"
+      "--work-tree(?:=\\S+|\\s+\\S+)|--no-pager|-P|--paginate))+)\\s+",
+      std::regex::ECMAScript | std::regex::icase);
+    return std::regex_replace(cmd, re, "$1 ");
+  } catch (...) { return cmd; }
+}
+
+// a bash rule fires on the raw command OR on the git-global-stripped form
+static bool rx_test_cmd(const string& pattern, const string& cmd) {
+  if (rx_test(pattern, cmd)) return true;
+  const string norm = strip_git_globals(cmd);
+  return norm != cmd && rx_test(pattern, norm);
+}
+
 // plain ["a","b"] string array under `key` (regex escapes preserved)
 static std::vector<string> parse_str_array(const string& j, const string& key) {
   std::vector<string> out;
@@ -1641,12 +1662,12 @@ int main(int argc, char** argv) {
   if (!guardRaw.empty()) {
     if (toolName == "Bash" && !command.empty()) {
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
-        if (rx_test(r.pattern, command))
+        if (rx_test_cmd(r.pattern, command))
           block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
       // push gate: rabadon RUNS the project's own suite here and opens the gate
       // on the REAL result — telling is a warning, solving is the product. This
       // was the last thing that delegated to node; it is native now.
-      if (rx_test("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) &&
+      if (rx_test_cmd("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) &&
           guardRaw.find("\"pushGate\"") != string::npos && stt.lastCodeEdit > stt.lastTestPass) {
         size_t pg = guardRaw.find("\"pushGate\"");
         const string pgObj = take_obj(guardRaw, guardRaw.find(':', pg));

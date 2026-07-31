@@ -62,5 +62,13 @@ RD2="$(mktemp -d)"; mkdir -p "$RD2/spool"; : > "$RD2/enabled"
 printf '%s' "${ev/__ID__/n1}" | RABADON_DIR="$RD2" "$BIN" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "no watcher: deny still blocks (exit 2)" || bad "no-watcher deny should block"
 
+# the wild bypass (caught live, 31.07): `git -C <path> push --force` slid past
+# every `git\s+push` rule because the global option sits between them. The gate
+# must also match the git-global-stripped form.
+evc='{"hook_event_name":"PreToolUse","cwd":"'"$D"'","session_id":"sp","tool_use_id":"n2","tool_name":"Bash","tool_input":{"command":"git -C '"$D"' push origin main --force"}}'
+printf '%s' "$evc" | RABADON_DIR="$RD2" "$BIN" >/dev/null 2>&1
+[ $? -eq 2 ] && ok "git -C <path> push --force is still refused (global options stripped for the match)" \
+  || bad "git -C bypass slipped through"
+
 echo "gate sigpipe: $PASS ok, $FAIL fail"
 [ $FAIL -eq 0 ]

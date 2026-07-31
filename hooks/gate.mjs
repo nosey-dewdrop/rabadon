@@ -206,16 +206,28 @@ if (hookEvent === 'PreToolUse') {
     // Bash command rules
     if (ev.tool_name === 'Bash' && typeof toolInput.command === 'string') {
       const cmd = toolInput.command;
+      // agents write `git -C /path push --force` — global git options between
+      // "git" and the subcommand slide past every `git\s+push` rule (caught
+      // live on the first wild repo, 31.07). A rule fires on the raw command
+      // OR on the git-global-stripped form; raw is tried first, so this can
+      // only catch more, never less. Mirrors strip_git_globals in gate.cpp.
+      const normCmd = cmd.replace(
+        /\b(git)((?:\s+(?:-C\s+\S+|-c\s+\S+|--git-dir(?:=\S+|\s+\S+)|--work-tree(?:=\S+|\s+\S+)|--no-pager|-P|--paginate))+)\s+/gi,
+        '$1 ');
+      const cmdHits = (pat) => {
+        const re = new RegExp(pat, 'i');
+        return re.test(cmd) || (normCmd !== cmd && re.test(normCmd));
+      };
       for (const rule of guard.bash || []) {
         try {
-          if (new RegExp(rule.deny, 'i').test(cmd)) await block(rule, `command matched deny rule: ${cmd.slice(0, 160)}`);
+          if (cmdHits(rule.deny)) await block(rule, `command matched deny rule: ${cmd.slice(0, 160)}`);
         } catch { /* a broken regex must not take the gate down */ }
       }
       // push gate: tests must be green since the last code edit. rabadon does
       // not just SAY it — if the guard declares the literal test command
       // (pushGate.run), rabadon RUNS it right here and opens the gate itself
       // on green. Telling is a warning; solving is the product.
-      if (guard.pushGate && /\bgit\s+push\b/.test(cmd) && !/--dry-run/.test(cmd)) {
+      if (guard.pushGate && cmdHits('\\bgit\\s+push\\b') && !/--dry-run/.test(cmd)) {
         const editedSince = state.lastCodeEdit || 0;
         const testedAt = state.lastTestPass || 0;
         if (editedSince > testedAt) {

@@ -47,6 +47,14 @@ test('deny rule: the violating command is BLOCKED (exit 2), rule id in the feedb
   assert.ok(!spool.includes('"drill":true'), 'a real session is never tagged as a drill');
 });
 
+test('deny rule: git global options (-C/-c/--git-dir) cannot slide the subcommand past the rule', () => {
+  const { home, proj } = world();
+  guard(proj, { project: 'p', bash: [{ id: 'no-force-push-main', deny: 'git\\s+push[^|;&]*(--force|-f)\\b', why: 'history is shared' }] });
+  const r = fire(home, { hook_event_name: 'PreToolUse', cwd: proj, session_id: 'real-abc', tool_name: 'Bash', tool_input: { command: `git -C ${proj} push --force origin main` } });
+  assert.equal(r.status, 2, 'the wild bypass: `git -C <path> push --force` must still be refused');
+  assert.match(r.stderr, /no-force-push-main/);
+});
+
 test('an allowed command passes (exit 0) and is gated on the ledger', () => {
   const { home, proj } = world();
   guard(proj, { project: 'p', bash: [{ id: 'x', deny: 'never-matches-anything-xyz', why: 'w' }] });
