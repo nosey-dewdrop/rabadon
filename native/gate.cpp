@@ -30,9 +30,11 @@
 #include <fcntl.h>
 #include <csignal>
 #include <cerrno>
+#include <dirent.h>
 
 #include "usage.h"   // the shared token/cost meter (budget cap here + rabadon-lens)
 #include "sha256.h"  // the hash-chained spool (emitter here + rabadon-audit)
+#include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
 
 using std::string;
@@ -818,7 +820,60 @@ int main(int argc, char** argv) {
   signal(SIGPIPE, SIG_IGN);
 
   // --version for install sanity checks
-  if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate 0.1.0\n"); return 0; }
+  if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate " RABADON_VERSION "\n"); return 0; }
+
+  // --lint [dir] — validate a guard.json before it is trusted. A typo'd key
+  // ("protectedPath" for "protectedPaths") or an uncompilable regex used to be
+  // swallowed silently: the gate would OBSERVE where the author meant it to
+  // BLOCK. Lint compiles every pattern and flags unknown top-level keys, exit
+  // 1 with the list — so a broken guard is caught at author time, not by a
+  // deny that never fired.
+  if (argc > 1 && string(argv[1]) == "--lint") {
+    string dir = argc > 2 ? argv[2] : ".";
+    string path = dir + "/.rabadon/guard.json";
+    string g = read_file(path);
+    if (g.empty()) { fprintf(stderr, "rabadon lint: no guard at %s\n", path.c_str()); return 1; }
+    int problems = 0;
+    // unknown top-level keys (catches protectedPath/bashRules/etc typos)
+    static const char* known[] = {"project", "bash", "protectedPaths", "codePaths", "testPaths",
+                                   "testCommand", "testPassPattern", "network", "disabled",
+                                   "generatedBy", "authoredBy"};
+    { size_t i = 0; int depth = 0;
+      while (i < g.size()) {
+        char c = g[i];
+        if (c == '"') {
+          size_t s = i + 1; string key;
+          for (i++; i < g.size(); i++) { if (g[i] == '\\') i++; else if (g[i] == '"') break; else key += g[i]; }
+          i++;
+          size_t j = i; while (j < g.size() && isspace((unsigned char)g[j])) j++;
+          if (depth == 1 && j < g.size() && g[j] == ':') {
+            bool ok = false; for (const char* k : known) if (key == k) ok = true;
+            if (!ok) { fprintf(stderr, "rabadon lint: unknown top-level key \"%s\" (typo? ignored by the gate)\n", key.c_str()); problems++; }
+          }
+          (void)s; continue;
+        }
+        if (c == '{' || c == '[') depth++;
+        else if (c == '}' || c == ']') depth--;
+        i++;
+      }
+    }
+    // every deny/match pattern must compile
+    auto lint_rules = [&](const char* section, const char* patKey) {
+      std::vector<std::string> empty;
+      for (const auto& r : parse_rules(g, section, patKey, empty)) {
+        try { std::regex re(r.pattern); (void)re; }
+        catch (const std::exception& e) {
+          fprintf(stderr, "rabadon lint: rule \"%s\" has an uncompilable %s regex: %s\n", r.id.c_str(), patKey, e.what());
+          problems++;
+        }
+      }
+    };
+    lint_rules("bash", "deny");
+    lint_rules("protectedPaths", "match");
+    if (problems == 0) { printf("rabadon lint: %s is valid.\n", path.c_str()); return 0; }
+    fprintf(stderr, "rabadon lint: %d problem(s) — fix them or the gate silently ignores those rules.\n", problems);
+    return 1;
+  }
 
   // --statusline — the glanceable lamp for the Claude Code status bar. It reads
   // the SAME source of truth as the gate (~/.rabadon/enabled), so the bar can
@@ -1350,6 +1405,43 @@ int main(int argc, char** argv) {
 
   // ---------- SessionStart: reset + devridaim injection ----------
   if (hook == "SessionStart") {
+    // spool retention: once per session, drop day files and their .head
+    // sidecars older than RABADON_SPOOL_DAYS (default 30). The chain is per
+    // day-file, so pruning whole files never breaks `rabadon audit`; `rabadon
+    // usage --days N` already filters, so history you still query is untouched.
+    {
+      long long keepDays = 30;
+      const char* sd = getenv("RABADON_SPOOL_DAYS");
+      if (sd && sd[0]) { long long v = atoll(sd); if (v > 0) keepDays = v; }
+      const time_t cutoff = time(nullptr) - keepDays * 86400;
+      const string spoolDir = rdir + "/spool";
+      if (DIR* d = opendir(spoolDir.c_str())) {
+        while (struct dirent* ent = readdir(d)) {
+          string n = ent->d_name;
+          bool jsonl = n.size() >= 6 && n.compare(n.size() - 6, 6, ".jsonl") == 0;
+          if (!jsonl) continue;
+          const string fp = spoolDir + "/" + n;
+          struct stat fst;
+          if (stat(fp.c_str(), &fst) == 0 && fst.st_mtime < cutoff) {
+            unlink(fp.c_str());
+            unlink((fp + ".head").c_str());
+          }
+        }
+        closedir(d);
+      }
+      // stray legacy state-native-*.txt twins: gone after 7 days
+      const time_t stateCut = time(nullptr) - 7 * 86400;
+      if (DIR* d = opendir(rdir.c_str())) {
+        while (struct dirent* ent = readdir(d)) {
+          string n = ent->d_name;
+          if (n.rfind("state-native-", 0) != 0) continue;
+          const string fp = rdir + "/" + n;
+          struct stat fst;
+          if (stat(fp.c_str(), &fst) == 0 && fst.st_mtime < stateCut) unlink(fp.c_str());
+        }
+        closedir(d);
+      }
+    }
     ss.touchedDirs.clear(); ss.fanoutWarned = false;
     ss.cmdRepeat = 0; ss.lastCmd.clear(); ss.actionCount = 0;
     stt.save();

@@ -50,6 +50,9 @@ case "${1:-toggle}" in
   exec)            B="$(nbin sandbox)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
   sandbox)         B="$(nbin sandbox)" || exit 1; shift; exec "$B" "$@" ;;
   replay)          A="$(nbin audit)" || exit 1; shift; exec "$A" --replay "$@" ;;
+  lint)            G="$(nbin gate)" || exit 1; shift; exec "$G" --lint "${1:-.}" ;;
+  init|remove|uninstall|doctor)
+                   exec node "$ROOT/hooks/manage.mjs" "$@" ;;
   drill)
     # one tagged test event through the REAL gate — see the refusal text an
     # agent would get, without waiting for a real incident and without
