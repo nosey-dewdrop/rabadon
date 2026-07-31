@@ -1,159 +1,106 @@
 # rabadon
 
-Supervise your coding agent. rabadon stands at the gate of a live Claude Code session and enforces your project's own laws deterministically, **before** every action: the force-push is refused before it rewrites history, the loop is stopped on its third identical spin, the assertion-strip is refused while the suite is red, the untested push doesn't leave the machine. Underneath sits a reliability runtime for any AI-agent pipeline: bounded budgets enforced pre-spend, named checks on every step's output, and a bounded, re-checked repair slot.
+Supervise your coding agent. rabadon stands at the gate of a live Claude Code session and enforces your project's own laws deterministically, **before** every action — then keeps a tamper-evident record of everything it did.
 
-Born from one recurring failure across 20+ solo projects: the imaginative work was never the problem, the plumbing was. Pipelines broke silently. Loops didn't stop and burned tokens. The checks I kept adding were never the right ones. rabadon is the layer that holds the pieces together so the work stays true to its purpose without the builder babysitting it.
+A hook is advice. rabadon is the layer that also makes the advice **hold**: the deterministic gate refuses the force-push before it rewrites history, stops the loop on its third identical spin, refuses the assertion-strip while the suite is red, holds the untested push. When you ask for it, the same rules compile into a kernel sandbox, so a forbidden write fails with `EPERM` even if the gate was bypassed. Every event is chained by SHA-256 to the one before it, so the ledger you show people can be verified, not just trusted.
 
-Everything is local, by law: events go over a unix socket into `~/.rabadon/spool/` on your machine. No account, no upload, nothing leaves.
+Everything is local, by law: events append to `~/.rabadon/spool/` on your machine over a unix socket. No account, no upload, nothing leaves.
 
-## Try it (not on npm yet — clone and link)
+## Install
 
 ```sh
-git clone https://github.com/nosey-dewdrop/rabadon && cd rabadon
-npm test          # zero dependencies; every guarantee proven before you trust it
-npm link          # `rabadon` becomes a global command
+npm i -g rabadon          # prebuilt native core for macOS/Linux (source-build fallback)
 
 cd your-project
-rabadon init      # authors guard rules from YOUR law files (CLAUDE.md / RULES.md),
-                  # merges hooks into your existing .claude/settings.json —
-                  # nothing of yours is overwritten (a .bak-rabadon is made)
-claude            # work normally — the session is supervised
-rabadon stats     # the ledger: what was caught, backed by timestamped events
+rabadon init              # authors guard rules from your law files (CLAUDE.md / RULES.md),
+                          # or writes a safe baseline; merges hooks into your existing
+                          # .claude/settings.json (backed up, never clobbered)
+rabadon drill             # see a real refusal in 30 seconds, without waiting for an incident
+claude                    # work normally — the session is supervised
+rabadon usage             # the ledger: what was caught, backed by timestamped events
 ```
 
-Built in, on every session, no configuration:
-- **loop-stop** — the same command run 3x with no code change in between is a loop, not progress; refused.
-- **test-tamper** — while the suite is red, an edit that weakens a test file (skip added, assertions removed) is refused. Fix the code, not the thermometer.
-- **push gate** — if your laws demand green tests before push, rabadon runs the suite itself at push time and decides on the real result, never on a claim.
-- **scope fan-out** — a task spreading across a 5th top-level directory gets challenged once.
+macOS + Linux, Node ≥ 18. The core is ~5k lines of dependency-free C++; prebuilt binaries ship per platform, and if none matches, the postinstall builds from source with `clang++`/`g++` (`rabadon doctor` diagnoses either way). Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
 
-Escape hatches are first-class: `rabadon off` pauses everything instantly, and every refusal names its rule id so you can disable exactly that rule (`"disabled": ["rule-id"]` in `.rabadon/guard.json`).
+## A real catch, verbatim
 
-From week one on the author's machine, all replayable from the spool: a mid-session `wrangler deploy` refused by a project's own deny rule, pinned reference files protected from overwrite, red-suite test edits refused. rabadon's own synthetic drills are tagged at emit and excluded from every ledger number — self-tests are not catches.
+From the author's own week, replayable from the spool — a mid-session `wrangler deploy` refused by a project's own deny rule:
 
-## The dashboard: `rabadon ui`
-
-The surface the hosted platforms sell — traces, catch ledger, live feed — standing on your own disk:
-
-```sh
-rabadon ui --root ~/code    # then open http://127.0.0.1:8484
+```
+{"ts":1785072099372,"pipe":"stitchu:session","ev":"CHECK_FAIL","step":"Bash",
+ "fails":[{"check":"no-wrangler-deploy","why":"command matched deny rule: cd backend && npx wrangler deploy —
+  ENV.md Deploy: wrangler deploy is the human's step; the agent must never deploy or claim the worker is live."}]}
 ```
 
-- **the ledger** — actions gated, caught before happening, breaks caught, repairs accepted; every number backed by a timestamped event in the spool, drills excluded.
-- **traces** — every run reconstructed step by step: what broke, what was repaired, what verdict closed it. The same shape Langfuse/Braintrust call a trace; the vocabulary here is what the gate *did*, not what the model said.
-- **live** — events stream in the moment they land, from every pipeline, session and motor run on the machine.
-- **fleet** — every project standing under guard: rules, hooks, push gate, state.
+`rabadon usage` turns a week of those into the only sales artifact that matters — what it caught, in your repo, on your work:
 
-Local only: binds `127.0.0.1`, reads `~/.rabadon/spool/`, nothing leaves the machine.
+```
+rabadon usage — last 7 day(s) · local, nothing leaves this machine
 
----
+  61 refused before they happened · 10,564 actions gated · 3 repairs accepted
+
+  stitchu                                            last event: today 15:56
+    actions gated             3,330
+    caught before happening      43
+      13x  push-gate           code was edited after the last passing test run
+       6x  no-wrangler-deploy  deploys go through CI, never from a live session
+       5x  no-rm-rf-outside    recursive delete outside the project tree is unrecoverable
+       2x  loop-stop           the same command a 3rd time with no code change in between
+    checks failed (caught)       98   (loops stopped: 2)
+    repairs accepted              3
+
+  (312 event(s) from rabadon's own drills and self-tests — excluded from every number above)
+```
+
+The drill exclusion is load-bearing: a tool that counts its own self-tests as catches is worthless, so rabadon tags them at emit and never counts them. That honesty is the brand.
+
+## The built-in laws
+
+On every session, no configuration:
+
+- **loop-stop** — the same command run 3× with no code change in between is a loop, not progress; refused.
+- **test-tamper** — while the suite is red, an edit that weakens a test (skip added, assertions removed) is refused. Fix the code, not the thermometer.
+- **push gate** — if your laws demand green tests before a push, rabadon runs the suite itself at push time and decides on the real result, never on a claim.
+- **scope fan-out** — a task spreading across a 5th top-level directory is challenged once.
+
+Plus your own laws, authored into `.rabadon/guard.json` (deny rules, protected paths, budgets) — see [docs/guard.md](docs/guard.md). Escape hatches are first-class: `rabadon off` pauses everything, and every refusal names its rule id so you can disable exactly that one (`"disabled": ["rule-id"]`).
+
+## What makes it more than a hook
+
+**Kernel enforcement — `rabadon exec`.** Protected paths and network denies from `guard.json` compile into an OS sandbox (macOS Seatbelt, Linux bubblewrap). A forbidden write is refused by the kernel with `EPERM` even when nothing consulted rabadon first — a subprocess, an MCP tool, a shell one-liner that dodged the matcher. If a fence is asked for and no backend exists, `exec` refuses to run rather than run unprotected. This is the hard boundary a hook alone cannot draw. Scope and bypass vectors are stated plainly in [docs/threat-model.md](docs/threat-model.md).
+
+**Tamper-evident ledger — `rabadon audit`.** Every spool event carries `prev` = the SHA-256 of the line before it. `rabadon audit` re-walks the chain and names any broken link by file and line; edit, drop, reorder or truncate a single event and the verdict flips to a break. A trust product's ledger should be "verify it yourself," not "believe me." `rabadon replay` renders the verified timeline.
+
+**Real repair — `rabadon repair`.** When a deterministic check goes red, `claude -p` proposes a fix **in an isolated copy** of the repo; the same check re-runs; a fix that turns it green *and* leaves every hash-locked test file untouched produces a **held patch** (`.rabadon/repair-<ts>.patch`) — reviewed and applied by you, never silently. A fix that games the check (weakens a test) is rejected. The arbiter is the project's own test suite, not an LLM judging itself — the un-gameable kernel.
+
+**Speaks OpenTelemetry — `rabadon export`.** `rabadon export --otlp` emits the ledger as OTLP/JSON traces (one trace per session, refusals as ERROR spans, GenAI-semconv token attributes) so any backend — Jaeger, Grafana Tempo, Langfuse — renders a rabadon session. Observation is a solved, standardized problem; rabadon exports to the standard instead of reinventing a dashboard.
+
+## Where it sits
+
+| Tool | Can observe? | Can **stop** a bad action? | Can **repair** it? | Can **prove** the record? | Kernel enforcement? |
+|---|---|---|---|---|---|
+| Langfuse / Braintrust | yes | no — passive by design | no | no | no |
+| Guardrails AI / Instructor | — | one structured output | re-ask, single output | no | no |
+| **rabadon** | **yes (OTLP export)** | **yes — inline, pre-spend, fail-closed** | **yes — re-verified, held, un-gameable** | **yes — hash-chained audit** | **yes — Seatbelt / bwrap** |
+
+Observation is table stakes. What nobody else in this class does: supervise a live coding-agent session, hold the enforcement down to the kernel, close the repair loop with the project's own tests as the arbiter, and hand you a ledger you can verify.
 
 ## The engine underneath
 
-The session guard is one binding of a smaller thing: a runtime that runs work in bounded, checked, repairable steps. Any runtime that can execute a subprocess can implement the same gate contract — see `SPEC.md`.
+The session guard is one binding of a smaller thing: a runtime that runs work in bounded, checked, repairable steps. The JavaScript API (`pipeline()`, `session().wrap()`) is documented in [SPEC.md](SPEC.md); any runtime that can execute a subprocess can implement the same gate contract.
 
-### Four guarantees, one primitive
+## Commands
 
-```js
-import { pipeline, named } from 'rabadon'
+`init` · `on`/`off`/`status` · `usage` (`stats`) · `report` · `drill` · `audit` · `replay` · `exec` · `repair` · `export` · `lint` · `doctor` · `remove` · `watch`. Full reference: [docs/commands.md](docs/commands.md). How the hooks, spool and modes fit together: [docs/how-it-works.md](docs/how-it-works.md).
 
-const result = await pipeline()
-  .step('normalize', rows => normalize(rows), {
-    correct: [named('noRecordVanishes', (out, inp) =>
-      out.length === inp.length ? true : `dropped ${inp.length - out.length} record(s) silently`)],
-    repair: () => correctNormalize(inp),
-  })
-  .bound({ maxSteps: 5, maxRepairs: 2 })   // a run WON'T START without a bound
-  .goal(score, 0.8)                        // drift = a number falling below a floor
-  .run(input)
-
-// result.verdict: 'PASS' | 'RUNAWAY' | 'CHECK_FAILED' | 'DRIFT' | 'THREW'
-// result.trace:   what happened at every step, including repairs
-```
-
-| Pain (from real projects) | Guarantee |
-|---|---|
-| Loops don't stop, burn tokens | `.bound({...})` — enforced **before** the spend, runaway impossible by construction |
-| Pipelines break silently | `step.correct[]` — named checks gate each output **before** it flows onward |
-| The pipeline loses its purpose | `.goal(score, floor)` — drift is measured, the run stops |
-| Caught the break, then what? | `step.repair` — diagnose → stop → repair → **re-check**, bounded |
-
-Run the end-to-end demo: `node demo/vibecoded-pipeline.mjs` — a really-broken pipeline (silent id-0 drop, wrong denominator) diagnosed, stopped, repaired, verdict PASS. Its repair fns are coded fixes so the demo is deterministic and key-free; the LLM slot does the general case (below).
-
-### One line into existing code: `wrap()`
-
-```js
-import { session } from 'rabadon'
-
-const s = session({ maxCalls: 50, maxTokens: 200_000, maxRepairs: 2 })
-const claude = s.wrap(new Anthropic(), {
-  correct: [named('non-empty', out => responseText(out).length > 0 || 'empty completion')],
-  repair: claudeRepair(),   // optional: a real LLM rewrites the broken output
-})
-// use `claude` exactly like before — every call is now gated:
-//  - the budget is enforced BEFORE the spend
-//  - checks run on the response BEFORE it flows onward (fail-closed)
-//  - a broken response is repaired, re-checked, and only then released
-```
-
-Fail-closed also means **no un-gated side door**: a wrapped client refuses the spend surfaces the gate cannot count or check (`responses`, `embeddings`, `batches`, `beta`, `stream: true`) instead of letting them silently bypass the budget. `mode: 'observe'` lets everything flow for day one — but loudly, on the record. Tool-calling responses count as payload (`responseText` serializes `tool_use`/`tool_calls`), so agentic traffic doesn't fail-close on a text check.
-
-### The motor: `rabadon do`
-
-Task in, gate-verified output out. You don't declare steps — you state the task, and rabadon plans, runs, gates and pivots until done or an honest stop:
+## Prove it yourself
 
 ```sh
-rabadon do "make the failing suite green without weakening any test" ~/code/my-project
-```
-
-**PLAN** — one model call decomposes the task; every step gets a MECHANICAL contract (command exits green / file exists / pattern present). No LLM ever judges pass/fail. **RUN** — deterministic runner; shell steps cost zero tokens. **GATE** — each contract runs before anything flows onward. **PIVOT** — one repair, then one bounded replan. **ACCEPT** — the task-level contract decides "done" as a measurement, not a claim.
-
-First real run, on this repo: `rabadon do` added the `--version` flag to its own CLI — 6-step plan (1 work + 5 mechanical), 0 pivots, acceptance PASS in 59s, suite green after.
-
-### Watch it live: `rabadon watch`
-
-Every step, break and repair lands in another terminal the moment it happens — pushed over a unix socket, not polled. This is the actual transcript of the first live LLM repair on this machine (2026-07-26; the unedited spool of this run is committed at `demo/fixtures/live-repair-2026-07-26.jsonl` and pinned by `demo/live-repair-evidence.test.mjs`):
-
-```
-16:10:23.407  llm-repair-live  ▶ run start  [summarize]  bound{maxSteps=3 maxRepairs=1}
-16:10:23.407  llm-repair-live  → summarize
-16:10:23.407  llm-repair-live  ✗ BROKE  summarize  nothingDropped: total=3 but input had 4 records — something was silently dropped | rateOverTruePopulation: positiveRate=0.33… but the true rate is 0.5 (2/4)
-16:10:23.407  llm-repair-live  ⟲ repair #1  summarize  fixing: nothingDropped, rateOverTruePopulation
-16:10:34.293  llm-repair-live  ✓ repaired  summarize  (attempt 1)
-16:10:34.294  llm-repair-live  ● PASS
-```
-
-10.9 seconds of real model time between `repair #1` and `repaired` — a live Claude call through the local Claude Code CLI (no API key needed), its fix re-run through the same intent checks before acceptance.
-
-### The LLM repair slot
-
-`repair/claude.mjs` (API) and `repair/claude-code.mjs` (local CLI, zero setup). When a step's checks fail, the broken output and the exact failure reasons go to the model; the fix is re-run through the SAME checks and accepted only if they pass. The model gets no free pass, its spend counts against the same session budget, and an unfixable break still fails closed.
-
-Honest lineage: Guardrails' ReAsk and Instructor's `max_retries` re-ask the model when a single structured output fails validation — real prior art. rabadon generalizes the move past the single-output case: any pipeline step or session action, bounded by the shared budget, fail-closed when the fix doesn't pass.
-
-## Where it sits (verified against the field)
-
-| Tool | Integration | Can stop a bad call? | Can repair it? | Scope |
-|---|---|---|---|---|
-| Langfuse | `observeOpenAI(client)` wrap | no — passive by design ([their words](https://langfuse.com/blog/2024-09-langfuse-proxy)) | no | tracing |
-| Braintrust | `wrapOpenAI(client)` wrap | no — "only logs" (their docs) | no | tracing/evals |
-| Galileo | inline `invoke_protect` | yes — block or canned override | no | one call |
-| Guardrails AI | validator wrap | yes — validation failure | re-ask, single output | one output |
-| Instructor | patched client | yes — schema failure | retries, single output | one output |
-| **rabadon** | **wrap / hooks / CLI** | **yes — inline, fail-closed, pre-spend** | **yes — any step or session action, bounded, re-checked** | **pipeline + session, one budget** |
-
-What nobody else in this table does: supervise a live coding-agent session (loop-stop, test-tamper, push gate) and hold one pre-spend budget across a whole session — locally, with the ledger on your own disk.
-
-## Run it
-
-```sh
-npm test                          # core, wrap, bus, store, ui, gate, do, repair evidence
-node demo/vibecoded-pipeline.mjs  # broken pipeline diagnosed + repaired end to end
-node bin/rabadon.mjs watch        # live terminal view
-node bin/rabadon.mjs ui           # the dashboard on 127.0.0.1:8484
-node demo/llm-repair-live.mjs     # LIVE Claude repair (Claude Code CLI or ANTHROPIC_API_KEY)
+make && make test    # the native core: 20 suites, incl. kernel-EPERM, chain-tamper,
+                     # and the caught→propose→re-verify repair loop, all green
+npm test             # the JS surface: install/merge, wrap, store, ui
 ```
 
 ## Status
 
-In development, building in public. Proven so far, by running code committed here: the session gate (deny rules, loop-stop, test-tamper, push gate — tested through the real binary), the core primitive, the `wrap()` gate with pre-spend budget and no un-gated side door, one live LLM repair (fixture-committed, test-pinned), one real `rabadon do` task closed end to end, and the local dashboard. The ledger excludes rabadon's own drills by construction. Not on npm yet; no external user yet — the first catch on a stranger's machine is the next proof this README will cite.
+Building in public. **Proven, by running code committed here:** the session gate (deny rules, loop-stop, test-tamper, push gate) through the real binary; kernel-enforced protected paths (real OS `EPERM`); the hash-chained ledger with tamper detection; the session repair loop (caught → proposed in isolation → re-verified → held patch, fake fixes rejected); OTLP export; portable `npm i -g` install with prebuilt binaries; clean `init`/`remove`/`doctor`. **[building]:** the local dashboard (`rabadon ui`) is a stub — `rabadon watch` is the live surface today. **Honest gap:** the repair loop is proven on scripted and isolated real repos; the first repair on a stranger's live project is the next proof this README will cite. Not yet published to npm — the release workflow and provenance are wired and waiting on the maintainer's `npm publish`.

@@ -30,11 +30,13 @@ is deterministic C++, never a model.
 
 ## The six pillars
 
-1. **One binary.** `rabadon` is a single static C++ executable, zero runtime
-   dependencies, installed with one command. Gate, session kernel, drift,
-   verify, loop, task engine, stats, ui server, doctor, init — all inside.
-   Median per-event overhead under 5ms [proven for gate: 2.1ms vs 101ms node;
-   building for the rest — engine JS still exists and is being retired].
+1. **One command install, native core.** `rabadon` installs with
+   `npm i -g rabadon`: prebuilt zero-dependency C++ binaries per platform
+   (`@rabadon/<os>-<cpu>` optional deps), with a source-build fallback. Gate,
+   session kernel, drift, verify, loop, task engine, stats, audit, repair,
+   sandbox, export, doctor, init — all native. Median per-event overhead under
+   5ms [proven for gate: 2.1ms vs 101ms node]. [proven: prebuilt packaging +
+   provenance workflow wired; first npm publish pending the maintainer]
 
 2. **The law writes itself.** The builder does not hand-author rules. Law is
    compiled: from the project's own law files (`rabadon guard`), from
@@ -52,17 +54,20 @@ is deterministic C++, never a model.
    [building — today drift speaks at session end; it moves into the gate].
    A session cannot silently leave its pipeline.
 
-4. **Repair that cannot be gamed.** Catch → repair (any model) → re-verify
-   through the same gates plus the project's OWN test suite as the oracle
-   [proven: verify kernel 7/7, behavior gate 4/4, live repair accepted in
-   16s] → only then continue. `repairs accepted` is the honest counter; it
-   only counts real breakage, never demos.
+4. **Repair that cannot be gamed.** Catch → repair (`claude -p`) proposes in
+   an isolated copy → re-verify by re-running the project's OWN check with
+   every test file hash-locked → a green, tamper-free result becomes a HELD
+   patch the human applies, never an auto-edit [proven: session repair loop
+   13/13, verify kernel 7/7, fake/test-weakening fixes rejected]. `repairs
+   accepted` only counts real breakage fixed and re-verified, never demos.
 
-5. **The ledger is the product's word.** Every event spools locally,
-   drill-tagged, aggregated by `rabadon stats` and the local ui. The public
-   benchmark page is generated from the real ledger and reproducible by
-   anyone who runs the suite [ahead — numbers exist, the generated page does
-   not]. Data never leaves the machine.
+5. **The ledger is the product's word, and it is verifiable.** Every event
+   spools locally and is hash-chained to the one before it, so `rabadon audit`
+   can prove the record was not edited after the fact [proven: tamper
+   detection 9/9], and `rabadon export --otlp` renders it in any OpenTelemetry
+   backend [proven 7/7]. Drills are tagged at emit and excluded from every
+   number. Data never leaves the machine. [building: the local ui dashboard is
+   a stub; `rabadon watch` is the live surface]
 
 6. **Fleet, then strangers.** One builder, all repos, one law distribution,
    one dashboard [proven at 48 repos]. Then the same binary on a stranger's
@@ -124,14 +129,26 @@ local unix socket to any attached viewer. Nothing leaves the machine.
 ```json
 { "v": 1, "seq": 3, "ts": 1785072099611, "run": "<run id>",
   "pipe": "<project>:session", "ev": "CHECK_FAIL",
-  "step": "Bash", "fails": [{ "check": "<rule id>", "why": "<reason>" }] }
+  "step": "Bash", "fails": [{ "check": "<rule id>", "why": "<reason>" }],
+  "prev": "<sha256 of the previous event line in this day-file>" }
 ```
 
 `ev` vocabulary (fixed): `RUN_START`, `STEP_START`, `STEP_OK`, `CHECK_FAIL`,
-`REPAIR_START`, `REPAIR_OK`, `REPAIR_FAIL`, `STOP`, `RUN_DONE`.
-A `STOP` with `"reason": "BLOCKED"` is a catch: something was refused before
-it happened. Unknown fields MUST be preserved; unknown `ev` values MUST be
+`WOULD_BLOCK`, `REPAIR_START`, `REPAIR_OK`, `REPAIR_FAIL`, `STOP`, `RUN_DONE`.
+A `STOP` with `"reason": "BLOCKED"` is a catch: something was refused before it
+happened; it also carries `"rule"` (the id) and `"sid"` (session id). A
+`WOULD_BLOCK` is the watch-mode counterpart — the same verdict, recorded but
+not enforced. Unknown fields MUST be preserved; unknown `ev` values MUST be
 rendered generically, never dropped.
+
+**Hash chain (tamper-evidence).** Each event carries `prev` = the SHA-256 of
+the entire previous event line in the same day-file (`"genesis"` for the
+first). A verifier (`rabadon audit`) re-walks the chain and reports any line
+whose `prev` does not match, by file and line number. A `.head` sidecar holds
+the hash of the last chained line so truncation cannot hide. Lines written by
+producers that predate the chain (or that do not implement it) carry no `prev`
+and MUST be tolerated as *unchained* — counted and reported, never silently
+trusted.
 
 ## 3. Guard schema (v1)
 
@@ -150,9 +167,17 @@ carries its own justification.
   "testCommand":    "<regex matching a test invocation>",
   "testPassPattern":"<regex present in output ONLY when fully green>",
   "pushGate":       { "why": "<the law>", "run": "<literal command rabadon executes itself>", "timeoutSec": 600 },
+  "network":        "deny",
   "disabled":       ["rule-id"]
 }
 ```
+
+`protectedPaths` and `network` are also the source for kernel enforcement:
+`rabadon exec -- <cmd>` compiles them into an OS sandbox (macOS Seatbelt,
+Linux bubblewrap) so a forbidden write or denied network call fails with
+`EPERM` even when the hook is bypassed. A `match` regex with no literal path
+prefix cannot be kernel-fenced (the hook still checks it) and MUST be reported,
+never silently treated as enforced.
 
 Semantics an implementation MUST provide on top of the guard:
 
