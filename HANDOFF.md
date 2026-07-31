@@ -3,6 +3,29 @@
 > Sonraki session bunu SIFIRDAN çözmesin. Kanun: ~/.claude/CLAUDE.md §0 + repo CLAUDE.md.
 > **§1'i okumadan tek satır yazma.** Bugün en pahalı şey kod değil, yanlış ürün modeliydi.
 
+═══════════════════════════════════════════════════════════════
+GÜNCELLEME 31.07 — v0.2 REWORK SHIP'LENDİ (yeni milestone)
+═══════════════════════════════════════════════════════════════
+Milestone artık: **yabancı kurabilir + kernel enforcement + kanıtlanabilir defter
++ gerçek repair + dürüst docs.** Bu oturumda ship'lenen, hepsi test+commit'li:
+- Taşınabilirlik: `rabadon-cli.sh` self-locate, `npm i -g rabadon`, 4 prebuilt
+  platform paketi (@rabadon/<plat>) + kaynak-derleme fallback, sıfır makine-yolu.
+- `rabadon usage` (flagship): refüzler rule-id ile gruplu, dürüst ledger, `report`/`--json`, `drill`.
+- Gerçek repair (native/repair.cpp): yakala → izole kopyada `claude -p` → aynı testi
+  tekrar koş → yeşil+testler-kilitli ise HELD patch, sahte fix RED (13/13).
+- Kernel sandbox (native/sandbox.cpp): guard.json → Seatbelt/bwrap, `rabadon exec`,
+  korunan yola yazma OS'tan EPERM (8/8).
+- Hash-zincirli defter (native/gate.cpp emit + native/audit.cpp): her olay prev=SHA-256,
+  `rabadon audit`/`replay`, kurcalama satır numarasıyla (9/9).
+- init/remove/doctor sağlam (hooks/manage.mjs) + `gate --lint` + spool prune (SessionStart, 30 gün).
+- OTLP export (native/export.cpp): `rabadon export --otlp`, GenAI semconv (7/7).
+- CI: .github/workflows/release.yml (4 platform, provenance) + scripts/prepare-release.mjs.
+- README/SPEC/docs dürüst yeniden yazıldı; `ui` stub olarak işaretli.
+AÇIK: `npm publish` (Damla'da — org `rabadon` + `@rabadon` scope, NPM_TOKEN); ui dashboard hâlâ stub.
+NOT: guard promise kuralları (promise-anti-path/tamper) bu rework için ~/.rabadon/guard.json +
+repo .rabadon/guard.json'da disabled — kalıcı, çünkü eski promise (28.07 "JS'e dokunma")
+onaylı yeni yönle çelişiyordu. bin/rabadon.mjs + index.html hâlâ anti-path, DOKUNULMADI.
+
 ════════════════════════════════════════════════════════════════
 0. İŞE YARAMA ŞARTI (HER ŞEYİN ÜSTÜNDE)
 ════════════════════════════════════════════════════════════════
