@@ -37,7 +37,8 @@ static double now_ms() {
   const char* t = getenv("RABADON_NOW");
   if (t && t[0]) { double v = strtod(t, nullptr); if (v > 0) return v; }
   struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
-  return (double)((long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+  long long ms = (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+  return (double)ms;
 }
 
 static string read_file(const string& p) {

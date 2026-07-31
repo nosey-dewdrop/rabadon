@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox
+all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
 native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -14,6 +14,9 @@ native/rabadon-repair: native/repair.cpp native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-sandbox: native/sandbox.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+native/rabadon-export: native/export.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-trace: native/trace.cpp
@@ -50,6 +53,7 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/audit_test.sh
 	./native/repair_session_test.sh
 	./native/sandbox_test.sh
+	./native/export_test.sh
 	./native/gate_promise_test.sh
 	./native/lamp_test.sh
 	./native/watch_test.sh
@@ -70,7 +74,7 @@ test: native/rabadon-gate native/rabadon-drift native/rabadon-verify native/raba
 	./native/regression_demo.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
 .PHONY: all bench clean
 
