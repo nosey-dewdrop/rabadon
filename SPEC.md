@@ -87,6 +87,14 @@ passed when its number is real on this machine's ledger.
 - **G3 — repair is real.** `repairs held > 0` on real, non-demo breakage,
   verified by the broken project's own suite while its test files were
   hash-locked. Accepted-but-unwitnessed does not clear this gate.
+  **[proven 2026-08-01: `repairs held 2`.** expressjs/express @ a3714473, its own
+  mocha suite (1260 tests) as the arbiter, 91 test files hash-locked; two injected
+  source bugs — an off-by-one in `lib/request.js`, a flipped comparison in
+  `lib/response.js` — each came back as a held patch that is the exact inverse,
+  the tree never edited. The same path refused a proposer that bought the green by
+  skipping the failing test, and the held counter did not move. Raw evidence, and
+  the rung that had to be repaired to get there:
+  `reports/2026-08-01-g3-first-held-repair/`.**]
 - **G4 — first stranger.** One external builder installs rabadon and gets one
   real catch on their machine.
 - **G5 — the benchmark.** A public, reproducible numbers page: overhead in
