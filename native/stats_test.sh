@@ -1,219 +1,110 @@
 #!/bin/bash
-# stats_test.sh — DIFFERENTIAL proof that native/rabadon-stats == the JS oracle.
+# stats_test.sh — proof that `rabadon usage` renders the ledger correctly.
 #
-# The JS `rabadon stats` (bin/rabadon.mjs -> core/store.mjs) is the ORACLE.
-# For every case below we run BOTH against the SAME spool and compare the
-# outputs BYTE-FOR-BYTE (cmp). Byte-identity subsumes "counters match per
-# project and in total" — if a single number, rule line, ordering or space
-# diverged, the diff would show it.
-#
-# Cases: a synthetic spool with real projects + drills/demos + force-push
-# denies + repairs across projects and days (unicode rules, em-dash splits,
-# loop-stops, ties, unparseable lines, old files, marker neighbors), several
-# --days variants incl. JS-quirk values, empty/missing spool dirs, the
-# empty-string RABADON_DIR fall-through, and the REAL ~/.rabadon spool.
+# The old differential-vs-node harness died with the usage redesign (the JS
+# stats block is legacy; the native renderer is the product). These tests pin
+# the renderer's CONTRACT on a synthetic spool with a pinned clock
+# (RABADON_NOW), pinned TZ and pinned COLUMNS, so every assertion is
+# deterministic on any machine:
+#   - refusals group by RULE ID (STOP.rule field, run-join fallback,
+#     legacy em-dash-prefix fallback)
+#   - the rule's why renders under the id; nothing is cut without an ellipsis
+#   - WATCH verdicts (WOULD_BLOCK) are a first-class bucket
+#   - drills are excluded three ways: emit tag, drill-/fleet-/doctor- marker,
+#     self pipes incl. rabadon-bench
+#   - headline totals, --project, --full, --json, --md, empty state, --days
 set -u
 cd "$(dirname "$0")/.."
-export RABADON_NOTIFY=0
-
-NODE_BIN="node bin/rabadon.mjs"
 NATIVE=./native/rabadon-stats
 [ -x "$NATIVE" ] || { echo "stats_test: build first (make native/rabadon-stats)"; exit 1; }
 
 ok=0; bad=0
 TMP=$(mktemp -d /tmp/rabadon-stats-test.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
+SPOOL="$TMP/rd/spool"; mkdir -p "$SPOOL"
 
-# run_case <label> <RABADON_DIR value or __HOME__:<home>> [stats args...]
-run_case() {
-  local label="$1"; shift
-  local dirspec="$1"; shift
-  local a="$TMP/a.out" b="$TMP/b.out"
-  if [[ "$dirspec" == __HOME__:* ]]; then
-    local home="${dirspec#__HOME__:}"
-    HOME="$home" RABADON_DIR= $NODE_BIN stats "$@" >"$a" 2>"$TMP/a.err"
-    local rc_a=$?
-    HOME="$home" RABADON_DIR= $NATIVE "$@" >"$b" 2>"$TMP/b.err"
-    local rc_b=$?
-  else
-    RABADON_DIR="$dirspec" $NODE_BIN stats "$@" >"$a" 2>"$TMP/a.err"
-    local rc_a=$?
-    RABADON_DIR="$dirspec" $NATIVE "$@" >"$b" 2>"$TMP/b.err"
-    local rc_b=$?
-  fi
-  if [ "$rc_a" -ne 0 ] || [ "$rc_b" -ne 0 ]; then
-    echo "FAIL  $label — exit codes node=$rc_a native=$rc_b (both must be 0)"
-    bad=$((bad+1)); return
-  fi
-  if [ -s "$TMP/b.err" ]; then
-    echo "FAIL  $label — native wrote to stderr:"; sed 's/^/        /' "$TMP/b.err"
-    bad=$((bad+1)); return
-  fi
-  if cmp -s "$a" "$b"; then
-    echo "ok    $label"
-    ok=$((ok+1))
-  else
-    echo "FAIL  $label — outputs differ (node vs native):"
-    diff "$a" "$b" | head -30 | sed 's/^/        /'
-    bad=$((bad+1))
-  fi
-}
+# pinned clock: 2026-01-10T12:00:00Z
+NOW=1768046400000
+DAY="2026-01-10"
+TS1=$((NOW - 3600000))   # 1h ago
+TS2=$((NOW - 7200000))   # 2h ago
+OLD=$((NOW - 30*86400000)) # 30 days ago
 
-# ---------- synthetic spool ----------
-# A known mix: real projects (alpha/beta/gamma/delta/epsilon/zeta/eta), drill
-# events (emit-tagged, self-pipe, tmp.*, fleet marker + 2min neighbor),
-# force-push denies (STOP BLOCKED) with em-dash rules incl. unicode >80 units,
-# CHECK_FAILs (arrays, empty, missing, loop-stop), repairs, old files, an
-# old-named file with a recent event (name fast-path), an unparseable-name
-# file with a real event, blank/broken lines, a missing-ts event, ties.
-SPOOL="$TMP/fix/spool"
-mkdir -p "$SPOOL"
-node - "$SPOOL" <<'EOF'
-const fs = require('fs'), path = require('path');
-const spool = process.argv[2];
-const NOW = Date.now();
-const H = (h) => NOW - Math.round(h * 3600000);
-const day = (ts) => new Date(ts).toISOString().slice(0, 10);
-const buckets = new Map();
-const put = (name, obj) => {
-  const f = name || day(obj.ts) + '.jsonl';
-  if (!buckets.has(f)) buckets.set(f, []);
-  buckets.get(f).push(typeof obj === 'string' ? obj : JSON.stringify(obj));
-};
-const ev = (ts, pipe, ev_, extra = {}) => ({ v: 1, seq: extra.seq ?? 1, ts, run: extra.run ?? 'r1', pipe, ev: ev_, ...extra });
-
-// --- alpha: gated + blocked (repeat rule + unicode long rule) + checkfails + repairs
-put(null, ev(H(5), 'alpha:session', 'STEP_START', { step: 'a', seq: 1 }));
-put(null, ev(H(4.9), 'alpha:session', 'STEP_START', { step: 'b', seq: 2 }));
-put(null, ev(H(4.8), 'alpha:session', 'STEP_START', { step: 'c', seq: 3 }));
-put(null, ev(H(4.7), 'alpha:session', 'STOP', { reason: 'BLOCKED', detail: 'no-force-push-main — force-pushing a shared branch destroys history', seq: 4 }));
-put(null, ev(H(4.6), 'alpha:session', 'STOP', { reason: 'BLOCKED', detail: 'no-force-push-main — force-pushing a shared branch destroys history', seq: 5 }));
-// unicode rule: >80 UTF-16 units before the em dash (Turkish chars = 1 unit / 2 bytes,
-// emoji = 2 units) — exercises the 80-key and 60-print truncations
-const uni = 'kanun: "çok önemli" bir kural — değil, bu tire boşluksuz'.replace(' — ', '—') // inner dash WITHOUT spaces: not a split point
-  + ' şöyle ki güvenlik 🚀 önce gelir ve açıklama upuzun sürer gider';
-put(null, ev(H(4.5), 'alpha:session', 'STOP', { reason: 'BLOCKED', detail: uni + ' — the why part', seq: 6 }));
-put(null, ev(H(4.4), 'alpha:session', 'STOP', { reason: 'RUNAWAY', detail: 'not counted anywhere', seq: 7 }));
-put(null, ev(H(4.3), 'alpha:session', 'CHECK_FAIL', { step: 's', fails: [{ check: 'loop-stop', why: 'x' }, { check: 'style', why: 'y' }], seq: 8 }));
-put(null, ev(H(4.2), 'alpha:session', 'CHECK_FAIL', { step: 's', fails: [], seq: 9 }));           // empty fails -> +1
-put(null, ev(H(4.1), 'alpha:session', 'CHECK_FAIL', { step: 's', seq: 10 }));                      // missing fails -> +1
-put(null, ev(H(4.0), 'alpha:session', 'REPAIR_OK', { step: 's', attempt: 1, seq: 11 }));
-put(null, ev(H(3.9), 'alpha:session', 'REPAIR_OK', { step: 's', attempt: 2, seq: 12 }));
-put(null, ev(H(3.8), 'alpha:session', 'STEP_START', { step: 'fleet-x no digits', seq: 13 }));      // "fleet-" w/o digit: NOT a marker
-
-// --- beta: most recent project, lone STEP_START (all-zero counters otherwise)
-put(null, ev(H(1), 'beta:do', 'STEP_START', { step: 'only', run: 'r2' }));
-
-// --- gamma: loop-stop suffix + detail-less BLOCKED ('?') + equal-n rule tie order
-put(null, ev(H(2.2), 'gamma', 'CHECK_FAIL', { fails: [{ check: 'loop-stop', why: 'z' }], run: 'r3', seq: 1 }));
-put(null, ev(H(2.1), 'gamma', 'STOP', { reason: 'BLOCKED', run: 'r3', seq: 2 }));                  // missing detail -> '?'
-put(null, ev(H(2.05), 'gamma', 'STOP', { reason: 'BLOCKED', detail: 'rule-b — later', run: 'r3', seq: 3 })); // n=1 tie: '?' first-seen wins
-
-// --- delta: fleet marker (drill) + neighbor inside 2min (drill) + 130s later (REAL)
-const T0 = H(10);
-put(null, ev(T0, 'delta:session', 'STEP_START', { step: 'x', run: 'fleet-123-delta', seq: 1 }));
-put(null, ev(T0 + 60000, 'delta:session', 'STOP', { reason: 'BLOCKED', detail: 'drill-rule — synthetic', run: 'r4', seq: 2 }));
-put(null, ev(T0 + 130000, 'delta:session', 'STEP_START', { step: 'real', run: 'r4', seq: 3 }));
-
-// --- pipe-less events: doctor marker (undefined === undefined pipe match)
-const T1 = H(8);
-put(null, { v: 1, seq: 1, ts: T1, run: 'doctor-77', ev: 'STEP_START', step: 'probe' });            // no pipe, marker
-put(null, { v: 1, seq: 2, ts: T1 + 90000, run: 'r5', ev: 'STEP_START', step: 'near' });            // no pipe, within 2min -> drill
-put(null, { v: 1, seq: 3, ts: H(6), run: 'r5', ev: 'STEP_START', step: 'far' });                    // no pipe, far -> project "?"
-
-// --- drills: emit-tagged / self pipes / tmp.*
-put(null, ev(H(3), 'alpha:session', 'STEP_START', { step: 'drill', drill: true, seq: 20 }));
-put(null, ev(H(3), 'do-test:do', 'STEP_START', { step: 'self' }));
-put(null, ev(H(3), 'tmp.scratch', 'CHECK_FAIL', { fails: [{ check: 'c', why: 'w' }] }));
-put(null, ev(H(3), 'bus-test', 'RUN_START', {}));
-
-// --- epsilon: window-boundary project (30h inside 1.5d, 40h outside 1.5d but inside 7d)
-put(null, ev(H(30), 'epsilon:session', 'STEP_START', { step: 'in36', run: 'r6', seq: 1 }));
-put(null, ev(H(40), 'epsilon:session', 'STEP_START', { step: 'in7d', run: 'r6', seq: 2 }));
-
-// --- zeta/eta: identical lastTs -> stable first-encounter order (by seq at same ts)
-const TIE = H(2.5);
-put(null, ev(TIE, 'zeta', 'STEP_START', { step: 't', run: 'r7', seq: 1 }));
-put(null, ev(TIE, 'eta', 'STEP_START', { step: 't', run: 'r8', seq: 2 }));
-
-// --- noise: blank lines, whitespace line, truncated JSON, garbage, missing ts
-put(day(H(5)) + '.jsonl', '');
-put(day(H(5)) + '.jsonl', '   ');
-put(day(H(5)) + '.jsonl', '{"v":1,"seq":');
-put(day(H(5)) + '.jsonl', 'not json at all');
-put(day(H(5)) + '.jsonl', 'null');
-put(day(H(5)) + '.jsonl', JSON.stringify({ v: 1, pipe: 'alpha:session', ev: 'STEP_START', step: 'no-ts' }));
-
-// --- old file fully outside the window (name fast-path AND ts filter)
-const OLD = NOW - 40 * 86400000;
-put(day(OLD) + '.jsonl', ev(OLD, 'ancient:session', 'STEP_START', { step: 'old' }));
-// old-NAMED file with a RECENT ts: the JS skips the whole file by NAME — parity on the fast path
-put(day(NOW - 39 * 86400000) + '.jsonl', ev(H(1), 'ghost:session', 'STEP_START', { step: 'recent-in-old-file' }));
-// unparseable NAME with a real recent event: must still be read
-put('zz-notadate.jsonl', ev(H(1.5), 'theta', 'REPAIR_OK', { step: 'r', run: 'r9' }));
-
-for (const [f, lines] of buckets) fs.writeFileSync(path.join(spool, f), lines.join('\n') + '\n');
-console.log(`fixture: ${buckets.size} spool file(s) written`);
+cat > "$SPOOL/$DAY.jsonl" <<EOF
+{"v":1,"seq":1,"ts":$TS2,"run":"r1","pipe":"alpha:session","ev":"STEP_START","step":"bash: ls"}
+{"v":1,"seq":1,"ts":$TS2,"run":"r2","pipe":"alpha:session","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"no-force-push-main","why":"force-pushing a shared branch destroys history"}]}
+{"v":1,"seq":2,"ts":$TS2,"run":"r2","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","detail":"command matched deny rule: git push --force origin main"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r3","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","rule":"no-force-push-main","sid":"s1","detail":"command matched deny rule: git push -f origin main"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r4","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","detail":"legacy-rule-prefix — some long explanation after the em dash"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r5","pipe":"alpha:session","ev":"WOULD_BLOCK","reason":"no-rm-rf-outside","rule":"no-rm-rf-outside","sid":"s1","detail":"command matched deny rule: rm -rf /"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r6","pipe":"alpha:session","ev":"REPAIR_OK","step":"fix"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r7","pipe":"beta:session","ev":"STEP_START","step":"bash: pwd"}
+{"v":1,"seq":1,"ts":$TS1,"run":"r8","pipe":"beta:session","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"loop-stop","why":"same command 3x"}]}
+{"v":1,"seq":1,"ts":$TS1,"run":"d1","pipe":"gamma:session","ev":"STOP","reason":"BLOCKED","rule":"tagged-drill","detail":"x","drill":true}
+{"v":1,"seq":1,"ts":$TS1,"run":"d2","pipe":"gamma:session","ev":"STOP","reason":"BLOCKED","rule":"marker-drill","sid":"drill-123","detail":"drill-123 marker"}
+{"v":1,"seq":1,"ts":$TS1,"run":"d3","pipe":"rabadon-bench-xyz:session","ev":"STOP","reason":"BLOCKED","rule":"bench-noise","detail":"bench"}
+{"v":1,"seq":1,"ts":$OLD,"run":"r9","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","rule":"too-old","detail":"outside the window"}
 EOF
 
-FIX="$TMP/fix"
-echo "== synthetic spool: $SPOOL"
-run_case "synthetic --days default(7)"      "$FIX"
-run_case "synthetic --days 2"               "$FIX" --days 2
-run_case "synthetic --days 1.5 (fractional)" "$FIX" --days 1.5
-run_case "synthetic --days 30"              "$FIX" --days 30
-run_case "synthetic --days 0 (falsy -> 7)"  "$FIX" --days 0
-run_case "synthetic --days abc (NaN -> 7)"  "$FIX" --days abc
-run_case "synthetic --days -3 (future cutoff, empty)" "$FIX" --days -3
-run_case "synthetic --days '' (Number('')=0 -> 7)"    "$FIX" --days ""
-run_case "synthetic --days trailing (no value -> 7)"  "$FIX" --days
-run_case "synthetic --days 0x2 (JS hex quirk -> 2)"   "$FIX" --days 0x2
-run_case "synthetic --days -0x2 (signed hex = NaN -> 7)" "$FIX" --days -0x2
-run_case "synthetic --days 1e1 (exponent -> 10)"      "$FIX" --days 1e1
+run() { RABADON_DIR="$TMP/rd" RABADON_NOW="$NOW" TZ=UTC COLUMNS=100 $NATIVE "$@"; }
 
-# ---------- empty / missing spool dirs ----------
-mkdir -p "$TMP/empty/spool"
-run_case "empty spool dir"    "$TMP/empty"
-run_case "missing spool dir"  "$TMP/does-not-exist"
+check() { # check <label> <expected-grep-pattern> <text>
+  local label="$1" pat="$2" out="$3"
+  if printf '%s' "$out" | grep -qE "$pat"; then ok=$((ok+1)); echo "  ok   - $label"
+  else bad=$((bad+1)); echo "  FAIL - $label"; echo "    wanted /$pat/ in:"; printf '%s\n' "$out" | sed 's/^/    | /'; fi
+}
+check_not() {
+  local label="$1" pat="$2" out="$3"
+  if printf '%s' "$out" | grep -qE "$pat"; then bad=$((bad+1)); echo "  FAIL - $label (found /$pat/)"
+  else ok=$((ok+1)); echo "  ok   - $label"; fi
+}
 
-# ---------- RABADON_DIR="" falls through to HOME/.rabadon (JS ||) ----------
-FAKEHOME="$TMP/home"
-mkdir -p "$FAKEHOME/.rabadon/spool"
-cp "$SPOOL"/*.jsonl "$FAKEHOME/.rabadon/spool/"
-run_case "empty RABADON_DIR -> HOME/.rabadon" "__HOME__:$FAKEHOME" --days 7
+echo "stats_test: usage renderer contract"
 
-# ---------- spec author's fixture, if still present ----------
-if [ -d /tmp/rbdspec/spool ]; then
-  run_case "spec fixture /tmp/rbdspec" /tmp/rbdspec --days 7
-fi
+U="$(run --days 7)"
+check "headline totals: 3 refused, 2 gated, 1 repair" '3 refused before they happened · 2 actions gated · 1 repairs accepted' "$U"
+check "watch bucket in headline" '1 would-have-refused \(watch\)' "$U"
+check "rule-id grouping: 2x no-force-push-main (rule field + run-join)" '2x  no-force-push-main' "$U"
+check "rule why rendered under the id" 'force-pushing a shared branch destroys history' "$U"
+check "legacy detail falls back to em-dash prefix" '1x  legacy-rule-prefix' "$U"
+check "watch verdict grouped by rule" '1x  no-rm-rf-outside' "$U"
+check "loop counter survives" 'loops stopped: 1' "$U"
+check "drills excluded and said so" 'excluded from every number above' "$U"
+check_not "emit-tagged drill never counted" 'tagged-drill' "$U"
+check_not "drill- marker session never counted" 'marker-drill' "$U"
+check_not "rabadon-bench self pipe never counted" 'bench-noise' "$U"
+check_not "events outside --days never counted" 'too-old' "$U"
+check "last event stamp (TZ=UTC pinned)" 'last event: 2026-01-10 11:00' "$U"
 
-# ---------- the REAL spool ----------
-# Race guard: a live session appending to ~/.rabadon/spool between the two
-# runs would make an honest byte-diff flake, so on mismatch we retry once.
-REAL="$HOME/.rabadon"
-if [ -d "$REAL/spool" ]; then
-  for d in 7 30; do
-    a="$TMP/ra.out"; b="$TMP/rb.out"
-    RABADON_DIR="$REAL" $NODE_BIN stats --days "$d" >"$a"
-    RABADON_DIR="$REAL" $NATIVE --days "$d" >"$b"
-    if ! cmp -s "$a" "$b"; then
-      RABADON_DIR="$REAL" $NODE_BIN stats --days "$d" >"$a"
-      RABADON_DIR="$REAL" $NATIVE --days "$d" >"$b"
-    fi
-    if cmp -s "$a" "$b"; then
-      echo "ok    real spool --days $d ($(grep -c '^  [^ (]' "$a" 2>/dev/null || echo '?') project lines agree byte-for-byte)"
-      ok=$((ok+1))
-    else
-      echo "FAIL  real spool --days $d — outputs differ:"
-      diff "$a" "$b" | head -30 | sed 's/^/        /'
-      bad=$((bad+1))
-    fi
-  done
-else
-  echo "skip  real spool ($REAL/spool not present)"
-fi
+PB="$(run --days 7 --project beta)"
+check "--project filters to one project" 'beta' "$PB"
+check_not "--project hides the others" 'alpha' "$PB"
+check "--full lists each catch with a timestamp" '· 2026-01-10 (10|11):00  command matched deny rule' "$(run --days 7 --full)"
 
-echo
-echo "stats_test: $ok ok, $bad bad"
-[ "$bad" -eq 0 ] || exit 1
-exit 0
+J="$(run --days 7 --json)"
+check "--json totals" '"totals":\{"refused":3,"wouldRefuse":1,"gated":2,' "$J"
+check "--json rule objects" '\{"rule":"no-force-push-main","n":2,' "$J"
+check "--json drills counter" '"drillsExcluded":3' "$J"
+
+M="$(run --days 7 --md)"
+check "--md headline" '\*\*3 refused before they happened' "$M"
+check "--md methodology footer" 'drills and self-tests are tagged at emit and excluded' "$M"
+check "--md reproducible pointer" 'rabadon usage --days 7' "$M"
+
+# empty state
+EMPTY_DIR="$TMP/empty"; mkdir -p "$EMPTY_DIR/spool"
+check "empty state points at rabadon drill" 'rabadon drill' "$(RABADON_DIR="$EMPTY_DIR" RABADON_NOW="$NOW" TZ=UTC COLUMNS=100 $NATIVE --days 7)"
+
+# ellipsis contract: a very long why must end in … and fit the width
+LONGDIR="$TMP/long"; mkdir -p "$LONGDIR/spool"
+LONGWHY=$(printf 'w%.0s' $(seq 1 300))
+printf '{"v":1,"seq":1,"ts":%s,"run":"L1","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","rule":"long-rule","detail":"%s"}\n' "$TS1" "$LONGWHY" > "$LONGDIR/spool/$DAY.jsonl"
+LOUT="$(RABADON_DIR="$LONGDIR" RABADON_NOW="$NOW" TZ=UTC COLUMNS=80 $NATIVE --days 7)"
+check "long reason ends in an ellipsis, no silent cut" '…' "$LOUT"
+# count CHARACTERS, not bytes (macOS awk length is byte-oriented; … is 3 bytes)
+LONGEST=$(printf '%s\n' "$LOUT" | python3 -c 'import sys; print(max((len(l.rstrip("\n")) for l in sys.stdin), default=0))')
+if [ "$LONGEST" -le 80 ]; then ok=$((ok+1)); echo "  ok   - no line exceeds COLUMNS (longest: $LONGEST)"
+else bad=$((bad+1)); echo "  FAIL - line exceeds COLUMNS=80 (longest: $LONGEST)"; fi
+
+echo "stats: $ok passed, $bad failed"
+[ "$bad" -eq 0 ]

@@ -21,8 +21,8 @@ import { SPOOL_DIR } from './bus.mjs';
 // Pipes that are rabadon exercising ITSELF (shipped demos, scratch test
 // projects). Their events are honest history but they are NOT the user's
 // work, so the ledger must never sell them as catches.
-const SELF_PIPES = /^(vibecoded-demo|do-test|llm-repair-live|bus-test)(:|$)/;
-const DRILL_MARKER = /(fleet|doctor)-\d+/; // `echo fleet-<pid>-<proj>` / doctor probes
+const SELF_PIPES = /^(vibecoded-demo|do-test|llm-repair-live|bus-test)(:|$)|^rabadon-bench/;
+const DRILL_MARKER = /(fleet|doctor|drill)-\d+/; // `echo fleet-<pid>-<proj>` / doctor probes / `rabadon drill`
 
 /**
  * Label rabadon's own noise so every ledger downstream can exclude it.

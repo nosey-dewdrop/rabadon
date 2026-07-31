@@ -43,6 +43,31 @@ case "${1:-toggle}" in
   on|off|status)   G="$(nbin gate)" || exit 1; exec "$G" "--$1" ;;
   statusline)      G="$(nbin gate)" || exit 1; exec "$G" --statusline ;;
   stats|usage)     S="$(nbin stats)" || exit 1; shift; exec "$S" "$@" ;;
+  report)          S="$(nbin stats)" || exit 1; shift; exec "$S" --md "$@" ;;
   trace)           T="$(nbin trace)" || exit 1; shift; exec "$T" "$@" ;;
+  drill)
+    # one tagged test event through the REAL gate — see the refusal text an
+    # agent would get, without waiting for a real incident and without
+    # polluting the ledger (RABADON_DRILL=1 + drill-<pid> tag at emit).
+    G="$(nbin gate)" || exit 1
+    CWD="$(pwd)"
+    CMD="git push --force origin main"
+    echo "rabadon drill — feeding a synthetic dangerous command through the REAL gate:"
+    echo "    \$ $CMD"
+    echo
+    OUT="$(printf '{"hook_event_name":"PreToolUse","session_id":"drill-%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' \
+      "$$" "$CWD" "$CMD" | RABADON_DRILL=1 "$G" 2>&1)"
+    RC=$?
+    [ -n "$OUT" ] && printf '%s\n' "$OUT"
+    echo
+    if [ "$RC" -eq 2 ]; then
+      echo "the gate REFUSED it (exit 2) — a live agent session would have been stopped here."
+    elif printf '%s' "$OUT" | grep -q "would have blocked"; then
+      echo "the rule FIRED in watch mode — \`rabadon on\` makes this a real refusal (exit 2)."
+    else
+      echo "no guard rule matched in $CWD — run \`rabadon init\` here to author one."
+    fi
+    echo "this was a drill: tagged at emit, excluded from the ledger. \`rabadon usage\` counts only real catches."
+    exit 0 ;;
   *)               exec node "$JS" "$@" ;;
 esac

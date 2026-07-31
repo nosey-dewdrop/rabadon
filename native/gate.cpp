@@ -980,7 +980,8 @@ int main(int argc, char** argv) {
   em.sockPath = rdir + "/rabadon.sock";
   em.pipe = project + ":session";
   em.runId = "ng-" + std::to_string(now_ms() % 100000000) + "-" + std::to_string(getpid());
-  em.drill = sid.rfind("fleet-", 0) == 0 || sid.rfind("doctor-", 0) == 0;
+  em.drill = sid.rfind("fleet-", 0) == 0 || sid.rfind("doctor-", 0) == 0 || sid.rfind("drill-", 0) == 0;
+  { const char* de = getenv("RABADON_DRILL"); if (de && strcmp(de, "1") == 0) em.drill = true; }
   em.open_sock();
 
   // one state file, one owner. the old parallel state-native-*.txt store is
@@ -1428,7 +1429,10 @@ int main(int argc, char** argv) {
     em.emit("CHECK_FAIL", "\"step\":\"" + json_escape(toolName) + "\",\"mode\":\"" + mode_tag() +
             "\",\"fails\":[{\"check\":\"" + json_escape(ruleId) + "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
     if (g_mode == MODE_ENFORCE) {
-      em.emit("STOP", "\"reason\":\"BLOCKED\",\"detail\":\"" + json_escape(detail) + "\"");
+      // rule + sid ride on the STOP so the ledger can group refusals by RULE
+      // without joining back to the CHECK_FAIL (legacy events still join by run)
+      em.emit("STOP", "\"reason\":\"BLOCKED\",\"rule\":\"" + json_escape(ruleId) +
+              "\",\"sid\":\"" + json_escape(sid) + "\",\"detail\":\"" + json_escape(detail) + "\"");
       stt.save();
       fprintf(stderr,
         "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n"
@@ -1440,7 +1444,8 @@ int main(int argc, char** argv) {
     // WOULD_BLOCK is the event a week of watching turns into "here is what I
     // would have stopped in your repo", which is the only demo that convinces
     // someone to hand over write access.
-    em.emit("WOULD_BLOCK", "\"reason\":\"" + json_escape(ruleId) + "\",\"detail\":\"" + json_escape(detail) + "\"");
+    em.emit("WOULD_BLOCK", "\"reason\":\"" + json_escape(ruleId) + "\",\"rule\":\"" + json_escape(ruleId) +
+            "\",\"sid\":\"" + json_escape(sid) + "\",\"detail\":\"" + json_escape(detail) + "\"");
     stt.save();
     fprintf(stderr,
       "rabadon (watch) would have blocked this.\nRule: %s — %s\n%s\n"
@@ -1475,8 +1480,8 @@ int main(int argc, char** argv) {
           auto halt = [&](const string& capStr, const string& spent) {
             em.emit("CHECK_FAIL", "\"step\":\"budget\",\"fails\":[{\"check\":\"budget-cap\",\"why\":\"" +
               json_escape(capStr + " reached — " + spent) + "\"}]");
-            em.emit("STOP", "\"reason\":\"BLOCKED\",\"detail\":\"" +
-              json_escape("budget cap " + capStr + " — " + spent) + "\"");
+            em.emit("STOP", "\"reason\":\"BLOCKED\",\"rule\":\"budget-cap\",\"sid\":\"" + json_escape(sid) +
+              "\",\"detail\":\"" + json_escape("budget cap " + capStr + " — " + spent) + "\"");
             stt.save();
             fprintf(stderr,
               "rabadon: budget cap %s reached — run halted before burn\n"

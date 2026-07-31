@@ -1,24 +1,28 @@
 // rabadon-stats — the catch ledger, native (C++17, zero deps).
 //
-// Port of `rabadon stats` (bin/rabadon.mjs lines 106-127) over the same spool
-// the JS reads: core/store.mjs readEvents + markDrills + aggregate, byte-exact
-// output parity with the node oracle (proven by native/stats_test.sh, a
-// differential harness that runs BOTH against the same spool and diffs).
+// This is `rabadon usage` (alias: stats): the value-proof surface. It reads
+// the same spool the gate writes and answers ONE question — what did rabadon
+// actually do for you — grouped by RULE, not by detail-string prefix.
 //
-// Semantics ported deliberately, not approximately:
-//   - RABADON_DIR = env if non-empty (JS `||`), else HOME/.rabadon; spool under it.
-//   - --days: JS Number() semantics; NaN or 0 falls back to 7 (JS `|| 7`).
-//   - file fast-path skip by YYYY-MM-DD name (UTC midnight); unparseable names
-//     are still read — the per-event ts filter is the real gate.
-//   - stable sorts everywhere JS relies on stability (ts/seq event order,
-//     equal-n blocked rules, equal-lastTs projects).
-//   - .slice(0,80)/.slice(0,60) count UTF-16 CODE UNITS, not bytes — strings
-//     are decoded to UTF-16 units before truncation, re-encoded to UTF-8 for
-//     output (lone surrogate from a mid-pair cut -> U+FFFD, Node behavior).
-//   - drill exclusion = markDrills two-pass: /(fleet|doctor)-\d+/ markers
-//     (tested on the raw line — byte-equivalent to JSON.stringify for the
-//     compact JSON rabadon itself writes), self pipes, tmp.*, ±2min neighbors.
-// Exit code is always 0 (missing spool dir = "(no events yet)", like the JS).
+// Renderer law:
+//   - blocked actions are grouped by rule id. The id comes from, in order:
+//     the STOP event's own "rule" field (new emits), the CHECK_FAIL that
+//     shares the STOP's run id (fails[0].check), or the detail split at the
+//     em dash (legacy events).
+//   - WATCH-mode verdicts (WOULD_BLOCK) are first-class: a week of watching
+//     produces "here is what I would have caught" — that bucket IS the
+//     adoption story and it is rendered, never dropped.
+//   - nothing is cut mid-word without an ellipsis; long reasons are
+//     ellipsized to the terminal width (COLUMNS override, ioctl, fallback 100).
+//   - drills/demos/self-tests are excluded from every number and said so —
+//     the ledger's honesty is the product.
+//   - deterministic: RABADON_NOW (ms, test hook) pins the clock; TZ pins the
+//     timestamps. The golden tests depend on this.
+//
+// Spool semantics kept from the differential-oracle port (proven previously
+// against core/store.mjs, now guarded by golden files in stats_test.sh):
+//   RABADON_DIR fallback, --days JS Number() quirks, per-event ts filter,
+//   stable sorts, UTF-16 slice semantics, markDrills two-pass exclusion.
 
 #include <algorithm>
 #include <cctype>
@@ -34,6 +38,7 @@
 #include <vector>
 #include <dirent.h>
 #include <pwd.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -41,10 +46,9 @@ using std::string;
 using std::u16string;
 
 // ---------- time ----------
-// whole milliseconds, exactly like JS Date.now() (integer ms). Compute in
-// integer then widen — the sub-ms remainder is deliberately dropped so the
-// --days cutoff matches the oracle to the millisecond.
 static double now_ms() {
+  const char* t = getenv("RABADON_NOW"); // test hook: pin the clock
+  if (t && t[0]) { double v = strtod(t, nullptr); if (v > 0) return v; }
   struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
   long long ms = (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
   return (double)ms;
@@ -56,8 +60,6 @@ static void push_cp(u16string& out, uint32_t cp) {
   else { cp -= 0x10000; out.push_back((char16_t)(0xD800 + (cp >> 10))); out.push_back((char16_t)(0xDC00 + (cp & 0x3FF))); }
 }
 
-// decode a raw JSON string body (escape sequences kept verbatim by the lexer)
-// into UTF-16 code units — the unit JS .slice() counts in.
 static u16string json_body_to_u16(const string& s) {
   u16string out;
   size_t i = 0;
@@ -74,7 +76,7 @@ static u16string json_body_to_u16(const string& s) {
         case '"': out.push_back(u'"'); break;
         case '\\': out.push_back(u'\\'); break;
         case '/': out.push_back(u'/'); break;
-        case 'u': { // lexer guarantees 4 hex digits follow
+        case 'u': {
           unsigned v = 0;
           for (int k = 0; k < 4 && i < s.size(); k++, i++) {
             char h = s[i]; v <<= 4;
@@ -116,7 +118,7 @@ static string u16_to_utf8(const u16string& s) {
     if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < s.size() && s[i + 1] >= 0xDC00 && s[i + 1] <= 0xDFFF) {
       cp = 0x10000 + ((cp - 0xD800) << 10) + (uint32_t)(s[i + 1] - 0xDC00); i++;
     } else if (cp >= 0xD800 && cp <= 0xDFFF) {
-      cp = 0xFFFD; // lone surrogate: what Node emits to a utf8 stdout
+      cp = 0xFFFD;
     }
     if (cp < 0x80) out += (char)cp;
     else if (cp < 0x800) { out += (char)(0xC0 | (cp >> 6)); out += (char)(0x80 | (cp & 0x3F)); }
@@ -129,12 +131,11 @@ static string u16_to_utf8(const u16string& s) {
 // ---------- strict JSON parser (JSON.parse grammar; a bad line = unparseable) ----------
 struct JV {
   enum T { OBJ, ARR, STR, NUM, BOOL, NUL } t = NUL;
-  std::vector<std::pair<string, JV>> o; // key = raw body, insertion order
+  std::vector<std::pair<string, JV>> o;
   std::vector<JV> a;
-  string s;      // STR: raw body (escapes verbatim); NUM: verbatim token
+  string s;
   bool b = false;
   double num() const { return strtod(s.c_str(), nullptr); }
-  // JSON.parse: a duplicated key keeps the LAST occurrence
   const JV* get(const string& key) const {
     const JV* r = nullptr;
     for (auto& kv : o) if (kv.first == key) r = &kv.second;
@@ -160,11 +161,11 @@ struct JParse {
     return number();
   }
   string str() {
-    string out; i++; // opening quote
+    string out; i++;
     while (i < s.size()) {
       unsigned char c = (unsigned char)s[i];
       if (c == '"') { i++; return out; }
-      if (c < 0x20) break; // JSON.parse rejects raw control chars in strings
+      if (c < 0x20) break;
       if (c == '\\') {
         if (i + 1 >= s.size()) break;
         char e = s[i + 1];
@@ -177,7 +178,7 @@ struct JParse {
           if (!hex4) break;
           out.append(s, i, 6); i += 6; continue;
         }
-        break; // invalid escape
+        break;
       }
       out += (char)c; i++;
     }
@@ -230,15 +231,14 @@ struct JParse {
   }
 };
 
-// ---------- JS Number() for --days ----------
+// ---------- JS Number() for --days (kept: CLI contract is stable) ----------
 static double js_number(const char* a, bool& is_nan) {
   is_nan = false;
   string s(a);
   size_t b = s.find_first_not_of(" \t\r\n\f\v");
-  if (b == string::npos) return 0.0; // Number('') / whitespace-only = 0
+  if (b == string::npos) return 0.0;
   size_t e = s.find_last_not_of(" \t\r\n\f\v");
   s = s.substr(b, e - b + 1);
-  // radix literals — sign NOT allowed in JS for these
   if (s.size() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
     for (size_t k = 2; k < s.size(); k++) if (!isxdigit((unsigned char)s[k])) { is_nan = true; return 0; }
     return (double)strtoull(s.c_str() + 2, nullptr, 16);
@@ -254,22 +254,20 @@ static double js_number(const char* a, bool& is_nan) {
   string t = s; bool neg = false;
   if (!t.empty() && (t[0] == '+' || t[0] == '-')) { neg = t[0] == '-'; t = t.substr(1); }
   if (t == "Infinity") return neg ? -INFINITY : INFINITY;
-  // strtod accepts "inf"/"nan"/signed hex — JS Number() does not; reject those
   string low; for (char c : t) low += (char)tolower((unsigned char)c);
   if (low == "inf" || low == "infinity" || low == "nan") { is_nan = true; return 0; }
-  if (t.size() > 1 && t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) { is_nan = true; return 0; } // "+0x2"/"-0x2" -> NaN in JS
+  if (t.size() > 1 && t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) { is_nan = true; return 0; }
   char* endp = nullptr;
   double v = strtod(s.c_str(), &endp);
   if (endp && *endp == '\0' && endp != s.c_str()) return v;
   is_nan = true; return 0;
 }
 
-// JS Number-to-string for the header (integers plain, else shortest round-trip)
 static string js_num_str(double v) {
   if (std::isinf(v)) return v < 0 ? "-Infinity" : "Infinity";
   if (v == std::floor(v) && std::fabs(v) < 1e15) {
     long long i = (long long)v;
-    return std::to_string(i == 0 ? 0 : i); // String(-0) === "0"
+    return std::to_string(i == 0 ? 0 : i);
   }
   char buf[64];
   for (int prec = 1; prec <= 17; prec++) {
@@ -279,26 +277,76 @@ static string js_num_str(double v) {
   return string(buf);
 }
 
+// thousands separator: 3290 -> "3,290"
+static string commas(long long n) {
+  string s = std::to_string(n);
+  bool neg = !s.empty() && s[0] == '-';
+  string d = neg ? s.substr(1) : s;
+  string out;
+  int c = 0;
+  for (int i = (int)d.size() - 1; i >= 0; i--) {
+    out += d[(size_t)i];
+    if (++c % 3 == 0 && i > 0) out += ',';
+  }
+  std::reverse(out.begin(), out.end());
+  return (neg ? "-" : "") + out;
+}
+
+// local timestamp "YYYY-MM-DD HH:MM" (TZ env pins it for the goldens)
+static string local_stamp(double ms) {
+  time_t t = (time_t)(ms / 1000.0);
+  struct tm tmv; localtime_r(&t, &tmv);
+  char buf[24]; strftime(buf, sizeof buf, "%Y-%m-%d %H:%M", &tmv);
+  return string(buf);
+}
+
+// terminal width: COLUMNS env, else ioctl, else 100
+static size_t term_width() {
+  const char* c = getenv("COLUMNS");
+  if (c && c[0]) { long v = strtol(c, nullptr, 10); if (v >= 40) return (size_t)v; }
+  struct winsize w;
+  if (isatty(STDOUT_FILENO) && ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col >= 40) return w.ws_col;
+  return 100;
+}
+
+// ellipsize a UTF-16 string to fit `cols` columns (code units ~ columns) —
+// never a bare mid-word cut: if it does not fit, it ends in a visible "…"
+static string fit(const u16string& s, size_t cols) {
+  u16string one;
+  for (char16_t ch : s) one += (ch == u'\n' || ch == u'\r' || ch == u'\t') ? u' ' : ch;
+  if (one.size() <= cols) return u16_to_utf8(one);
+  if (cols == 0) return "";
+  u16string cut = one.substr(0, cols - 1);
+  cut += u'…';
+  return u16_to_utf8(cut);
+}
+
 // ---------- spool event model ----------
 struct Event {
   double ts = 0;
   double seq = 0;
-  bool drill = false;      // final flag (emit-tagged OR set by markDrills)
-  bool drill_emit = false; // drill field truthy on the line itself
-  bool has_pipe = false;   // pipe present as a string
-  string pipe;             // decoded UTF-8
+  bool drill = false;
+  bool drill_emit = false;
+  bool has_pipe = false;
+  string pipe;
+  string run;
   string ev;
-  string reason;           // STOP only
+  string reason;      // STOP: BLOCKED/...; WOULD_BLOCK: the rule id
+  string rule;        // explicit "rule" field (new emits)
   bool has_fails_arr = false;
   long long fails_len = 0;
   long long loop_stops = 0;
-  u16string detail;        // STOP only; already the String(e.detail || '?') value
-  bool marker_hit = false; // raw line matched /(fleet|doctor)-\d+/
+  string fail_check;  // fails[0].check
+  u16string fail_why; // fails[0].why
+  u16string detail;   // STOP / WOULD_BLOCK
+  bool marker_hit = false;
 };
 
-// /(fleet|doctor)-\d+/ over the raw line (\d = ASCII digits only)
+// /(fleet|doctor|drill)-\d+/ over the raw line — drill- joins the marker set
+// so `rabadon drill` sessions are excluded belt-and-suspenders (they are also
+// emit-tagged drill:true).
 static bool drill_marker(const string& line) {
-  static const char* words[2] = {"fleet-", "doctor-"};
+  static const char* words[3] = {"fleet-", "doctor-", "drill-"};
   for (const char* w : words) {
     size_t wl = strlen(w), from = 0, k;
     while ((k = line.find(w, from)) != string::npos) {
@@ -309,7 +357,6 @@ static bool drill_marker(const string& line) {
   return false;
 }
 
-// ^(vibecoded-demo|do-test|llm-repair-live|bus-test)(:|$)
 static bool self_pipe(const string& p) {
   static const char* names[4] = {"vibecoded-demo", "do-test", "llm-repair-live", "bus-test"};
   for (const char* n : names) {
@@ -317,10 +364,12 @@ static bool self_pipe(const string& p) {
     if (p.size() == nl && p.compare(0, nl, n) == 0) return true;
     if (p.size() > nl && p.compare(0, nl, n) == 0 && p[nl] == ':') return true;
   }
-  return p.rfind("tmp.", 0) == 0; // pipe.startsWith('tmp.') shares the same branch
+  // rabadon's own latency benchmark fires thousands of synthetic denies —
+  // self-test traffic, never a user's catch (ledger honesty)
+  if (p.rfind("rabadon-bench", 0) == 0) return true;
+  return p.rfind("tmp.", 0) == 0;
 }
 
-// projectOf: String(pipe || '?') with ONE trailing :session/:do stripped
 static string project_of(bool has_pipe, const string& pipe) {
   string p = (has_pipe && !pipe.empty()) ? pipe : "?";
   const string a = ":session", b = ":do";
@@ -329,7 +378,6 @@ static string project_of(bool has_pipe, const string& pipe) {
   return p;
 }
 
-// Date.parse("YYYY-MM-DD") -> UTC midnight ms, or false (Hinnant civil days)
 static bool parse_day_utc(const string& name, double& out_ms) {
   if (name.size() < 10) return false;
   const char* p = name.c_str();
@@ -354,7 +402,7 @@ static bool parse_day_utc(const string& name, double& out_ms) {
 
 static string read_file(const string& p) {
   struct stat st;
-  if (stat(p.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) return string(); // readFileSync(dir) throws -> continue
+  if (stat(p.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) return string();
   std::ifstream f(p, std::ios::binary);
   if (!f) return string();
   std::ostringstream ss; ss << f.rdbuf();
@@ -362,28 +410,60 @@ static string read_file(const string& p) {
 }
 
 // ---------- per-project ledger ----------
+struct Catch { double ts; u16string detail; };
+struct Rule {
+  string id;
+  u16string why;      // representative: first seen
+  long long n = 0;
+  std::vector<Catch> hits; // kept for --full
+};
 struct Proj {
   string name;
-  long long gated = 0, blocked = 0, checkFails = 0, loopsStopped = 0, repairsOk = 0;
+  long long gated = 0, blocked = 0, wouldBlocked = 0, checkFails = 0, loopsStopped = 0, repairsOk = 0;
   double lastTs = 0;
-  std::vector<std::pair<u16string, long long>> rules; // insertion order = first seen
+  std::vector<Rule> rules;      // blocked, grouped by rule id
+  std::vector<Rule> wouldRules; // watch-mode verdicts, grouped by rule id
 };
 
-int main(int argc, char** argv) {
-  // --days: first "--days" wins; Number(next) with NaN/0 -> 7 (the oracle default)
-  double days = 7;
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--days") == 0) {
-      if (i + 1 < argc) {
-        bool nan = false;
-        double v = js_number(argv[i + 1], nan);
-        days = (nan || v == 0) ? 7 : v;
-      }
-      break;
+static Rule& rule_for(std::vector<Rule>& v, const string& id) {
+  for (Rule& r : v) if (r.id == id) return r;
+  v.push_back(Rule{}); v.back().id = id;
+  return v.back();
+}
+
+static string json_escape(const string& s) {
+  string out;
+  for (unsigned char c : s) {
+    switch (c) {
+      case '"': out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); out += b; }
+        else out += (char)c;
     }
   }
+  return out;
+}
 
-  // RABADON_DIR: env if NON-EMPTY (JS `||`), else homedir/.rabadon (HOME, passwd fallback)
+int main(int argc, char** argv) {
+  double days = 7;
+  bool full = false, json = false, md = false;
+  string only_project;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--days") == 0 && i + 1 < argc) {
+      bool nan = false;
+      double v = js_number(argv[i + 1], nan);
+      days = (nan || v == 0) ? 7 : v;
+      i++;
+    } else if (strcmp(argv[i], "--full") == 0) full = true;
+    else if (strcmp(argv[i], "--json") == 0) json = true;
+    else if (strcmp(argv[i], "--md") == 0) md = true;
+    else if (strcmp(argv[i], "--project") == 0 && i + 1 < argc) { only_project = argv[++i]; }
+  }
+
   string rdir;
   const char* rd = getenv("RABADON_DIR");
   if (rd && rd[0]) rdir = rd;
@@ -396,7 +476,7 @@ int main(int argc, char** argv) {
     rdir = home + "/.rabadon";
   }
   string base = rdir;
-  while (base.size() > 1 && base.back() == '/') base.pop_back(); // path.join normalization (the common case)
+  while (base.size() > 1 && base.back() == '/') base.pop_back();
   string spool = base + "/spool";
 
   const double cutoff = now_ms() - days * 86400000.0;
@@ -409,13 +489,13 @@ int main(int argc, char** argv) {
       if (n.size() >= 6 && n.compare(n.size() - 6, 6, ".jsonl") == 0) files.push_back(n);
     }
     closedir(d);
-  } // missing/unreadable dir is NOT an error: zero files
+  }
   std::sort(files.begin(), files.end());
 
   std::vector<Event> events;
   for (const string& f : files) {
     double day = 0;
-    if (parse_day_utc(f, day) && day + 86400000.0 < cutoff) continue; // whole-file fast path
+    if (parse_day_utc(f, day) && day + 86400000.0 < cutoff) continue;
     string body = read_file(spool + "/" + f);
     if (body.empty()) continue;
     size_t pos = 0;
@@ -423,17 +503,16 @@ int main(int argc, char** argv) {
       size_t nl = body.find('\n', pos);
       string line = body.substr(pos, (nl == string::npos ? body.size() : nl) - pos);
       pos = (nl == string::npos) ? body.size() + 1 : nl + 1;
-      // skip blank / whitespace-only
       bool blank = true;
       for (char c : line) if (c != ' ' && c != '\t' && c != '\r' && c != '\n' && c != '\f' && c != '\v') { blank = false; break; }
       if (blank) continue;
       JParse p(line);
       JV root = p.root();
-      if (!p.ok) continue;                    // unparseable: silently tolerated (never printed)
-      if (root.t == JV::NUL) continue;        // JSON.parse -> null -> e.ts throws -> caught as unparseable
+      if (!p.ok) continue;
+      if (root.t == JV::NUL) continue;
       Event e;
       const JV* ts = (root.t == JV::OBJ) ? root.get("ts") : nullptr;
-      if (!ts || ts->t != JV::NUM) continue;  // missing ts -> excluded (undefined >= cutoff is false)
+      if (!ts || ts->t != JV::NUM) continue;
       e.ts = ts->num();
       if (!(e.ts >= cutoff)) continue;
       if (const JV* sq = root.get("seq")) if (sq->t == JV::NUM) e.seq = sq->num();
@@ -442,23 +521,33 @@ int main(int argc, char** argv) {
       }
       if (const JV* pp = root.get("pipe")) if (pp->t == JV::STR) { e.has_pipe = true; e.pipe = u16_to_utf8(json_body_to_u16(pp->s)); }
       if (const JV* ev = root.get("ev")) if (ev->t == JV::STR) e.ev = u16_to_utf8(json_body_to_u16(ev->s));
-      if (e.ev == "STOP") {
+      if (const JV* rn = root.get("run")) if (rn->t == JV::STR) e.run = u16_to_utf8(json_body_to_u16(rn->s));
+      if (const JV* rl = root.get("rule")) if (rl->t == JV::STR) e.rule = u16_to_utf8(json_body_to_u16(rl->s));
+      if (e.ev == "STOP" || e.ev == "WOULD_BLOCK") {
         if (const JV* r = root.get("reason")) if (r->t == JV::STR) e.reason = u16_to_utf8(json_body_to_u16(r->s));
         const JV* dt = root.get("detail");
         if (dt && dt->t == JV::STR && !dt->s.empty()) e.detail = json_body_to_u16(dt->s);
         else if (dt && dt->t == JV::NUM && dt->num() != 0) e.detail = json_body_to_u16(dt->s);
         else if (dt && dt->t == JV::BOOL && dt->b) e.detail = u"true";
-        else e.detail = u"?"; // String(e.detail || '?')
+        else e.detail = u"?";
       }
       if (e.ev == "CHECK_FAIL") {
         const JV* fl = root.get("fails");
         if (fl && fl->t == JV::ARR) {
           e.has_fails_arr = true;
           e.fails_len = (long long)fl->a.size();
-          for (const JV& f : fl->a) {
-            if (f.t != JV::OBJ) continue;
-            const JV* c = f.get("check");
-            if (c && c->t == JV::STR && u16_to_utf8(json_body_to_u16(c->s)) == "loop-stop") e.loop_stops++;
+          bool first = true;
+          for (const JV& fj : fl->a) {
+            if (fj.t != JV::OBJ) continue;
+            const JV* c = fj.get("check");
+            string check = (c && c->t == JV::STR) ? u16_to_utf8(json_body_to_u16(c->s)) : "";
+            if (check == "loop-stop") e.loop_stops++;
+            if (first) {
+              e.fail_check = check;
+              const JV* w = fj.get("why");
+              if (w && w->t == JV::STR) e.fail_why = json_body_to_u16(w->s);
+              first = false;
+            }
           }
         }
       }
@@ -468,7 +557,6 @@ int main(int argc, char** argv) {
     }
   }
 
-  // sort: (ts asc, then seq asc), stable — full ties keep file-then-line order
   std::stable_sort(events.begin(), events.end(), [](const Event& a, const Event& b) {
     if (a.ts != b.ts) return a.ts < b.ts;
     return a.seq < b.seq;
@@ -478,19 +566,40 @@ int main(int argc, char** argv) {
   struct Marker { bool has_pipe; string pipe; double ts; };
   std::vector<Marker> markers;
   for (Event& e : events) {
-    if (e.drill) continue; // emit-tagged drills never become markers
+    if (e.drill) continue;
     if (e.marker_hit) { e.drill = true; markers.push_back({e.has_pipe, e.pipe, e.ts}); }
   }
   for (Event& e : events) {
     if (e.drill) continue;
-    const string p = e.has_pipe ? e.pipe : ""; // String(e.pipe || '')
+    const string p = e.has_pipe ? e.pipe : "";
     if (self_pipe(p)) { e.drill = true; continue; }
     for (const Marker& m : markers) {
-      // m.pipe === e.pipe strict: two missing pipes both undefined DO match
       bool same = (m.has_pipe == e.has_pipe) && (!m.has_pipe || m.pipe == e.pipe);
       if (same && std::fabs(e.ts - m.ts) < 120000.0) { e.drill = true; break; }
     }
   }
+
+  // ---- rule id resolution: run -> (check, why) from CHECK_FAILs ----
+  std::vector<std::pair<string, std::pair<string, u16string>>> runRule;
+  for (const Event& e : events) {
+    if (e.drill || e.ev != "CHECK_FAIL" || e.run.empty() || e.fail_check.empty()) continue;
+    runRule.push_back({e.run, {e.fail_check, e.fail_why}});
+  }
+  auto find_run = [&](const string& run) -> const std::pair<string, u16string>* {
+    if (run.empty()) return nullptr;
+    for (auto& kv : runRule) if (kv.first == run) return &kv.second;
+    return nullptr;
+  };
+
+  // legacy fallback: detail split at " — " = rule-ish prefix
+  auto detail_prefix = [](const u16string& d) -> string {
+    u16string rule = d;
+    static const char16_t dash[3] = {u' ', u'—', u' '};
+    size_t k = rule.find(u16string(dash, 3));
+    if (k != u16string::npos) rule = rule.substr(0, k);
+    if (rule.size() > 80) rule = rule.substr(0, 80);
+    return u16_to_utf8(rule);
+  };
 
   // ---- aggregate ----
   std::vector<Proj> projects;
@@ -506,47 +615,172 @@ int main(int argc, char** argv) {
     if (e.ts > s.lastTs) s.lastTs = e.ts;
     if (e.ev == "STEP_START") s.gated++;
     if (e.ev == "CHECK_FAIL") {
-      long long n = (e.has_fails_arr && e.fails_len > 0) ? e.fails_len : 1; // (e.fails||[]).length || 1
+      long long n = (e.has_fails_arr && e.fails_len > 0) ? e.fails_len : 1;
       s.checkFails += n;
       s.loopsStopped += e.loop_stops;
     }
     if (e.ev == "STOP" && e.reason == "BLOCKED") {
       s.blocked++;
-      // rule = String(detail||'?').split(' — ')[0].slice(0,80) — em dash, UTF-16 units
-      u16string rule = e.detail;
-      static const char16_t dash[3] = {u' ', u'—', u' '};
-      size_t k = rule.find(u16string(dash, 3));
-      if (k != u16string::npos) rule = rule.substr(0, k);
-      if (rule.size() > 80) rule = rule.substr(0, 80);
-      bool found = false;
-      for (auto& kv : s.rules) if (kv.first == rule) { kv.second++; found = true; break; }
-      if (!found) s.rules.push_back({rule, 1});
+      string id = e.rule;
+      u16string why = e.detail;
+      // the paired CHECK_FAIL carries "<detail> — <rule's why>"; prefer it —
+      // the rule's why is the line worth reading under the id
+      if (const auto* rr = find_run(e.run)) {
+        if (id.empty()) id = rr->first;
+        if (!rr->second.empty()) why = rr->second;
+      }
+      if (id.empty()) id = detail_prefix(e.detail);
+      Rule& r = rule_for(s.rules, id);
+      if (r.n == 0) r.why = why;
+      r.n++;
+      r.hits.push_back({e.ts, e.detail});
+    }
+    if (e.ev == "WOULD_BLOCK") {
+      s.wouldBlocked++;
+      string id = !e.rule.empty() ? e.rule : (!e.reason.empty() ? e.reason : detail_prefix(e.detail));
+      Rule& r = rule_for(s.wouldRules, id);
+      if (r.n == 0) r.why = e.detail;
+      r.n++;
+      r.hits.push_back({e.ts, e.detail});
     }
     if (e.ev == "REPAIR_OK") s.repairsOk++;
   }
-  // projects by lastTs DESC, ties stable in first-encounter order
   std::stable_sort(projects.begin(), projects.end(), [](const Proj& a, const Proj& b) { return a.lastTs > b.lastTs; });
-  for (Proj& p : projects)
-    std::stable_sort(p.rules.begin(), p.rules.end(), [](const std::pair<u16string, long long>& a, const std::pair<u16string, long long>& b) { return a.second > b.second; });
-
-  // ---- print (byte-exact template) ----
-  string out;
-  out += "rabadon stats — last " + js_num_str(days) + " day(s), source: " + spool + "\n\n";
-  if (projects.empty()) out += "  (no events yet)\n";
-  for (const Proj& s : projects) {
-    out += "  " + s.name + "\n";
-    out += "    actions gated:            " + std::to_string(s.gated) + "\n";
-    out += "    caught before happening:  " + std::to_string(s.blocked) + "\n";
-    for (const auto& kv : s.rules) {
-      u16string r60 = kv.first.size() > 60 ? kv.first.substr(0, 60) : kv.first;
-      out += "      " + std::to_string(kv.second) + "x  " + u16_to_utf8(r60) + "\n";
-    }
-    out += "    checks failed (caught):   " + std::to_string(s.checkFails);
-    if (s.loopsStopped > 0) out += "  (loops stopped: " + std::to_string(s.loopsStopped) + ")";
-    out += "\n";
-    out += "    repairs accepted:         " + std::to_string(s.repairsOk) + "\n\n";
+  for (Proj& p : projects) {
+    std::stable_sort(p.rules.begin(), p.rules.end(), [](const Rule& a, const Rule& b) { return a.n > b.n; });
+    std::stable_sort(p.wouldRules.begin(), p.wouldRules.end(), [](const Rule& a, const Rule& b) { return a.n > b.n; });
   }
-  if (drills > 0) out += "  (" + std::to_string(drills) + " event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)\n";
+  if (!only_project.empty()) {
+    std::vector<Proj> kept;
+    for (Proj& p : projects) if (p.name == only_project) kept.push_back(std::move(p));
+    projects = std::move(kept);
+  }
+
+  long long tBlocked = 0, tWould = 0, tGated = 0, tRepairs = 0, tFails = 0;
+  for (const Proj& p : projects) {
+    tBlocked += p.blocked; tWould += p.wouldBlocked; tGated += p.gated;
+    tRepairs += p.repairsOk; tFails += p.checkFails;
+  }
+
+  // ---- render: --json ----
+  if (json) {
+    string out = "{\"days\":" + js_num_str(days) + ",\"spool\":\"" + json_escape(spool) + "\",";
+    out += "\"totals\":{\"refused\":" + std::to_string(tBlocked) + ",\"wouldRefuse\":" + std::to_string(tWould)
+        + ",\"gated\":" + std::to_string(tGated) + ",\"checkFails\":" + std::to_string(tFails)
+        + ",\"repairsAccepted\":" + std::to_string(tRepairs) + ",\"drillsExcluded\":" + std::to_string(drills) + "},";
+    out += "\"projects\":[";
+    for (size_t i = 0; i < projects.size(); i++) {
+      const Proj& p = projects[i];
+      if (i) out += ",";
+      out += "{\"name\":\"" + json_escape(p.name) + "\",\"gated\":" + std::to_string(p.gated)
+          + ",\"refused\":" + std::to_string(p.blocked) + ",\"wouldRefuse\":" + std::to_string(p.wouldBlocked)
+          + ",\"checkFails\":" + std::to_string(p.checkFails) + ",\"loopsStopped\":" + std::to_string(p.loopsStopped)
+          + ",\"repairsAccepted\":" + std::to_string(p.repairsOk) + ",\"lastTs\":" + js_num_str(p.lastTs) + ",";
+      auto rules_json = [&](const std::vector<Rule>& v) {
+        string o = "[";
+        for (size_t k = 0; k < v.size(); k++) {
+          if (k) o += ",";
+          o += "{\"rule\":\"" + json_escape(v[k].id) + "\",\"n\":" + std::to_string(v[k].n)
+             + ",\"why\":\"" + json_escape(u16_to_utf8(v[k].why)) + "\"}";
+        }
+        return o + "]";
+      };
+      out += "\"rules\":" + rules_json(p.rules) + ",\"watchRules\":" + rules_json(p.wouldRules) + "}";
+    }
+    out += "]}\n";
+    fwrite(out.data(), 1, out.size(), stdout);
+    return 0;
+  }
+
+  // ---- render: --md (report) ----
+  if (md) {
+    string out = "# rabadon usage — last " + js_num_str(days) + " day(s)\n\n";
+    out += "**" + commas(tBlocked) + " refused before they happened · " + commas(tGated)
+         + " actions gated · " + commas(tRepairs) + " repairs accepted**";
+    if (tWould) out += " · " + commas(tWould) + " would-have-refused (watch mode)";
+    out += "\n\n";
+    if (projects.empty()) out += "_no events in this window._\n\n";
+    for (const Proj& p : projects) {
+      out += "## " + p.name + "\n\n";
+      out += "| metric | value |\n|---|---|\n";
+      out += "| actions gated | " + commas(p.gated) + " |\n";
+      out += "| caught before happening | " + commas(p.blocked) + " |\n";
+      if (p.wouldBlocked) out += "| would have caught (watch) | " + commas(p.wouldBlocked) + " |\n";
+      out += "| checks failed (caught) | " + commas(p.checkFails) + " |\n";
+      if (p.loopsStopped) out += "| loops stopped | " + commas(p.loopsStopped) + " |\n";
+      out += "| repairs accepted | " + commas(p.repairsOk) + " |\n\n";
+      auto md_rules = [&](const std::vector<Rule>& v, const char* title) {
+        if (v.empty()) return;
+        out += string("**") + title + "**\n\n";
+        for (const Rule& r : v)
+          out += "- `" + r.id + "` ×" + std::to_string(r.n) + " — " + u16_to_utf8(r.why) + "\n";
+        out += "\n";
+      };
+      md_rules(p.rules, "refused");
+      md_rules(p.wouldRules, "watch verdicts");
+    }
+    out += "---\n";
+    out += "generated from `" + spool + "` · drills and self-tests are tagged at emit and excluded from every number"
+           " · reproduce with `rabadon usage --days " + js_num_str(days) + "`\n";
+    fwrite(out.data(), 1, out.size(), stdout);
+    return 0;
+  }
+
+  // ---- render: terminal ----
+  const size_t W = term_width();
+  string out;
+  out += "rabadon usage — last " + js_num_str(days) + " day(s) · local, nothing leaves this machine\n";
+  out += fit(json_body_to_u16("source: " + spool), W) + "\n\n";
+
+  if (projects.empty()) {
+    out += "  no events in this window.\n\n";
+    out += "  the ledger fills itself: run `claude` inside a project where `rabadon init`\n";
+    out += "  has been run — every gated action lands here as a timestamped event.\n\n";
+    out += "  to watch the gate fire right now, without waiting for a real incident:\n";
+    out += "      rabadon drill\n";
+    out += "  drill events are tagged at emit and never counted in the numbers here.\n";
+    fwrite(out.data(), 1, out.size(), stdout);
+    return 0;
+  }
+
+  out += "  " + commas(tBlocked) + " refused before they happened · " + commas(tGated)
+       + " actions gated · " + commas(tRepairs) + " repairs accepted";
+  if (tWould) out += " · " + commas(tWould) + " would-have-refused (watch)";
+  out += "\n\n";
+
+  auto render_rules = [&](const std::vector<Rule>& v) {
+    for (const Rule& r : v) {
+      char head[32]; snprintf(head, sizeof head, "    %5sx  ", commas(r.n).c_str());
+      out += head + r.id + "\n";
+      const string pad = "            ";
+      if (!r.why.empty() && r.why != u"?")
+        out += pad + fit(r.why, W > pad.size() ? W - pad.size() : 40) + "\n";
+      if (full) {
+        for (const Catch& c : r.hits)
+          out += pad + "· " + local_stamp(c.ts) + "  " + u16_to_utf8(c.detail) + "\n";
+      }
+    }
+  };
+
+  for (const Proj& s : projects) {
+    string head = "  " + s.name;
+    string when = s.lastTs > 0 ? ("last event: " + local_stamp(s.lastTs)) : "";
+    if (!when.empty() && head.size() + when.size() + 2 < W)
+      head += string(W - head.size() - when.size(), ' ') + when;
+    out += head + "\n";
+    out += "    actions gated:            " + commas(s.gated) + "\n";
+    out += "    caught before happening:  " + commas(s.blocked) + "\n";
+    render_rules(s.rules);
+    if (s.wouldBlocked) {
+      out += "    would have caught (watch): " + commas(s.wouldBlocked) + "\n";
+      render_rules(s.wouldRules);
+    }
+    out += "    checks failed (caught):   " + commas(s.checkFails);
+    if (s.loopsStopped > 0) out += "  (loops stopped: " + commas(s.loopsStopped) + ")";
+    out += "\n";
+    out += "    repairs accepted:         " + commas(s.repairsOk) + "\n\n";
+  }
+  if (drills > 0) out += "  (" + commas(drills) + " event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)\n";
   fwrite(out.data(), 1, out.size(), stdout);
   return 0;
 }
