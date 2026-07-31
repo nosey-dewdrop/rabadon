@@ -20,7 +20,15 @@
 #   4. useless proposer changes nothing -> check still red -> REPAIR_FAIL;
 #   5. proposer missing -> clean exit 3, no REPAIR_* event;
 #   6. every emitted event is hash-chained: `rabadon audit` verdict INTACT
-#      (the gate and repair share one spool protocol — audit is the referee).
+#      (the gate and repair share one spool protocol — audit is the referee);
+#   7. the headline word matches the evidence: locks>0 prints VERIFIED, locks==0
+#      prints HELD, UNVERIFIED with the reason. Both halves are asserted, the
+#      positive one first — a lone "must not say VERIFIED" check would start
+#      passing for free the moment someone renamed the line.
+#
+# Mutation-checked, both directions (this is why 7a exists):
+#   locks==0 branch left saying VERIFIED  -> 15 passed, 2 failed
+#   locks>0 branch made to drop VERIFIED  -> 15 passed, 2 failed (7a + case 2)
 set -u
 cd "$(dirname "$0")/.."
 REPAIR=./native/rabadon-repair
