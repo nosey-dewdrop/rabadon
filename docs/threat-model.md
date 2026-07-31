@@ -64,13 +64,49 @@ State these plainly. In a plain hooked session (no `rabadon exec`):
 
 ## The ledger: tamper-evident, not tamper-proof
 
-Every event carries `prev` = the SHA-256 of the previous line, with a `.head`
-sidecar. Editing, truncating, or reordering the spool breaks the chain, and
-`rabadon audit` names the broken link by file and line. This makes tampering
-**evident** — you will know. It does not make the ledger **immutable**: anyone
-with write access to `~/.rabadon/spool` can rewrite history; the chain only
-guarantees the rewrite is detectable, and only against a reader who runs
-`rabadon audit`.
+Every event carries `prev` = the SHA-256 of the previous line. Beside each day
+file sits a `.head` sidecar, written under the same `flock` as the line it
+commits to, holding two facts:
+
+    <sha256 of the last chained line> <number of chained lines>
+
+**The sidecar is the authority.** `rabadon audit` judges the day file against
+it, and every verdict below is one question asked six ways — does the file still
+agree with the commitment written beside it?
+
+| What was done to the ledger | Verdict |
+| --- | --- |
+| a line edited, reordered, or a byte changed | BREAK, named by file and line |
+| the tail truncated | BREAK — the head hash no longer matches |
+| a line deleted from the middle | BREAK |
+| a line deleted and the chain **re-stitched** around the hole | BREAK — the chain verifies, the committed line count does not |
+| **every `prev` stripped out** | BREAK — a stripped chain is not an unverified one |
+| a single `prev` removed from a chained file | BREAK — that link was cut out |
+| the `.head` sidecar deleted, day file kept | BREAK — a chaining writer always leaves one |
+| the day file deleted whole, sidecar kept | BREAK — the orphan sidecar convicts it |
+| a file with no sidecar and no `prev` anywhere | **UNVERIFIABLE**, exit 2 — never "intact" |
+
+Exit codes are the honest three: `0` every file verified against its sidecar,
+`1` at least one break, `2` nothing proven broken but something cannot be
+verified. "I don't know" never exits 0.
+
+**What this does not do, plainly.** The sidecar sits on the same disk with the
+same permissions as the ledger it commits to. There is no external anchor — no
+key the writer lacks, no remote append-only log. So:
+
+- Anyone who can write **both** the day file and its `.head` can rewrite a whole
+  day and the audit will say INTACT. What the chain and the count buy you is
+  that *partial* tampering — the realistic case, someone editing a line or
+  deleting an inconvenient event — cannot pass. All-or-nothing is the price of
+  a local-only ledger with no server.
+- A file with no sidecar and no `prev` on any line is genuinely ambiguous: a
+  pre-chain legacy writer and an attacker who stripped both halves look
+  identical. rabadon reports it as unverifiable rather than guessing, which is
+  why the verdict can be PARTIAL.
+- Detection only happens against a reader who actually runs `rabadon audit`.
+
+Pre-0.4 sidecars carry no line count. Their files are reported unverifiable
+until the next event of that day rewrites the sidecar in the current format.
 
 ## The honest summary
 

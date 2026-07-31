@@ -4,13 +4,13 @@ CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
 all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-repair: native/repair.cpp native/sha256.h
+native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-sandbox: native/sandbox.cpp
@@ -81,7 +81,7 @@ clean:
 native/rabadon-verify: native/verify.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-loop: native/loop.cpp
+native/rabadon-loop: native/loop.cpp native/sha256.h native/chain.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-do: native/do.cpp

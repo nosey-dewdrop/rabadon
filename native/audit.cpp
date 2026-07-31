@@ -1,20 +1,35 @@
 // rabadon-audit — verify the hash-chained ledger (C++17, zero deps).
 //
 // The gate writes every spool event with prev = SHA-256 of the previous event
-// line in the same day file (sha256.h, one shared implementation). This tool
-// re-walks the chain and answers ONE question deterministically: has the
-// ledger been edited after the fact?
+// line in the same day file (sha256.h, one shared implementation), and commits
+// the day under the same flock into a `.head` sidecar holding TWO facts: the
+// hash of the last chained line, and HOW MANY chained lines the file must have.
+//
+// THE SIDECAR IS THE AUTHORITY. Everything below is one question asked six
+// ways: does the day file still agree with the sidecar written beside it?
 //
 //   - a line whose prev does not match the hash of the last chained line
 //     before it = a BROKEN link, named by file and line number;
-//   - lines without prev (legacy JS writers, serve ingest, pre-chain history)
-//     are UNCHAINED: tolerated, counted, reported — never silently trusted;
-//   - the .head sidecar, when present, must equal the hash of the last
-//     chained line (a truncated file cannot hide);
+//   - a headed file with ZERO chained lines = the prev fields were stripped
+//     (the pre-0.4 audit called this "legacy, tolerated" and returned INTACT —
+//     that was the hole an attacker walked through: strip every prev, pass);
+//   - a headed file with ANY unchained line = that link was cut out;
+//   - head hash != last chained line = truncated or rewritten tail;
+//   - head count != chained lines = a line was removed and the chain
+//     re-stitched around the hole;
+//   - chained lines but NO sidecar, or a sidecar whose day file is GONE =
+//     someone deleted the half that would have convicted them.
+//
 //   - --replay renders the verified timeline event by event, chain mark per
 //     line — the "what happened" answer with the tamper check inline.
 //
-// Exit 0 = every chained link intact. Exit 1 = at least one broken link.
+// What this does NOT detect, stated plainly: a file with no sidecar and no
+// prev on any line is UNVERIFIABLE, not intact — rabadon cannot tell a
+// pre-chain legacy file from one an attacker stripped bare. It is reported as
+// unverifiable and it never counts as INTACT.
+//
+// Exit 0 = every file verified against its sidecar. Exit 1 = at least one
+// break. Exit 2 = nothing broken, but at least one file cannot be verified.
 
 #include <algorithm>
 #include <cstdio>
@@ -80,6 +95,41 @@ static string local_stamp(double ms) {
   return string(buf);
 }
 
+// ---------- the .head sidecar: "<sha256 of last chained line> <chained count>"
+// count is absent in sidecars written before v0.4 — such a file is reported
+// unverifiable (a deleted line cannot be ruled out), never intact.
+struct Head {
+  bool present = false;     // the sidecar exists and is not empty
+  bool malformed = false;
+  string hash;
+  long long count = -1;     // -1 = pre-0.4 sidecar, no count committed
+};
+
+static bool is_hex64(const string& s) {
+  if (s.size() != 64) return false;
+  for (char c : s) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+  return true;
+}
+
+static Head read_head(const string& p) {
+  Head h;
+  string raw = read_file(p);
+  while (!raw.empty() && (raw.back() == '\n' || raw.back() == '\r' ||
+                          raw.back() == ' ' || raw.back() == '\t')) raw.pop_back();
+  if (raw.empty()) return h;             // absent or emptied = absent
+  h.present = true;
+  size_t sp = raw.find(' ');
+  h.hash = (sp == string::npos) ? raw : raw.substr(0, sp);
+  if (!is_hex64(h.hash)) { h.malformed = true; return h; }
+  if (sp != string::npos) {
+    string c = raw.substr(sp + 1);
+    if (!c.empty() && c.find_first_not_of("0123456789") == string::npos)
+      h.count = strtoll(c.c_str(), nullptr, 10);
+    else h.malformed = true;
+  }
+  return h;
+}
+
 int main(int argc, char** argv) {
   double days = 7;
   bool replay = false;
@@ -101,29 +151,44 @@ int main(int argc, char** argv) {
 
   const double cutoff = now_ms() - days * 86400000.0;
 
-  std::vector<string> files;
+  std::vector<string> files, heads;
   if (DIR* d = opendir(spool.c_str())) {
     while (struct dirent* ent = readdir(d)) {
       string n = ent->d_name;
       if (n.size() >= 6 && n.compare(n.size() - 6, 6, ".jsonl") == 0) files.push_back(n);
+      else if (n.size() >= 11 && n.compare(n.size() - 11, 11, ".jsonl.head") == 0) heads.push_back(n);
     }
     closedir(d);
   }
   std::sort(files.begin(), files.end());
+  std::sort(heads.begin(), heads.end());
 
   printf("rabadon audit — ledger integrity · %s\n\n", spool.c_str());
-  if (files.empty()) {
+  if (files.empty() && heads.empty()) {
     printf("  no spool files. the ledger is empty — nothing to verify yet.\n");
     return 0;
   }
 
-  long long totalChained = 0, totalUnchained = 0, totalBreaks = 0;
+  long long totalChained = 0, totalUnchained = 0, totalBreaks = 0, totalUnverifiable = 0;
+
+  // an orphan sidecar convicts a whole-file deletion: the day file is gone but
+  // the commitment written beside it is still on disk.
+  for (const string& h : heads) {
+    string base = h.substr(0, h.size() - 5);          // strip ".head"
+    if (std::binary_search(files.begin(), files.end(), base)) continue;
+    printf("  %-22s      · chain BROKEN — day file is GONE, its .head sidecar remains (whole file deleted)\n",
+           base.c_str());
+    totalBreaks++;
+  }
+
   for (const string& f : files) {
-    string body = read_file(spool + "/" + f);
-    if (body.empty()) continue;
+    const string path = spool + "/" + f;
+    string body = read_file(path);
+    Head hd = read_head(path + ".head");
+    if (body.empty() && !hd.present) continue;   // nothing written, nothing claimed
 
     string last = "genesis";     // hash of the last CHAINED line seen
-    long long chained = 0, unchained = 0;
+    long long chained = 0, unchained = 0, firstUnchainedLine = 0;
     long long firstBreakLine = 0;
     string breakNote;
     long long lineNo = 0;
@@ -140,7 +205,11 @@ int main(int argc, char** argv) {
       if (ts >= cutoff) inWindow = true;
 
       string prev = get_field(line, "prev");
-      if (prev.empty()) { unchained++; continue; }
+      if (prev.empty()) {
+        unchained++;
+        if (firstUnchainedLine == 0) firstUnchainedLine = lineNo;
+        continue;
+      }
       if (prev != last && firstBreakLine == 0) {
         firstBreakLine = lineNo;
         breakNote = "prev=" + prev.substr(0, 12) + "… expected=" +
@@ -161,32 +230,73 @@ int main(int argc, char** argv) {
       }
     }
 
-    if (!inWindow && firstBreakLine == 0 && !replay) continue; // old file, intact: keep the report short
-
-    // head sidecar: the hash of the last chained line cannot have been
-    // truncated away
-    string head = read_file(spool + "/" + f + ".head");
-    while (!head.empty() && (head.back() == '\n' || head.back() == '\r')) head.pop_back();
-    string headNote;
-    if (!head.empty() && chained > 0 && head != last) {
-      if (firstBreakLine == 0) { firstBreakLine = lineNo; breakNote = "head sidecar does not match the last chained line (truncation?)"; }
-      headNote = " · head MISMATCH";
+    // ---- judge the file against its sidecar. the sidecar is written under the
+    // same flock as the line it commits to, so anything the two disagree about
+    // happened AFTER emit. "no sidecar" is not innocence: a chaining writer
+    // always leaves one, so its absence beside chained lines is the deletion.
+    bool broken = firstBreakLine != 0;
+    bool unverifiable = false;
+    string sidecarNote;
+    if (hd.present) {
+      if (hd.malformed)
+        sidecarNote = "head sidecar is malformed (expected \"<sha256> <count>\")";
+      else if (chained == 0)
+        sidecarNote = "head sidecar present but NOT ONE line carries prev — the chain was stripped out";
+      else if (unchained > 0)
+        sidecarNote = "line " + std::to_string(firstUnchainedLine) +
+                      " carries no prev in a chained file — that link was cut out";
+      else if (hd.hash != last)
+        sidecarNote = "head sidecar does not match the last chained line (truncated or rewritten tail)";
+      else if (hd.count < 0) {
+        unverifiable = true;
+        sidecarNote = "head commits no line count (pre-0.4 sidecar) — a removed line cannot be ruled out";
+      } else if (hd.count != chained)
+        sidecarNote = "head commits " + std::to_string(hd.count) + " chained line(s), the file has " +
+                      std::to_string(chained) + " — line(s) removed and the chain re-stitched";
+    } else if (chained > 0) {
+      sidecarNote = "chained lines but NO .head sidecar — the sidecar was deleted";
+    } else if (unchained > 0) {
+      unverifiable = true;
+      sidecarNote = (f.size() > 16 && f.compare(f.size() - 16, 16, ".unchained.jsonl") == 0)
+        ? "recorded outside the chain — an emitter could not take the day file's lock"
+        : "no .head sidecar and no prev on any line — legacy writer, unverifiable";
     }
+    if (!sidecarNote.empty() && !unverifiable) broken = true;
 
-    printf("  %-22s %6lld chained · %lld unchained%s", f.c_str(), chained, unchained,
-           unchained ? " (legacy/JS writers)" : "");
-    if (firstBreakLine) { printf(" · chain BROKEN at line %lld (%s)%s\n", firstBreakLine, breakNote.c_str(), headNote.c_str()); totalBreaks++; }
-    else printf(" · chain OK\n");
+    // old file, verified clean: keep the report short. anything unresolved prints.
+    if (!broken && !unverifiable && !inWindow && !replay) continue;
+
+    printf("  %-22s %6lld chained · %lld unchained", f.c_str(), chained, unchained);
+    if (broken) {
+      printf(" · chain BROKEN");
+      if (firstBreakLine) printf(" at line %lld (%s)", firstBreakLine, breakNote.c_str());
+      if (!sidecarNote.empty()) printf(" · %s", sidecarNote.c_str());
+      printf("\n");
+      totalBreaks++;
+    } else if (unverifiable) {
+      printf(" · UNVERIFIABLE — %s\n", sidecarNote.c_str());
+      totalUnverifiable++;
+    } else {
+      printf(" · chain OK · head verified (%lld line(s))\n", hd.count);
+    }
     totalChained += chained; totalUnchained += unchained;
   }
 
   printf("\n");
-  if (totalBreaks == 0) {
-    printf("  verdict: INTACT — %lld chained event(s) verified", totalChained);
-    if (totalUnchained) printf(" (%lld unchained line(s) tolerated, reported above)", totalUnchained);
-    printf("\n");
+  if (totalBreaks == 0 && totalUnverifiable == 0) {
+    printf("  verdict: INTACT — %lld chained event(s) verified against their head sidecars\n", totalChained);
     return 0;
   }
-  printf("  verdict: TAMPER-EVIDENT BREAK in %lld file(s) — the ledger was edited, truncated, or reordered after emit\n", totalBreaks);
-  return 1;
+  if (totalBreaks) {
+    printf("  verdict: TAMPER-EVIDENT BREAK in %lld file(s) — the ledger was edited, truncated, reordered,\n"
+           "           stripped of its chain, or deleted after emit\n", totalBreaks);
+    if (totalUnverifiable)
+      printf("           %lld further file(s) UNVERIFIABLE (see above)\n", totalUnverifiable);
+    return 1;
+  }
+  printf("  verdict: PARTIAL — %lld chained event(s) verified, %lld file(s) UNVERIFIABLE holding %lld\n"
+         "           line(s) outside any chain (see above). nothing is proven broken, but this is not a\n"
+         "           clean bill of health: rabadon cannot tell a pre-chain file from one stripped bare.\n",
+         totalChained, totalUnverifiable, totalUnchained);
+  return 2;
 }

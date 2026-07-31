@@ -51,6 +51,7 @@
 #include <ctime>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "chain.h"   // the ledger's one writer: chained line + .head sidecar
 
 using std::string;
 using std::vector;
@@ -120,9 +121,13 @@ static vector<string> split_objects(const string& arr){
 
 struct Emitter {
   string spool, pipe; string run;
+  // the loop writes into the same day file as the gate, so it chains through
+  // the same writer: an unchained append here would read to `rabadon audit`
+  // exactly like a line an attacker stripped, and it took the file's lock with
+  // nobody holding it.
   void ev(const string& type,const string& extra){
-    string line="{\"v\":1,\"ts\":"+std::to_string(now_ms())+",\"run\":\""+run+"\",\"pipe\":\""+pipe+"\",\"ev\":\""+type+"\""+(extra.empty()?"":","+extra)+"}\n";
-    std::ofstream f(spool,std::ios::app); f<<line;
+    string body="{\"v\":1,\"ts\":"+std::to_string(now_ms())+",\"run\":\""+run+"\",\"pipe\":\""+pipe+"\",\"ev\":\""+type+"\""+(extra.empty()?"":","+extra);
+    rbchain::append(spool, body);
   }
 };
 

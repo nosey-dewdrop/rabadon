@@ -34,6 +34,7 @@
 
 #include "usage.h"   // the shared token/cost meter (budget cap here + rabadon-lens)
 #include "sha256.h"  // the hash-chained spool (emitter here + rabadon-audit)
+#include "chain.h"   // the ledger's one writer: chained line + .head sidecar
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
 
@@ -421,33 +422,11 @@ struct Emitter {
       (extraJson.empty() ? "" : "," + extraJson) +
       (drill ? ",\"drill\":true" : "");
     // hash-chained ledger: every event carries prev = SHA-256 of the previous
-    // event line in this day file, so the spool is TAMPER-EVIDENT — edit or
-    // drop any line and `rabadon audit` names the broken link. The last hash
-    // lives in a .head sidecar (no tail-scan per emit); flock serializes
-    // concurrent gate processes so the chain never forks. A failed lock/open
-    // falls back to an unchained append — the ledger keeps recording
-    // (fail-open for rabadon itself, the audit reports unchained lines).
-    string line;
-    int fd = ::open(spoolPath.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
-    if (fd >= 0 && flock(fd, LOCK_EX) == 0) {
-      string headPath = spoolPath + ".head";
-      string prev = "genesis";
-      {
-        std::ifstream hf(headPath);
-        if (hf) { string h; std::getline(hf, h); if (h.size() == 64) prev = h; }
-      }
-      string chained = body + ",\"prev\":\"" + prev + "\"}";
-      line = chained + "\n";
-      ssize_t w = write(fd, line.c_str(), line.size()); (void)w;
-      { std::ofstream hf(headPath, std::ios::trunc); if (hf) hf << rbsha::hex(chained) << "\n"; }
-      flock(fd, LOCK_UN);
-      close(fd);
-    } else {
-      if (fd >= 0) close(fd);
-      line = body + "}\n";
-      std::ofstream f(spoolPath, std::ios::app);
-      if (f) f << line;
-    }
+    // event line in this day file and the .head sidecar commits the last hash
+    // AND the line count, so the spool is TAMPER-EVIDENT — edit, drop, truncate
+    // or re-stitch any line and `rabadon audit` names the break. One writer for
+    // all three binaries: chain.h.
+    string line = rbchain::append(spoolPath, body);
     if (sockFd >= 0) { ssize_t r = write(sockFd, line.c_str(), line.size()); (void)r; }
   }
 

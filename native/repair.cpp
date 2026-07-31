@@ -42,6 +42,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "sha256.h"
+#include "chain.h"   // the ledger's one writer: chained line + .head sidecar
 
 using std::string;
 
@@ -103,21 +104,7 @@ struct Emitter {
       ",\"ts\":" + std::to_string(now_ms()) +
       ",\"run\":\"" + runId + "\",\"pipe\":\"" + json_escape(pipe) + "\",\"ev\":\"" + ev + "\"" +
       (extraJson.empty() ? "" : "," + extraJson);
-    int fd = ::open(spoolPath.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
-    if (fd >= 0 && flock(fd, LOCK_EX) == 0) {
-      string headPath = spoolPath + ".head";
-      string prev = "genesis";
-      { std::ifstream hf(headPath); if (hf) { string h; std::getline(hf, h); if (h.size() == 64) prev = h; } }
-      string chained = body + ",\"prev\":\"" + prev + "\"}";
-      string line = chained + "\n";
-      ssize_t w = write(fd, line.c_str(), line.size()); (void)w;
-      { std::ofstream hf(headPath, std::ios::trunc); if (hf) hf << rbsha::hex(chained) << "\n"; }
-      flock(fd, LOCK_UN); close(fd);
-    } else {
-      if (fd >= 0) close(fd);
-      std::ofstream f(spoolPath, std::ios::app);
-      if (f) f << body << "}\n";
-    }
+    rbchain::append(spoolPath, body);
   }
 };
 
