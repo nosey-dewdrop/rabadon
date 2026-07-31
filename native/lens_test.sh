@@ -264,6 +264,46 @@ else
   pass "the real ~/.claude is never named: nothing in this suite reads it"
 fi
 
+# ---------- 5. the whole corpus in one walk ----------
+# Per-session checks pass one FILE to lens. The shape that matters in the field
+# is the directory: projects/<slug>/<id>.jsonl, several projects deep. Walk it
+# and hold the footer to the same rule as the rows — TOTAL tokens must be the
+# canonical sum over every transcript, not a roll-up of what it happened to print.
+RABADON_LENS_DIR="$CORPUS" $NATIVE --days 100000 >"$TMP/all.out" 2>"$TMP/all.err"
+all_canon=$(python3 - "$CORPUS" <<'PY'
+import json, os, sys
+tot = 0
+for root, _dirs, files in os.walk(sys.argv[1]):
+    for name in sorted(files):
+        if not name.endswith(".jsonl"): continue
+        for l in open(os.path.join(root, name), encoding="utf-8", errors="replace"):
+            l = l.strip()
+            if not l: continue
+            try: o = json.loads(l)
+            except Exception: continue
+            if o.get("type") == "assistant" and o.get("toolUseResult") is None:
+                u = (o.get("message") or {}).get("usage") or {}
+                tot += (u.get("input_tokens", 0) + u.get("output_tokens", 0)
+                        + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0))
+print(tot)
+PY
+)
+lens_total=$(awk '/^  TOTAL/{for (i = 1; i <= NF; i++) if ($i == "tokens") print $(i-1)}' "$TMP/all.out")
+if [ -n "$lens_total" ] && [ "$lens_total" = "$all_canon" ]; then
+  pass "corpus walk: TOTAL $lens_total tokens == canonical sum over all 9 transcripts"
+else
+  fail "corpus walk: TOTAL=$lens_total != canonical=$all_canon"
+  sed 's/^/        /' "$TMP/all.out"
+fi
+# ... and the walk must have descended into every project directory, otherwise a
+# total could match by luck while whole projects were dropped.
+missing=""
+for proj in rabadon stitchu icerik; do
+  grep -Eq "^  c0de000[0-9] +$proj " "$TMP/all.out" || missing="$missing $proj"
+done
+[ -z "$missing" ] && pass "corpus walk: all 3 project dirs represented in the rows" \
+  || fail "corpus walk: no rows from project(s):$missing"
+
 echo
 echo "lens_test: $ok ok, $bad bad"
 [ "$bad" -eq 0 ] || exit 1
