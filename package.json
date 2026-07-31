@@ -22,7 +22,7 @@
   },
   "scripts": {
     "postinstall": "node scripts/build.mjs",
-    "test": "node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs core/store.test.mjs ui/server.test.mjs hooks/install.test.mjs hooks/gate.test.mjs demo/live-repair-evidence.test.mjs",
+    "test": "node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs core/store.test.mjs ui/server.test.mjs hooks/install.test.mjs hooks/gate.test.mjs hooks/guard-gen.test.mjs demo/live-repair-evidence.test.mjs",
     "demo": "node demo/vibecoded-pipeline.mjs",
     "watch": "node bin/rabadon.mjs watch"
   },

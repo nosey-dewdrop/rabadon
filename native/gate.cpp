@@ -837,7 +837,7 @@ int main(int argc, char** argv) {
     // unknown top-level keys (catches protectedPath/bashRules/etc typos)
     static const char* known[] = {"project", "bash", "protectedPaths", "codePaths", "testPaths",
                                    "testCommand", "testPassPattern", "network", "disabled",
-                                   "generatedBy", "authoredBy"};
+                                   "generatedBy", "authoredBy", "pushGate", "evidence"};
     { size_t i = 0; int depth = 0;
       while (i < g.size()) {
         char c = g[i];
