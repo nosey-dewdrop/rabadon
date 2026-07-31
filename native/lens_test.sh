@@ -303,6 +303,12 @@ for proj in rabadon stitchu icerik; do
 done
 [ -z "$missing" ] && pass "corpus walk: all 3 project dirs represented in the rows" \
   || fail "corpus walk: no rows from project(s):$missing"
+# One transcript in the corpus ends mid-write, the way a file does when the
+# process died holding it, and one carries a blank line. A ledger that printed a
+# parser complaint over those would bury the cockpit in noise every time a
+# session is killed — the numbers are only usable if the quiet holds.
+[ ! -s "$TMP/all.err" ] && pass "corpus walk: silent stderr over a truncated transcript and a blank line" \
+  || { fail "corpus walk: lens complained on stderr"; sed 's/^/        /' "$TMP/all.err"; }
 
 echo
 echo "lens_test: $ok ok, $bad bad"
