@@ -71,7 +71,13 @@ wait "$pid" 2>/dev/null
 # contained, deterministic ledger (the trace renderer never has to hunt a
 # transcript). Best-effort: absent RABADON_DIR or a text-mode proposer just
 # means the trace shows the token column as "—", never a fabricated number.
-if [ -n "${RABADON_DIR:-}" ]; then
+# -d and not -n: "best-effort" has to hold when the variable is SET but the
+# directory is not there yet (a caller that exports RABADON_DIR before mkdir).
+# With -n the redirect failed and printed a shell error onto the proposer's
+# stderr, which the loop shows next to the model's own output — a fabricated
+# symptom on a run that was otherwise fine. -d "" is false, so the unset case is
+# still covered by the same test.
+if [ -d "${RABADON_DIR:-}" ]; then
   result_line=$(grep '"type":"result"' "$tmpout" 2>/dev/null | tail -1)
   [ -n "$result_line" ] && printf '%s\n' "$result_line" > "$RABADON_DIR/.proposer-metrics.json"
 fi
