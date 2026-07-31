@@ -337,8 +337,8 @@ int main(int argc, char** argv) {
   // a lock. Zero discovered test files means the tamper check could not run —
   // say so, never imply a protection that did not happen.
   if (locks.empty())
-    printf("  VERIFIED: the same check re-ran GREEN in the isolated copy.\n"
-           "  WARNING: 0 test files were discovered to hash-lock — the anti-tamper check had nothing to hold. Review the diff with extra care.\n");
+    printf("  HELD, UNVERIFIED: the same check re-ran GREEN in the isolated copy, but 0 test files were discovered to hash-lock.\n"
+           "  The anti-tamper check never ran — nothing here rules out a fix that simply weakened the check that caught the bug. Review the diff yourself before applying.\n");
   else
     printf("  VERIFIED: the same check re-ran GREEN in the isolated copy and all %zu hash-locked test file(s) are untouched.\n", locks.size());
   printf(
