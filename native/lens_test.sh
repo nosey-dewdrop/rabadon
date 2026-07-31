@@ -111,7 +111,124 @@ rc=$?
   && pass "missing source: exit 0, clean stderr, '(no sessions...)'" \
   || fail "missing source: exit=$rc or stderr/body wrong"
 
-# ---------- 3. REAL transcripts: lens tokens == canonical message.usage ----------
+# ---------- 3. TRANSCRIPT CORPUS: lens tokens == canonical message.usage ----------
+# The byte-exact claim needs transcripts shaped like the ones Claude Code writes:
+# ~/.claude/projects/<slug>/<sessionId>.jsonl, many sessions, many projects, the
+# junk lines a real file carries (summaries, tool results, a half-written last
+# line after a crash). Those are GENERATED here, from a fixed spec — same 9 files
+# on every machine and every OS — so the claim is reproducible by a stranger.
+CORPUS="$TMP/home/.claude/projects"
+mkdir -p "$CORPUS"
+python3 - "$CORPUS" <<'PY'
+import json, os, sys
+d = sys.argv[1]
+def J(o): return json.dumps(o, separators=(',', ':'))
+
+# (id, project, model, [(in, out, cache_write, cache_read) per assistant turn])
+SPEC = [
+    ("c0de0001", "rabadon", "claude-opus-4-8",   [(1200, 300, 5000, 20000), (800, 120, 0, 30000)]),
+    ("c0de0002", "rabadon", "claude-sonnet-4-5", [(400, 60, 1500, 7000)]),
+    ("c0de0003", "stitchu", "claude-haiku-4-5",  [(90, 15, 0, 0), (10, 2, 0, 120)]),
+    ("c0de0004", "stitchu", "claude-fable-1",    [(2500, 900, 12000, 88000)]),
+    ("c0de0005", "icerik",  "claude-opus-4-8",   [(1, 1, 1, 1), (7, 3, 11, 13)]),
+    ("c0de0006", "icerik",  "claude-mystery-9",  [(640, 64, 640, 6400)]),
+    ("c0de0007", "rabadon", "claude-sonnet-4-5", [(333, 33, 3333, 33333), (1, 0, 0, 0)]),
+    ("c0de0008", "stitchu", "claude-opus-4-8",   [(50000, 4000, 100000, 900000)]),
+    ("c0de0009", "icerik",  "claude-haiku-4-5",  []),   # no billable turn at all
+]
+
+def usage(i, o, cw, cr, order="normal", trap=False):
+    if order == "reversed":   # key order must not matter: the meter anchors on
+        u = {"cache_read_input_tokens": cr, "cache_creation_input_tokens": cw,
+             "output_tokens": o, "input_tokens": i}   # the LEADING quote of each key
+    else:
+        u = {"input_tokens": i, "cache_creation_input_tokens": cw,
+             "cache_read_input_tokens": cr, "output_tokens": o}
+    if trap:  # a nested per-iteration copy: counting it would inflate the row
+        u["iterations"] = [{"input_tokens": 999999, "output_tokens": 999999,
+                            "cache_creation_input_tokens": 999999,
+                            "cache_read_input_tokens": 999999}]
+    return u
+
+def asst(ts, sid, cwd, model, u, ntools):
+    content = [{"type": "text", "text": "ok"}]
+    content += [{"type": "tool_use", "id": "t%d" % k, "name": "Bash", "input": {}} for k in range(ntools)]
+    return {"type": "assistant", "timestamp": ts, "cwd": cwd, "sessionId": sid,
+            "message": {"role": "assistant", "model": model, "usage": u, "content": content}}
+
+for n, (sid8, proj, model, turns) in enumerate(SPEC):
+    sid = sid8 + "-1111-2222-3333-444444444444"
+    slug = "-tmp-lens-corpus-" + proj
+    cwd = "/tmp/lens-corpus/" + proj
+    os.makedirs(os.path.join(d, slug), exist_ok=True)
+    lines = ["\n"] if n == 5 else []     # a blank line mid-file must not break parsing
+    lines.append(J({"type": "summary", "summary": "onceki oturum",
+                    "leafUuid": sid}) + "\n")
+    lines.append(J({"type": "user", "timestamp": "2026-07-20T08:00:00.000Z", "cwd": cwd,
+                    "sessionId": sid,
+                    "message": {"role": "user", "content": "olcum surda mi? cok yasa"}}) + "\n")
+    for k, (i, o, cw, cr) in enumerate(turns):
+        ts = "2026-07-20T09:%02d:00.000Z" % (k * 7)
+        u = usage(i, o, cw, cr, order="reversed" if n == 2 else "normal", trap=(n == 4))
+        lines.append(J(asst(ts, sid, cwd, model, u, ntools=k + 1)) + "\n")
+        if n == 0:   # a user line carrying a SUBAGENT's usage — billed to that
+            lines.append(J({"type": "user", "timestamp": ts, "cwd": cwd, "sessionId": sid,
+                            "toolUseResult": {"message": {"usage": {
+                                "input_tokens": 888888, "output_tokens": 888888,
+                                "cache_creation_input_tokens": 888888,
+                                "cache_read_input_tokens": 888888}}}}) + "\n")
+        if n == 1:   # ... and the same echo on an ASSISTANT line (sidechain result)
+            lines.append(J({"type": "assistant", "timestamp": ts, "cwd": cwd, "sessionId": sid,
+                            "toolUseResult": {"usage": {"input_tokens": 777777,
+                                                        "output_tokens": 777777,
+                                                        "cache_creation_input_tokens": 777777,
+                                                        "cache_read_input_tokens": 777777}},
+                            "message": {"role": "assistant", "content": []}}) + "\n")
+    if n == 6:   # a transcript cut mid-write by a crash: the tail is not JSON.
+        lines.append('{"type":"assistant","timestamp":"2026-07-20T10:00:00.00')
+    with open(os.path.join(d, slug, sid + ".jsonl"), "w", encoding="utf-8") as f:
+        f.write("".join(lines))
+print("corpus: %d transcripts" % len(SPEC))
+PY
+
+corpus_files=$(ls "$CORPUS"/*/*.jsonl 2>/dev/null | wc -l | tr -d ' ')
+[ "$corpus_files" = "9" ] && pass "corpus: 9 generated transcripts across 3 projects" \
+  || fail "corpus: expected 9 transcript files, found $corpus_files"
+
+# Per session, lens' TOKENS column must equal python's sum over message.usage on
+# assistant lines — two independent readers of the same bytes. The corpus is
+# static, so unlike a live transcript there is nothing to retry: a mismatch here
+# is a real disagreement, never a race.
+checked=0; agreed=0
+for f in "$CORPUS"/*/*.jsonl; do
+  [ -f "$f" ] || continue
+  id=$(basename "$f" .jsonl); id8=$(printf '%.8s' "$id")
+  canon=$(python3 - "$f" <<'PY'
+import json, sys
+tot = 0
+for l in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    l = l.strip()
+    if not l: continue
+    try: o = json.loads(l)
+    except Exception: continue
+    if o.get("type") == "assistant" and o.get("toolUseResult") is None:
+        u = (o.get("message") or {}).get("usage") or {}
+        tot += (u.get("input_tokens", 0) + u.get("output_tokens", 0)
+                + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0))
+print(tot)
+PY
+)
+  [ "$canon" = "0" ] && continue   # the no-billable-turn session, on purpose
+  checked=$((checked+1))
+  lens_tok=$(RABADON_LENS_DIR="$f" $NATIVE --days 100000 2>/dev/null | awk -v id="$id8" '$1==id {print $7}')
+  if [ "$lens_tok" = "$canon" ]; then agreed=$((agreed+1))
+  else fail "corpus $id8 — lens tokens=$lens_tok != canonical=$canon"; fi
+done
+[ "$checked" = "8" ] || fail "corpus: expected 8 billable sessions, checked $checked"
+[ "$checked" = "8" ] && [ "$agreed" = "8" ] \
+  && pass "corpus: 8/8 sessions — lens tokens == canonical message.usage (byte-exact)"
+
+# ---------- 4. REAL transcripts: lens tokens == canonical message.usage ----------
 # The gate meter is proven byte-exact against the canonical sum; lens uses that
 # SAME meter (usage.h), so per session the TOKENS column must equal python's sum
 # over assistant lines (excluding toolUseResult). A live session appending mid
