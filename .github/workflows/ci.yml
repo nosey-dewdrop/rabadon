@@ -54,9 +54,18 @@ jobs:
       # forbidden write refused by the KERNEL with EPERM, was proven on macOS
       # Seatbelt and never once on Linux, on either linux target we publish.
       # A skip that reads as a pass is worse than a failure.
+      #
+      # The sysctl is not a CI trick: Ubuntu 24.04+ blocks unprivileged user
+      # namespaces through AppArmor, so bwrap installs and cannot start
+      # ("setting up uid map: Permission denied"). rabadon now detects that and
+      # says so instead of reporting a fence it does not have — this line is
+      # what lets CI test the fence WORKING, which is the other half.
       - name: bubblewrap (the linux sandbox backend)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --dev-bind / / /bin/true && echo "bwrap can start" || echo "bwrap still blocked — the suite will skip and say so"
 
       - name: build the native core
         run: make all

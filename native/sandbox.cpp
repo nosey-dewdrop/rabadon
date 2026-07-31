@@ -51,6 +51,21 @@ static bool have(const string& bin) {
   return system(cmd.c_str()) == 0;
 }
 
+// PRESENCE IS NOT CAPABILITY. `command -v bwrap` said "available — Linux
+// bubblewrap" on a machine where every sandboxed command died with
+// "bwrap: setting up uid map: Permission denied": Ubuntu 24.04+ blocks
+// unprivileged user namespaces through AppArmor, so bwrap installs fine and
+// cannot start. doctor reported a working kernel fence, `rabadon exec` refused
+// nothing it claimed to, and the suite skipped every enforcement test. So the
+// backend is asked to actually DO the smallest version of its job.
+static bool backend_works() {
+#if defined(__APPLE__)
+  return system("sandbox-exec -p '(version 1)(allow default)' /usr/bin/true >/dev/null 2>&1") == 0;
+#else
+  return system("bwrap --dev-bind / / /bin/true >/dev/null 2>&1") == 0;
+#endif
+}
+
 // extract each object's "match" string from guard.json protectedPaths — the
 // same field the gate reads. These are regex in the gate; for the kernel we
 // need literal path prefixes, so we take the longest leading literal (up to the
@@ -157,23 +172,38 @@ int main(int argc, char** argv) {
     }
   }
 
-  // backend detection
+  // backend detection: installed, AND able to start
 #if defined(__APPLE__)
-  const bool backend = have("sandbox-exec");
+  const bool installed = have("sandbox-exec");
   const char* backendName = "macOS Seatbelt (sandbox-exec)";
 #else
-  const bool backend = have("bwrap");
+  const bool installed = have("bwrap");
   const char* backendName = "Linux bubblewrap (bwrap)";
 #endif
+  const bool backend = installed && backend_works();
+
+  // the difference between "not installed" and "installed but the kernel will
+  // not let it start" is the difference between two completely different fixes
+  auto why_not = [&]() {
+    if (!installed) {
+#if defined(__APPLE__)
+      return "sandbox-exec is missing on this macOS";
+#else
+      return "bwrap is not installed — apt install bubblewrap";
+#endif
+    }
+#if defined(__APPLE__)
+    return "sandbox-exec is present but refused a trivial profile";
+#else
+    return "bwrap is installed but the kernel refused to start it (\"setting up uid map: "
+           "Permission denied\" = unprivileged user namespaces are restricted, the default on "
+           "Ubuntu 24.04+). allow them with: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0";
+#endif
+  };
 
   if (doCheck) {
     if (backend) { printf("rabadon sandbox: available — %s\n", backendName); return 0; }
-    printf("rabadon sandbox: NO kernel backend on this platform "
-#if defined(__APPLE__)
-           "(sandbox-exec missing)\n");
-#else
-           "(install bubblewrap: apt install bubblewrap)\n");
-#endif
+    printf("rabadon sandbox: NO usable kernel backend — %s\n", why_not());
     return 1;
   }
 
@@ -208,13 +238,9 @@ int main(int argc, char** argv) {
   const bool wantsEnforcement = !prefixes.empty() || netDeny;
   if (wantsEnforcement && !backend) {
     fprintf(stderr,
-      "rabadon sandbox: guard.json asks for kernel enforcement but no backend is available (%s) — REFUSING to run unprotected.\n"
-#if defined(__APPLE__)
-      "  (sandbox-exec is missing on this macOS)\n",
-#else
-      "  install bubblewrap: apt install bubblewrap\n",
-#endif
-      backendName);
+      "rabadon sandbox: guard.json asks for kernel enforcement but %s is not usable here — REFUSING to run unprotected.\n"
+      "  %s\n",
+      backendName, why_not());
     return 3;
   }
 
