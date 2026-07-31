@@ -7,10 +7,17 @@
 #      plants two traps: a nested "iterations" usage copy and a "toolUseResult"
 #      user line, both with huge counts that MUST be ignored — if the meter ever
 #      summed them, the totals would jump and these cases would fail.
-#   2. REAL transcripts — lens' per-session TOKEN total is compared BYTE-FOR-BYTE
-#      against the canonical message.usage sum (python), the same invariant the
-#      gate meter is proven against. This is the moat claim: the number on screen
-#      is the number the runtime already wrote, no estimate.
+#   2. A CORPUS of generated transcripts, in the exact layout Claude Code writes
+#      (~/.claude/projects/<slug>/<sessionId>.jsonl), under a temp HOME. lens'
+#      per-session TOKEN total is compared BYTE-FOR-BYTE against the canonical
+#      message.usage sum (python), the same invariant the gate meter is proven
+#      against. This is the moat claim: the number on screen is the number the
+#      runtime already wrote, no estimate.
+#      This half used to read the real ~/.claude of whoever ran it: it passed on
+#      one laptop and printed "skip" everywhere else, so CI proved nothing about
+#      the moat claim, and a stranger's own sessions were the test input. Now the
+#      transcripts are generated and the run is locked out of the real home —
+#      case 3 makes the corpus, case 4 proves the lockout.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -20,6 +27,16 @@ NATIVE=./native/rabadon-lens
 ok=0; bad=0
 TMP=$(mktemp -d /tmp/rabadon-lens-test.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
+
+# HOME IS REDIRECTED BEFORE THE FIRST ASSERTION. lens falls back to
+# $HOME/.claude/projects when no source is given, so a suite run under the real
+# HOME reads the transcripts of whoever is sitting at the machine: the result
+# moves with their week, and their prompts are the input to a test. Remember the
+# real value (a string, never opened) only so the guard below can assert it
+# never shows up in lens' output.
+REAL_HOME=${HOME:-/nonexistent-home}
+export HOME="$TMP/home"
+mkdir -p "$HOME/.claude/projects"
 
 pass() { echo "ok    $1"; ok=$((ok+1)); }
 fail() { echo "FAIL  $1"; bad=$((bad+1)); }
@@ -117,7 +134,7 @@ rc=$?
 # junk lines a real file carries (summaries, tool results, a half-written last
 # line after a crash). Those are GENERATED here, from a fixed spec — same 9 files
 # on every machine and every OS — so the claim is reproducible by a stranger.
-CORPUS="$TMP/home/.claude/projects"
+CORPUS="$HOME/.claude/projects"   # $HOME is the temp home exported at the top
 mkdir -p "$CORPUS"
 python3 - "$CORPUS" <<'PY'
 import json, os, sys
@@ -228,44 +245,23 @@ done
 [ "$checked" = "8" ] && [ "$agreed" = "8" ] \
   && pass "corpus: 8/8 sessions — lens tokens == canonical message.usage (byte-exact)"
 
-# ---------- 4. REAL transcripts: lens tokens == canonical message.usage ----------
-# The gate meter is proven byte-exact against the canonical sum; lens uses that
-# SAME meter (usage.h), so per session the TOKENS column must equal python's sum
-# over assistant lines (excluding toolUseResult). A live session appending mid
-# test would make an honest diff flake, so we retry once on mismatch.
-real_checked=0; real_ok=0
-for f in $(ls -t "$HOME"/.claude/projects/*/*.jsonl 2>/dev/null | head -8); do
-  id=$(basename "$f" .jsonl); id8=${id:0:8}
-  canon=$(python3 - "$f" <<'PY'
-import json, sys
-tot = 0
-for l in open(sys.argv[1], encoding="utf-8", errors="replace"):
-    l = l.strip()
-    if not l: continue
-    try: o = json.loads(l)
-    except Exception: continue
-    if o.get("type") == "assistant" and o.get("toolUseResult") is None:
-        u = (o.get("message") or {}).get("usage") or {}
-        tot += (u.get("input_tokens", 0) + u.get("output_tokens", 0)
-                + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0))
-print(tot)
-PY
-)
-  [ "$canon" = "0" ] && continue   # no billable usage in this transcript, skip
-  real_checked=$((real_checked+1))
-  get_tok() { RABADON_LENS_DIR="$f" $NATIVE --days 100000 2>/dev/null | awk -v id="$id8" '$1==id {print $7}'; }
-  lens_tok=$(get_tok)
-  [ "$lens_tok" != "$canon" ] && lens_tok=$(get_tok)   # retry once (live append)
-  if [ "$lens_tok" = "$canon" ]; then
-    real_ok=$((real_ok+1))
-  else
-    fail "real transcript $id8 — lens tokens=$lens_tok != canonical=$canon"
-  fi
-done
-if [ "$real_checked" -eq 0 ]; then
-  echo "skip  real transcripts (none with billable usage under ~/.claude/projects)"
-elif [ "$real_ok" -eq "$real_checked" ]; then
-  pass "real transcripts: $real_ok/$real_checked sessions — lens tokens == canonical message.usage"
+# ---------- 4. HOME isolation guard ----------
+# The pair matters. The POSITIVE half pins the default source to the temp home
+# and shows lens actually read the corpus there, so the negative half cannot
+# pass by lens printing nothing at all; the NEGATIVE half then says the real
+# home is nowhere in that output. Alone, either one is worthless.
+env -u RABADON_LENS_DIR $NATIVE --days 100000 >"$TMP/guard.out" 2>"$TMP/guard.err"
+if grep -Fq "source: $HOME/.claude/projects" "$TMP/guard.out" \
+   && grep -Eq '^  c0de0001 +rabadon ' "$TMP/guard.out" && [ ! -s "$TMP/guard.err" ]; then
+  pass "no source given: lens resolves \$HOME/.claude/projects — the temp one — and reads the corpus"
+else
+  fail "no source given: default source is not the isolated home"
+  sed 's/^/        /' "$TMP/guard.out" "$TMP/guard.err"
+fi
+if grep -Fq "$REAL_HOME/.claude" "$TMP/guard.out"; then
+  fail "the run reached the real home ($REAL_HOME/.claude)"
+else
+  pass "the real ~/.claude is never named: nothing in this suite reads it"
 fi
 
 echo
