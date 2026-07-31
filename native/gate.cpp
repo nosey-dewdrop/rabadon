@@ -36,6 +36,7 @@
 #include "sha256.h"  // the hash-chained spool (emitter here + rabadon-audit)
 #include "chain.h"    // the ledger's one writer: chained line + .head sidecar
 #include "baseline.h" // the three laws that hold with no guard.json at all
+#include "rules.h"    // guard.json rule parsing + matching — shared with `rabadon exec`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
 
@@ -59,46 +60,13 @@ static const char* mode_tag() { return g_mode == MODE_ENFORCE ? "enforce" : "wat
 // We need a handful of known string fields. Values are JSON-escaped; we
 // unescape the common sequences. Anything unparseable -> empty -> fail open.
 
-static string json_unescape(const string& s) {
-  string out;
-  out.reserve(s.size());
-  for (size_t i = 0; i < s.size(); i++) {
-    if (s[i] == '\\' && i + 1 < s.size()) {
-      char c = s[++i];
-      switch (c) {
-        case 'n': out += '\n'; break;
-        case 't': out += '\t'; break;
-        case 'r': out += '\r'; break;
-        case '"': out += '"'; break;
-        case '\\': out += '\\'; break;
-        case '/': out += '/'; break;
-        case 'u': i += 4; out += '?'; break; // rules never need exact unicode
-        default: out += c;
-      }
-    } else out += s[i];
-  }
-  return out;
-}
+// Both of these now live in rules.h so the gate and `rabadon exec` read a
+// rule object the same way. Thin forwards keep the ~50 call sites below
+// untouched while there is exactly one implementation to audit.
+static string json_unescape(const string& s) { return rbrules::json_unescape(s); }
 
-// find "key" : "value" starting at `from`; returns unescaped value
 static string get_str(const string& j, const string& key, size_t from = 0) {
-  const string pat = "\"" + key + "\"";
-  size_t k = j.find(pat, from);
-  if (k == string::npos) return "";
-  size_t colon = j.find(':', k + pat.size());
-  if (colon == string::npos) return "";
-  size_t q = j.find('"', colon);
-  // make sure only whitespace sits between ':' and the opening quote
-  for (size_t i = colon + 1; i < q && i < j.size(); i++)
-    if (!isspace((unsigned char)j[i])) return "";
-  if (q == string::npos) return "";
-  string raw;
-  for (size_t i = q + 1; i < j.size(); i++) {
-    if (j[i] == '\\' && i + 1 < j.size()) { raw += j[i]; raw += j[i + 1]; i++; continue; }
-    if (j[i] == '"') break;
-    raw += j[i];
-  }
-  return json_unescape(raw);
+  return rbrules::get_str(j, key, from);
 }
 
 static long long get_num(const string& j, const string& key) {
@@ -436,84 +404,13 @@ struct Emitter {
 
 // ---------- rules ----------
 
-struct Rule { string id, pattern, why; };
-
-static std::vector<Rule> parse_rules(const string& guard, const string& section, const string& patKey, const std::vector<string>& disabled) {
-  std::vector<Rule> rules;
-  size_t sec = guard.find("\"" + section + "\"");
-  if (sec == string::npos) return rules;
-  size_t arrStart = guard.find('[', sec);
-  if (arrStart == string::npos) return rules;
-  // walk objects in the array (depth-tracking, strings skipped)
-  int depth = 0; size_t objStart = 0;
-  for (size_t i = arrStart; i < guard.size(); i++) {
-    char c = guard[i];
-    if (c == '"') { // skip string
-      for (i++; i < guard.size(); i++) { if (guard[i] == '\\') i++; else if (guard[i] == '"') break; }
-      continue;
-    }
-    if (c == '{') { if (depth == 1) objStart = i; depth++; }
-    else if (c == '}') {
-      depth--;
-      if (depth == 1) {
-        string obj = guard.substr(objStart, i - objStart + 1);
-        Rule r{ get_str(obj, "id"), get_str(obj, patKey), get_str(obj, "why") };
-        bool off = false;
-        for (const auto& d : disabled) if (d == r.id) off = true;
-        if (!r.pattern.empty() && !off) rules.push_back(r);
-      }
-    }
-    else if (c == '[') depth++;
-    else if (c == ']') { depth--; if (depth == 0) break; }
-  }
-  return rules;
-}
-
-static std::vector<string> parse_disabled(const string& guard) {
-  std::vector<string> out;
-  size_t sec = guard.find("\"disabled\"");
-  if (sec == string::npos) return out;
-  size_t a = guard.find('[', sec), b = guard.find(']', a);
-  if (a == string::npos || b == string::npos) return out;
-  string body = guard.substr(a, b - a);
-  size_t p = 0;
-  while ((p = body.find('"', p)) != string::npos) {
-    size_t q = body.find('"', p + 1);
-    if (q == string::npos) break;
-    out.push_back(body.substr(p + 1, q - p - 1));
-    p = q + 1;
-  }
-  return out;
-}
-
-static bool rx_test(const string& pattern, const string& text) {
-  try {
-    std::regex re(pattern, std::regex::ECMAScript | std::regex::icase);
-    return std::regex_search(text, re);
-  } catch (...) { return false; } // a broken rule must not take the gate down
-}
-
-// A user rule is judged PER SEGMENT of the command, and each segment is tried
-// both as written and with git's global options stripped.
-//
-// Segments, because a rule that matched the whole line refused ordinary work:
-// four of the five guards written for the wild repos blocked
-// `npm test && git push origin feature/x` — a `-f` in one command matching a
-// `git push` in another. A false refusal costs more than a missed one; it is
-// the thing that makes people turn the gate off.
-//
-// Stripped, because agents write `git -C /path push --force` and
-// `git --exec-path=/x push --force`, and every `git\s+push` rule slides right
-// past them (both caught live, 31.07). The walk is structural now — every
-// leading option, not a hand-kept list (baseline.h).
-static bool rx_test_cmd(const string& pattern, const string& cmd) {
-  for (const string& seg : rbbase::raw_segments(cmd)) {
-    if (rx_test(pattern, seg)) return true;
-    const string norm = rbbase::strip_git_globals(seg);
-    if (norm != seg && rx_test(pattern, norm)) return true;
-  }
-  return false;
-}
+// The rule engine itself is rules.h. `rabadon exec` compiles the same header,
+// so a command the gate refuses cannot be a command exec runs.
+using Rule = rbrules::Rule;
+using rbrules::parse_rules;
+using rbrules::parse_disabled;
+using rbrules::rx_test;
+using rbrules::rx_test_cmd;
 
 // plain ["a","b"] string array under `key` (regex escapes preserved)
 static std::vector<string> parse_str_array(const string& j, const string& key) {

@@ -30,6 +30,92 @@ skip() { echo "  skip - $1"; }
 
 echo "sandbox: kernel-enforced guard.json"
 
+# ---------------------------------------------------------------------------
+# THE LAW COMES FIRST — and it is the same law the hook enforces.
+#
+# exec used to compile ONLY protectedPaths and network into a kernel policy.
+# It never read the bash deny rules, so a command the gate refused with exit 2
+# ran to completion through exec with exit 0 and left nothing in the ledger —
+# exec was a SUBSET of the gate while being sold as the harder boundary. These
+# cases run BEFORE the backend check on purpose: a refusal is a decision about
+# the command, not about whether a kernel fence happens to be available, so it
+# must hold on a box with no sandbox backend at all.
+# ---------------------------------------------------------------------------
+# absolute, because two cases below run from inside an isolated temp repo
+SBABS="$PWD/native/rabadon-sandbox"
+LAWDIR=$(mktemp -d /tmp/rabadon-exec-law.XXXXXX)
+LAWHOME=$(mktemp -d /tmp/rabadon-exec-home.XXXXXX)
+BASEDIR=$(mktemp -d /tmp/rabadon-exec-base.XXXXXX)
+mkdir -p "$LAWDIR/.rabadon" "$LAWDIR/bin"
+cat > "$LAWDIR/.rabadon/guard.json" <<'GUARD'
+{"project":"exec-law","bash":[{"id":"no-wrangler-deploy","deny":"npx\\s+wrangler\\s+deploy","why":"deploys go through CI, never a live session"}],"protectedPaths":[]}
+GUARD
+# a stand-in on PATH: if the rule ever fails to fire, the test SEES the command
+# run instead of quietly passing because the real binary happened to be absent
+printf '#!/bin/sh\necho DEPLOY-ESCAPED\n' > "$LAWDIR/bin/npx"; chmod +x "$LAWDIR/bin/npx"
+
+lawrun() { PATH="$LAWDIR/bin:$PATH" RABADON_DIR="$LAWHOME" RABADON_NOTIFY=0 "$SB" --dir "$LAWDIR" -- "$@"; }
+
+OUT=$(lawrun /bin/sh -c 'npx wrangler deploy' 2>&1); RC=$?
+if [ $RC -eq 2 ] && ! printf '%s' "$OUT" | grep -q "DEPLOY-ESCAPED"; then
+  pass "a guard deny rule refuses through exec (exit 2, the command never ran)"
+else
+  fail "exec ran a command the guard forbids (rc=$RC)"; printf '%s\n' "$OUT" | sed 's/^/    | /' | head -5
+fi
+printf '%s' "$OUT" | grep -q "no-wrangler-deploy" && pass "the refusal names the rule id and its reason" || fail "refusal did not name the rule"
+
+# a refusal nobody can audit is not evidence
+LEDGER=$(cat "$LAWHOME/spool/"*.jsonl 2>/dev/null || true)
+if printf '%s' "$LEDGER" | grep -q '"ev":"STOP"' && printf '%s' "$LEDGER" | grep -q '"rule":"no-wrangler-deploy"'; then
+  pass "the exec refusal is written to the ledger (CHECK_FAIL + STOP, rule named)"
+else
+  fail "exec left no ledger trace"; printf '%s\n' "$LEDGER" | sed 's/^/    | /' | head -5
+fi
+if [ -x ./native/rabadon-audit ]; then
+  RABADON_DIR="$LAWHOME" ./native/rabadon-audit --days 1 2>&1 | grep -q "INTACT" \
+    && pass "exec writes through the SAME hash chain (audit: INTACT)" || fail "exec broke the ledger chain"
+fi
+
+# The three compiled-in laws must reach exec too, with no guard rule involved.
+#
+# This case runs from INSIDE an isolated, remote-less temp repo, and that is
+# not tidiness. The first version ran it from the suite's own cwd — the real
+# rabadon checkout — and when the law failed to fire, exec really did run
+# `git push --force origin main` against the real remote. It printed
+# "Everything up-to-date" because local and origin happened to be identical,
+# which is luck, not a safeguard. A suite that proves a destructive command is
+# refused must be written so that a FAILURE to refuse is also harmless.
+git -C "$BASEDIR" init -q 2>/dev/null || true
+OUT=$(cd "$BASEDIR" && RABADON_DIR="$LAWHOME" RABADON_NOTIFY=0 "$SBABS" --dir "$BASEDIR" -- /bin/sh -c 'git push --force origin main' 2>&1); RC=$?
+[ $RC -eq 2 ] && pass "a baseline law (force-push to a shared branch) refuses through exec, with no guard.json at all" \
+  || { fail "baseline law did not reach exec (rc=$RC)"; printf '%s\n' "$OUT" | sed 's/^/    | /' | head -4; }
+
+# the same law, reached WITHOUT a shell wrapper — argv straight to git
+OUT=$(cd "$BASEDIR" && RABADON_DIR="$LAWHOME" RABADON_NOTIFY=0 "$SBABS" --dir "$BASEDIR" -- git push --force origin main 2>&1); RC=$?
+[ $RC -eq 2 ] && pass "the same law fires on bare argv too (no shell to unwrap)" \
+  || { fail "baseline law missed bare argv (rc=$RC)"; printf '%s\n' "$OUT" | sed 's/^/    | /' | head -4; }
+
+# disabled[] is the user's override and it must still work through exec
+cat > "$LAWDIR/.rabadon/guard.json" <<'GUARD'
+{"project":"exec-law","disabled":["no-wrangler-deploy"],"bash":[{"id":"no-wrangler-deploy","deny":"npx\\s+wrangler\\s+deploy","why":"deploys go through CI, never a live session"}],"protectedPaths":[]}
+GUARD
+OUT=$(lawrun /bin/sh -c 'npx wrangler deploy' 2>&1); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "DEPLOY-ESCAPED"; then
+  pass "disabled[] still silences a rule through exec (the fix did not swallow the override)"
+else
+  fail "disabled[] ignored by exec (rc=$RC)"; printf '%s\n' "$OUT" | sed 's/^/    | /' | head -4
+fi
+
+# regression: ordinary work must still run, or nobody will use exec at all
+OUT=$(RABADON_DIR="$LAWHOME" RABADON_NOTIFY=0 "$SB" --dir "$BASEDIR" -- /bin/sh -c 'echo ordinary-work' 2>&1); RC=$?
+if [ $RC -eq 0 ] && [ "$OUT" = "ordinary-work" ]; then
+  pass "an unforbidden command still runs through exec (exit 0)"
+else
+  fail "exec blocked ordinary work (rc=$RC)"; printf '%s\n' "$OUT" | sed 's/^/    | /' | head -4
+fi
+
+rm -rf "$LAWDIR" "$LAWHOME" "$BASEDIR"
+
 if ! "$SB" --check >/dev/null 2>&1; then
   skip "no kernel sandbox backend on this platform — enforcement tests skipped (--check is honest about it)"
   "$SB" --check 2>&1 | grep -qi "no kernel backend" && pass "--check reports the absence honestly" || fail "--check message"

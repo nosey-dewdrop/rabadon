@@ -26,13 +26,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <deque>
 #include <vector>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
+
+#include "chain.h" // the ledger's one writer — a refusal here is evidence too
+#include "rules.h" // the SAME deny rules the gate enforces, not a smaller set
 
 using std::string;
 using std::vector;
@@ -152,6 +157,92 @@ static string seatbelt_profile(const string& dir, const vector<string>& prefixes
   return p;
 }
 
+// Everything about this argv that has to face the law.
+//
+// Flattening argv into one line is not enough, and the way it fails is the
+// dangerous way: the guard's regex rules search anywhere in a string and still
+// match, while the three compiled-in laws are STRUCTURAL — they tokenize and
+// ask what binary is being invoked, deliberately, so that
+// `echo "git push --force origin main"` stays an echo with one argument. Join
+// `sh -c "git push --force origin main"` into a line and that parser reads a
+// shell invocation, which is true and useless: the loud user rules fire and
+// the floor underneath them does not. Measured, not guessed — the gate returns
+// 2 on the bare command and 0 on the joined one.
+//
+// So the shell wrapper is unwrapped. `sh -c X`, `bash -c X`, `zsh -c X` are
+// running X, and X is judged as the command it is.
+static vector<string> judge_targets(const vector<string>& cmd) {
+  vector<string> out;
+  string joined;
+  for (size_t i = 0; i < cmd.size(); i++) { if (i) joined += " "; joined += cmd[i]; }
+  if (!joined.empty()) out.push_back(joined);
+
+  for (size_t i = 0; i + 2 < cmd.size() + 1 && i < cmd.size(); i++) {
+    const string& a = cmd[i];
+    size_t slash = a.rfind('/');
+    const string base = slash == string::npos ? a : a.substr(slash + 1);
+    const bool isShell = base == "sh" || base == "bash" || base == "zsh" || base == "dash" || base == "ksh";
+    if (isShell && i + 2 < cmd.size() + 1) {
+      for (size_t j = i + 1; j < cmd.size(); j++) {
+        if (cmd[j] == "-c" && j + 1 < cmd.size()) { out.push_back(cmd[j + 1]); break; }
+        if (!cmd[j].empty() && cmd[j][0] != '-') break; // the script arg, not -c
+      }
+    }
+  }
+  return out;
+}
+
+static string json_escape(const string& s) {
+  string out;
+  for (unsigned char c : s) {
+    switch (c) {
+      case '"': out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); out += b; }
+        else out += (char)c;
+    }
+  }
+  return out;
+}
+
+// A refusal that leaves no trace cannot be audited, and `rabadon audit` is the
+// product's whole claim about its own honesty. exec wrote nothing at all
+// before this: the ledger showed the gate's refusals and was silent about
+// every command exec waved through OR stopped. Same chained writer as the
+// gate and the loop (chain.h), same event shape, so `rabadon usage` counts an
+// exec refusal exactly like a hook refusal.
+static void emit_refusal(const string& dir, const string& id, const string& why, const string& detail) {
+  const char* rd = getenv("RABADON_DIR");
+  const char* home = getenv("HOME");
+  const string rdir = (rd && rd[0]) ? string(rd) : string(home ? home : ".") + "/.rabadon";
+  mkdir(rdir.c_str(), 0755);
+  mkdir((rdir + "/spool").c_str(), 0755);
+
+  char day[16]; { time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
+  struct timeval tv; gettimeofday(&tv, nullptr);
+  const long long nowms = (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+
+  size_t cs = dir.rfind('/');
+  const string project = cs == string::npos ? dir : dir.substr(cs + 1);
+  const string spool = rdir + "/spool/" + string(day) + ".jsonl";
+  const string run = "ex-" + std::to_string(nowms % 100000000) + "-" + std::to_string(getpid());
+
+  auto emit = [&](int seq, const string& ev, const string& extra) {
+    char buf[64]; snprintf(buf, sizeof buf, "%d", seq);
+    string body = "{\"v\":1,\"seq\":" + string(buf) + ",\"ts\":" + std::to_string(nowms) +
+                  ",\"run\":\"" + run + "\",\"pipe\":\"" + json_escape(project) + ":exec\",\"ev\":\"" + ev + "\"," + extra;
+    rbchain::append(spool, body);
+  };
+  emit(1, "CHECK_FAIL", "\"step\":\"exec\",\"mode\":\"enforce\",\"fails\":[{\"check\":\"" + json_escape(id) +
+                        "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
+  emit(2, "STOP", "\"reason\":\"BLOCKED\",\"rule\":\"" + json_escape(id) +
+                  "\",\"sid\":\"exec\",\"detail\":\"" + json_escape(detail) + "\"");
+}
+
 int main(int argc, char** argv) {
   string dir = ".";
   bool denyNet = false, doPrint = false, doCheck = false;
@@ -234,6 +325,43 @@ int main(int argc, char** argv) {
   }
 
   if (cmd.empty()) { fprintf(stderr, "rabadon sandbox: nothing to run — pass a command after --\n"); return 2; }
+
+  // ---------- the project's law, BEFORE anything runs ----------
+  // exec used to compile only protectedPaths and network into a kernel policy
+  // and never look at the bash deny rules, so the gate refused a command and
+  // `rabadon exec` ran the identical string to completion, exit 0, no ledger
+  // entry. That made exec a documented bypass of the thing it is sold as the
+  // hard version of. It judges the command with rules.h now — the same parser,
+  // the same segmentation, the same three compiled-in laws — so exec is a
+  // SUPERSET of the gate: everything the hook refuses, plus a kernel fence.
+  //
+  // There is no watch mode here on purpose. The hook observes an agent that
+  // did not ask to be supervised; `rabadon exec` is someone explicitly asking
+  // to run inside the boundary. Letting watch mode wave a denied command
+  // through would just move the bypass one flag to the left.
+  // Path-resolving laws ("this rm -rf lands outside the project tree") are
+  // resolved against the directory the command will ACTUALLY run in, which is
+  // this process's cwd — not --dir, which only says whose guard.json to load.
+  // Judging one tree and executing in another is how a correct-looking refusal
+  // protects a directory nobody was working in.
+  string runCwd = dir;
+  { char wd[4096]; if (getcwd(wd, sizeof wd)) runCwd = wd; }
+
+  rbrules::Verdict v;
+  for (const string& target : judge_targets(cmd)) {
+    v = rbrules::judge_command(guard, target, runCwd);
+    if (v.refused) break;
+  }
+  if (v.refused) {
+    emit_refusal(dir, v.id, v.why, v.detail);
+    fprintf(stderr,
+      "rabadon REFUSED this command — it breaks the project's own law.\n"
+      "Rule: %s — %s\n%s\n"
+      "exec enforces every rule the hook enforces; it is not a way around them.\n"
+      "(user override: add \"%s\" to disabled[] in .rabadon/guard.json)\n",
+      v.id.c_str(), v.why.c_str(), v.detail.c_str(), v.id.c_str());
+    return 2;
+  }
 
   const bool wantsEnforcement = !prefixes.empty() || netDeny;
   if (wantsEnforcement && !backend) {
