@@ -32,6 +32,8 @@
 #include <cerrno>
 
 #include "usage.h"   // the shared token/cost meter (budget cap here + rabadon-lens)
+#include "sha256.h"  // the hash-chained spool (emitter here + rabadon-audit)
+#include <sys/file.h>
 
 using std::string;
 
@@ -401,13 +403,39 @@ struct Emitter {
   }
 
   void emit(const string& ev, const string& extraJson) {
-    string line = "{\"v\":1,\"seq\":" + std::to_string(++seq) +
+    string body = "{\"v\":1,\"seq\":" + std::to_string(++seq) +
       ",\"ts\":" + std::to_string(now_ms()) +
       ",\"run\":\"" + runId + "\",\"pipe\":\"" + json_escape(pipe) + "\",\"ev\":\"" + ev + "\"" +
       (extraJson.empty() ? "" : "," + extraJson) +
-      (drill ? ",\"drill\":true" : "") + "}\n";
-    std::ofstream f(spoolPath, std::ios::app);
-    if (f) f << line;
+      (drill ? ",\"drill\":true" : "");
+    // hash-chained ledger: every event carries prev = SHA-256 of the previous
+    // event line in this day file, so the spool is TAMPER-EVIDENT — edit or
+    // drop any line and `rabadon audit` names the broken link. The last hash
+    // lives in a .head sidecar (no tail-scan per emit); flock serializes
+    // concurrent gate processes so the chain never forks. A failed lock/open
+    // falls back to an unchained append — the ledger keeps recording
+    // (fail-open for rabadon itself, the audit reports unchained lines).
+    string line;
+    int fd = ::open(spoolPath.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd >= 0 && flock(fd, LOCK_EX) == 0) {
+      string headPath = spoolPath + ".head";
+      string prev = "genesis";
+      {
+        std::ifstream hf(headPath);
+        if (hf) { string h; std::getline(hf, h); if (h.size() == 64) prev = h; }
+      }
+      string chained = body + ",\"prev\":\"" + prev + "\"}";
+      line = chained + "\n";
+      ssize_t w = write(fd, line.c_str(), line.size()); (void)w;
+      { std::ofstream hf(headPath, std::ios::trunc); if (hf) hf << rbsha::hex(chained) << "\n"; }
+      flock(fd, LOCK_UN);
+      close(fd);
+    } else {
+      if (fd >= 0) close(fd);
+      line = body + "}\n";
+      std::ofstream f(spoolPath, std::ios::app);
+      if (f) f << line;
+    }
     if (sockFd >= 0) { ssize_t r = write(sockFd, line.c_str(), line.size()); (void)r; }
   }
 

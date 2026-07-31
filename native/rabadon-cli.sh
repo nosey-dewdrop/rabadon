@@ -45,6 +45,8 @@ case "${1:-toggle}" in
   stats|usage)     S="$(nbin stats)" || exit 1; shift; exec "$S" "$@" ;;
   report)          S="$(nbin stats)" || exit 1; shift; exec "$S" --md "$@" ;;
   trace)           T="$(nbin trace)" || exit 1; shift; exec "$T" "$@" ;;
+  audit)           A="$(nbin audit)" || exit 1; shift; exec "$A" "$@" ;;
+  replay)          A="$(nbin audit)" || exit 1; shift; exec "$A" --replay "$@" ;;
   drill)
     # one tagged test event through the REAL gate — see the refusal text an
     # agent would get, without waiting for a real incident and without
