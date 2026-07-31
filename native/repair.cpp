@@ -4,6 +4,12 @@
 // defined the proof and forbade shortcuts:
 //   a repair counts ONLY when the same deterministic check that caught the
 //   problem runs again and turns green; unmeasured = unproven = never counted.
+// Green is only HALF the proof. The other half is that the proposal did not buy
+// that green by weakening the check — which is what the hash locks witness. So
+// the word VERIFIED is earned by the tamper check RUNNING, not by the re-run
+// going green: with zero discovered test files nothing was held, and this binary
+// must then say HELD, UNVERIFIED. The headline and the ledger's "locks" field
+// are the same statement; they are never allowed to disagree.
 //
 // Flow (propose-and-hold — rabadon NEVER silently edits the user's tree):
 //   1. find the project's strongest deterministic check: --cmd flag, else the
