@@ -406,6 +406,11 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
 // The entry point: true = one of the three laws refuses this command.
 inline bool check(const string& command, const string& cwd, const vector<string>& disabled, Hit& hit) {
   if (command.empty()) return false;
+  // the gate runs on every tool call and its latency is a published number, so
+  // the overwhelmingly common command — one that is neither git nor rm — costs
+  // two substring scans and nothing else. this is a superset: any command the
+  // laws could refuse must contain one of these.
+  if (command.find("git") == string::npos && command.find("rm") == string::npos) return false;
   const string root = project_root(cwd);
   const string realCwd = resolve_real(lexical_abs(cwd, "/"));
   return check_tokens(segments(command), realCwd, root, disabled, hit, 0);
