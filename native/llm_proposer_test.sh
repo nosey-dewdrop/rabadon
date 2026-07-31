@@ -12,7 +12,16 @@
 #
 # The thing under test is therefore the ARGV, not a model. `claude` is replaced
 # by a stub that records the argv it was called with. That makes the untested
-# region exactly the shell code we own.
+# region exactly the shell code we own. 11 checks, ~1s, byte-identical across
+# runs, and green with PATH=/usr/bin:/bin — it needs no claude installed, which
+# is why it can live in `make test` while trace_demo.sh cannot.
+#
+# What the fix bought, measured on the live demo afterwards (trace_demo.sh, one
+# real claude -p): the honest arm went from dying before the first token to
+# loop exit 0 — step 3 caught by the project's own suite, repaired by the model,
+# real suite green, steps 4 and 5 then run on a clean base. 285,774 tok,
+# $0.9083, 34s on that step. The cheat arm is unchanged: forbidden-sha rejects
+# the neutered test, 0 tok, fail-closed. So the arbiter was never the problem.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROPOSER="$HERE/llm-proposer.sh"
