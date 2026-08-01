@@ -53,12 +53,6 @@
       <span class="n g">100.0%</span><span class="t">precision, recall 100.0%, over 34 cases lifted out of real sessions</span>
       <span class="n b">0</span><span class="t">fake repairs accepted, on every run there is a record of</span>
       <span class="n y">42.0&micro;s</span><span class="t">to judge one command, so the gate is not what you switch off to go faster</span>
-      <span class="rule"></span>
-      <span class="n">70,116</span><span class="t">lines written to the hash-chained ledger</span>
-      <span class="n">37,384</span><span class="t">actions handed to the gate to be judged</span>
-      <span class="n">31</span><span class="t">real defects mined out of 545 commits in 8 projects</span>
-      <span class="n">31,316</span><span class="t">tests in the 12 suites it ran against. <a href="/benchmarks">the measurements</a></span>
-      <span class="n">251</span><span class="t">commits here, in 8 days. <a href="/patch-notes">all of them</a></span>
     </div>
   </div>
 
@@ -81,6 +75,8 @@
     <h2>the gate, on the cases it was built against</h2>
     <p>Thirty-four cases lifted out of real sessions, eleven of them genuinely destructive, and the gate refuses all eleven and nothing else. Printed as it came, on this machine.</p>
     <p class="cap">The eleven are not hypotheticals. They are commands that were typed during real work, by an agent, in a repository that mattered.</p>
+    <p class="cap">The other twenty-three are the harder half. Every one of them looks dangerous and is not, and a gate that refuses those is a gate you turn off in a week. That is why the floor was recall, and why precision had to climb to meet it rather than the other way around.</p>
+    <p class="cap">Nothing in the fixture was written for the fixture. It was lifted out of sessions that had already happened.</p>
   </div>
   <div class="term" id="typed"></div>
 </section>
@@ -88,18 +84,17 @@
 <section id="findings">
   <h2>what it found, project by project</h2>
   <p class="small dim">Thirty-one defects across eight open-source projects, mined out of 545 commits of their own history. None were invented. Each is a real fix a maintainer shipped, with the test that caught it written by the same engineer in the same commit, and only the source half rolled back. The test cannot look away, because the reason it exists is the defect.</p>
-  <div class="term"><span class="hdr">project                defects   commits    lines   what they were</span>
-expressjs/express            4        46      6.5   <span class="o">off-by-one in a view root, a dropped etag guard</span>
-tj/commander.js              4        31      6.5   <span class="o">an argument-count boundary, a dropped port guard</span>
-lodash/lodash                4       218     10.5   <span class="o">off-by-one in a strict index scan, a dropped guard</span>
-ajv-validator/ajv            3       110      5.0   <span class="o">a maximum boundary, a leap-second timezone sign</span>
-pallets/click                4        48      6.5   <span class="o">parsing and boundary defects in option handling</span>
-pallets/jinja                4        35      8.0   <span class="o">template and escaping defects</span>
-pallets/markupsafe           4        30      4.5   <span class="o">escaping and comparison defects</span>
-yaml/pyyaml                  4        27      1.0   <span class="o">single-line defects in the loader</span>
+  <div class="term"><span class="hdr">project                defects   commits    lines   what was wrong with the code</span>
+expressjs/express            4        46      6.5   <span class="o">a view root read one character short, and an etag guard that stopped being applied</span>
+tj/commander.js              4        31      6.5   <span class="o">an excess-argument count compared with the wrong operator, and a dropped port guard</span>
+lodash/lodash                4       218     10.5   <span class="o">a strict index scan starting one place late, and a guard dropped out of word splitting</span>
+ajv-validator/ajv            3       110      5.0   <span class="o">a maximum treated as exclusive, and a leap second given the wrong timezone sign</span>
+pallets/click                4        48      6.5   <span class="o">option parsing that lost a boundary case, and a separator handled on only one side</span>
+pallets/jinja                4        35      8.0   <span class="o">template escaping that let one shape through, and a filter that read past its input</span>
+pallets/markupsafe           4        30      4.5   <span class="o">escaping that missed a character class, and a comparison that answered in reverse</span>
+yaml/pyyaml                  4        27      1.0   <span class="o">single-line defects in the loader, the smallest of them one character wide</span>
 
-<span class="hdr">total</span>                       <span class="b">31</span>       <span class="b">545</span>      <span class="b">6.0</span>   <span class="o">4 dropped guards, 3 off-by-one,</span>
-                                                <span class="o">3 boundaries, 2 reversed comparisons</span></div>
+<span class="hdr">total</span>                       <span class="b">31</span>       <span class="b">545</span>      <span class="b">6.0</span>   <span class="o">4 dropped guards, 3 off-by-one, 3 wrong boundaries, 2 reversed comparisons</span></div>
   <p class="cap">The smallest defect is one source line, the largest thirty-three. At least one test falls, at most ten. All thirty-one are deterministic: the red run was repeated three times and the same tests fell every time.</p>
 
   <details>
@@ -218,6 +213,18 @@ pass <span class="b">6</span>   fail <span class="b">0</span></div>
    <span class="g">2</span>   <span class="o">repairs held after the proof survived the judge</span>
  <span class="y">198</span>   <span class="o">refusals recorded in watch mode, where nothing is blocked</span>
    <span class="b">0</span>   <span class="o">fake repairs accepted, on every run there is a record of</span></div>
+</section>
+
+<section id="volume">
+  <h2>everything it has been run through so far</h2>
+  <p>Eight days, one machine, one engineer. These are totals, not a sample, and each of them opens onto the thing that produced it.</p>
+  <div class="stats">
+    <span class="n">70,116</span><span class="t">lines written to the hash-chained ledger</span>
+    <span class="n">37,384</span><span class="t">actions handed to the gate to be judged, across 78 repositories</span>
+    <span class="n">31</span><span class="t">real defects mined out of 545 commits in 8 open-source projects</span>
+    <span class="n">31,316</span><span class="t">tests in the 12 suites it was run against. <a href="/benchmarks">the measurements, each beside the command it came from</a></span>
+    <span class="n">251</span><span class="t">commits in this repository. <a href="/patch-notes">all of them, with the day each landed</a></span>
+  </div>
 </section>
 
 <footer>
