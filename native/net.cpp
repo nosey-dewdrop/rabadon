@@ -104,7 +104,28 @@ static void write_atomic(const string& path, const string& body) {
   rename(tmp.c_str(), path.c_str());
 }
 
+static const char* kHelp =
+  "rabadon-net — the always-on safety net for one project.\n"
+  "Runs the strongest check this repo already has (rabadon-truth picks the rung)\n"
+  "and writes the verdict to <dir>/.rabadon/net.json. Single-flight: one check per\n"
+  "project at a time, so a burst of edits cannot start a suite per edit.\n"
+  "\n"
+  "usage: rabadon-net [dir] [--cap-ms N] [--print]\n"
+  "\n"
+  "  [dir]        the project to check (default: the current directory).\n"
+  "  --cap-ms N   give up after N milliseconds (default 120000).\n"
+  "  --print      print the verdict as well as writing it.\n"
+  "  -h, --help   this screen.\n"
+  "\n"
+  "environment:\n"
+  "  RABADON_NET_CAP_MS   overrides --cap-ms.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-net ~/src/myrepo --print\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kHelp);
+
   string dir = ".";
   long long capMs = 120000;      // two minutes: past that the answer is not worth the machine
   bool printOut = false;
@@ -112,7 +133,9 @@ int main(int argc, char** argv) {
     string a = argv[i];
     if (a == "--cap-ms" && i + 1 < argc) capMs = atoll(argv[++i]);
     else if (a == "--print") printOut = true;
-    else if (a == "--help") { printf("usage: rabadon-net <dir> [--cap-ms N] [--print]\n"); return 0; }
+    // `-h` was unknown, so it became the DIRECTORY: the net went looking for a
+    // repo called "-h" and reported on it.
+    else if (rb_is_flag(a.c_str())) rb_unknown_flag("rabadon-net", a.c_str());
     else dir = a;
   }
   while (dir.size() > 1 && dir.back() == '/') dir.pop_back();

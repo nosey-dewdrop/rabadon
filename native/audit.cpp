@@ -131,12 +131,36 @@ static Head read_head(const string& p) {
   return h;
 }
 
+static const char* kHelp =
+  "rabadon-audit — has the ledger been tampered with?\n"
+  "Every spool line is hash-chained to the one before it and each day file carries\n"
+  "a .head sidecar. This walks the chain and reports, per file, how many lines are\n"
+  "chained, where a break is, and what cannot be verified at all. An unchained or\n"
+  "broken region is named out loud, never averaged away.\n"
+  "\n"
+  "usage: rabadon-audit [--days N] [--replay]\n"
+  "\n"
+  "  --days N    how far back to verify (default 7).\n"
+  "  --replay    re-derive every hash from the bytes instead of trusting the head.\n"
+  "  -h, --help  this screen.\n"
+  "\n"
+  "environment:\n"
+  "  RABADON_DIR   where the spool lives (default ~/.rabadon).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-audit --days 30 --replay\n";
+
 int main(int argc, char** argv) {
+  // `rabadon-audit --help` used to be ignored by this loop and fall through to
+  // the ledger walk: exit 0, an integrity report, and the flag never honoured.
+  rb_help(argc, argv, kHelp);
+
   double days = 7;
   bool replay = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--days") == 0 && i + 1 < argc) { double v = strtod(argv[++i], nullptr); if (v > 0) days = v; }
     else if (strcmp(argv[i], "--replay") == 0) replay = true;
+    else rb_unknown_flag("rabadon-audit", argv[i]);
   }
 
   string rdir;

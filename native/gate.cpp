@@ -718,6 +718,33 @@ static Verdict driftJudge(const string& goal, const std::vector<string>& recentB
   return vd;
 }
 
+static const char* kHelp =
+  "rabadon-gate — the arbiter. Refuses a dangerous tool call BEFORE it is run.\n"
+  "As a PreToolUse hook Claude Code pipes the tool event on stdin and this decides\n"
+  "allow or block against <project>/.rabadon/guard.json; it also enforces the\n"
+  "budget cap by measuring the session's real cumulative usage on every call.\n"
+  "\n"
+  "usage: rabadon-gate [--status|--on|--off|--toggle|--silent]\n"
+  "       rabadon-gate --lint [dir]\n"
+  "       rabadon-gate --statusline\n"
+  "       rabadon-gate --version\n"
+  "\n"
+  "  --status     print the mode and the file it was read from. changes nothing.\n"
+  "  --on         ON: the arbiter acts — refuses, repairs, proves.\n"
+  "  --off        WATCH: records what it WOULD have caught, touches nothing.\n"
+  "  --silent     dormant everywhere, records nothing.\n"
+  "  --toggle     flip between ON and WATCH.\n"
+  "  --lint [dir] compile every guard.json pattern and flag unknown keys, so a\n"
+  "               typo'd rule is caught at author time, not by a deny that never\n"
+  "               fired. exit 1 with the list if anything is wrong.\n"
+  "  --statusline the one-line status for Claude Code's statusline hook.\n"
+  "  -h, --help   this screen.\n"
+  "\n"
+  "With no arguments and an event on stdin, this IS the hook.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-gate --lint ~/src/myrepo\n";
+
 int main(int argc, char** argv) {
   g_self = argv[0];
   // SECURITY, fail-CLOSED: the gate emits its verdict over a unix socket to any
@@ -728,6 +755,12 @@ int main(int argc, char** argv) {
   // dead watcher can never turn a block into an allow (write just returns EPIPE,
   // which emit already discards). This is the whole point of the gate.
   signal(SIGPIPE, SIG_IGN);
+
+  // `rabadon-gate --help` used to fall through to hook mode, read an empty
+  // stdin, fail open and exit 0 having printed NOTHING. Zero bytes and a clean
+  // exit code is exactly what a working hook looks like, so the binary that
+  // enforces everything was the one that answered nothing.
+  rb_help(argc, argv, kHelp);
 
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate " RABADON_VERSION "\n"); return 0; }

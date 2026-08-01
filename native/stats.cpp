@@ -458,7 +458,30 @@ static string json_escape(const string& s) {
   return out;
 }
 
+static const char* kHelp =
+  "rabadon-stats — what this machine actually spent, from the local ledger.\n"
+  "Sessions, tokens by class, cost, tools and duration, read from transcripts that\n"
+  "are already on disk. Nothing is estimated and nothing leaves the machine.\n"
+  "\n"
+  "usage: rabadon-stats [--days N] [--project NAME] [--full] [--json|--md]\n"
+  "\n"
+  "  --days N        window to report (default 7).\n"
+  "  --project NAME  only this project.\n"
+  "  --full          every row, not just the top of the table.\n"
+  "  --json          machine-readable.\n"
+  "  --md            markdown, for pasting into a report.\n"
+  "  -h, --help      this screen.\n"
+  "\n"
+  "environment:\n"
+  "  RABADON_DIR   where the spool lives (default ~/.rabadon).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-stats --days 30 --project rabadon --json\n";
+
 int main(int argc, char** argv) {
+  // `rabadon-stats --help` used to be ignored and print the real usage table.
+  rb_help(argc, argv, kHelp);
+
   double days = 7;
   bool full = false, json = false, md = false;
   string only_project;
@@ -472,6 +495,10 @@ int main(int argc, char** argv) {
     else if (strcmp(argv[i], "--json") == 0) json = true;
     else if (strcmp(argv[i], "--md") == 0) md = true;
     else if (strcmp(argv[i], "--project") == 0 && i + 1 < argc) { only_project = argv[++i]; }
+    // silently ignoring an argument is the dangerous half: `--project foo`
+    // mistyped as `--projekt foo` used to print the WHOLE machine's usage under
+    // a heading the operator read as one project's.
+    else rb_unknown_flag("rabadon-stats", argv[i]);
   }
 
   string rdir;

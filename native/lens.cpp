@@ -171,7 +171,24 @@ static void collect_jsonl(const string& dir, vector<string>& out) {
   closedir(d);
 }
 
+static const char* kHelp =
+  "rabadon-lens — sessions, tokens and cost read straight off Claude Code's own\n"
+  "transcripts. Zero instrumentation: the files are already on disk, the metering\n"
+  "is byte-exact, and no model is called to produce any number here.\n"
+  "\n"
+  "usage: rabadon-lens [transcript.jsonl | dir] [--days N]\n"
+  "\n"
+  "  [transcript.jsonl | dir]  a transcript, or a directory of them.\n"
+  "                            omitted: $RABADON_LENS_DIR, else ~/.claude/projects.\n"
+  "  --days N                  window to report (default 7).\n"
+  "  -h, --help                this screen.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-lens --days 30\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kHelp);
+
   // --days (default 7; unparseable or 0 -> 7). first path-like arg = source.
   double days = 7;
   string source;
@@ -183,6 +200,11 @@ int main(int argc, char** argv) {
         if (end != argv[i + 1] && v != 0) days = v;
         i++;
       }
+    // a flag this binary does not know must not become the SOURCE PATH. it did:
+    // `rabadon-lens --help` printed a real report headed "source: --help", which
+    // reads like the flag was honoured and a filter applied.
+    } else if (rb_is_flag(argv[i])) {
+      rb_unknown_flag("rabadon-lens", argv[i]);
     } else if (source.empty()) {
       source = argv[i];
     }

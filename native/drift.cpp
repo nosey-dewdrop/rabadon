@@ -190,14 +190,45 @@ struct Promise {
   bool ok() const { return !north_star.empty(); }
 };
 
+static const char* kHelp =
+  "rabadon-drift — is this session still working on what it said it would?\n"
+  "Compares what the run touched against <dir>/.rabadon/promise.json (north_star,\n"
+  "areas, anti_paths, keywords) and speaks only when the work has wandered.\n"
+  "Advisory: it fails OPEN on anything missing and never blocks.\n"
+  "\n"
+  "usage: rabadon-drift [dir] [--quiet-ok]\n"
+  "\n"
+  "  [dir]        the project to judge (default: the current directory).\n"
+  "  --quiet-ok   say nothing while on track. this is the default as a hook.\n"
+  "  --version    print the version.\n"
+  "  -h, --help   this screen.\n"
+  "\n"
+  "As a Stop hook Claude Code pipes the event JSON on stdin and drift reads cwd\n"
+  "from it; it stays silent unless rabadon is enabled (~/.rabadon/enabled, or a\n"
+  "per-project <dir>/.rabadon/on).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-drift ~/src/myrepo\n";
+
 int main(int argc, char** argv) {
+  // `rabadon-drift --help` used to exit 0 having printed NOTHING — zero bytes,
+  // which is indistinguishable from a healthy silent hook.
+  rb_help(argc, argv, kHelp);
+
   string dir;
   bool quietOnTrack = false;
   for (int i = 1; i < argc; i++) {
     string a = argv[i];
     if (a == "--version") { printf("rabadon-drift 0.1.0\n"); return 0; }
     else if (a == "--quiet-ok") quietOnTrack = true;
-    else if (a[0] != '-') dir = a;
+    // An unknown flag is NAMED but never fatal. This binary runs as a Stop hook,
+    // where a non-zero exit means BLOCK — refusing here would let one typo in a
+    // settings.json hook line wedge every session. So: say so, fail OPEN.
+    else if (a[0] == '-') {
+      fprintf(stderr, "rabadon-drift: unknown option \"%s\" — run `rabadon-drift --help`\n", a.c_str());
+      return 0;
+    }
+    else dir = a;
   }
   // as a Stop hook, Claude Code pipes the event JSON (with cwd) on stdin; as a
   // CLI, a dir argument is given. Prefer the explicit arg, else read the hook.
