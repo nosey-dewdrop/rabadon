@@ -32,7 +32,7 @@ export RABADON_DIR="$TMP/rd"; mkdir -p "$RABADON_DIR/spool"
 NOW=1768046400000; export RABADON_NOW="$NOW"
 TS=$((NOW - 3600000))
 cat > "$RABADON_DIR/spool/2026-01-10.jsonl" <<EOF
-{"v":1,"seq":1,"ts":$TS,"run":"r1","pipe":"alpha:session","ev":"STEP_START","step":"ls","tokensIn":100,"tokensOut":50}
+{"v":1,"seq":1,"ts":$TS,"run":"r1","pipe":"alpha:session","ev":"STEP_START","step":"ls","tokens":150,"in":100,"out":50,"usd_e6":700}
 {"v":1,"seq":1,"ts":$TS,"run":"r2","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","rule":"no-force-push-main","detail":"git push --force"}
 {"v":1,"seq":1,"ts":$TS,"run":"r3","pipe":"beta:session","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"loop-stop","why":"3x"}]}
 {"v":1,"seq":1,"ts":$TS,"run":"d1","pipe":"gamma:session","ev":"STOP","reason":"BLOCKED","rule":"drilled","detail":"x","drill":true}
@@ -80,12 +80,20 @@ assert any("no-force-push-main" in n for n in names), names
 assert any("CHECK_FAIL" in n or "loop-stop" in n for n in names), names
 PY
 
-python3 - <<'PY' && pass "GenAI semconv token attributes present" || fail "genai attrs"
+# This fixture line used to read {"tokensIn":100,"tokensOut":50} — the names
+# export.cpp read, and the names NOTHING writes. It is now loop.cpp's shape,
+# with the values checked rather than just the key set: a key-presence assertion
+# is happy with a reader that maps the wrong field.
+python3 - <<'PY' && pass "GenAI semconv token + cost attributes carry the right values" || fail "genai attrs"
 import json,os
 d=json.load(open(os.environ["OUT"]))
 sp=d["resourceSpans"][0]["scopeSpans"][0]["spans"]
-keys={a["key"] for s in sp for a in s["attributes"]}
-assert "gen_ai.system" in keys and "gen_ai.usage.input_tokens" in keys, keys
+a={x["key"]: list(x["value"].values())[0]
+   for s in sp if s["name"]=="STEP_START" for x in s["attributes"]}
+assert a.get("gen_ai.system")=="anthropic", a
+assert a.get("gen_ai.usage.input_tokens")=="100", a
+assert a.get("gen_ai.usage.output_tokens")=="50", a
+assert a.get("rabadon.usd_e6")=="700", a
 PY
 
 python3 - <<'PY' && pass "all four drill shapes stay home, real refusals still ship" || fail "a drill shape leaked into the export"
@@ -196,6 +204,11 @@ with open(p, "w") as f:
         # producer that both extends the vocabulary AND reports usage.
         if ev == "POLICY_ESCALATE":
             e.update({"tokens": 1545, "in": 1200, "out": 345, "usd_e6": 12345})
+        # a third-party producer that mirrors .rabadon/state.json's field names
+        # instead of the spool's. Hand-written on purpose: it is by definition
+        # not this repo's shape, so no binary here could generate it.
+        if ev == "REPAIR_OK":
+            e.update({"tokensIn": 11, "tokensOut": 22})
         f.write(json.dumps(e, separators=(",", ":")) + "\n")
 PY
 export ALL_OUT="$TMP/out-all.json"
@@ -249,6 +262,11 @@ assert a.get("rabadon.in") == "1200" and a.get("rabadon.out") == "345", a
 known = [s for s in sp if s["name"] == "STEP_OK"][0]
 ka = {x["key"] for x in known["attributes"]}
 assert not any(k.startswith("gen_ai") for k in ka), ka
+# and the state.json-mirror alias a stranger might write still maps
+rep = [s for s in sp if s["name"] == "REPAIR_OK"][0]
+ra = {x["key"]: list(x["value"].values())[0] for x in rep["attributes"]}
+assert ra.get("gen_ai.usage.input_tokens") == "11", ra
+assert ra.get("gen_ai.usage.output_tokens") == "22", ra
 PY
 
 # 9. the edge under the edge: a line with no `ev` at all. Not in SPEC's ten and
