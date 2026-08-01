@@ -163,5 +163,44 @@ assert len(b) == len(a), (len(a), len(b), [s["name"] for s in b])
 assert b == a, "spans differ beyond count"
 PY
 
+# 8. the WHOLE vocabulary, plus a verb this repo has never heard of.
+#    SPEC §2 fixes ten `ev` values and adds a MUST: "unknown `ev` values MUST
+#    be rendered generically, never dropped". export.cpp filtered every line
+#    through a hardcoded eight-name allow-list instead, so it dropped both the
+#    unknown verbs (the MUST) and two of SPEC's own ten — STEP_OK and
+#    REPAIR_START, which rabadon's own gate.cpp/repair.cpp/loop.cpp emit. The
+#    G3 proof ledger (5 REPAIR_START, 2 REPAIR_OK, 3 REPAIR_FAIL) exported as
+#    5 spans: repairs that finish without ever starting.
+#
+#    This is a COUNT assertion on purpose. "the eleven names are present" alone
+#    would still pass if a future allow-list kept eleven and dropped a twelfth;
+#    n_in == n_out is the shape an allow-list cannot creep back through.
+export ALL_DIR="$TMP/rd-all"; mkdir -p "$ALL_DIR/spool"
+export ALL_EVS='RUN_START STEP_START STEP_OK CHECK_FAIL WOULD_BLOCK REPAIR_START REPAIR_OK REPAIR_FAIL STOP RUN_DONE POLICY_ESCALATE'
+python3 - <<'PY'
+import json, os
+now = int(os.environ["RABADON_NOW"]); ts = now - 3600000
+evs = os.environ["ALL_EVS"].split()
+p = os.path.join(os.environ["ALL_DIR"], "spool", "2026-01-10.jsonl")
+with open(p, "w") as f:
+    for i, ev in enumerate(evs):
+        f.write(json.dumps({"v": 1, "seq": i + 1, "ts": ts + i * 1000,
+                            "run": "r%d" % i, "pipe": "omega:session", "ev": ev,
+                            "step": "s", "customField": "keepme"},
+                           separators=(",", ":")) + "\n")
+PY
+export ALL_OUT="$TMP/out-all.json"
+RABADON_DIR="$ALL_DIR" "$EXPORT" --otlp --days 7 > "$ALL_OUT"
+python3 - <<'PY' && pass "all ten SPEC ev values plus one unknown verb render — 11 in, 11 out" || fail "the export dropped an ev value"
+import json, os
+evs = os.environ["ALL_EVS"].split()
+sp = json.load(open(os.environ["ALL_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+names = [s["name"] for s in sp]
+missing = [e for e in evs if e not in names]
+assert not missing, ("dropped from the export: " + repr(missing), names)
+assert len(sp) == len(evs), ("11 events in, spans out:", len(sp), names)
+assert names == evs, ("spans are not in ledger order", names)
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
