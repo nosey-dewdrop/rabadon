@@ -302,6 +302,8 @@ def ledger():
     home = os.path.expanduser("~")
     real, drill, ev = Counter(), Counter(), Counter()
     sample, projects = {}, Counter()
+    per = {}          # project -> Counter(rule)
+    per_ex = {}       # project -> {rule: the line the ledger wrote}
     for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
         for line in open(f, encoding="utf-8", errors="replace"):
             try:
@@ -316,17 +318,22 @@ def ledger():
                 drill[rule] += 1
                 continue
             real[rule] += 1
-            projects[str(d.get("pipe", "?")).split(":")[0]] += 1
-            if rule not in sample:
-                det = str(d.get("detail", "")).replace(home, "~")
-                det = re.sub(r"/Users/[^/ ]+", "~", det)
-                det = re.sub(r"^command matched deny rule: ", "", det)
-                sample[rule] = det.replace("\n", " ")[:150]
-    return real, drill, ev, sample, projects
+            proj = str(d.get("pipe", "?")).split(":")[0]
+            projects[proj] += 1
+            per.setdefault(proj, Counter())[rule] += 1
+            det = str(d.get("detail", "")).replace(home, "~")
+            det = re.sub(r"/Users/[^/ ]+", "~", det)
+            det = re.sub(r"^command matched deny rule: ", "", det)
+            det = det.replace("\n", " ").strip()
+            if rule not in sample and det:
+                sample[rule] = det[:150]
+            if det:
+                per_ex.setdefault(proj, {}).setdefault(rule, det[:150])
+    return real, drill, ev, sample, projects, per, per_ex
 
 
 def catches():
-    real, drill, ev, sample, projects = ledger()
+    real, drill, ev, sample, projects, per, per_ex = ledger()
     total = sum(real.values())
     mine = projects.get("rabadon", 0)
     others = len([p for p in projects if p != "rabadon"])
@@ -344,28 +351,31 @@ def catches():
            f'<div><span class="n y">{sum(drill.values())}</span><span class="t">drills, excluded from the total</span></div>',
            "</div></div>"]
 
-    out.append("<section><h2>by rule</h2>")
-    out.append('<div class="tbl catches"><div class="head"><span>rule</span>'
-               '<span>times</span><span>what it stopped</span></div>')
-    for rule, count in real.most_common():
-        out.append(f'<div class="row"><span class="s">{html.escape(rule)}</span>'
-                   f'<span class="n">{count}</span>'
-                   f'<span class="d">{html.escape(RULE_TEXT.get(rule, "a command the compiled-in laws refuse"))}</span></div>')
-    out.append("</div>")
-    out.append(f'<p class="cap">{mine} of them fired inside this repository, which is the one being built all '
-               f"day. The rest fired in {others} other repositories on the same machine, and those are not "
-               "named here because they are not released yet.</p></section>")
-
-    out.append('<section><h2>a refusal, as it was written down</h2>'
-               '<p class="small dim">The ledger keeps the reason, not just the verdict, because a refusal '
-               "nobody can read is a refusal that gets switched off. These are real entries with the home "
-               "path stripped out.</p>")
-    for rule in ("baseline-rm-rf-outside", "push-gate", "no-hook-bypass", "baseline-hard-reset",
-                 "baseline-force-push"):
-        if rule in sample and sample[rule].strip():
-            out.append('<div class="term"><span class="r">[&times;]</span> '
-                       f'<span class="c">{html.escape(rule)}</span>\n'
-                       f'    <span class="o">{html.escape(sample[rule])}</span></div>')
+    # what a buyer actually asks: which project, and what was it about to do
+    NICE = {"damummyphus": "the home directory itself",
+            "damla_projects_2026": "the projects root",
+            "icerik": "the writing repository",
+            "p": "a scratch repository"}
+    out.append("<section><h2>project by project</h2>"
+               '<p class="small dim">Each line is the sentence the ledger wrote at the moment the command '
+               "was refused, with the home path stripped and nothing else changed.</p>")
+    for proj, count in projects.most_common():
+        if count < 2 and proj not in per_ex:
+            continue
+        title = proj if proj not in NICE else f"{proj}  ({NICE[proj]})"
+        body = [f'<span class="c">{html.escape(title)}</span>'
+                f'<span class="o">   {count} refused</span>', ""]
+        for rule, n in per.get(proj, Counter()).most_common():
+            body.append('<span class="r">[&times;]</span> ' + str(n).rjust(3) + "  " +
+                        f'<span class="u">{html.escape(rule)}</span>')
+            ex = per_ex.get(proj, {}).get(rule, "")
+            if ex:
+                body.append('       <span class="o">' + html.escape(ex[:120]) + "</span>")
+        out.append('<div class="term">' + "\n".join(body) + "</div>")
+    out.append('<p class="cap">The delete law reads a resolved path, not the text of the command, which is '
+               "why a target written as a relative name and a target written through a temp directory are the "
+               "same question to it. The line from LMCache is the sharpest one on this page: a stray "
+               "redirection was about to be handed to a recursive delete as if it were a directory.</p>")
     out.append("</section>")
 
     out.append('<section><h2>what it repaired</h2>'

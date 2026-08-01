@@ -1,31 +1,28 @@
 /* ============================================================
    rabadon, one stylesheet for every page.
 
-   The page has exactly TWO left edges and nothing else may invent
-   a third: column 1 carries headings, column 4 carries content.
-   Every section is the same twelve-column grid, so a heading on the
-   overview and a heading on the benchmarks page land on the same
-   pixel, and every block of content below them starts on the same
-   pixel too.
+   One column. A heading, then its text directly underneath it, then
+   the next heading. No side rail, no split, nothing that leaves an
+   empty gutter down the left of the page.
 
-   Numeric columns are sized in `ch`, not px. In a monospace face one
-   `ch` is one character, so a column declared 8ch is exactly eight
-   glyphs wide and the digits stack. Sizing them in px is what makes a
-   mono page look like it was assembled by hand in the dark.
+   Anything with columns in it is rendered as a terminal block, with
+   the columns padded to width at build time. In a monospace face that
+   is the only way the digits actually stack, and it is what the tool
+   itself looks like when you run it.
    ============================================================ */
 :root{
   --bg:#171221; --bg-soft:#1f1930; --ink:#efe8f7; --ink-dim:#9d92b5;
   --pink:#ff8fb3; --purple:#c9a6ff; --green:#b8e39a; --yellow:#ffd479; --blue:#8fc7ff;
 
-  --t-mono:12.5px;   /* captured terminal output        */
-  --t-small:13px;    /* captions, table cells, nav      */
+  --t-mono:12.5px;   /* terminal blocks                 */
+  --t-small:13px;    /* captions, nav                   */
   --t-body:15px;     /* prose                           */
   --t-num:19px;      /* the numbers that carry the page */
   --t-h2:17px;       /* section headings                */
   --t-h1:27px;       /* the one claim                   */
 
-  --g1:8px; --g2:14px; --g3:24px; --sec:46px;
-  --wrap:1080px; --radius:3px;
+  --g1:8px; --g2:14px; --g3:24px; --sec:40px;
+  --wrap:960px; --measure:78ch; --radius:3px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -37,21 +34,17 @@ body{
 a{color:var(--pink);text-decoration:underline dotted;transition:transform .18s}
 a:hover{text-decoration:underline}
 code{font:inherit;color:var(--blue)}
-h1{font-size:var(--t-h1);line-height:1.35;font-weight:400;letter-spacing:-.3px}
-h2{font-size:var(--t-h2);line-height:1.5;font-weight:700}
+h1{font-size:var(--t-h1);line-height:1.35;font-weight:400;letter-spacing:-.3px;max-width:34ch}
+h2{font-size:var(--t-h2);line-height:1.5;font-weight:700;margin-bottom:var(--g1)}
 h3{font-size:var(--t-small);line-height:1.6;font-weight:400;color:var(--ink-dim);margin-bottom:var(--g1)}
-p{line-height:1.7}
+p{line-height:1.7;max-width:var(--measure)}
+p + p{margin-top:10px}
 .dim{color:var(--ink-dim)}
 .small{font-size:var(--t-small)}
 .wrap{max-width:var(--wrap);margin:0 auto;padding:0 var(--g3);position:relative;z-index:1}
-
-/* ---------- the one grid ---------- */
-.g12{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--g3)}
-section{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
-        column-gap:var(--g3);row-gap:var(--g2);padding:var(--sec) 0}
-section > h2{grid-column:1 / span 3}
-section > *:not(h2){grid-column:4 / span 9}
-section > h2 + *{margin-top:2px}     /* optical: heading cap height vs body x-height */
+section{padding:var(--sec) 0 0}
+section > * + *{margin-top:var(--g2)}
+section > h2 + p{margin-top:var(--g1)}
 
 /* ---------- starfield and sprinkle ---------- */
 #stars{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
@@ -61,40 +54,37 @@ section > h2 + *{margin-top:2px}     /* optical: heading cap height vs body x-he
 @keyframes fall{to{transform:translateY(64px) rotate(200deg);opacity:0}}
 
 /* ---------- header ---------- */
-header.site{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
-            column-gap:var(--g3);align-items:baseline;padding:22px 0 0;font-size:var(--t-small)}
-.mark{grid-column:1 / span 3;font-size:var(--t-body);font-weight:700;letter-spacing:1px}
+header.site{display:flex;align-items:baseline;gap:var(--g3);flex-wrap:wrap;
+            padding:22px 0 0;font-size:var(--t-small)}
+.mark{font-size:var(--t-body);font-weight:700;letter-spacing:1px}
 .mark i{font-style:normal;color:var(--pink)}
-header.site nav{grid-column:4 / span 9;display:flex;gap:var(--g3);flex-wrap:wrap}
+header.site nav{display:flex;gap:var(--g3);flex-wrap:wrap;margin-left:auto}
 header.site nav a{color:var(--ink-dim);text-decoration:none}
 header.site nav a.here{color:var(--ink)}
 header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 
-/* ---------- hero: no side-by-side, so no ragged hole beside it ---------- */
-.top{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
-     column-gap:var(--g3);row-gap:var(--g2);padding:40px 0 var(--g3)}
-.tag{grid-column:1 / span 8;font-size:var(--t-small);color:var(--ink-dim)}
+/* ---------- the claim ---------- */
+.top{padding:38px 0 0}
+.top > * + *{margin-top:var(--g2)}
+.tag{font-size:var(--t-small);color:var(--ink-dim);max-width:var(--measure)}
 .tag b{color:var(--green);font-weight:400}
-.top h1{grid-column:1 / span 8}
-.top .proof{grid-column:4 / span 9;margin-top:var(--g2)}
-.top .lede{grid-column:4 / span 7}
-.top .cta{grid-column:4 / span 9}
-.top .term{grid-column:4 / span 9;margin-top:var(--g2)}
-.top .cap{grid-column:4 / span 7}
+.intro{padding:38px 0 0}
+.intro > * + *{margin-top:var(--g2)}
 
-.proof{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:var(--g3);row-gap:var(--g2)}
-.proof div{display:grid;row-gap:0}
-.proof .n{font-size:var(--t-num);font-weight:700;letter-spacing:-.4px;line-height:1.3}
+.proof{display:flex;flex-wrap:wrap;gap:var(--g2) var(--g3)}
+.proof div{display:grid;row-gap:0;min-width:15ch}
+.proof .n{font-size:var(--t-num);font-weight:700;letter-spacing:-.4px;line-height:1.3;
+          font-variant-numeric:tabular-nums}
 .proof .n.g{color:var(--green)} .proof .n.p{color:var(--pink)}
 .proof .n.b{color:var(--blue)}  .proof .n.y{color:var(--yellow)}
-.proof .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.5}
+.proof .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.5;max-width:26ch}
 
 .cta{font-size:var(--t-small);display:flex;gap:var(--g3);flex-wrap:wrap}
 
-/* ---------- terminal: the one surface on the page ---------- */
+/* ---------- terminal: the one surface, and every table lives in one ---------- */
 .term{background:var(--bg-soft);border-radius:var(--radius);padding:15px 18px;
       font-size:var(--t-mono);line-height:1.9;overflow-x:auto;white-space:pre;
-      font-variant-ligatures:none}
+      font-variant-ligatures:none;font-variant-numeric:tabular-nums}
 .term .p{color:var(--pink)}
 .term .c{color:var(--ink)}
 .term .o{color:var(--ink-dim)}
@@ -102,71 +92,56 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 .term .r{color:var(--pink)}
 .term .b{color:var(--blue)}
 .term .y{color:var(--yellow)}
+.term .u{color:var(--purple)}
+.term .hdr{color:var(--ink-dim)}
 .cur{color:var(--green);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
-.cap{font-size:var(--t-small);color:var(--ink-dim);line-height:1.7;margin-top:var(--g1)}
-
-/* ---------- tables: every numeric column in ch, so digits stack ---------- */
-.tbl{display:grid;row-gap:0}
-.tbl .head,.tbl .row{display:grid;column-gap:var(--g3);align-items:baseline;
-                     font-size:var(--t-small);padding:6px 0}
-.tbl .head{color:var(--ink-dim)}
-.tbl .row .s{color:var(--ink)}
-.tbl .row .n{color:var(--blue);text-align:right;font-variant-numeric:tabular-nums}
-.tbl .row .n.g{color:var(--green)} .tbl .row .n.y{color:var(--yellow)}
-.tbl .row .d,.tbl .row .w{color:var(--ink-dim)}
-.tbl .head span:nth-child(n+2){text-align:right}
-.tbl .head span:last-child{text-align:left}
-.tbl .total{padding-top:var(--g2)}
-.tbl .total .s{color:var(--ink-dim)}
-
-/* the four table shapes, all built out of ch */
-.tbl.find    .head,.tbl.find    .row{grid-template-columns:21ch 8ch 9ch 8ch 1fr}
-.tbl.gate    .head,.tbl.gate    .row{grid-template-columns:28ch 9ch 1fr 26ch}
-.tbl.suites  .head,.tbl.suites  .row{grid-template-columns:22ch 8ch 8ch 7ch 8ch 1fr}
+.cap{font-size:var(--t-small);color:var(--ink-dim);line-height:1.7;max-width:var(--measure)}
 
 /* ---------- disclosure ---------- */
-details{margin-top:var(--g1)}
 details summary{cursor:pointer;font-size:var(--t-small);color:var(--pink);
   list-style:none;text-decoration:underline dotted;display:inline-block}
 details summary::-webkit-details-marker{display:none}
 details summary:hover{text-decoration:underline}
 details[open] summary{color:var(--ink-dim)}
 details .body{margin-top:var(--g2)}
+details .body > * + *{margin-top:var(--g2)}
 
-/* ---------- ledger: number column in ch so 61 and 31,916 share a right edge ---------- */
-.ledger{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--g3)}
-.ledger .item{display:grid;grid-template-columns:9ch 1fr;column-gap:var(--g2);
-              padding:5px 0;align-items:baseline}
-.ledger .n{font-size:var(--t-num);font-weight:700;text-align:right;letter-spacing:-.4px;
-           font-variant-numeric:tabular-nums}
-.ledger .n.g{color:var(--green)} .ledger .n.p{color:var(--pink)}
-.ledger .n.y{color:var(--yellow)} .ledger .n.b{color:var(--blue)}
-.ledger .t{font-size:var(--t-small);line-height:1.55;color:var(--ink-dim)}
-
-/* ---------- laws and commands: key column in ch ---------- */
-.law{display:grid;grid-template-columns:24ch 1fr;column-gap:var(--g3);padding:8px 0;align-items:baseline}
+/* ---------- laws and commands ---------- */
+.law{display:grid;grid-template-columns:24ch 1fr;column-gap:var(--g3);padding:7px 0;align-items:baseline}
 .law .k{color:var(--purple);font-size:var(--t-small)}
 .law .v{font-size:var(--t-body);line-height:1.7}
 .law .v em{font-style:normal;color:var(--ink-dim)}
 
-.api{display:grid;grid-template-columns:34ch 1fr;column-gap:var(--g3);row-gap:var(--g1);
-     font-size:var(--t-small)}
-.api .c{color:var(--blue)}
-.api .d{color:var(--ink-dim);line-height:1.55}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--g3)}
 
-.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--g3)}
+footer{padding:var(--sec) 0 52px;font-size:var(--t-small);color:var(--ink-dim);
+       display:flex;gap:var(--g3);flex-wrap:wrap;align-items:baseline}
+footer .sp{margin-left:auto}
 
-/* ---------- patch notes ---------- */
-.intro{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
-       column-gap:var(--g3);row-gap:var(--g2);padding:40px 0 var(--g2)}
-.intro h1{grid-column:1 / span 8}
-.intro .lede{grid-column:4 / span 7}
-.intro .proof{grid-column:4 / span 9;margin-top:var(--g1)}
+@media(max-width:820px){
+  :root{--sec:30px;--t-h1:22px;--t-mono:11.5px}
+  header.site nav{margin-left:0;gap:var(--g2)}
+  .pair{grid-template-columns:1fr}
+  .law{grid-template-columns:1fr;row-gap:0}
+  footer .sp{margin-left:0}
+}
+
+/* ---------- generated pages: benchmarks table, patch notes, pull requests ---------- */
+.tbl{display:grid;row-gap:0;margin-top:var(--g1)}
+.tbl .head,.tbl .row{display:grid;column-gap:var(--g3);align-items:baseline;
+                     font-size:var(--t-small);padding:5px 0}
+.tbl .head{color:var(--ink-dim)}
+.tbl .row .s{color:var(--ink)}
+.tbl .row .n{color:var(--blue);text-align:right;font-variant-numeric:tabular-nums}
+.tbl .row .n.g{color:var(--green)} .tbl .row .n.y{color:var(--yellow)}
+.tbl .row .d,.tbl .row .w{color:var(--ink-dim)}
+.tbl.gate   .head,.tbl.gate   .row{grid-template-columns:30ch 9ch 1fr 24ch}
+.tbl.suites .head,.tbl.suites .row{grid-template-columns:22ch 8ch 8ch 7ch 8ch 1fr}
 
 .day{display:grid;grid-template-columns:13ch 1fr;column-gap:var(--g3);
      padding:var(--g2) 0 2px;align-items:baseline}
-.day .d{color:var(--purple);font-size:var(--t-small);position:sticky;top:12px}
+.day .d{color:var(--purple);font-size:var(--t-small)}
 .day .c{color:var(--ink-dim);font-size:var(--t-mono)}
 .rows{display:grid}
 .r{display:grid;grid-template-columns:9ch 7ch 1fr;column-gap:var(--g2);
@@ -176,46 +151,19 @@ details .body{margin-top:var(--g2)}
 .r .t{color:var(--ink-dim);font-variant-numeric:tabular-nums}
 .r .s{color:var(--ink)}
 
-/* ---------- pull requests ---------- */
 .pr{display:grid;grid-template-columns:7ch 1fr 20ch;column-gap:var(--g3);
     font-size:var(--t-small);padding:4px 0;align-items:baseline}
 .pr .h a{color:var(--blue);text-decoration:none}
 .pr .st{color:var(--ink-dim);text-align:right}
 .pr .merged{color:var(--green)} .pr .open{color:var(--yellow)} .pr .closed{color:var(--ink-dim)}
 
-footer{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--g3);
-       padding:var(--g3) 0 52px;font-size:var(--t-small);color:var(--ink-dim);align-items:baseline}
-footer span:nth-child(1){grid-column:1 / span 3}
-footer span:nth-child(2){grid-column:4 / span 5}
-footer span:nth-child(3){grid-column:9 / span 4;text-align:right}
-
-@media(max-width:900px){
-  :root{--sec:32px;--t-h1:22px}
-  header.site,section,.top,.intro,footer{grid-template-columns:1fr;row-gap:var(--g2)}
-  header.site .mark,header.site nav,
-  section > h2,section > *:not(h2),
-  .top > *,.intro > *,
-  footer span:nth-child(1),footer span:nth-child(2),footer span:nth-child(3){grid-column:1 / -1}
-  footer span:nth-child(3){text-align:left}
-  header.site nav{gap:var(--g2)}
-  .proof{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .ledger,.pair{grid-template-columns:1fr}
-  .law,.api{grid-template-columns:1fr;row-gap:0}
-  .api .d{margin-bottom:var(--g2)}
+@media(max-width:820px){
   .tbl .head{display:none}
-  .tbl.find .row,.tbl.gate .row,.tbl.suites .row{grid-template-columns:1fr 9ch;row-gap:0;padding:7px 0}
+  .tbl.gate .row,.tbl.suites .row{grid-template-columns:1fr 9ch;row-gap:0}
   .tbl .row .d,.tbl .row .w,.tbl .row .n:nth-of-type(n+3){display:none}
   .day{grid-template-columns:1fr;row-gap:2px}
-  .day .d{position:static}
   .r{grid-template-columns:9ch 1fr}
   .r .t{display:none}
   .pr{grid-template-columns:7ch 1fr}
   .pr .st{grid-column:1 / -1;text-align:left}
-}
-
-/* ---------- catches: rule, count, what it stopped ---------- */
-.tbl.catches .head,.tbl.catches .row{grid-template-columns:26ch 8ch 1fr}
-@media(max-width:900px){
-  .tbl.catches .row{grid-template-columns:1fr 6ch}
-  .tbl.catches .row .d{display:none}
 }

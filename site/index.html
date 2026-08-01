@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>rabadon is an agent aid</title>
-<meta name="description" content="rabadon is an agent aid. It refuses a destructive command before the process starts, writes every refusal to a hash-chained ledger, and holds a repair only when the proof could not be bought. 31 real defects across 8 open-source projects, 100.0% precision, 0 fake repairs accepted.">
+<meta name="description" content="rabadon is an agent aid. It refuses a destructive command before the process starts, writes every refusal to a hash-chained ledger, and holds a repair only when the proof could not be bought. 207 commands refused on one machine, 100.0% precision, 0 fake repairs accepted.">
 <meta name="author" content="Damla Su Bilge">
 <link rel="canonical" href="https://rabadon.noseydewdrop.com/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="rabadon is an agent aid">
-<meta property="og:description" content="31 real defects across 8 open-source projects. 100.0% precision, 100.0% recall. 0 fake repairs accepted.">
+<meta property="og:description" content="207 commands refused before they ran. 100.0% precision, 100.0% recall. 0 fake repairs accepted.">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
@@ -37,101 +37,107 @@
 </header>
 
 <div class="top">
-    <p class="tag"><b>rabadon is an agent aid.</b> It stands in the way of the command, keeps the receipt, and repairs what breaks.</p>
+  <p class="tag"><b>rabadon is an agent aid.</b> It stands in the way of the command, keeps the receipt, and repairs what breaks.</p>
 
-    <h1>an agent that can edit your repository can also delete it. rabadon is the gate its command passes before the process starts.</h1>
+  <h1>an agent that can edit your repository can also delete it.</h1>
 
-    <div class="proof">
-      <div><span class="n b">31</span><span class="t">real defects, 8 open-source projects</span></div>
-      <div><span class="n g">100.0%</span><span class="t">precision, recall 100.0%</span></div>
-      <div><span class="n p">0</span><span class="t">fake repairs ever accepted</span></div>
-      <div><span class="n y">42.0&micro;s</span><span class="t">to judge one command</span></div>
-    </div>
+  <p>A law written into a prompt is a request, and the model can drift off it or be argued out of it. rabadon sits underneath, compiled into the path every command takes, so refusing costs the agent the execution rather than an apology. Every refusal lands in a hash-chained ledger that cannot be quietly rewritten afterwards.</p>
 
-    <p class="lede small dim">A law written into a prompt is a request, and the model can drift off it or be argued out of it. rabadon sits underneath, compiled into the path every command takes, so refusing costs the agent the execution rather than an apology. Every refusal lands in a hash-chained ledger that cannot be quietly rewritten afterwards.</p>
-
-    <p class="cta">
-      <a href="https://github.com/nosey-dewdrop/rabadon">read the source on github</a>
-      <a href="/catches">see what it caught, 207 of them</a>
-    </p>
-
-    <div class="term" id="typed"></div>
-    <p class="cap">Printed as it came, on this machine. Thirty-four cases lifted out of real sessions, eleven of them genuinely destructive, and the gate refuses all eleven and nothing else.</p>
+  <div class="proof">
+    <div><span class="n p">207</span><span class="t">commands refused before they ran</span></div>
+    <div><span class="n g">100.0%</span><span class="t">precision, recall 100.0%</span></div>
+    <div><span class="n b">0</span><span class="t">fake repairs ever accepted</span></div>
+    <div><span class="n y">42.0&micro;s</span><span class="t">to judge one command</span></div>
+  </div>
 </div>
+
+<section id="run">
+  <h2>run it</h2>
+  <p class="small dim">Five commands. It starts in watch mode and stays there until you say otherwise, because a tool that blocks your work on the first day is a tool you delete on the second.</p>
+  <div class="term"><span class="p">$</span> <span class="c">git clone https://github.com/nosey-dewdrop/rabadon &amp;&amp; cd rabadon &amp;&amp; make</span>
+
+<span class="b">rabadon watch</span>                     <span class="o">record what it would have refused, block nothing</span>
+<span class="b">rabadon on</span>                        <span class="o">arm the gate. off, and the binary stops acting</span>
+<span class="b">rabadon usage</span>                     <span class="o">what was refused, what passed, what the session cost</span>
+<span class="b">rabadon repair --cmd "npm test"</span>   <span class="o">catch a red check, hold a fix only if the proof survives</span>
+<span class="b">rabadon audit</span>                     <span class="o">verify the ledger chain back to the first line written</span></div>
+  <p class="cap">A dependency-free C++ core. Nothing is uploaded, nothing calls home, and the ledger is a file on your own disk.</p>
+</section>
+
+<section id="proof">
+  <h2>the gate, on the cases it was built against</h2>
+  <p class="small dim">Thirty-four cases lifted out of real sessions, eleven of them genuinely destructive. Printed as it came, on this machine.</p>
+  <div class="term" id="typed"></div>
+</section>
 
 <section id="findings">
   <h2>what it found, project by project</h2>
-  <p class="small dim" style="margin-bottom:var(--g2)">Thirty-one defects across eight open-source projects, mined out of 545 commits of their own history. None of these were invented. Each one is a real fix a maintainer shipped, with the test that caught it written by the same engineer in the same commit, and only the source half rolled back. The test cannot look away, because the reason it exists is the defect.</p>
+  <p class="small dim">Thirty-one defects across eight open-source projects, mined out of 545 commits of their own history. None were invented. Each is a real fix a maintainer shipped, with the test that caught it written by the same engineer in the same commit, and only the source half rolled back. The test cannot look away, because the reason it exists is the defect.</p>
+  <div class="term"><span class="hdr">project                defects   commits    lines   what they were</span>
+expressjs/express            4        46      6.5   <span class="o">off-by-one in a view root, a dropped etag guard</span>
+tj/commander.js              4        31      6.5   <span class="o">an argument-count boundary, a dropped port guard</span>
+lodash/lodash                4       218     10.5   <span class="o">off-by-one in a strict index scan, a dropped guard</span>
+ajv-validator/ajv            3       110      5.0   <span class="o">a maximum boundary, a leap-second timezone sign</span>
+pallets/click                4        48      6.5   <span class="o">parsing and boundary defects in option handling</span>
+pallets/jinja                4        35      8.0   <span class="o">template and escaping defects</span>
+pallets/markupsafe           4        30      4.5   <span class="o">escaping and comparison defects</span>
+yaml/pyyaml                  4        27      1.0   <span class="o">single-line defects in the loader</span>
 
-  <div class="tbl find">
-    <div class="head">
-      <span>project</span><span style="text-align:right">defects</span><span style="text-align:right">commits read</span><span style="text-align:right">median lines</span><span>what the defects were</span>
-    </div>
-    <div class="row"><span class="repo">expressjs/express</span><span class="n">4</span><span class="n commits">46</span><span class="n">6.5</span><span class="d">off-by-one in a view root, a dropped etag guard</span></div>
-    <div class="row"><span class="repo">tj/commander.js</span><span class="n">4</span><span class="n commits">31</span><span class="n">6.5</span><span class="d">an argument-count boundary, a dropped port guard</span></div>
-    <div class="row"><span class="repo">lodash/lodash</span><span class="n">4</span><span class="n commits">218</span><span class="n">10.5</span><span class="d">off-by-one in a strict index scan, a dropped guard in word splitting</span></div>
-    <div class="row"><span class="repo">ajv-validator/ajv</span><span class="n">3</span><span class="n commits">110</span><span class="n">5.0</span><span class="d">a maximum boundary, a leap-second timezone sign</span></div>
-    <div class="row"><span class="repo">pallets/click</span><span class="n">4</span><span class="n commits">48</span><span class="n">6.5</span><span class="d">parsing and boundary defects in option handling</span></div>
-    <div class="row"><span class="repo">pallets/jinja</span><span class="n">4</span><span class="n commits">35</span><span class="n">8.0</span><span class="d">template and escaping defects</span></div>
-    <div class="row"><span class="repo">pallets/markupsafe</span><span class="n">4</span><span class="n commits">30</span><span class="n">4.5</span><span class="d">escaping and comparison defects</span></div>
-    <div class="row"><span class="repo">yaml/pyyaml</span><span class="n">4</span><span class="n commits">27</span><span class="n">1.0</span><span class="d">single-line defects in the loader</span></div>
-    <div class="row total"><span class="repo dim">total</span><span class="n">31</span><span class="n commits">545</span><span class="n">6.0</span><span class="d">4 dropped guards, 3 off-by-one, 3 wrong boundaries, 2 reversed comparisons</span></div>
-  </div>
-
-  <p class="cap">The smallest defect is one source line, the largest is thirty-three. At least one test falls, at most ten. All thirty-one are deterministic: the red run was repeated three times and the same tests fell every time.</p>
+<span class="hdr">total</span>                       <span class="b">31</span>       <span class="b">545</span>      <span class="b">6.0</span>   <span class="o">4 dropped guards, 3 off-by-one,</span>
+                                                <span class="o">3 boundaries, 2 reversed comparisons</span></div>
+  <p class="cap">The smallest defect is one source line, the largest thirty-three. At least one test falls, at most ten. All thirty-one are deterministic: the red run was repeated three times and the same tests fell every time.</p>
 
   <details>
     <summary>show the two it repaired for real, in express</summary>
     <div class="body">
-      <p class="small dim" style="margin-bottom:var(--g2)">Not a corpus case. A live run against expressjs/express at commit a3714473, with the arbiter being that project's own mocha suite of 1,260 tests and 91 test files hash-locked. Two real source defects, an off-by-one in request handling and a reversed comparison in the response path. Both patches were held, and the working tree was never edited.</p>
-      <div class="term"><span class="o">repairs held        </span><span class="g">2</span>
-<span class="o">tree edits          </span><span class="g">0</span>
-<span class="o">test files locked   </span><span class="b">91</span>
-<span class="o">suite               </span><span class="o">1,260 tests, the project's own</span>
-<span class="o">a proposer that</span>
-<span class="o">tried to skip tests </span><span class="r">REJECTED (test-tamper)</span></div>
+      <p class="small dim">Not a corpus case. A live run against expressjs/express at commit a3714473, with the arbiter being that project's own mocha suite. Two real source defects, an off-by-one in request handling and a reversed comparison in the response path.</p>
+      <div class="term">repairs held          <span class="g">2</span>
+tree edits            <span class="g">0</span>
+test files locked     <span class="b">91</span>
+suite                 <span class="o">1,260 tests, the project's own</span>
+a proposer that
+tried to skip tests   <span class="r">REJECTED (test-tamper)</span></div>
     </div>
   </details>
 
   <details>
     <summary>show how a defect was proven real, not invented</summary>
     <div class="body">
-      <p class="small dim" style="margin-bottom:var(--g2)">Three steps per case, and the raw output of all three is kept. Green: check out the fix commit, run the project's own suite, watch it pass. Roll back: revert only the source half of that commit, leave every test file exactly as it was. Red: run the same suite again and record which tests fall, three times over.</p>
-      <div class="term"><span class="p">1</span> <span class="c">green</span>   <span class="o">the fix commit, the project's own suite  </span><span class="g">PASS</span>
-<span class="p">2</span> <span class="c">revert</span>  <span class="o">source half only, test files untouched</span>
-<span class="p">3</span> <span class="c">red</span>     <span class="o">same suite, three runs, same tests fall  </span><span class="r">FAIL</span>
+      <div class="term"><span class="p">1</span> <span class="c">green</span>    <span class="o">the fix commit, the project's own suite   </span><span class="g">PASS</span>
+<span class="p">2</span> <span class="c">revert</span>   <span class="o">source half only, test files untouched</span>
+<span class="p">3</span> <span class="c">red</span>      <span class="o">same suite, three runs, same tests fall   </span><span class="r">FAIL</span>
 
-<span class="o">cases            </span><span class="b">31</span>
-<span class="o">deterministic    </span><span class="b">31</span><span class="o"> of 31</span>
-<span class="o">median source    </span><span class="b">6</span><span class="o"> lines</span>
-<span class="o">median falling   </span><span class="b">1</span><span class="o"> test</span></div>
+cases              <span class="b">31</span>
+deterministic      <span class="b">31</span> <span class="o">of 31</span>
+median source      <span class="b">6</span> <span class="o">lines</span>
+median falling     <span class="b">1</span> <span class="o">test</span></div>
     </div>
   </details>
 </section>
 
 <section id="laws">
   <h2>the laws are compiled in, not configured</h2>
-  <p class="small dim" style="margin-bottom:var(--g2)">A guard that lives in a config file is a guard the agent can edit. These live in the binary, and the parser that reads the command is the same one the laws are written against, so a new spelling of an old danger does not open a door.</p>
+  <p class="small dim">A guard that lives in a config file is a guard the agent can edit. These live in the binary, and the parser that reads the command is the same one the laws are written against, so a new spelling of an old danger does not open a door.</p>
 
   <div class="law"><span class="k">outside the tree</span><span class="v">A delete is judged as a resolved path, never as text. A glob, a symlink, a temp directory pointing home, a <em>..</em> walking back out, an environment variable set by the caller: all of it resolves first and is judged after.</span></div>
   <div class="law"><span class="k">history already shared</span><span class="v">Rewriting a branch that exists on a remote destroys work that is not yours. The gate refuses it and names the branch and the remote it would have overwritten.</span></div>
   <div class="law"><span class="k">data becoming program</span><span class="v">A dangerous string quoted as an argument is inert, until the next process reads its program from standard input. Both classifications were correct on their own, which is why the check has to live where the two meet.</span></div>
 
-  <details class="mt">
+  <details>
     <summary>show every rule, and the case each one must let through</summary>
     <div class="body">
       <div class="term"><span class="p">$</span> <span class="c">./native/precision_test.sh</span>
 
-<span class="o">rule families (each negative needs a live positive above it)</span>
-  <span class="g">ok</span>   <span class="o">baseline-force-push        1 must-block,  0 must-not-block</span>
-  <span class="g">ok</span>   <span class="o">baseline-rm-rf-outside     1 must-block,  2 must-not-block</span>
-  <span class="g">ok</span>   <span class="o">no-force-push-main         3 must-block, 10 must-not-block</span>
-  <span class="g">ok</span>   <span class="o">no-hard-reset-main         1 must-block,  1 must-not-block</span>
-  <span class="g">ok</span>   <span class="o">no-rm-rf-outside           1 must-block,  0 must-not-block</span>
-  <span class="g">ok</span>   <span class="o">no-rm-rf-outside-project   1 must-block,  9 must-not-block</span>
-  <span class="g">ok</span>   <span class="o">no-wrangler-deploy         3 must-block,  1 must-not-block</span>
+<span class="hdr">     rule                        must block   must not block</span>
+<span class="g">ok</span>   baseline-force-push                  1                0
+<span class="g">ok</span>   baseline-rm-rf-outside               1                2
+<span class="g">ok</span>   no-force-push-main                   3               10
+<span class="g">ok</span>   no-hard-reset-main                   1                1
+<span class="g">ok</span>   no-rm-rf-outside                     1                0
+<span class="g">ok</span>   no-rm-rf-outside-project             1                9
+<span class="g">ok</span>   no-wrangler-deploy                   3                1
 
-<span class="o">canaries intact after judging 34 commands  </span><span class="g">ok</span></div>
+<span class="o">canaries intact after judging 34 commands   </span><span class="g">ok</span></div>
       <p class="cap">Every law that blocks something carries a case it must let through, on the same line. A rule that only ever says no is a rule nobody keeps switched on.</p>
     </div>
   </details>
@@ -139,7 +145,7 @@
 
 <section id="repair">
   <h2>a repair is accepted only when the proof could not be bought</h2>
-  <p class="small dim" style="margin-bottom:var(--g2)">When a check goes red, rabadon proposes a fix in an isolated copy and then judges it. The judge is the project's own test suite, and the cheapest way to cheat a test suite is to change it. So the suite is hash-locked before the proposer starts, and so is the machinery that decides which tests run at all.</p>
+  <p class="small dim">When a check goes red, rabadon proposes a fix in an isolated copy and then judges it. The judge is the project's own test suite, and the cheapest way to cheat a test suite is to change it. So the suite is hash-locked before the proposer starts, and so is the machinery that decides which tests run at all.</p>
 
   <div class="pair">
     <div>
@@ -150,7 +156,7 @@
 <span class="r">FAIL</span> <span class="o">forbidden [test_calc.py]</span>
 <span class="o">     protected content was modified</span>
 <span class="o">STOP, fix-add cannot pass</span>
-<span class="o">loop exit code </span><span class="r">1</span><span class="o">   fail-closed, rejected</span></div>
+<span class="o">loop exit code </span><span class="r">1</span><span class="o">   fail-closed</span></div>
     </div>
     <div>
       <h3>a proposal that touched only the source</h3>
@@ -160,54 +166,41 @@
 <span class="g">PASS</span> <span class="o">accept: the output is the one</span>
 <span class="o">     that was asked for</span>
 <span class="o">the patch is HELD, never applied</span>
-<span class="o">loop exit code </span><span class="g">0</span><span class="o">   accepted, done</span></div>
+<span class="o">loop exit code </span><span class="g">0</span><span class="o">   accepted</span></div>
     </div>
   </div>
 
   <p class="cap">Locking the test files is only half of it. A proposal can leave every test byte-identical and still buy its green by moving the harness that chooses which tests run, so the harness is locked too, and a file appearing where none existed counts as a change.</p>
 
-  <details class="mt">
+  <details>
     <summary>show the six ways of buying a green, and what happens to each</summary>
     <div class="body">
       <div class="term"><span class="p">$</span> <span class="c">./native/harness_lock_test.sh</span>
 
-<span class="g">ok</span>   <span class="o">pytest-ini-added         </span><span class="r">harness-tamper</span>   <span class="o">exit 2</span>
-<span class="g">ok</span>   <span class="o">root-conftest-added      </span><span class="r">harness-tamper</span>   <span class="o">exit 2</span>
-<span class="g">ok</span>   <span class="o">package-test-script      </span><span class="r">harness-tamper</span>   <span class="o">exit 2</span>
-<span class="g">ok</span>   <span class="o">test-file-edited         </span><span class="r">test-tamper</span>      <span class="o">exit 2</span>
-<span class="g">ok</span>   <span class="o">honest-source-fix        </span><span class="g">verified</span>         <span class="o">exit 0</span>
-<span class="g">ok</span>   <span class="o">honest-source-fix-node   </span><span class="g">verified</span>         <span class="o">exit 0</span>
+<span class="g">ok</span>   pytest-ini-added          <span class="r">harness-tamper</span>   <span class="o">exit 2</span>
+<span class="g">ok</span>   root-conftest-added       <span class="r">harness-tamper</span>   <span class="o">exit 2</span>
+<span class="g">ok</span>   package-test-script       <span class="r">harness-tamper</span>   <span class="o">exit 2</span>
+<span class="g">ok</span>   test-file-edited          <span class="r">test-tamper</span>      <span class="o">exit 2</span>
+<span class="g">ok</span>   honest-source-fix         <span class="g">verified</span>         <span class="o">exit 0</span>
+<span class="g">ok</span>   honest-source-fix-node    <span class="g">verified</span>         <span class="o">exit 0</span>
 
-<span class="o">pass </span><span class="b">6</span><span class="o">   fail </span><span class="b">0</span></div>
+pass <span class="b">6</span>   fail <span class="b">0</span></div>
       <p class="cap">The same six cases against the previous binary come back three pass and three fail, and all three failures are the product printing VERIFIED over a fix that repaired nothing. Both honest repairs still certify, because a lock that refuses real work is not a lock, it is an outage.</p>
     </div>
   </details>
 </section>
 
 <section id="ledger">
-  <h2>the ledger, last 30 days</h2>
-  <p class="small dim" style="margin-bottom:var(--g2)">There are no customers yet. Every number here comes from one machine that runs this all day, which is the only honest place a reliability tool gets proven first.</p>
-  <div class="ledger">
-    <div class="item"><span class="n p">61</span><span class="t">destructive actions refused before they happened</span></div>
-    <div class="item"><span class="n">31,916</span><span class="t">actions handed to the gate to be judged</span></div>
-    <div class="item"><span class="n g">2</span><span class="t">repairs held after the proof survived the judge</span></div>
-    <div class="item"><span class="n y">198</span><span class="t">refusals recorded in watch mode, where nothing is blocked</span></div>
-    <div class="item"><span class="n b">247</span><span class="t">commits, every one of them on the patch notes page</span></div>
-    <div class="item"><span class="n">0</span><span class="t">fake repairs accepted, on every run there is a record of</span></div>
-  </div>
-  <p class="cap"><a href="/catches">every command it refused, rule by rule</a></p>
-</section>
+  <h2>the ledger</h2>
+  <p class="small dim">There are no customers yet. Every number here comes from one machine that runs this all day, which is the only honest place a reliability tool gets proven first.</p>
+  <div class="term"><span class="p">$</span> <span class="c">rabadon usage --days 30</span>
 
-<section id="run">
-  <h2>run it</h2>
-  <div class="api">
-    <span class="c">rabadon on</span><span class="d">arm the gate on this machine. off, and the binary stops acting.</span>
-    <span class="c">rabadon watch</span><span class="d">record what it would have refused and block nothing. this is how a repo is learned before it is enforced in.</span>
-    <span class="c">rabadon usage</span><span class="d">what was refused, what passed, and what the session cost.</span>
-    <span class="c">rabadon repair --cmd "npm test"</span><span class="d">catch a red check, propose a fix in a copy, hold it only if the proof survives.</span>
-    <span class="c">rabadon audit</span><span class="d">verify the ledger chain from its head back to the first line ever written.</span>
-  </div>
-  <p class="cap">A dependency-free C++ core. Nothing is uploaded, nothing calls home, and the ledger is a file on your own disk. The gate starts in watch mode and stays there until you say otherwise, because a tool that blocks your work on the first day is a tool you delete on the second.</p>
+  <span class="p">61</span>   <span class="o">destructive actions refused before they happened</span>
+<span class="b">31,916</span>   <span class="o">actions handed to the gate to be judged</span>
+   <span class="g">2</span>   <span class="o">repairs held after the proof survived the judge</span>
+ <span class="y">198</span>   <span class="o">refusals recorded in watch mode, where nothing is blocked</span>
+   <span class="b">0</span>   <span class="o">fake repairs accepted, on every run there is a record of</span></div>
+  <p class="cap"><a href="/catches">every command it refused, rule by rule</a></p>
 </section>
 
 <footer>
