@@ -153,5 +153,35 @@ XSECT=$(printf '%s\n' "$(xrun --days 7 --md)" | python3 -c 'import sys; print(",
 if [ "$XSECT" = "## proj" ]; then ok=$((ok+1)); echo "  ok   - report (--md) has one section: $XSECT"
 else bad=$((bad+1)); echo "  FAIL - report (--md) sections: $XSECT"; fi
 
+# --project takes the REPO name, not the pipe label: a user who ran everything
+# through `rabadon exec` still filters with the name of their repo.
+XP="$(xrun --days 7 --project proj)"
+check "--project proj finds the folded row" '^  proj +last event:' "$XP"
+check "--project proj keeps the exec catch in it" 'caught before happening:  2' "$XP"
+check_not "--project proj is not a pipe-label match" 'proj:' "$XP"
+XJ="$(xrun --days 7 --json)"
+check "--json names the project once, without a surface" '"projects":\[\{"name":"proj",' "$XJ"
+XN=$(printf '%s' "$XJ" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["projects"]))')
+if [ "$XN" -eq 1 ]; then ok=$((ok+1)); echo "  ok   - --json carries one project object (n: $XN)"
+else bad=$((bad+1)); echo "  FAIL - --json carries $XN project objects"; fi
+
+# edge labels: a pipe with no surface is already the project name, a missing
+# pipe is the unknown bucket, and a project that ONLY ever ran under exec is
+# still one row under its own name.
+EDIR="$TMP/edge"; mkdir -p "$EDIR/spool"
+cat > "$EDIR/spool/$DAY.jsonl" <<EOF
+{"v":1,"seq":1,"ts":$TS1,"run":"g1","pipe":"plainpipe","ev":"STOP","reason":"BLOCKED","rule":"r-plain","detail":"no surface on this label"}
+{"v":1,"seq":1,"ts":$TS1,"run":"g2","ev":"STOP","reason":"BLOCKED","rule":"r-nopipe","detail":"no pipe field at all"}
+{"v":1,"seq":1,"ts":$TS1,"run":"g3","pipe":"execonly:exec","ev":"STOP","reason":"BLOCKED","rule":"r-exec","detail":"only ever ran under exec"}
+EOF
+E="$(RABADON_DIR="$EDIR" RABADON_NOW="$NOW" TZ=UTC COLUMNS=100 $NATIVE --days 7)"
+check "a colonless label stays the project name" '^  plainpipe +last event:' "$E"
+check "a missing pipe is still the unknown bucket" '^  \? +last event:' "$E"
+check "an exec-only project is one row under its own name" '^  execonly +last event:' "$E"
+check_not "the exec-only row keeps no surface" 'execonly:exec' "$E"
+EROWS=$(printf '%s\n' "$E" | python3 -c 'import sys,re; print(sum(1 for l in sys.stdin if re.match(r"^  \S.*last event: ", l)))')
+if [ "$EROWS" -eq 3 ]; then ok=$((ok+1)); echo "  ok   - three labels, three rows (rows: $EROWS)"
+else bad=$((bad+1)); echo "  FAIL - expected 3 rows, got $EROWS"; printf '%s\n' "$E" | sed 's/^/    | /'; fi
+
 echo "stats: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
