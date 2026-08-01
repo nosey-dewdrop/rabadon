@@ -161,5 +161,37 @@ else
   echo "  info unsupported platform for the prebuilt-layout case — skipped"
 fi
 
+# ---- 8. the postinstall build's own report, the other half of the same path ----
+# scripts/build.mjs is what CREATES the half-built tree: `make` stops at the
+# first failing target and build.mjs exits 0 on purpose (installing fails open).
+# It judged "already built" on rabadon-gate alone — a one-name hand-kept list —
+# so a reinstall would not even retry the targets that never got built. These
+# trees carry no .cpp, so make fails immediately and no compile happens.
+mkb() { # mkb <dest> <binary short names...>
+  D="$1"; shift
+  mk "$D" "$@"
+  mkdir -p "$D/scripts"; cp "$ROOT/scripts/build.mjs" "$D/scripts/"
+}
+BFULL="$TMP/bfull"; mkb "$BFULL" $ALL
+OUT=$(node "$BFULL/scripts/build.mjs" 2>&1); B_RC=$?
+[ "$B_RC" -eq 0 ] && pass "postinstall on a complete tree exits 0" || fail "postinstall exited $B_RC on a complete tree"
+has "$OUT" "already built ($NALL/$NALL)" && pass "postinstall on a complete tree: already built ($NALL/$NALL)" \
+  || { fail "postinstall does not report the count it verified"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+has "$OUT" "absent" && fail "postinstall on a complete tree reports something absent" \
+  || pass "postinstall on a complete tree: nothing reported absent"
+
+BONE="$TMP/bone"; BLIST=""
+for b in $ALL; do [ "$b" = "export" ] || BLIST="$BLIST $b"; done
+mkb "$BONE" $BLIST
+OUT=$(node "$BONE/scripts/build.mjs" 2>&1); B1_RC=$?
+[ "$B1_RC" -eq 0 ] && pass "postinstall still exits 0 with a binary missing (npm must not brick)" \
+  || fail "postinstall exited $B1_RC — installing must fail open"
+has "$OUT" "15 of 16 binaries built" && pass "postinstall names the count it actually got (15 of 16)" \
+  || { fail "postinstall does not say how many binaries it produced"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+has "$OUT" "absent: rabadon-export" && pass "postinstall names the binary that is not there" \
+  || fail "postinstall does not name the absent binary"
+has "$OUT" "already built" && fail "postinstall called a 15-of-16 tree already built" \
+  || pass "postinstall does not call a 15-of-16 tree already built"
+
 echo "doctor: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
