@@ -892,19 +892,44 @@ inline Produced produced_stdout(const Seg& sg, const vector<std::pair<string, st
 // text a rule matches would invent commands nobody typed. The structural reader
 // does not have that problem: it checks the command NAME, so it can tell
 // `git push --force` from `echo push --force`.
-inline const string* env_lookup(const vector<std::pair<string, string> >& env, const string& n) {
-  for (size_t i = env.size(); i > 0; i--) if (env[i - 1].first == n) return &env[i - 1].second;
+// A name this line bound, and every value it can hold where the body runs.
+//
+//   C="push --force"   ONE value that happens to contain a space. `git $C`
+//                      word-splits into three words, because that is what C
+//                      really holds and what the shell really does with it.
+//   for b in x main    TWO values, and never both at once: the body runs once
+//                      with b=x and once with b=main. Joining them into one
+//                      string and letting the word split sort it out is the
+//                      wrong model, and it invents commands. Over that header,
+//                      `git push --force origin backup/$b` would become the
+//                      words `backup/x` AND `main` — and the gate would refuse
+//                      a push to main that no iteration of that loop performs.
+//                      So a word expands to the CROSS PRODUCT of its variables'
+//                      values (`backup/x`, `backup/main`, both of them branches
+//                      of this caller's own), and a law that refuses on any one
+//                      of them has asked the right question of every pass.
+struct Binding { string name; vector<string> values; };
+
+inline const Binding* env_lookup(const vector<Binding>& env, const string& n) {
+  for (size_t i = env.size(); i > 0; i--) if (env[i - 1].name == n) return &env[i - 1];
   return NULL;
 }
 
 inline bool var_char(char c) { return isalnum((unsigned char)c) || c == '_'; }
 
-// the expansion of one unquoted word, or false when any name is unknown
-inline bool expand_word(const string& w, const vector<std::pair<string, string> >& env, string& out) {
-  out.clear();
+// The cap is on the cross product, not on the line: two twenty-value loops in
+// one word is four hundred spellings of one command and the gate has a 2.3ms
+// budget (BENCHMARK.md). Past the cap the word stays as written and stays
+// waived — the same answer this file already gives for `$(cmd)`.
+const size_t kExpandCap = 64;
+
+// every word this line can make of one unquoted word; false when any name is
+// unknown, or when the fan-out is past the cap
+inline bool expand_word(const string& w, const vector<Binding>& env, vector<string>& out) {
+  out.assign(1, string());
   bool any = false;
   for (size_t i = 0; i < w.size(); i++) {
-    if (w[i] != '$') { out += w[i]; continue; }
+    if (w[i] != '$') { for (size_t k = 0; k < out.size(); k++) out[k] += w[i]; continue; }
     size_t a = i + 1;
     bool braced = false;
     if (a < w.size() && w[a] == '{') { braced = true; a++; }
@@ -912,9 +937,14 @@ inline bool expand_word(const string& w, const vector<std::pair<string, string> 
     while (b < w.size() && var_char(w[b])) b++;
     if (b == a) return false;                       // $(, $?, bare $ — not ours
     if (braced) { if (b >= w.size() || w[b] != '}') return false; }
-    const string* v = env_lookup(env, w.substr(a, b - a));
-    if (!v) return false;
-    out += *v;
+    const Binding* v = env_lookup(env, w.substr(a, b - a));
+    if (!v || v->values.empty()) return false;
+    if (out.size() * v->values.size() > kExpandCap) return false;
+    vector<string> next;
+    next.reserve(out.size() * v->values.size());
+    for (size_t k = 0; k < out.size(); k++)
+      for (size_t m = 0; m < v->values.size(); m++) next.push_back(out[k] + v->values[m]);
+    out.swap(next);
     any = true;
     i = braced ? b : b - 1;
   }
@@ -932,29 +962,72 @@ inline void split_ws(const string& s, vector<Word>& out) {
   }
 }
 
-inline void apply_env(Seg& sg, vector<std::pair<string, string> >& env) {
+// `for NAME in W1 W2 ...` — the shell's OTHER way of writing down what a name
+// holds. The header is its own segment (the line splits on `;` and newline), so
+// it is read here and handed to the segments after it exactly as a leading
+// assignment is. Without it, `for b in main; do git push --force origin $b;
+// done` reached the force-push law with `$b` unresolved, and an unresolved
+// expansion is waived — the waiver argued for `$TARGET` coming from somewhere
+// the line cannot see, spent on a value the line spells out four words earlier.
+//
+// LITERAL ONLY, on the same terms as an assignment: a value carrying `$` or a
+// backtick is fetched, not written down, so `for b in $(git branch)` stays
+// waived. A glob, a brace or a leading `~` is not written down either — the
+// shell rewrites those before the first pass, and binding the pattern TEXT
+// would claim the variable holds a string it never holds.
+//
+// The binding outlives the loop on purpose: after `done` a shell leaves the
+// variable holding its last value, so a `$b` after the loop is not unknown
+// either.
+inline bool loop_header(const vector<Word>& w, Binding& out) {
+  if (w.size() < 4) return false;
+  if (w[0].quoted || w[0].text != "for") return false;
+  if (w[2].quoted || w[2].text != "in") return false;
+  const string& n = w[1].text;
+  if (n.empty() || w[1].quoted) return false;
+  if (!(isalpha((unsigned char)n[0]) || n[0] == '_')) return false;
+  for (size_t i = 1; i < n.size(); i++) if (!var_char(n[i])) return false;
+  out.name = n;
+  out.values.clear();
+  for (size_t i = 3; i < w.size(); i++) {
+    const string& v = w[i].text;
+    if (v.empty()) return false;
+    if (v.find('$') != string::npos || v.find('`') != string::npos) return false;
+    if (v.find('*') != string::npos || v.find('?') != string::npos ||
+        v.find('[') != string::npos || v.find('{') != string::npos) return false;
+    if (v[0] == '~') return false;
+    if (out.values.size() >= kExpandCap) return false;
+    out.values.push_back(v);
+  }
+  return !out.values.empty();
+}
+
+inline void apply_env(Seg& sg, vector<Binding>& env) {
   if (!env.empty()) {
     vector<Word> next;
     next.reserve(sg.words.size());
     for (size_t i = 0; i < sg.words.size(); i++) {
-      string expanded;
+      vector<string> forms;
       if (!sg.words[i].quoted && sg.words[i].text.find('$') != string::npos &&
-          expand_word(sg.words[i].text, env, expanded)) {
-        split_ws(expanded, next);
+          expand_word(sg.words[i].text, env, forms)) {
+        for (size_t k = 0; k < forms.size(); k++) split_ws(forms[k], next);
       } else {
         next.push_back(sg.words[i]);
       }
     }
     sg.words.swap(next);
   }
-  // then this segment's own leading assignments join the environment
+  // then what this segment writes down for the ones after it joins the
+  // environment: a loop header, or leading assignments.
+  Binding loop;
+  if (loop_header(sg.words, loop)) { env.push_back(loop); return; }
   for (size_t i = 0; i < sg.words.size(); i++) {
     const string& s = sg.words[i].text;
     if (!is_assignment(s)) break;
     const size_t eq = s.find('=');
     const string val = s.substr(eq + 1);
     if (val.find('$') != string::npos || val.find('`') != string::npos) continue;  // not literal
-    env.push_back(std::make_pair(s.substr(0, eq), val));
+    env.push_back(Binding{s.substr(0, eq), vector<string>(1, val)});
   }
 }
 
@@ -1124,7 +1197,7 @@ inline void lift_functions(vector<Seg>& segs, vector<string>* limits) {
 
 // ---------- the whole answer ----------
 inline void emit(const string& text, int group, int parent, Parsed& out, int depth,
-                 vector<std::pair<string, string> > env,
+                 vector<Binding> env,
                  const vector<string>* bodies = NULL, size_t* bcur = NULL) {
   if (depth > 4) return;
   vector<Seg> local;
@@ -1246,7 +1319,7 @@ inline Parsed parse(const string& cmd) {
   const string pre = preprocess(cmd, &ok, &why, &bodies);
   p.degraded = !ok;
   p.why = why;
-  emit(pre, 0, 0, p, 0, vector<std::pair<string, string> >(), &bodies, &bcur);
+  emit(pre, 0, 0, p, 0, vector<Binding>(), &bodies, &bcur);
   return p;
 }
 

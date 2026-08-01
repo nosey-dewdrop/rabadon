@@ -131,6 +131,16 @@ test: all
 # --force, a helper deleting its own build output, and a body that is defined and
 # never called.
 	./native/shell_function_test.sh
+# the keyword above is only half of a loop. `for b in main; do <cmd> $b; done`
+# needs the other half: `$b` is an unresolved expansion and those are waived,
+# though this same line writes down what b holds four words earlier. a `for`
+# header is an assignment in the shell's other spelling and is now read as one.
+# the twins keep that reading honest, and the sharpest is the cross-product one:
+# over `for b in x main`, the word `backup/$b` is backup/x and backup/main and
+# NEVER main, so a fix that binds the whole list to one string and refuses that
+# line is refusing work no iteration performs. section 1 runs a real bash with
+# stub git and rm to show the body does reach the destructive argv.
+	./native/loop_body_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
 	./native/repair_session_test.sh

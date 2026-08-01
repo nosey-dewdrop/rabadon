@@ -101,6 +101,16 @@ JSON
 OUTSIDE="$LAB/outside"; mkdir -p "$OUTSIDE/data"
 echo "someone else's work" > "$OUTSIDE/data/file.txt"
 
+# The delete law's must-block cases need a target that is outside the project
+# AND outside the system temp area, and $LAB is not one: mktemp puts it under
+# /var/folders (macOS) or /tmp (linux), which the temp carve-out reads as
+# disposable — correctly, and this file is not the place to argue with it. So
+# those cases name a path that DOES NOT EXIST and never will. Nothing in this
+# section runs; the gate resolves the target and answers where it lands, and a
+# path under a real system directory lands outside both. K4 holds by
+# construction: there is nothing at the other end of it to lose.
+NOWHERE="/srv/rabadon-loopbody-no-such-path-$$"
+
 # A SUITE THAT REMEMBERS ITS LAST RUN IS NOT MEASURING THE LAW: the gate's
 # loop-stop rule refuses a command it has already seen 3x in one session, and
 # this file hands it near-identical commands by the dozen.
@@ -197,9 +207,11 @@ negation in command position|! git push --force origin main
 a brace group|{ git push --force origin main; }
 a hard reset inside a loop|for b in main; do git reset --hard origin/\$b; done
 a hard reset behind then|if true; then git reset --hard main; fi
-a recursive delete outside the project, inside a loop|for d in $OUTSIDE/data; do rm -rf \$d; done
-a recursive delete outside the project, behind do, spelled out|for i in 1; do rm -rf $OUTSIDE/data; done
-a recursive delete outside the project, behind then|if true; then rm -rf $OUTSIDE/data; fi
+a recursive delete outside the project, carried by the loop variable|for d in $NOWHERE/data; do rm -rf \$d; done
+a recursive delete outside the project, behind do, spelled out|for i in 1; do rm -rf $NOWHERE/data; done
+a recursive delete outside the project, behind then|if true; then rm -rf $NOWHERE/data; fi
+a recursive delete outside the project, behind else|if false; then echo no; else rm -rf $NOWHERE/data; fi
+one value of the list lands outside the project|for d in build $NOWHERE/data; do rm -rf \$d; done
 the loop nested under a shell -c string|bash -c 'for b in main; do git push --force origin \$b; done'
 the loop chained after ordinary work|npm test && for b in main; do git push --force origin \$b; done
 EOF
@@ -245,6 +257,7 @@ the whole loop inside a commit message is data, not code|git commit -m "for b in
 a loop body that only echoes the dangerous string|for b in main; do echo "git push --force origin \$b"; done
 a loop deleting the project's own build dirs|for d in build dist; do rm -rf \$d; done
 a loop deleting scratch dirs it made under the temp root|for i in 1 2 3; do rm -rf ${TMPDIR:-/tmp}/build-\$i; done
+THE TWIN OF THE DELETE BLOCK: same loop, a target the temp carve-out covers|for d in $OUTSIDE/data; do rm -rf \$d; done
 a reserved word as an ARGUMENT is not a command|git log --oneline --grep=done
 a file whose name is a reserved word, inside the project|rm -rf ./done
 the reserved word quoted is a command name, not a keyword|for b in main; do "do" \$b; done
