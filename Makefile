@@ -222,6 +222,24 @@ test: all
 # measured against real git — it creates refs/heads/HEAD on the remote, so a fix
 # that read the word HEAD anywhere in a refspec would refuse a harmless push.
 	./native/head_ref_test.sh
+# the suites above ask which word is the command inside one program's syntax.
+# this one asks it across a program BOUNDARY. xcrun finds a tool in the active
+# developer directory and execs it, so the command is the TOOL -- but xcrun was
+# not in the wrapper table, so `xcrun` was read as the command name, and xcrun
+# is neither git nor rm: irrelevant segment, three compiled laws never asked.
+# the same line without its first word exited 2; with it, 0. it is not an exotic
+# spelling, it is how a mac runs a toolchain, and xcrun's find option names a
+# real git on this machine. section 1 measures the premise against the REAL
+# xcrun while every tool it is handed is an ABSOLUTE PATH to a fake that only
+# records its argv -- absolute because the same section measures why a fake on
+# PATH would not have saved it: xcrun resolves a tool NAME itself and walks
+# straight past the shell's PATH. the option walk is the other half: xcrun
+# answers to `-sdk macosx` as readily as the two-dash spelling, and reading the
+# one-dash form as a short cluster would skip one word too few and name the SDK
+# as the command. the twins are the longer list on purpose -- simctl,
+# xcodebuild, notarytool, clang and swift are all spelled through xcrun, and a
+# fix that names the tool must not start refusing the tools.
+	./native/xcrun_wrapper_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
 	./native/repair_session_test.sh

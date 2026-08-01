@@ -251,6 +251,22 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   if (name_is(base, "xargs"))   { w.shortVal = "IiLnPsEadD";
                                   w.longVal = "|--replace|--max-lines|--max-args|--max-procs|"
                                               "--max-chars|--eof|--arg-file|--delimiter|"; return true; }
+  // xcrun finds a tool in the active developer directory and EXECS it, which is
+  // the wrapper shape exactly, and the name it was handed is the command. It was
+  // not in this table, so `xcrun` was read as the command name -- neither git nor
+  // rm, segment marked irrelevant, the three compiled laws never asked. Not a
+  // hypothetical: `xcrun git` resolves to a real git shipped with the Xcode
+  // command line tools this project already needs in order to build, and xcrun
+  // does NOT resolve that name through PATH, so nothing the shell can see stands
+  // in front of it. Both measured in native/xcrun_wrapper_test.sh.
+  //
+  // shortVal is EMPTY on purpose: none of xcrun's short options takes a value,
+  // and it refuses a cluster outright (`-nk` is an unrecognized option), so no
+  // short token can eat the next word. Its two valued options answer to one dash
+  // and to two alike and both spellings are listed, because reading `-sdk` as a
+  // cluster would skip one word too few and name the SDK as the command. The
+  // attached form is not listed because xcrun rejects it and runs nothing.
+  if (name_is(base, "xcrun"))   { w.longVal = "|--sdk|-sdk|--toolchain|-toolchain|"; return true; }
   return false;
 }
 
@@ -310,12 +326,15 @@ inline size_t command_index(const vector<Word>& w) {
       const string& o = w[i].text;
       if (o == "--") { i++; break; }
       if (o.size() < 2 || o[0] != '-') break;
-      if (o[1] == '-') {                                   // --long or --long=value
-        const bool separate = o.find('=') == string::npos &&
-                              spec.longVal.find("|" + o + "|") != string::npos;
-        i += separate ? 2 : 1;
-        continue;
-      }
+      // an option whose value is a SEPARATE word. Membership in the wrapper's
+      // own list is asked BEFORE the dash count, because a wrapper decides for
+      // itself how many dashes its options wear: xcrun answers to `-sdk macosx`
+      // exactly as it answers to `--sdk macosx`. Every entry in every list that
+      // existed before this line was `--`-prefixed, so no token that used to
+      // reach the short-cluster branch reaches it differently now.
+      if (o.find('=') == string::npos &&
+          spec.longVal.find("|" + o + "|") != string::npos) { i += 2; continue; }
+      if (o[1] == '-') { i++; continue; }                  // --long, or --long=value
       // a short cluster: the first flag that takes a value ends it, and the
       // value is the rest of the token when there is one (-I{}, -n1) or the
       // next word when there is not (-n 1)
