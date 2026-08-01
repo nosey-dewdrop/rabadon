@@ -72,6 +72,13 @@ test: all
 	./native/cli_test.sh
 	./native/audit_test.sh
 	./native/baseline_test.sh
+# baseline_test.sh judges the delete law's targets as PATHS. this one judges
+# them as PATTERNS: a wildcard or a brace is rewritten by the shell before rm
+# sees it, and the rule used to read only the text before the first `*`. it runs
+# a shell with a fake deleter first on PATH to show where the expansion really
+# lands, then asserts both directions — the escape is refused AND an ordinary
+# scratch glob still passes.
+	./native/glob_escape_test.sh
 	./native/guard_lint_test.sh
 	./native/cmdtext_test.sh
 	./native/bypass_test.sh

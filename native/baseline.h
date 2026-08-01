@@ -279,16 +279,116 @@ inline const vector<string>& temp_roots() {
   return roots;
 }
 
-// `viaGlob` says the command named a pattern, so what it deletes are entries
-// under `real` rather than `real` itself.
-inline bool in_temp_area(const string& real, bool viaGlob) {
+// `real` is a destination, never a spelling: a pattern is turned into the paths
+// it can name before it gets here (see pattern_forms), so a target that only
+// reaches the temp root by walking back up to it is judged as the temp root.
+inline bool in_temp_area(const string& real) {
   const string home = real_home();
   if (!home.empty() && inside(home, real)) return false;
   for (const string& t : temp_roots()) {
-    if (real == t) { if (viaGlob) return true; continue; }
+    if (real == t) continue;              // the root itself is never disposable
     if (inside(t, real)) return true;
   }
   return false;
+}
+
+// ---------- a pattern is not a path ----------
+// The shell rewrites a delete target before rm ever sees it: braces expand into
+// separate words, then each glob COMPONENT is replaced by the name of one
+// directory entry. Reading a target up to the first `*` and judging the
+// directory part therefore judges a PREFIX of the destination, and the prefix is
+// exactly where an escape hides:
+//
+//     rm -rf /tmp/*/../../Users/u/proj1
+//             ^^^^ the prefix, which is scratch
+//                  ^^^^^^^^^^^^^^^^^^^^ the destination, which is not
+//
+// The same path without the pattern was refused, which is the tell: the pattern
+// was the one spelling whose destination was never computed. So it is computed.
+// Every word the shell can produce is resolved and judged, and one word landing
+// outside is enough to refuse.
+//
+// LIMIT, stated because it is the next hole: what a pattern matches is decided
+// by the disk at the moment it runs, so a match that is itself a SYMLINK out of
+// the temp area cannot be resolved from the text. `rabadon exec` is the hard
+// boundary for adversarial input; this is the law for honest commands.
+
+// the name that stands where a match will go. `*`, `?` and `[...]` never match
+// a `/`, so a glob component is exactly one component: a `..` after it cancels
+// the stand-in exactly as it will cancel the match. The leading byte is one no
+// file name can carry, so it cannot collide with a real entry.
+inline const string& glob_stand_in() { static const string s = "\x01glob"; return s; }
+
+// the stand-in, spoken back as what it stands for, so a refusal reads as the
+// command was written.
+inline string show_pattern(const string& p) {
+  string out = p;
+  const string& g = glob_stand_in();
+  for (size_t i = out.find(g); i != string::npos; i = out.find(g, i))
+    out.replace(i, g.size(), "*");
+  return out;
+}
+
+// brace expansion, the shell's first pass. `{a,b}` is two words; a brace with
+// no top-level comma, or one that never closes, is not an expansion and stays
+// literal — which is what bash does with it. Returns false when the word would
+// expand past `cap`: an expansion that large is a destination that cannot be
+// computed, and the caller refuses rather than guesses.
+inline bool brace_expand(const string& w, size_t from, vector<string>& out, size_t cap) {
+  if (out.size() >= cap) return false;
+  size_t open = string::npos;
+  for (size_t i = from; i < w.size(); i++) {
+    if (w[i] == '\\') { i++; continue; }
+    if (w[i] == '{') { open = i; break; }
+  }
+  if (open == string::npos) { out.push_back(w); return true; }
+  int depth = 0;
+  size_t close = string::npos;
+  vector<size_t> cut;                      // the open brace, then each top-level comma
+  for (size_t i = open; i < w.size(); i++) {
+    if (w[i] == '\\') { i++; continue; }
+    if (w[i] == '{') { if (++depth == 1) cut.push_back(i); }
+    else if (w[i] == '}') { if (--depth == 0) { close = i; break; } }
+    else if (w[i] == ',' && depth == 1) cut.push_back(i);
+  }
+  if (close == string::npos || cut.size() < 2) return brace_expand(w, open + 1, out, cap);
+  cut.push_back(close);
+  for (size_t k = 0; k + 1 < cut.size(); k++) {
+    const string alt = w.substr(cut[k] + 1, cut[k + 1] - cut[k] - 1);
+    // the alternative is spliced in and re-read from the same place, so a brace
+    // nested inside it expands too
+    if (!brace_expand(w.substr(0, open) + alt + w.substr(close + 1), open, out, cap)) return false;
+  }
+  return true;
+}
+
+// the concrete paths one word can name. Each glob component becomes the
+// stand-in. A `**` component under globstar can also match NOTHING, and the
+// shallower path is the one a following `..` can walk out of, so that form is
+// judged as well.
+inline vector<string> pattern_forms(const string& w) {
+  if (w.find_first_of("*?[") == string::npos) return vector<string>{w};
+  vector<string> comps;
+  for (size_t i = 0;;) {
+    const size_t j = w.find('/', i);
+    comps.push_back(w.substr(i, j == string::npos ? string::npos : j - i));
+    if (j == string::npos) break;
+    i = j + 1;
+  }
+  const string& sub = glob_stand_in();
+  string matched, skipped;                 // `**` matches one entry / matches none
+  bool first1 = true, first0 = true, anyStar2 = false;
+  for (const string& c : comps) {
+    const string r = c.find_first_of("*?[") == string::npos ? c : sub;
+    if (!first1) matched += "/";
+    matched += r; first1 = false;
+    if (c == "**") { anyStar2 = true; continue; }
+    if (!first0) skipped += "/";
+    skipped += r; first0 = false;
+  }
+  vector<string> forms{matched};
+  if (anyStar2 && skipped != matched) forms.push_back(skipped.empty() ? "." : skipped);
+  return forms;
 }
 
 // the project tree: the git worktree containing cwd, else cwd itself
@@ -474,23 +574,30 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
     if (!recursive) return false;
     for (const string& raw : targets) {
       if (raw.find('$') != string::npos || raw.find('`') != string::npos) continue;
-      string t2 = raw;
-      bool viaGlob = false;
-      const size_t g = t2.find_first_of("*?[");
-      if (g != string::npos) {                  // judge the glob's directory part
-        viaGlob = true;
-        const size_t s = t2.rfind('/', g);
-        t2 = (s == string::npos) ? "." : t2.substr(0, s ? s : 1);
+      // every word the shell can make of this target, then every path each of
+      // those words can name — the destination, not the spelling
+      vector<string> words;
+      if (!brace_expand(raw, 0, words, 256)) {
+        hit = {"baseline-rm-rf-outside",
+               "a recursive delete outside the project tree cannot be undone by git",
+               "rm -r '" + raw + "' expands to more than 256 words, so where it lands cannot be "
+               "computed — name the paths, or silence baseline-rm-rf-outside by id"};
+        return true;
       }
-      const string abs = lexical_abs(t2, cwd);
-      if (abs.empty()) continue;
-      const string real = resolve_real(abs);
-      if (inside(root, real)) continue;
-      if (in_temp_area(real, viaGlob)) continue;
-      hit = {"baseline-rm-rf-outside",
-             "a recursive delete outside the project tree cannot be undone by git",
-             "rm -r '" + raw + "' resolves to " + real + ", outside the project tree (" + root + ")"};
-      return true;
+      for (const string& word : words) {
+        for (const string& form : pattern_forms(word)) {
+          const string abs = lexical_abs(form, cwd);
+          if (abs.empty()) continue;
+          const string real = resolve_real(abs);
+          if (inside(root, real)) continue;
+          if (in_temp_area(real)) continue;
+          hit = {"baseline-rm-rf-outside",
+                 "a recursive delete outside the project tree cannot be undone by git",
+                 "rm -r '" + raw + "' " + (form == raw ? "resolves to " : "expands to ") +
+                 show_pattern(real) + ", outside the project tree (" + root + ")"};
+          return true;
+        }
+      }
     }
   }
   return false;
