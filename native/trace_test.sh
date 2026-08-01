@@ -158,6 +158,22 @@ for rid, evs in sorted(refusals.items()):
         pas("the render says the action was refused before it ran")
     else:
         bad_("the render never says the action was stopped before it ran")
+    # the header. A run that called no model must not carry a model's byline.
+    head = so.splitlines()[2] if len(so.splitlines()) > 2 else ""
+    surface = "session" if rid.startswith("ng-") else "exec"
+    if ("refused at the %s gate" % surface) in head and "no model call" in head:
+        pas("the header names the surface the refusal came through (%s) and says no model call" % surface)
+    else:
+        bad_("header does not name the surface / the absent model call: %r" % head)
+    if "claude -p" not in head and "$0" not in head:
+        pas("the header prices no model call it never made")
+    else:
+        bad_("the header still bills a model over a run with no model event: %r" % head)
+    # the verdict is on the STOP; it used to print as an unanswered "?"
+    if re.search(r"verdict: BLOCKED", so):
+        pas("the footer verdict reads BLOCKED, the reason the STOP carries")
+    else:
+        bad_("the footer verdict is not BLOCKED: %r" % (re.findall(r"verdict: \S+", so) or None))
 
 # ---- reader 2: usage/stats --------------------------------------------------
 rc, so, se = run("rabadon-stats", "--json")

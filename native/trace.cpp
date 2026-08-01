@@ -163,6 +163,15 @@ static string project_of(const string& pipe){
   size_t c=pipe.rfind(':');
   return c==string::npos?pipe:pipe.substr(0,c);
 }
+// ...and the other half of that label: WHICH surface the events came through.
+// "session" is the Claude Code hook, "exec" is rabadon-sandbox. For a refusal
+// that is the only provenance there is, and it is the honest thing to print
+// where a model name would go on a run that called no model.
+static string surface_of(const string& pipe){
+  size_t c=pipe.rfind(':');
+  if(c==string::npos||c+1>=pipe.size()) return "hook";
+  return pipe.substr(c+1);
+}
 // from a verify failure blob: a short, clean descriptor of what broke.
 // testsuite -> the named failing test(s); otherwise the message after the
 // "FAIL <kind> [..]: " prefix (e.g. "protected content was modified").
@@ -373,6 +382,19 @@ static void render_run(const Run& r, const Pal& C, string& out){
     else if(e.ev=="RUN_DONE"){ verdict=e.verdict; }
   }
 
+  // A refused run ends at the STOP and never reaches a RUN_DONE, so the verdict
+  // printed as "?" — an unanswered question at the bottom of a run whose whole
+  // content is an answer. The STOP already carries it.
+  if(verdict.empty() && !stopReason.empty()) verdict=stopReason;
+
+  // Nothing here called a model: no STEP_START was ever announced, and no event
+  // priced a token. The header hard-codes "· claude -p" and prints "? · 0 tok ·
+  // $0" for the model, which on this run is a claim about an LLM call that did
+  // not happen — on the surface whose selling point is that it renders with the
+  // LLM removed entirely.
+  bool refusalOnly = !nodes.empty() && runModel.empty() && tok==0 && usd==0;
+  for(const Node& n: nodes) if(!n.refusal){ refusalOnly=false; break; }
+
   int N = r.declaredSteps>0 ? r.declaredSteps : (int)nodes.size();
   int firstCaught=0; for(const Node& n: nodes) if(n.caught){ firstCaught=n.no; break; }
 
@@ -387,9 +409,14 @@ static void render_run(const Run& r, const Pal& C, string& out){
   string mdl=short_model(runModel);
   string cost = usd>0 ? fmt_usd(usd) : "$0";
   string toks = tok>0 ? commafy(tok)+" tok" : "0 tok";
-  snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · %s · %s · %s · %s · claude -p\n",
-           C.bold,C.rst, C.bold, r.id.c_str(), C.rst,
-           proj.c_str(), mdl.c_str(), dur.c_str(), toks.c_str(), cost.c_str());
+  if(refusalOnly)
+    snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · refused at the %s gate · %s · no model call\n",
+             C.bold,C.rst, C.bold, r.id.c_str(), C.rst,
+             proj.c_str(), surface_of(r.pipe).c_str(), dur.c_str());
+  else
+    snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · %s · %s · %s · %s · claude -p\n",
+             C.bold,C.rst, C.bold, r.id.c_str(), C.rst,
+             proj.c_str(), mdl.c_str(), dur.c_str(), toks.c_str(), cost.c_str());
   out+=h;
   if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="goal: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
   drill_banner(r,C,out);
