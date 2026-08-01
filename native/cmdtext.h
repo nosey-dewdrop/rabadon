@@ -180,11 +180,28 @@ inline bool mentions(const string& hay, const char* needle) {
 #endif
 }
 
-// FOO=bar, the shell's own prefix form
+// FOO=bar, the shell's own prefix form.
+//
+// The NAME is the constrained half: [A-Za-z_][A-Za-z0-9_]*, which is the rule a
+// shell applies itself. The VALUE is not constrained, and that is what this
+// predicate used to get wrong: it rejected any word carrying a '/' ANYWHERE, so
+// `FOO=/x` was not an assignment, command_index() stopped on it, and
+// base_of("FOO=/x") handed the rule engine `x` as the command name. Not git,
+// not rm, so a line a shell runs as a force-push consulted no law at all. One
+// character of VALUE text turned the whole gate off.
+//
+// Reading the NAME instead of the whole word keeps everything the slash test was
+// there for: `bin/tool=v2` is a path and not an assignment, because its slash
+// sits before the '=' where a name may not carry one; and `2FOO=/x` is not one
+// either, so the words after it are still read as arguments of a command by
+// that name -- which is what a shell does with it.
 inline bool is_assignment(const string& s) {
   const size_t eq = s.find('=');
-  return eq != string::npos && eq > 0 && s.find('/') == string::npos &&
-         (isalpha((unsigned char)s[0]) || s[0] == '_');
+  if (eq == string::npos || eq == 0) return false;
+  if (!(isalpha((unsigned char)s[0]) || s[0] == '_')) return false;
+  for (size_t i = 1; i < eq; i++)
+    if (!(isalnum((unsigned char)s[i]) || s[i] == '_')) return false;
+  return true;
 }
 
 // ---------- wrappers: the command is not always the first word ----------

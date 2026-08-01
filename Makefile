@@ -101,6 +101,15 @@ test: all
 	./native/guard_lint_test.sh
 	./native/cmdtext_test.sh
 	./native/bypass_test.sh
+# bypass_test.sh asks whether the LAWS see the command. this one asks whether the
+# PARSER hands them one at all: `FOO=bar <cmd>` was judged and `FOO=/x <cmd>` was
+# not, because the assignment predicate rejected any word carrying a slash, so the
+# command index stopped on the prefix and the rule engine read `x` as the command
+# name. every must-block case has its must-not-block twin (same prefix, ordinary
+# work), and it proves the premise with a real bash and stub binaries: the shell
+# does reach the destructive argv behind the prefix, and does not reach it behind
+# a word whose name is not a name.
+	./native/assign_prefix_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
 	./native/repair_session_test.sh
