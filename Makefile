@@ -236,6 +236,19 @@ test: all
 # line is refusing work no iteration performs. section 1 runs a real bash with
 # stub git and rm to show the body does reach the destructive argv.
 	./native/loop_body_test.sh
+# and the wrapper that eats a FILE before it eats the command. `script -q
+# /dev/null <cmd>` is a session recorder, not a logger wrapped around a shell it
+# cannot reach: script(1) runs the argv itself, so the whole line reached the
+# laws as a command named `script` and the three compiled laws were never asked.
+# section 1 measures the premise instead of quoting it -- a real script(1) under
+# a pty (it will not start without a terminal) with a fake git and a fake rm
+# first on PATH, and the same section measures the half that keeps the fix
+# honest: `script git push --force origin main` runs NOTHING, because `git` is
+# the typescript FILE and `push` is a command that does not exist. Eating
+# exactly one operand is what tells those two lines apart, and every must-block
+# spelling has its must-not-block twin -- recording an ordinary push, a test
+# run, an interactive session, and the same words as prose.
+	./native/script_wrapper_test.sh
 # the same question with the shell's own syntax out of the way: the word in
 # command position is a WRAPPER, and the wrapper table did not have its name. a
 # name the table does not know is read as the command itself, so `caffeinate git
@@ -275,19 +288,6 @@ test: all
 # plain push, a lease push, a private branch, a private branch delete and a
 # scratch delete all still run under it.
 	./native/arch_wrapper_test.sh
-# and the wrapper that eats a FILE before it eats the command. `script -q
-# /dev/null <cmd>` is a session recorder, not a logger wrapped around a shell it
-# cannot reach: script(1) runs the argv itself, so the whole line reached the
-# laws as a command named `script` and the three compiled laws were never asked.
-# section 1 measures the premise instead of quoting it -- a real script(1) under
-# a pty (it will not start without a terminal) with a fake git and a fake rm
-# first on PATH, and the same section measures the half that keeps the fix
-# honest: `script git push --force origin main` runs NOTHING, because `git` is
-# the typescript FILE and `push` is a command that does not exist. Eating
-# exactly one operand is what tells those two lines apart, and every must-block
-# spelling has its must-not-block twin -- recording an ordinary push, a test
-# run, an interactive session, and the same words as prose.
-	./native/script_wrapper_test.sh
 # every suite above asks which WORD is the command. this one asks what a word
 # MEANS: `HEAD` and `@` are not branch names, they are the ref the repo
 # resolves, and the force-push law compared them against main/master/trunk/
@@ -303,22 +303,23 @@ test: all
 # that read the word HEAD anywhere in a refspec would refuse a harmless push.
 	./native/head_ref_test.sh
 # the suites above ask which word is the command inside one program's syntax.
-# this one asks it across a program BOUNDARY. xcrun finds a tool in the active
-# developer directory and execs it, so the command is the TOOL -- but xcrun was
-# not in the wrapper table, so `xcrun` was read as the command name, and xcrun
-# is neither git nor rm: irrelevant segment, three compiled laws never asked.
-# the same line without its first word exited 2; with it, 0. it is not an exotic
-# spelling, it is how a mac runs a toolchain, and xcrun's find option names a
-# real git on this machine. section 1 measures the premise against the REAL
-# xcrun while every tool it is handed is an ABSOLUTE PATH to a fake that only
-# records its argv -- absolute because the same section measures why a fake on
-# PATH would not have saved it: xcrun resolves a tool NAME itself and walks
-# straight past the shell's PATH. the option walk is the other half: xcrun
-# answers to `-sdk macosx` as readily as the two-dash spelling, and reading the
-# one-dash form as a short cluster would skip one word too few and name the SDK
-# as the command. the twins are the longer list on purpose -- simctl,
-# xcodebuild, notarytool, clang and swift are all spelled through xcrun, and a
-# fix that names the tool must not start refusing the tools.
+# this one asks it across a program BOUNDARY: `xcrun git push --force origin
+# main` exited 0 while the same line without its first word exited 2. xcrun
+# finds a tool in the active developer directory and execs it, so the command
+# is the tool — but it was not in the wrapper table, so `xcrun` was read as the
+# command name, and `xcrun` is neither git nor rm: irrelevant segment, three
+# compiled laws never asked. It is not an exotic spelling, it is how a mac runs
+# a toolchain, and `xcrun -f git` names a real git on this machine. Section 1
+# measures the premise against the REAL xcrun while every tool it is handed is
+# an absolute path to a FAKE that only records its argv — absolute because the
+# same section measures why a fake on PATH would not have saved it: xcrun
+# resolves a tool NAME itself and walks straight past the shell's PATH. The
+# option walk is the other half: xcrun answers to `-sdk macosx` as readily as
+# `--sdk macosx`, and reading the one-dash spelling as a short cluster would
+# have skipped one word too few and named the SDK as the command. The twins are
+# the longer list on purpose — simctl, xcodebuild, notarytool, clang and swift
+# are all spelled through xcrun, and a fix that names the tool must not start
+# refusing the tools.
 	./native/xcrun_wrapper_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh

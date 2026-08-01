@@ -293,21 +293,17 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   // quoted word — is skipped whole and the command behind it is reached.
   if (name_is(base, "sandbox-exec")) { w.shortVal = "fnpD"; return true; }  // -f/-n/-p profile, -D key=value
   // xcrun finds a tool in the active developer directory and EXECS it, which is
-  // the wrapper shape exactly, and the name it was handed is the command. It was
-  // not in this table, so `xcrun` was read as the command name -- neither git nor
-  // rm, segment marked irrelevant, the three compiled laws never asked. Not a
-  // hypothetical: `xcrun git` resolves to a real git shipped with the Xcode
-  // command line tools this project already needs in order to build, and xcrun
-  // does NOT resolve that name through PATH, so nothing the shell can see stands
-  // in front of it. Both measured in native/xcrun_wrapper_test.sh.
-  //
-  // shortVal is EMPTY on purpose: none of xcrun's short options takes a value,
-  // and it refuses a cluster outright (`-nk` is an unrecognized option), so no
-  // short token can eat the next word. Its two valued options answer to one dash
-  // and to two alike and both spellings are listed, because reading `-sdk` as a
-  // cluster would skip one word too few and name the SDK as the command. The
-  // attached form is not listed because xcrun rejects it and runs nothing.
-  if (name_is(base, "xcrun"))   { w.longVal = "|--sdk|-sdk|--toolchain|-toolchain|"; return true; }
+  // the wrapper shape exactly. `xcrun git` is not a hypothetical: it resolves to
+  // a real git (measured, /Applications/Xcode.app/.../usr/bin/git) and xcrun
+  // ships with the Xcode command line tools this project already needs to build,
+  // so the escape was live on the machine the precision fixture came from.
+  // shortVal is EMPTY on purpose: none of -v/-l/-f/-r/-n/-k takes a value, and
+  // xcrun refuses a cluster (`-nk` is an unrecognized option), so no short token
+  // can eat the next word. Its two valued options answer to one dash and to two
+  // alike, and both spellings are listed because both were measured running the
+  // tool behind them. `--sdk=macosx` is not listed because xcrun rejects the
+  // attached form outright — nothing runs behind it either way.
+  if (name_is(base, "xcrun"))      { w.longVal = "|--sdk|-sdk|--toolchain|-toolchain|"; return true; }
   // `script -q /dev/null git push --force origin main`. A session recorder is
   // not a logger wrapped AROUND a shell it cannot reach: script(1) runs the
   // argv itself -- `script [-aeFkqr] [-t time] [file [command ...]]`. Measured
@@ -322,8 +318,8 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   // command by that name. Same measurement: the fake git is never called and a
   // file named `git` is left behind. Eating exactly one operand is what tells
   // those two lines apart.
-  if (name_is(base, "script"))  { w.shortVal = "t";                // -t <flush interval>
-                                  w.operands = 1; return true; }   // the typescript file
+  if (name_is(base, "script"))     { w.shortVal = "t";               // -t <flush interval>
+                                     w.operands = 1; return true; }  // the typescript file
   return false;
 }
 
@@ -490,10 +486,9 @@ inline size_t command_index(const vector<Word>& w) {
       const string& o = w[i].text;
       if (o == "--") { i++; break; }
       if (o.size() < 2 || o[0] != '-') break;
-      // an option whose value is a SEPARATE word. Membership in the wrapper's
-      // own list is asked BEFORE the dash count, because a wrapper decides for
-      // itself how many dashes its options wear: xcrun answers to `-sdk macosx`
-      // exactly as it answers to `--sdk macosx`. Every entry in every list that
+      // a long option whose value is a SEPARATE word. Membership in the
+      // wrapper's own list is asked BEFORE the dash count, because `arch -arch
+      // arm64` spells one with a single dash. Every entry in every list that
       // existed before this line was `--`-prefixed, so no token that used to
       // reach the short-cluster branch reaches it differently now.
       if (o.find('=') == string::npos &&
