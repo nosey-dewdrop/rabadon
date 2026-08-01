@@ -160,6 +160,43 @@ inline size_t find_field(const string& s, const string& key) {
   return string::npos;
 }
 
+// Walk the top-level keys in document order, handing each to `fn(key, value,
+// is_string)`. A string value arrives UNESCAPED; anything else (number, bool,
+// null, object, array) arrives as its raw JSON text, so a reader that does not
+// know the field can still carry it somewhere without inventing a type.
+//
+// This exists because SPEC §2's other MUST is "unknown fields MUST be
+// preserved". A reader with a fixed struct can only preserve what it was
+// compiled to know about; enumerating the line is the only way a field named
+// after next year's verb survives the trip.
+template <typename F>
+inline void for_each_field(const string& s, F fn) {
+  size_t i = skip_ws(s, 0);
+  if (i >= s.size() || s[i] != '{') return;
+  i = skip_ws(s, i + 1);
+  if (i < s.size() && s[i] == '}') return;
+  while (i < s.size()) {
+    string k;
+    size_t n = scan_string(s, i, &k);
+    if (n == string::npos) return;
+    i = skip_ws(s, n);
+    if (i >= s.size() || s[i] != ':') return;
+    i = skip_ws(s, i + 1);
+    size_t vstart = i;
+    n = skip_value(s, i);
+    if (n == string::npos) return;
+    bool is_string = s[vstart] == '"';
+    string v;
+    if (is_string) scan_string(s, vstart, &v);
+    else v = s.substr(vstart, n - vstart);
+    fn(k, v, is_string);
+    i = skip_ws(s, n);
+    if (i >= s.size() || s[i] == '}') return;
+    if (s[i] != ',') return;
+    i = skip_ws(s, i + 1);
+  }
+}
+
 // The top-level string field `key`, unescaped. "" when absent, unparseable, or
 // not a string.
 inline string get_str(const string& line, const string& key) {

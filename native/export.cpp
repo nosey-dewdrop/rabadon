@@ -102,10 +102,29 @@ static string jesc(const string& s) {
   return o;
 }
 static string nanos(double ms) { char b[32]; snprintf(b, sizeof b, "%.0f", ms * 1e6); return b; }
-static string attr_str(const string& k, const string& v) { return "{\"key\":\"" + k + "\",\"value\":{\"stringValue\":\"" + jesc(v) + "\"}}"; }
+static string attr_str(const string& k, const string& v) { return "{\"key\":\"" + jesc(k) + "\",\"value\":{\"stringValue\":\"" + jesc(v) + "\"}}"; }
 static string attr_int(const string& k, long long v) { return "{\"key\":\"" + k + "\",\"value\":{\"intValue\":\"" + std::to_string(v) + "\"}}"; }
 
-struct Ev { double ts, seq; string pipe, run, ev, rule, detail; long long tin = 0, tout = 0; };
+struct Ev { double ts, seq; string pipe, run, ev, rule, detail; long long tin = 0, tout = 0; bool known = false; string extra; };
+
+// The ten `ev` values SPEC §2 fixes. This is NOT a filter — every event ships.
+// It only decides SHAPING: a known verb keeps the mapping this exporter has
+// always given it, an unrecognised one renders generically with its own fields
+// carried along, because rabadon cannot know what a stranger's field means.
+static bool is_known_ev(const string& ev) {
+  static const char* v[] = {"RUN_START", "STEP_START", "STEP_OK", "CHECK_FAIL", "WOULD_BLOCK",
+                            "REPAIR_START", "REPAIR_OK", "REPAIR_FAIL", "STOP", "RUN_DONE"};
+  for (const char* w : v) if (ev == w) return true;
+  return false;
+}
+
+// Everything this exporter already maps to a span field or a named attribute.
+// The rest of the line is what "unknown fields MUST be preserved" is about.
+static bool is_mapped_field(const string& k) {
+  static const char* v[] = {"v", "ts", "seq", "run", "pipe", "ev", "rule", "detail", "tokensIn", "tokensOut"};
+  for (const char* w : v) if (k == w) return true;
+  return false;
+}
 
 static const char* kHelp =
   "rabadon-export — the ledger in OTLP/JSON on stdout, GenAI semantic conventions.\n"
@@ -196,6 +215,20 @@ int main(int argc, char** argv) {
       c.pipe = e.pipe; c.ts = ts;
       c.tag = rb_drill_tag(line);
       c.marker = rb_drill_marker(line);
+      e.known = is_known_ev(e.ev);
+      if (!e.known) {
+        // SPEC §2, the other MUST: unknown fields are preserved. A struct can
+        // only carry what it was compiled to know, so enumerate the line and
+        // hand every unmapped key over as rabadon.<key>. Non-string values go
+        // across as their raw JSON text — a reader that does not know the
+        // field has no business guessing its type.
+        string& x = e.extra;
+        rbjson::for_each_field(line, [&x](const string& k, const string& v, bool) {
+          if (k.empty() || is_mapped_field(k)) return;
+          if (!x.empty()) x += ",";
+          x += attr_str("rabadon." + k, v);
+        });
+      }
       classify.push_back(std::move(c));
       parsed.push_back(std::move(e));
     }
@@ -231,6 +264,7 @@ int main(int argc, char** argv) {
       if (e.tin > 0) attrs += "," + attr_int("gen_ai.usage.input_tokens", e.tin);
       if (e.tout > 0) attrs += "," + attr_int("gen_ai.usage.output_tokens", e.tout);
     }
+    if (!e.extra.empty()) attrs += "," + e.extra;
     // point-in-time event: start == end (trace viewers render a marker)
     string span = string("{\"traceId\":\"") + tid + "\",\"spanId\":\"" + sid +
       "\",\"name\":\"" + jesc(name) + "\",\"kind\":1,\"startTimeUnixNano\":\"" + nanos(e.ts) +

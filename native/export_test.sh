@@ -202,5 +202,19 @@ assert len(sp) == len(evs), ("11 events in, spans out:", len(sp), names)
 assert names == evs, ("spans are not in ledger order", names)
 PY
 
+# SPEC §2's other MUST: "unknown fields MUST be preserved". A generic span that
+# renders the verb but throws its payload away still loses the event's meaning,
+# and a fixed C struct can only carry what it was compiled to know.
+python3 - <<'PY' && pass "an unknown ev carries its own fields as attributes" || fail "unknown fields dropped on the generic span"
+import json, os
+sp = json.load(open(os.environ["ALL_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+gen = [s for s in sp if s["name"] == "POLICY_ESCALATE"]
+assert len(gen) == 1, [s["name"] for s in sp]
+a = {x["key"]: x["value"].get("stringValue") for x in gen[0]["attributes"]}
+assert a.get("rabadon.ev") == "POLICY_ESCALATE", a
+assert a.get("rabadon.customField") == "keepme", ("the third-party field is gone", a)
+assert a.get("rabadon.pipe") == "omega:session", a
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
