@@ -195,13 +195,30 @@ inline bool mentions(const string& hay, const char* needle) {
 // sits before the '=' where a name may not carry one; and `2FOO=/x` is not one
 // either, so the words after it are still read as arguments of a command by
 // that name -- which is what a shell does with it.
+//
+// Which spellings count was answered by ASKING a shell, not by reading a manual:
+// `FOO+=v` (append) and `arr[i]=v` (one element) are prefixes too, and bash runs
+// the command after them exactly as it runs it after `FOO=v` -- so leaving them
+// out would have left the same hole open under two more spellings. `arr[]=v` is
+// in for the same measured reason: bash complains about the subscript and runs
+// the command anyway. `FOO+bar=v` and an unclosed `arr[0=v` are out, because
+// bash looks for a COMMAND by that name and never reaches what follows.
 inline bool is_assignment(const string& s) {
-  const size_t eq = s.find('=');
-  if (eq == string::npos || eq == 0) return false;
-  if (!(isalpha((unsigned char)s[0]) || s[0] == '_')) return false;
-  for (size_t i = 1; i < eq; i++)
-    if (!(isalnum((unsigned char)s[i]) || s[i] == '_')) return false;
-  return true;
+  if (s.empty() || !(isalpha((unsigned char)s[0]) || s[0] == '_')) return false;
+  size_t i = 1;
+  while (i < s.size() && (isalnum((unsigned char)s[i]) || s[i] == '_')) i++;
+  if (i < s.size() && s[i] == '[') {           // arr[i]= -- an element is a name too
+    int depth = 0;
+    size_t j = i;
+    for (; j < s.size(); j++) {
+      if (s[j] == '[') depth++;
+      else if (s[j] == ']' && --depth == 0) break;
+    }
+    if (j >= s.size()) return false;           // never closed: a command word
+    i = j + 1;
+  }
+  if (i < s.size() && s[i] == '+') i++;        // FOO+=v, the append form
+  return i < s.size() && s[i] == '=';
 }
 
 // ---------- wrappers: the command is not always the first word ----------
@@ -237,11 +254,54 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   return false;
 }
 
-// index of the real command word: skip FOO=bar assignments, then each wrapper
-// with everything that wrapper consumes.
+// ---------- reserved words: the shell's syntax is not a command name ----------
+// `{ git push --force origin main; }` reported its command name as `{`, and `{`
+// is neither git nor rm, so the segment was marked irrelevant and the three
+// compiled laws were never asked. `then`, `do`, `else`, `elif` and `!` are the
+// same shape: the shell CONSUMES the word and runs the command after it. They
+// are reserved words, recognized only when they stand alone and unquoted, which
+// is why the comparison is exact and case-sensitive — a shell resolves `git` on
+// a case-insensitive file system, but it never reads `THEN` as `then`, and it
+// never reads a quoted `'{'` as syntax either.
+//
+// `for`, `in`, `select` and `function` are deliberately NOT here: the word
+// after those is a variable or a function NAME, and skipping to it would name a
+// command the shell does not run. `case` is handled separately below, because
+// what it consumes is not one word.
+inline bool reserved_word(const Word& w) {
+  if (w.quoted) return false;
+  const string& s = w.text;
+  return s == "!" || s == "{" || s == "}" ||
+         s == "if" || s == "then" || s == "elif" || s == "else" || s == "fi" ||
+         s == "while" || s == "until" || s == "do" || s == "done" || s == "esac";
+}
+
+// `a)` — a case ARM's pattern. It is a word ending in an unquoted ')' with no
+// '(' of its own, which is what separates it from a function head (`f()`), an
+// arithmetic command (`((i++))`) and a substitution (`$(x)`): those carry their
+// own opening paren, this one is closed by a paren the `case` opened.
+inline bool case_pattern(const Word& w) {
+  return !w.quoted && !w.text.empty() && w.text[w.text.size() - 1] == ')' &&
+         w.text.find('(') == string::npos;
+}
+
+// index of the real command word: skip the shell's own syntax, then FOO=bar
+// assignments, then each wrapper with everything that wrapper consumes.
 inline size_t command_index(const vector<Word>& w) {
   size_t i = 0;
   while (i < w.size()) {
+    if (reserved_word(w[i])) { i++; continue; }
+    // `case WORD in PATTERN) cmd` — two words and a pattern list stand between
+    // the keyword and the first command of the arm, so the pattern is what ends
+    // the skip. When the arm sits on its own line the segment STARTS with the
+    // pattern, which is the i == 0 case.
+    if (!w[i].quoted && w[i].text == "case") {
+      size_t j = i + 1;
+      while (j < w.size() && !case_pattern(w[j])) j++;
+      i = (j < w.size()) ? j + 1 : w.size();
+      continue;
+    }
+    if (i == 0 && case_pattern(w[i])) { i++; continue; }
     if (is_assignment(w[i].text)) { i++; continue; }
     WrapSpec spec;
     if (!wrapper_of(base_of(w[i].text), spec)) break;
@@ -895,6 +955,170 @@ inline void apply_env(Seg& sg, vector<std::pair<string, string> >& env) {
     const string val = s.substr(eq + 1);
     if (val.find('$') != string::npos || val.find('`') != string::npos) continue;  // not literal
     env.push_back(std::make_pair(s.substr(0, eq), val));
+  }
+}
+
+// ---------- pass 2c: a name this line binds, and then runs ----------
+// `gitx() { git push --force origin main; }; gitx` arrived at the laws as three
+// commands: one called `gitx()` whose ARGUMENT LIST happened to contain a
+// force-push, one called `}`, and a bare word `gitx` naming nothing any law
+// could read. A shell reads the same bytes as one force-push.
+//
+// The same program written with newlines instead of semicolons was already
+// refused — a newline puts the body in its own segment, so `git` landed in
+// command position by accident. Same bytes, opposite verdict, decided by
+// punctuation. That is the tell that the gate was reading the line's shape
+// instead of what a shell does with it.
+//
+// A shell does two different things with those bytes at two different moments.
+// A DEFINITION runs nothing at all: it binds a name to a body and moves on. A
+// CALL runs the body — in the caller's own shell, not a subshell, so a `cd` in
+// it moves the caller. So the body comes OUT of the run list where it is
+// written and goes back in where it is CALLED, in the caller's own segment
+// group, which is where the walk below already tracks directories. Both halves
+// matter: lifting it out is what stops `gitx() { rm -rf ~; }` with no call from
+// being refused for something that never ran, and putting it back is what
+// stops the call from being a bare word.
+//
+// The call word itself STAYS in the list. Its arguments are the function's
+// positional parameters, and they can carry a `$( )` the scanner already lifted
+// or text a user's deny regex is entitled to read; dropping them would trade
+// one blind spot for another.
+struct FnDef { string name; vector<Seg> body; };
+
+// a word that can be bound as a function name. Deliberately narrow: a shell
+// accepts stranger names than this, and every character allowed here is one a
+// call site could be mistaken for.
+inline bool fn_name_ok(const string& s) {
+  if (s.empty()) return false;
+  for (size_t i = 0; i < s.size(); i++) {
+    const char c = s[i];
+    if (isalnum((unsigned char)c) || c == '_' || c == '-' || c == '.' || c == ':') continue;
+    return false;
+  }
+  // a word the shell reads as syntax is not a name it can bind
+  return !(s == "if" || s == "then" || s == "elif" || s == "else" || s == "fi" ||
+           s == "while" || s == "until" || s == "for" || s == "do" || s == "done" ||
+           s == "case" || s == "esac" || s == "in" || s == "select" ||
+           s == "function" || s == "time" || s == "coproc");
+}
+
+// Does a definition start at segment `i`? The four spellings a shell accepts —
+// `f() {`, `f () {`, `function f {`, `function f() {` — differ only in where
+// the parens are and whether the keyword is there, and the scanner glues `()`
+// onto the name when no space separates them.
+inline bool fn_header(const vector<Seg>& segs, size_t i, string& name,
+                      size_t& bodySeg, size_t& bodyWord) {
+  const vector<Word>& w = segs[i].words;
+  size_t k = 0;
+  bool kw = false;
+  if (k < w.size() && !w[k].quoted && w[k].text == "function") { kw = true; k++; }
+  if (k >= w.size() || w[k].quoted) return false;
+  name = w[k].text;
+  bool parens = false;
+  if (name.size() > 2 && name.compare(name.size() - 2, 2, "()") == 0) {
+    name.erase(name.size() - 2);
+    parens = true;
+    k++;
+  } else {
+    k++;
+    if (k < w.size() && !w[k].quoted && w[k].text == "()") { parens = true; k++; }
+    else if (k + 1 < w.size() && !w[k].quoted && w[k].text == "(" &&
+             !w[k + 1].quoted && w[k + 1].text == ")") { parens = true; k += 2; }
+  }
+  // without the parens only the keyword form is a definition, so `mkdir { a }`
+  // stays the command it is
+  if (!parens && !kw) return false;
+  if (!fn_name_ok(name)) return false;
+  if (k < w.size()) {
+    if (w[k].quoted || w[k].text != "{") return false;
+    bodySeg = i;
+    bodyWord = k + 1;
+    return true;
+  }
+  // `f()` with the brace on the next line: the newline already ended the
+  // segment, so the body opens at the start of the next one
+  if (i + 1 < segs.size() && !segs[i + 1].words.empty() &&
+      !segs[i + 1].words[0].quoted && segs[i + 1].words[0].text == "{") {
+    bodySeg = i + 1;
+    bodyWord = 1;
+    return true;
+  }
+  return false;
+}
+
+// the `}` that closes the brace the header opened, counting the groups nested
+// inside it. A quoted brace is data and does not count.
+inline bool fn_body_end(const vector<Seg>& segs, size_t bodySeg, size_t bodyWord,
+                        size_t& endSeg, size_t& endWord) {
+  int depth = 1;
+  for (size_t s = bodySeg; s < segs.size(); s++)
+    for (size_t j = (s == bodySeg ? bodyWord : 0); j < segs[s].words.size(); j++) {
+      const Word& x = segs[s].words[j];
+      if (x.quoted) continue;
+      if (x.text == "{") depth++;
+      else if (x.text == "}" && --depth == 0) { endSeg = s; endWord = j; return true; }
+    }
+  return false;                      // an unclosed body: left exactly as it was
+}
+
+inline void lift_functions(vector<Seg>& segs, vector<string>* limits) {
+  vector<FnDef> defs;
+  // `gitx() { gitx; }; gitx` does not return in a shell either, and a parser
+  // that answers a pre-commit hook is not allowed to be the thing that hangs.
+  // The budget is what makes this walk terminate, and running out of it is
+  // written down instead of being passed off as "nothing found".
+  int budget = 32;
+  bool spent = false;
+  for (size_t i = 0; i < segs.size();) {
+    string name;
+    size_t bs = 0, bw = 0, es = 0, ew = 0;
+    if (fn_header(segs, i, name, bs, bw) && fn_body_end(segs, bs, bw, es, ew)) {
+      FnDef d;
+      d.name = name;
+      for (size_t s = bs; s <= es; s++) {
+        Seg part = segs[s];
+        const size_t from = (s == bs) ? bw : 0;
+        const size_t to = (s == es) ? ew : part.words.size();
+        part.words = (from <= to)
+                         ? vector<Word>(part.words.begin() + from, part.words.begin() + to)
+                         : vector<Word>();
+        if (s == es) part.pipes_out = false;   // the `}` ends the body, not a pipe
+        if (!part.words.empty() || !part.nested.empty()) d.body.push_back(part);
+      }
+      segs.erase(segs.begin() + i, segs.begin() + es + 1);
+      size_t at = defs.size();
+      for (size_t k = 0; k < defs.size(); k++) if (defs[k].name == name) { at = k; break; }
+      if (at == defs.size()) defs.push_back(d); else defs[at] = d;   // a rebinding
+      continue;                       // segs[i] is now whatever followed the `}`
+    }
+
+    const size_t ci = command_index(segs[i].words);
+    const FnDef* hit = NULL;
+    if (ci < segs[i].words.size() && !segs[i].words[ci].quoted)
+      for (size_t k = 0; k < defs.size(); k++)
+        if (defs[k].name == segs[i].words[ci].text) { hit = &defs[k]; break; }
+    if (hit && !hit->body.empty()) {
+      if (budget > 0) {
+        budget--;
+        vector<Seg> body = hit->body;
+        // what a function PRINTS is what its body printed, so the pipe and the
+        // redirections written on the CALL belong to the body's last command:
+        // `deploy > out.sh` writes what the body wrote.
+        Seg& last = body[body.size() - 1];
+        last.pipes_out = segs[i].pipes_out;
+        for (size_t r = 0; r < segs[i].redirs.size(); r++) last.redirs.push_back(segs[i].redirs[r]);
+        segs[i].redirs.clear();
+        segs[i].pipes_out = false;
+        segs.insert(segs.begin() + i + 1, body.begin(), body.end());
+      } else if (!spent) {
+        spent = true;
+        if (limits) limits->push_back(
+            "this line calls named functions more times than the parser expands "
+            "them, so the deepest calls are named here but not read");
+      }
+    }
+    i++;
   }
 }
 

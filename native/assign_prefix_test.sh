@@ -102,6 +102,29 @@ must_block 'LD_LIBRARY_PATH=/usr/local/lib sudo git push --force origin main'
 must_allow 'LD_LIBRARY_PATH=/usr/local/lib sudo npm ci'
 
 echo
+echo "the other two spellings of an assignment prefix a shell accepts"
+# `FOO+=v` appends and `arr[i]=v` sets one element, and a shell runs the command
+# after either of them exactly as it runs it after `FOO=v`. Both were found by
+# asking bash, not by reading the code — see the real-shell block at the bottom.
+must_block 'FOO+=/x git push --force origin main'
+must_allow 'FOO+=/x git push origin feature/x'
+must_block 'arr[0]=/x git push --force origin main'
+must_allow 'arr[0]=/x npm test'
+must_block 'FOO=/x BAR+=/y git push --force origin main'
+must_allow 'FOO=/x BAR+=/y npm run build'
+must_block 'arr[]=/x git push --force origin main'
+must_allow 'arr[]=/x echo ok'
+
+echo
+echo "and the words a shell does NOT accept as assignments stay command words"
+# bash runs neither of these: `FOO+bar=/x` has a '+' inside the name and
+# `arr[0=/x` never closes its subscript, so the shell looks for a command by
+# that name, fails, and never reaches git. Refusing them would be refusing
+# something that cannot happen.
+must_allow 'FOO+bar=/x git push --force origin main'
+must_allow 'arr[0=/x git push --force origin main'
+
+echo
 echo "the control twins: no slash at all, which already worked and must keep working"
 must_block 'FOO=x git push --force origin main'
 must_allow 'FOO=x git push origin feature/x'
@@ -147,6 +170,13 @@ echo "what a real shell does with these lines (the evidence, with stubs on PATH)
 PATH="$BIN:$PATH" bash -c 'FOO=/x git push --force origin main' >/dev/null 2>&1
 PATH="$BIN:$PATH" bash -c "FOO=/x rm -rf $HOME/Documents" >/dev/null 2>&1
 PATH="$BIN:$PATH" bash -c '2FOO=/x git push --force origin main' >/dev/null 2>&1
+# the shell is the authority on which spellings are prefixes at all: three that
+# are (append, array element, empty subscript) and two that are not.
+PATH="$BIN:$PATH" bash -c 'FOO+=/x git push -f origin main' >/dev/null 2>&1
+PATH="$BIN:$PATH" bash -c 'arr[0]=/x git push -f origin main' >/dev/null 2>&1
+PATH="$BIN:$PATH" bash -c 'arr[]=/x git push -f origin main' >/dev/null 2>&1
+PATH="$BIN:$PATH" bash -c 'FOO+bar=/x git push -f origin main' >/dev/null 2>&1
+PATH="$BIN:$PATH" bash -c 'arr[0=/x git push -f origin main' >/dev/null 2>&1
 LOG=$(cat "$ROOT/ran.log" 2>/dev/null)
 printf '%s\n' "$LOG" | sed 's/^/    | /'
 printf '%s' "$LOG" | grep -q '^git push --force origin main$' \
@@ -155,9 +185,14 @@ printf '%s' "$LOG" | grep -q '^git push --force origin main$' \
 printf '%s' "$LOG" | grep -q "^rm -rf $HOME/Documents$" \
   && pass "a real bash DOES run the delete behind FOO=/x" \
   || fail "the shell did not run rm — the premise of this suite is wrong"
-printf '%s' "$LOG" | grep -c '^git push' | grep -q '^1$' \
-  && pass "a real bash does NOT reach git behind 2FOO=/x (allowing it is correct)" \
-  || fail "2FOO=/x reached git after all — it must be blocked, not allowed"
+N=$(printf '%s' "$LOG" | grep -c '^git push -f origin main$')
+[ "$N" = "3" ] \
+  && pass "a real bash treats FOO+=, arr[0]= and arr[]= as prefixes and runs git behind all three" \
+  || fail "expected 3 runs behind the append/array prefixes, got $N"
+M=$(printf '%s' "$LOG" | grep -c '^git push')
+[ "$M" = "4" ] \
+  && pass "and it reaches git behind NEITHER 2FOO=/x, FOO+bar=/x nor arr[0=/x (allowing those is correct)" \
+  || fail "a word that is not a valid name reached git anyway ($M git runs, expected 4)"
 
 echo
 NOW_SUM=$(shasum "$CANARY" | cut -d' ' -f1)
