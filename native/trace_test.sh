@@ -85,8 +85,19 @@ SRC=$?
 [ $SRC -eq 2 ] && pass "rabadon-sandbox REFUSED the same command (exit 2)" \
   || fail "rabadon-sandbox exit $SRC, expected 2"
 
+# arm C: WATCH. Same orphan shape, opposite fact — {CHECK_FAIL, WOULD_BLOCK},
+# exit 0, and the command RUNS. Its own box, because it must not be added to
+# the refusal counts the three readers are compared on.
+WBOX=$(mktemp -d /tmp/rabadon-watch-box.XXXXXX)
+RABADON_DIR="$WBOX" "$ROOT/native/rabadon-gate" --off >/dev/null 2>&1
+printf '{"hook_event_name":"PreToolUse","session_id":"tracesuite-w","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$REPO" \
+  | RABADON_DIR="$WBOX" "$ROOT/native/rabadon-gate" >/dev/null 2>&1
+WRC=$?
+[ $WRC -eq 0 ] && pass "rabadon-gate in WATCH mode did NOT stop the command (exit 0)" \
+  || fail "watch-mode gate exit $WRC, expected 0 — this arm is not testing watch mode"
+
 # ---- the three readers, over those bytes ------------------------------------
-RABADON_DIR="$BOX" python3 - "$ROOT" "$BOX" <<'PY'
+WBOX="$WBOX" python3 - "$ROOT" "$BOX" <<'PY'
 import json, os, re, subprocess, sys
 root, box = sys.argv[1], sys.argv[2]
 ok = bad = 0
@@ -217,12 +228,58 @@ else:
     bad_("the three readers disagree over identical bytes: trace=%d usage=%d export=%d"
          % (trace_total, stats_refused, len(err_stop)))
 
+# ---- arm C: a WATCH verdict is not a catch -----------------------------------
+# The same {orphan CHECK_FAIL} shape with the opposite meaning. Left unhandled,
+# the repair above would have printed "refused BEFORE it ran; the action never
+# happened" over an action that ran, and CAUGHT 1 against usage's refused: 0.
+wbox = os.environ["WBOX"]
+wenv = dict(os.environ); wenv["RABADON_DIR"] = wbox
+def wrun(binary, *args):
+    p = subprocess.run([os.path.join(root, "native", binary)] + list(args),
+                       capture_output=True, text=True, env=wenv)
+    return p.returncode, p.stdout, p.stderr
+wevs = []
+for f in os.listdir(os.path.join(wbox, "spool")):
+    if f.endswith(".jsonl"):
+        wevs += [json.loads(l) for l in open(os.path.join(wbox, "spool", f), encoding="utf-8") if l.strip()]
+kinds = sorted({e["ev"] for e in wevs})
+if kinds == ["CHECK_FAIL", "WOULD_BLOCK"]:
+    pas("watch mode wrote {CHECK_FAIL, WOULD_BLOCK} and no STOP — the shape with the opposite meaning")
+else:
+    bad_("watch mode wrote %r, expected CHECK_FAIL + WOULD_BLOCK" % kinds)
+rc, wso, _ = wrun("rabadon-trace", "--last", "--no-color")
+wcaught = sum(int(x) for x in CAUGHT.findall(wso))
+wtotals = json.loads(wrun("rabadon-stats", "--json")[1])["totals"]
+if wcaught == 0 and wtotals["refused"] == 0:
+    pas("trace counts CAUGHT 0 for a watch verdict, exactly as usage counts refused 0")
+else:
+    bad_("trace CAUGHT %d vs usage refused %d on a watch run — a recorded verdict was sold as enforcement"
+         % (wcaught, wtotals["refused"]))
+if re.search(r"WOULD BLOCK 1", wso) and wtotals["wouldRefuse"] == 1:
+    pas("the watch verdict is rendered as WOULD BLOCK 1, the same 1 usage reports as wouldRefuse")
+else:
+    bad_("watch verdict lost: trace %r, usage wouldRefuse=%d"
+         % (re.findall(r"WOULD BLOCK \d+", wso), wtotals["wouldRefuse"]))
+if "the action RAN" in wso and "NOT stopped" in wso:
+    pas("the watch render says the action ran and nothing was stopped")
+else:
+    bad_("the watch render does not say the action ran")
+# NEGATIVE, paired with the two positives above it.
+if "never happened" in wso or "nothing to undo" in wso:
+    bad_("the watch render claims the action never happened — it ran")
+else:
+    pas("the watch render makes no claim that the action was prevented")
+if "baseline-force-push" in wso:
+    pas("the watch render still names the rule that fired")
+else:
+    bad_("the watch render dropped the rule id")
+
 print("  --- %d ok, %d failed" % (ok, bad))
 sys.exit(1 if bad else 0)
 PY
 PYRC=$?
 
-rm -rf "$BOX" "$REPO"
+rm -rf "$BOX" "$REPO" "$WBOX"
 if [ $PYRC -ne 0 ]; then bad=$((bad+1)); fi
 echo "  --- $ok ok, $bad failed (shell arm)"
 [ $bad -eq 0 ] || exit 1

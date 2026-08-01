@@ -219,6 +219,11 @@ struct Node {
   // be attached only `if(cur)` and was therefore dropped on the floor for the
   // one event this product exists to record.
   bool refusal=false;
+  // ...and the same shape in WATCH mode, where the verdict is real and recorded
+  // but NOT enforced: the command ran. `rabadon usage` puts these in
+  // `wouldRefuse`, never in `refused`, and trace has to agree or the three
+  // readers disagree again — one row down from where they used to.
+  bool watched=false;
   string rule;   // fails[].check — the rule id that fired, when the writer named one
   string why; long long tokens=0, usd_e6=0, dur_ms=0; string model;
   long long startTs=0, endTs=0;
@@ -238,12 +243,12 @@ struct Node {
 // the hook, "exec" from the sandbox) and its own rule id, so nothing here is
 // invented — the row is drawn out of bytes that were already in the ledger and
 // that stats and export have been counting all along.
-static void open_catch(vector<Node>& nodes, Node*& cur, const Ev& e){
+static void open_catch(vector<Node>& nodes, Node*& cur, const Ev& e, const char* fallbackId){
   if(!cur){
     nodes.push_back({});
     cur=&nodes.back();               // push_back may reallocate; cur is re-seated here
     cur->no=(int)nodes.size();
-    cur->id=e.step.empty()?string("refused"):e.step;
+    cur->id=e.step.empty()?string(fallbackId):e.step;
     cur->startTs=e.ts;
     cur->refusal=true;
   }
@@ -269,7 +274,7 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
       else { cur->topUsd_e6+=e.usd_e6; cur->topTok+=e.tokens; if(e.dur_ms>cur->topDur) cur->topDur=e.dur_ms; }
       cur->wonTierName=label;   // last attempt seen; corrected by STEP_OK below
     }
-    else if(e.ev=="CHECK_FAIL"){ open_catch(nodes,cur,e); }
+    else if(e.ev=="CHECK_FAIL"){ open_catch(nodes,cur,e,"refused"); }
     else if(e.ev=="ESCALATE" && cur){ cur->escalated=true; cur->escFrom=e.from; cur->escTo=e.to; }
     else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
       if(e.repairKind.empty()){ if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true; }
@@ -369,7 +374,7 @@ static void render_run(const Run& r, const Pal& C, string& out){
   string stopReason, verdict, runModel; long long tok=0, usd=0;
   for(const Ev& e: r.evs){
     if(e.ev=="STEP_START"){ nodes.push_back({}); cur=&nodes.back(); cur->no=(int)nodes.size(); cur->id=e.step; cur->startTs=e.ts; }
-    else if(e.ev=="CHECK_FAIL"){ open_catch(nodes,cur,e); }
+    else if(e.ev=="CHECK_FAIL"){ open_catch(nodes,cur,e,"refused"); }
     else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
       // only an unmarked repair is a repair: see the note where repair_kind is read
       if(e.repairKind.empty()){ if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true; }
@@ -378,6 +383,18 @@ static void render_run(const Run& r, const Pal& C, string& out){
       tok+=e.tokens; usd+=e.usd_e6;
     }
     else if(e.ev=="STEP_OK" && cur){ cur->ok=true; cur->endTs=e.ts; }
+    // WATCH mode. gate.cpp emits {CHECK_FAIL, WOULD_BLOCK} and exits 0 — the
+    // command then RUNS. Same orphan shape as the refusal, and the opposite
+    // fact: nothing was stopped. Left unhandled, the row above would have
+    // printed "refused BEFORE it ran; the action never happened" over an action
+    // that happened, and the headline would have said CAUGHT 1 while `rabadon
+    // usage` said refused: 0, wouldRefuse: 1.
+    else if(e.ev=="WOULD_BLOCK"){
+      open_catch(nodes,cur,e,"watched");
+      cur->watched=true;
+      if(cur->rule.empty()) cur->rule=e.reason;   // WOULD_BLOCK carries the rule id here
+      if(cur->endTs==0) cur->endTs=e.ts;
+    }
     else if(e.ev=="STOP"){ if(stopReason.empty()) stopReason=e.reason; if(cur&&cur->endTs==0) cur->endTs=e.ts; }
     else if(e.ev=="RUN_DONE"){ verdict=e.verdict; }
   }
@@ -394,6 +411,8 @@ static void render_run(const Run& r, const Pal& C, string& out){
   // LLM removed entirely.
   bool refusalOnly = !nodes.empty() && runModel.empty() && tok==0 && usd==0;
   for(const Node& n: nodes) if(!n.refusal){ refusalOnly=false; break; }
+  bool watchedOnly = refusalOnly;
+  for(const Node& n: nodes) if(!n.watched){ watchedOnly=false; break; }
 
   int N = r.declaredSteps>0 ? r.declaredSteps : (int)nodes.size();
   int firstCaught=0; for(const Node& n: nodes) if(n.caught){ firstCaught=n.no; break; }
@@ -409,10 +428,14 @@ static void render_run(const Run& r, const Pal& C, string& out){
   string mdl=short_model(runModel);
   string cost = usd>0 ? fmt_usd(usd) : "$0";
   string toks = tok>0 ? commafy(tok)+" tok" : "0 tok";
-  if(refusalOnly)
-    snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · refused at the %s gate · %s · no model call\n",
+  if(refusalOnly){
+    string what = watchedOnly
+      ? ("WATCH: recorded at the "+surface_of(r.pipe)+" gate, NOT stopped")
+      : ("refused at the "+surface_of(r.pipe)+" gate");
+    snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · %s · %s · no model call\n",
              C.bold,C.rst, C.bold, r.id.c_str(), C.rst,
-             proj.c_str(), surface_of(r.pipe).c_str(), dur.c_str());
+             proj.c_str(), what.c_str(), dur.c_str());
+  }
   else
     snprintf(h,sizeof h,"%srabadon trace%s  %s%.8s%s · %s · %s · %s · %s · %s · claude -p\n",
              C.bold,C.rst, C.bold, r.id.c_str(), C.rst,
@@ -448,8 +471,9 @@ static void render_run(const Run& r, const Pal& C, string& out){
       out+=line;
       continue;
     }
-    snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s⚠ CAUGHT%s  %s\n",
-      C.amb,C.rst, n.no, pad(n.id).c_str(), C.amb,C.rst, metrics.c_str());
+    snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s%s%s  %s\n",
+      C.amb,C.rst, n.no, pad(n.id).c_str(), C.amb,
+      n.watched?"⚠ WOULD BLOCK":"⚠ CAUGHT", C.rst, metrics.c_str());
     out+=line;
 
     // What the check SAID. check_kind() reads a category out of the why text and
@@ -461,9 +485,20 @@ static void render_run(const Run& r, const Pal& C, string& out){
     // name no rule.
     string kind = n.rule.empty()? check_kind(n.why) : n.rule;
     string test=failing_test(n.why);
-    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s     %s◀── the net caught it HERE, at that moment%s\n",
-      C.dim,C.rst, C.red,kind.c_str(),C.rst, C.red,test.c_str(),C.rst, C.amb,C.rst);
+    snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s     %s◀── %s%s\n",
+      C.dim,C.rst, C.red,kind.c_str(),C.rst, C.red,test.c_str(),C.rst, C.amb,
+      n.watched?"the verdict was recorded, not enforced":"the net caught it HERE, at that moment", C.rst);
     out+=line;
+
+    // WATCH mode: the rule fired, the verdict is in the ledger, and the command
+    // ran anyway. Saying anything stronger here would sell watch mode as
+    // enforcement, which is the one thing it is not.
+    if(n.watched){
+      snprintf(line,sizeof line,"     %s└%s %sWOULD BLOCK — nothing was stopped; the action RAN. `rabadon on` makes this a real refusal%s\n",
+        C.dim,C.rst, C.amb, C.rst);
+      out+=line;
+      continue;
+    }
 
     // A catch with NO repair event of either kind. The else branch below was
     // written as "rejected -> fail-closed" and reached by everything that was
@@ -496,8 +531,17 @@ static void render_run(const Run& r, const Pal& C, string& out){
   }
 
   // ---- footer ----
-  int caught=0,repaired=0,rejected=0; string caughtNos;
-  for(const Node& n: nodes){ if(n.caught){ caught++; if(!caughtNos.empty())caughtNos+=","; caughtNos+=std::to_string(n.no);} if(n.repaired)repaired++; if(n.rejected)rejected++; }
+  // A WATCH verdict is NOT a catch. `rabadon usage` puts it in `wouldRefuse`
+  // and leaves `refused` at zero; a CAUGHT that included it would put trace's
+  // headline back out of step with the other two readers over the same bytes,
+  // which is the defect this whole file was just repaired for. It gets its own
+  // line, with its own word.
+  int caught=0,repaired=0,rejected=0,watched=0; string caughtNos, watchedNos;
+  for(const Node& n: nodes){
+    if(n.caught && !n.watched){ caught++; if(!caughtNos.empty())caughtNos+=","; caughtNos+=std::to_string(n.no); }
+    if(n.watched){ watched++; if(!watchedNos.empty())watchedNos+=","; watchedNos+=std::to_string(n.no); }
+    if(n.repaired)repaired++; if(n.rejected)rejected++;
+  }
 
   // The headline. For a drill it reads zero — the same zero `rabadon usage` and
   // `rabadon export --otlp` already print over these bytes. The shapes are kept
@@ -505,7 +549,7 @@ static void render_run(const Run& r, const Pal& C, string& out){
   // and zeroing `caught` here is also what suppresses the "saved:" money line
   // below, because a self-test saved nobody anything.
   int drillCaught=caught, drillRepaired=repaired, drillRejected=rejected;
-  if(r.drill){ caught=0; repaired=0; rejected=0; caughtNos.clear(); }
+  if(r.drill){ caught=0; repaired=0; rejected=0; watched=0; caughtNos.clear(); watchedNos.clear(); }
 
   out+="  ";
   out+=C.dim; out+="──────────────────────────────────────────────────────────────"; out+=C.rst; out+="\n";
@@ -515,6 +559,12 @@ static void render_run(const Run& r, const Pal& C, string& out){
     C.grn,repaired,C.rst, C.red,rejected,C.rst,
     (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
   out+=f;
+
+  if(watched){
+    snprintf(f,sizeof f,"  %sWOULD BLOCK %d (step %s)%s · watch mode: the rule fired and the verdict is in the ledger, but NOTHING was stopped — the action ran\n",
+      C.amb, watched, watchedNos.c_str(), C.rst);
+    out+=f;
+  }
 
   if(r.drill){
     snprintf(f,sizeof f,"  %s%d catch-shaped · %d repair-shaped · %d refusal-shaped event(s) here are rabadon exercising itself — not counted, not exported, not priced%s\n",
@@ -698,7 +748,7 @@ int main(int argc,char** argv){
       // returns its "contract" fallback for every rule the guard ever names.
       e.check=nested_str(line,"check");
     }
-    if(ev=="STOP"){ e.reason=str_field(line,"reason"); e.detail=str_field(line,"detail"); }
+    if(ev=="STOP"||ev=="WOULD_BLOCK"){ e.reason=str_field(line,"reason"); e.detail=str_field(line,"detail"); }
     if(ev=="RUN_DONE") e.verdict=str_field(line,"verdict");
     if(ev=="REPAIR_OK"||ev=="REPAIR_FAIL"||ev=="STEP_TRY"){
       e.tokens=ll_field(line,"tokens"); e.usd_e6=ll_field(line,"usd_e6");
