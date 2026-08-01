@@ -105,10 +105,12 @@ test: all
 # what it was told. This one asks the question none of them ask: was being told
 # that the right call? It replays real refusals out of the watch-mode ledger and
 # measures how many of them would have cut work that was never dangerous. It
-# fails today at 50.0% against a 90% floor — it was 33.3% until deny rules
+# fails today at 55.0% against a 90% floor — it was 33.3% until deny rules
 # stopped matching text a command CARRIES (heredoc bodies, quoted arguments,
-# comments) and started matching only the text a shell will RUN. Every remaining
-# wrong refusal is one rule reading /tmp as "outside the project". The floor
+# comments) and started matching only the text a shell will RUN, and 50.0%
+# until the compiled delete law stopped reading the system temp area as
+# somebody's data. Every remaining wrong refusal now comes from a deny regex a
+# PROJECT wrote and anchored to its own absolute path. The floor
 # lives in exactly one place
 # (native/precision_test.sh) and moving it down is the one edit that makes the
 # file worthless. `make precision` runs it alone.

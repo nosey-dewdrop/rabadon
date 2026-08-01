@@ -12,12 +12,14 @@
 //                           each recognized. --force-with-lease is legitimate
 //                           and passes.
 //   baseline-rm-rf-outside  recursive rm whose target resolves OUTSIDE the
-//                           project tree. The target is resolved, not matched:
-//                           `..`, `~`, a symlink and a glob's directory part
-//                           all land where they really land. (Five hand-written
-//                           guards in five wild repos all baked the machine's
-//                           path into a regex, and all five failed open on
-//                           `..` — which is why this is code, not a pattern.)
+//                           project tree AND outside the system temp area. The
+//                           target is resolved, not matched: `..`, `~`, a
+//                           symlink and a glob's directory part all land where
+//                           they really land. (Five hand-written guards in five
+//                           wild repos all baked the machine's path into a
+//                           regex, and all five failed open on `..` — which is
+//                           why this is code, not a pattern.) The temp carve-out
+//                           and its limits are documented at in_temp_area().
 //   baseline-hard-reset     `git reset --hard` onto a shared branch.
 //
 // Any of them can be silenced by id in guard.json's disabled[].
@@ -199,6 +201,94 @@ inline bool inside(const string& root, const string& path) {
   if (path == root) return true;
   return path.size() > root.size() && path.compare(0, root.size(), root) == 0 &&
          path[root.size()] == '/';
+}
+
+// ---------- the system temp area is not data ----------
+// "Outside the project tree" read the machine's scratch space as if it were
+// someone's files. Of the 73 refusals this rule produced across four live
+// watch-mode sessions, 68 were an agent deleting a directory it had made under
+// /tmp minutes earlier, and the remaining 5 were a glob under /tmp. That is not
+// a rare shape: making a scratch dir, using it, and removing it is what every
+// agent does in every repo, so the rule cost its own product on a stranger's
+// machine as surely as on this one.
+//
+// The temp area is the one place whose contents are DEFINED to be disposable,
+// so a recursive delete there is not the thing this law is for. What stays
+// dangerous, and is tested from both sides:
+//   - the temp ROOT itself. `rm -rf /tmp` removes the directory every other
+//     process is holding a path into, and it is also what a half-expanded path
+//     looks like. A glob names the entries UNDER a directory, so
+//     `rm -rf /tmp/scratch-*` is judged as its children and passes.
+//   - anything under $HOME, even when $HOME is itself under a temp dir. Test
+//     harnesses point HOME at a mktemp dir, and work lives in a home directory
+//     wherever the home directory happens to be.
+//   - anywhere the path only reaches by leaving. `/tmp/../Users/x` is resolved
+//     to /Users/x before it is judged, and a symlink out of the temp dir is
+//     resolved to what it points at. The temp check reads the destination, not
+//     the spelling, which is the same reason this file is a parser.
+inline string norm_dir(const string& p) {
+  string s = p;
+  while (s.size() > 1 && s.back() == '/') s.pop_back();
+  return s;
+}
+
+inline string real_home() {
+  const char* h = getenv("HOME");
+  if (!h || !h[0]) return "";
+  return norm_dir(resolve_real(lexical_abs(h, "/")));
+}
+
+// $TMPDIR comes from the environment, and the environment is exactly what an
+// agent can change. A root offered there is taken only when it could plausibly
+// be a temp dir: TMPDIR=/ or TMPDIR=$HOME must not turn the whole machine into
+// scratch space.
+inline bool plausible_temp_root(const string& real, const string& home) {
+  if (real.size() < 2 || real[0] != '/') return false;
+  static const char* systemDir[] = {"/etc", "/usr", "/bin", "/sbin", "/var", "/private",
+                                    "/System", "/Library", "/Applications", "/opt", "/dev"};
+  for (const char* d : systemDir) if (real == d) return false;
+  static const char* userTree[] = {"/Users", "/home", "/Volumes", "/mnt", "/media"};
+  for (const char* d : userTree) if (inside(d, real)) return false;
+  if (!home.empty() && inside(home, real)) return false;
+  return true;
+}
+
+// /tmp and its real location (/private/tmp on macOS), /var/tmp, and the
+// /var/folders tree mktemp -d writes into under a launchd session. Each is
+// added both as written and as it resolves, so the list is right on a machine
+// where /tmp is a symlink and on one where it is not.
+inline const vector<string>& temp_roots() {
+  static vector<string> roots;
+  static bool built = false;
+  if (built) return roots;
+  built = true;
+  const string home = real_home();
+  auto add = [&](const string& p) {
+    const string d = norm_dir(p);
+    if (d.size() < 2 || d[0] != '/') return;
+    for (const string& e : roots) if (e == d) return;
+    roots.push_back(d);
+  };
+  const char* fixed[] = {"/tmp", "/var/tmp", "/var/folders"};
+  for (const char* f : fixed) { add(f); add(resolve_real(f)); }
+  const char* td = getenv("TMPDIR");
+  if (td && td[0]) {
+    const string a = norm_dir(resolve_real(lexical_abs(td, "/")));
+    if (plausible_temp_root(a, home)) add(a);
+  }
+  return roots;
+}
+
+// `viaGlob` says the command named a pattern, so what it deletes are entries
+// under `real` rather than `real` itself.
+inline bool in_temp_area(const string& real, bool viaGlob) {
+  const string home = real_home();
+  if (!home.empty() && inside(home, real)) return false;
+  for (const string& t : temp_roots()) {
+    if (real == t) { if (viaGlob) return true; continue; }
+    if (inside(t, real)) return true;
+  }
+  return false;
 }
 
 // the project tree: the git worktree containing cwd, else cwd itself
@@ -385,8 +475,10 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
     for (const string& raw : targets) {
       if (raw.find('$') != string::npos || raw.find('`') != string::npos) continue;
       string t2 = raw;
+      bool viaGlob = false;
       const size_t g = t2.find_first_of("*?[");
       if (g != string::npos) {                  // judge the glob's directory part
+        viaGlob = true;
         const size_t s = t2.rfind('/', g);
         t2 = (s == string::npos) ? "." : t2.substr(0, s ? s : 1);
       }
@@ -394,6 +486,7 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
       if (abs.empty()) continue;
       const string real = resolve_real(abs);
       if (inside(root, real)) continue;
+      if (in_temp_area(real, viaGlob)) continue;
       hit = {"baseline-rm-rf-outside",
              "a recursive delete outside the project tree cannot be undone by git",
              "rm -r '" + raw + "' resolves to " + real + ", outside the project tree (" + root + ")"};
