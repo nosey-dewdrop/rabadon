@@ -127,5 +127,41 @@ s=d["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
 assert isinstance(s["startTimeUnixNano"],str) and s["startTimeUnixNano"].isdigit()
 PY
 
+# 7. the same events from a STRANGER'S serializer. SPEC §2 says single-line
+#    JSON and fixes no byte layout; SPEC Part II exists so someone else's agent
+#    can write this spool. get_field matched the literal `"key":"`, so a spool
+#    with a space after the colon yielded an empty `ev` for every line, nothing
+#    matched the exportable set, and this binary emitted valid OTLP with an
+#    EMPTY spans array — a silent zero. rabadon's own g3 evidence ledger,
+#    reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl, is written
+#    that way: 10 events, 0 spans.
+#
+#    The arm demands the spaced spool export EXACTLY what its compact twin does,
+#    and asserts the span count is non-zero first — otherwise "0 == 0" would let
+#    a blind reader pass.
+export SPACED_DIR="$TMP/rd-spaced"; mkdir -p "$SPACED_DIR/spool"
+python3 - <<'PY'
+import json, os, glob
+for src in glob.glob(os.path.join(os.environ["RABADON_DIR"], "spool", "*.jsonl")):
+    dst = os.path.join(os.environ["SPACED_DIR"], "spool", os.path.basename(src))
+    with open(dst, "w") as f:
+        for line in open(src):
+            line = line.strip()
+            if line:
+                f.write(json.dumps(json.loads(line)) + "\n")  # default ": " / ", "
+PY
+grep -q '"ev": "STOP"' "$SPACED_DIR/spool/2026-01-10.jsonl" && pass "the stranger spool really is stock-serialized (\"ev\": \" with a space)" || fail "spaced fixture is not spaced — the arm would prove nothing"
+
+export SPACED_OUT="$TMP/out-spaced.json"
+RABADON_DIR="$SPACED_DIR" "$EXPORT" --otlp --days 7 > "$SPACED_OUT"
+python3 - <<'PY' && pass "a stock-serialized spool exports the SAME spans as its compact twin" || fail "spacing changes the export — the reader is fingerprinting the emitter"
+import json, os
+a = json.load(open(os.environ["OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+b = json.load(open(os.environ["SPACED_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+assert len(a) > 0, "compact export is empty — the comparison would be vacuous"
+assert len(b) == len(a), (len(a), len(b), [s["name"] for s in b])
+assert b == a, "spans differ beyond count"
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
