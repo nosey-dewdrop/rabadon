@@ -111,6 +111,19 @@ test: all
 # alias, a lease push, a force to a private branch, an alias defined and never
 # invoked.
 	./native/git_alias_test.sh
+# the same question one option later: `git push -fu origin main`. git's
+# subcommands read their options with parse-options and parse-options takes them
+# clustered, so -fu is --force --set-upstream — and both layers missed that word
+# from the same side. the compiled law compared the WHOLE token to `-f` and let
+# it fall into "starts with a dash, skip"; a project's `(--force|-f)\b` has no
+# word boundary between the f and the u. section 0 measures the premise instead
+# of quoting it: a bare repo made by mktemp two lines earlier is force-updated
+# backwards by `push -fu` and gains an upstream, and the SAME git answers
+# "unknown option: -pv" for its own leading options, which is why the split
+# starts at the subcommand. the twins are what keep the split from inventing
+# flags: -qu, a lease push, -oci.skip, `git commit -mfix` and `git log -12` all
+# still run.
+	./native/short_cluster_test.sh
 	./native/bypass_test.sh
 # bypass_test.sh asks whether the LAWS see the command. this one asks whether the
 # PARSER hands them one at all: `FOO=bar <cmd>` was judged and `FOO=/x <cmd>` was

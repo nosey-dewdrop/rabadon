@@ -1336,6 +1336,72 @@ inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>*
   }
 }
 
+// ---------- pass 7b: a cluster of short options IS those options ------------
+// THE HOLE THIS CLOSES.
+//
+//   git push -fu origin main
+//
+// git's subcommands read their options with parse-options, and parse-options
+// takes short options written as one word: `-fu` is `--force --set-upstream`.
+// Both layers missed that word from the same side. The compiled law compared
+// the WHOLE token to `-f`, so `-fu` fell through to "starts with a dash, skip"
+// and force stayed false. A project spells the same law `(--force|-f)\b`, and
+// there is no word boundary between the f and the u. One word, two layers,
+// zero refusals — and the answer is the one this file always gives: what git
+// will really run is resolved once, here, before any law reads it.
+//
+// Measured against git 2.39.5, and every line is a check in
+// native/short_cluster_test.sh rather than a reading of the manual:
+//   push -fu into a rewound branch  forced the remote back a commit AND set
+//                                   upstream. The f in the cluster is --force.
+//   push -qf / -fq / -uf / -qfu     parse (they reach the remote lookup), so
+//                                   order and company do not matter.
+//   push -fZ                        exit 129, "unknown switch `Z'": an unknown
+//                                   letter is refused, never ignored.
+//   git -pv status, git -pC . status  exit 129, "unknown option". git's OWN
+//                                   options — the ones before the subcommand —
+//                                   are not parse-options and do NOT cluster.
+//
+// So the split starts AT THE SUBCOMMAND, the word the option walk above already
+// finds, and stops at `--`, after which git reads operands and a path may be
+// spelled anything. A single-letter token is already its own option and is left
+// alone.
+//
+// THE ONE LIMIT, named and not hidden: parse-options lets a short option carry
+// its value attached, and an attached value made of letters looks like more
+// letters. `git commit -mfix` commits the message "fix" and this reads it as
+// `-m -f -i -x`. Two things bound what that costs. A cluster is split only when
+// every character after the dash is an ASCII LETTER, so an attached path, a
+// dotted value, a hyphenated word, a count (`git log -12`, `git log -n5`) and
+// anything quoted are untouched; and no law reads a short flag outside
+// `git push`, where the only short option taking a value is `-o`. The twin
+// checks in the test file hold that: `git commit -mfix`, `git commit -am fix`,
+// `git push -oci.skip origin main` and `git log -12` are all still allowed.
+inline bool short_option_cluster(const Word& w) {
+  const string& s = w.text;
+  if (w.quoted || s.size() < 3 || s[0] != '-' || s[1] == '-') return false;
+  for (size_t k = 1; k < s.size(); k++)
+    if (!isalpha((unsigned char)s[k])) return false;
+  return true;
+}
+
+inline void split_git_short_clusters(vector<Word>& t) {
+  const size_t ci = command_index(t);
+  if (ci >= t.size() || !name_is(base_of(t[ci].text), "git")) return;
+  size_t sub = 0;
+  if (!git_subcommand(t, ci, sub)) return;
+  vector<Word> next(t.begin(), t.begin() + (sub + 1));
+  bool operandsOnly = false;
+  for (size_t i = sub + 1; i < t.size(); i++) {
+    const Word& w = t[i];
+    if (!operandsOnly && !w.quoted && w.text == "--") operandsOnly = true;
+    if (operandsOnly || !short_option_cluster(w)) { next.push_back(w); continue; }
+    for (size_t k = 1; k < w.text.size(); k++)
+      next.push_back(Word{string("-") + w.text[k], false});
+  }
+  t.swap(next);
+}
+
 // ---------- the whole answer ----------
 inline void emit(const string& text, int group, int parent, Parsed& out, int depth,
                  vector<Binding> env,
@@ -1376,6 +1442,10 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
     // it too. A `!` body is a shell program, and joins the scripts below.
     string aliasShell;
     expand_git_alias(sg.words, &aliasShell, &out.limits);
+    // and the options that alias body may itself have written as one word: an
+    // alias is resolved first because `-c alias.x='push -fu'` puts the cluster
+    // on the line only after the body is spliced in.
+    split_git_short_clusters(sg.words);
     const vector<string> nested = sg.nested;
     vector<string> scripts = shell_scripts(sg.words);
     if (!aliasShell.empty()) scripts.push_back(aliasShell);
