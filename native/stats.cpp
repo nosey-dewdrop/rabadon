@@ -679,6 +679,36 @@ int main(int argc, char** argv) {
   if (!only_project.empty()) {
     std::vector<Proj> kept;
     for (Proj& p : projects) if (p.name == only_project) kept.push_back(std::move(p));
+    // A filter that matched nothing is a FAILED QUESTION, not an empty ledger.
+    // Dropping every project used to land in the projects.empty() branch below,
+    // which prints the onboarding block — "the ledger fills itself: run `claude`
+    // inside a project where `rabadon init` has been run" — and returns 0. That
+    // told a user who had already run init, already run claude and already had
+    // catches on disk that rabadon had recorded nothing. The ledger was not
+    // empty; their filter was. `rabadon trace nosuchrun` already exits 1 and
+    // names the word it could not find; this is the same failure on the surface
+    // the README calls the only sales artifact that matters, so it answers the
+    // same way — before any renderer runs, so --md and --json cannot disagree
+    // with the terminal. --json's "projects":[] with every total 0 was the worst
+    // of the three: a script asking "how many catches for project X this week"
+    // could not tell a wrong name from a clean week.
+    if (kept.empty()) {
+      // nothing was moved out, so the pre-filter vector is still intact and can
+      // say what the window DOES hold — the one thing that turns the refusal
+      // into a usable answer (usually a typo, sometimes the wrong window).
+      string have;
+      for (const Proj& p : projects) { if (!have.empty()) have += ", "; have += p.name; }
+      if (!have.empty())
+        fprintf(stderr, "rabadon-stats: no such project — \"%s\" is not in %s within the last %s day(s);"
+                        " the window holds: %s (widen with --days N, or drop --project for all of them)\n",
+                only_project.c_str(), spool.c_str(), js_num_str(days).c_str(), have.c_str());
+      else
+        fprintf(stderr, "rabadon-stats: no such project — \"%s\" is not in %s within the last %s day(s),"
+                        " and neither is anything else: this window holds no events at all"
+                        " (drop --project to see how to fill it)\n",
+                only_project.c_str(), spool.c_str(), js_num_str(days).c_str());
+      return 1;
+    }
     projects = std::move(kept);
   }
 
