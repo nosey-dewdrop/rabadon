@@ -168,6 +168,18 @@ check_not "and never answered with the onboarding copy" 'the ledger fills itself
 if [ "$NEG_RC" -ne 0 ]; then ok=$((ok+1)); echo "  ok   - --days -5 exits non-zero (rc: $NEG_RC)"
 else bad=$((bad+1)); echo "  FAIL - --days -5 exited 0"; printf '%s\n' "$NEG_OUT" | sed 's/^/    | /'; fi
 
+# The sentinel for "no --project given" used to be the emptiness of the value,
+# so `--project "$P"` with an unset P was indistinguishable from no filter at
+# all and printed the WHOLE machine's usage under a heading the operator reads
+# as that one project's — the same hazard the unknown-flag guard next to it was
+# written for, through a different door. Asking for a project is now its own
+# bit, and "" is a name no project has.
+EP_OUT="$(run --days 7 --project "" 2>"$NP_ERR")"; EP_RC=$?
+check "an empty --project value is refused, and says what IS there" 'the window holds: (beta|alpha)' "$(cat "$NP_ERR")"
+check_not "an empty --project value never renders another project's numbers" 'alpha' "$EP_OUT"
+if [ "$EP_RC" -ne 0 ]; then ok=$((ok+1)); echo "  ok   - --project '' exits non-zero (rc: $EP_RC)"
+else bad=$((bad+1)); echo "  FAIL - --project '' exited 0 and answered for everything"; printf '%s\n' "$EP_OUT" | sed 's/^/    | /'; fi
+
 # and the name that IS there still answers, at 0 — the refusal above must not
 # have been bought by failing every --project.
 GOOD_OUT="$(run --days 7 --project alpha)"; GOOD_RC=$?

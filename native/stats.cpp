@@ -469,6 +469,12 @@ int main(int argc, char** argv) {
 
   double days = 7;
   bool full = false, json = false, md = false;
+  // "was --project given" is its own bit, not the emptiness of the value. When
+  // the empty string was the sentinel, `--project "$P"` with an unset P asked
+  // for one project and got the WHOLE machine's usage at exit 0, under a
+  // heading the operator reads as that one project's — the same hazard the
+  // unknown-flag guard below was written for, through a different door.
+  bool want_project = false;
   string only_project;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--days") == 0 && i + 1 < argc) {
@@ -490,7 +496,7 @@ int main(int argc, char** argv) {
     } else if (strcmp(argv[i], "--full") == 0) full = true;
     else if (strcmp(argv[i], "--json") == 0) json = true;
     else if (strcmp(argv[i], "--md") == 0) md = true;
-    else if (strcmp(argv[i], "--project") == 0 && i + 1 < argc) { only_project = argv[++i]; }
+    else if (strcmp(argv[i], "--project") == 0 && i + 1 < argc) { only_project = argv[++i]; want_project = true; }
     // silently ignoring an argument is the dangerous half: `--project foo`
     // mistyped as `--projekt foo` used to print the WHOLE machine's usage under
     // a heading the operator read as one project's.
@@ -687,7 +693,7 @@ int main(int argc, char** argv) {
     std::stable_sort(p.rules.begin(), p.rules.end(), [](const Rule& a, const Rule& b) { return a.n > b.n; });
     std::stable_sort(p.wouldRules.begin(), p.wouldRules.end(), [](const Rule& a, const Rule& b) { return a.n > b.n; });
   }
-  if (!only_project.empty()) {
+  if (want_project) {
     std::vector<Proj> kept;
     for (Proj& p : projects) if (p.name == only_project) kept.push_back(std::move(p));
     // A filter that matched nothing is a FAILED QUESTION, not an empty ledger.
