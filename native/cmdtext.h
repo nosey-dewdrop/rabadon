@@ -660,6 +660,16 @@ inline bool shell_reads_stdin(const vector<Word>& w) {
   return true;
 }
 
+// the file a command was told to RUN: a shell's script operand, or the argument
+// of `source` / `.`, which runs the file in the shell already running and so is
+// the same write-then-run with no new process to notice.
+//
+// NOT here, and named in native/stdin_program_test.sh as a limit rather than
+// left to be discovered: `chmod +x s.sh && ./s.sh`. That file is written by the
+// line and then run by the line, but it is run off its own shebang, and which
+// interpreter that names is not in the text.
+inline string run_file_operand(const vector<Word>& w);
+
 // the script FILE a shell was told to run — "" when it was told a string, or
 // told nothing at all
 inline string shell_script_operand(const vector<Word>& w) {
@@ -675,6 +685,15 @@ inline string shell_script_operand(const vector<Word>& w) {
     if (a.find('c') != string::npos || a.find('s') != string::npos) return string();
   }
   return string();
+}
+
+inline string run_file_operand(const vector<Word>& w) {
+  const size_t ci = command_index(w);
+  if (ci >= w.size()) return string();
+  const string name = base_of(w[ci].text);
+  if (name == "." || name_is(name, "source"))
+    return (ci + 1 < w.size()) ? w[ci + 1].text : string();
+  return shell_script_operand(w);
 }
 
 // ---------- pass 6: the text a command WRITES, when the line contains it -----
@@ -897,23 +916,40 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
     string prog, blind;
     bool progKnown = false;
     if (shell_reads_stdin(sg.words)) {
-      string hs;
+      string hs, infile;
       bool hasHs = false;
-      for (size_t r = 0; r < sg.redirs.size(); r++)
+      for (size_t r = 0; r < sg.redirs.size(); r++) {
         if (sg.redirs[r].op == "<<<") { hs = sg.redirs[r].target; hasHs = true; }
+        else if (sg.redirs[r].op == "<") infile = sg.redirs[r].target;
+      }
       if (!sg.heredocs.empty()) {
         for (size_t k = 0; k < sg.heredocs.size(); k++) prog += sg.heredocs[k];
         progKnown = true;
       } else if (hasHs) {
         prog = hs; progKnown = true;
+      } else if (!infile.empty()) {
+        // `sh < s.sh` is `sh s.sh` with the operator standing in for the operand
+        if (const string* t = file_text(wrote, infile)) { prog = *t; progKnown = true; }
       } else if (pipedIn) {
         if (piped.known) { prog = piped.text; progKnown = true; }
         else blind = piped.producer.empty() ? string("the command before it") : piped.producer;
       }
     } else {
-      const string f = shell_script_operand(sg.words);
-      if (!f.empty())
+      const string f = run_file_operand(sg.words);
+      if (!f.empty()) {
         if (const string* t = file_text(wrote, f)) { prog = *t; progKnown = true; }
+      } else {
+        // this line wrote a file and this line runs it straight off its own
+        // shebang. The program IS known — it is sitting in `wrote` — but which
+        // interpreter reads it is decided by the file's first line, not by this
+        // command, so judging it as shell would be inventing a fact. Recorded
+        // instead of guessed in either direction.
+        const size_t ci2 = command_index(sg.words);
+        if (ci2 < sg.words.size() && file_text(wrote, sg.words[ci2].text))
+          out.limits.push_back("this line wrote '" + sg.words[ci2].text +
+                               "' and then runs it directly, so which interpreter reads it is "
+                               "named by the file's own first line and not by this command");
+      }
     }
 
     out.segs.push_back(sg);
