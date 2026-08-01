@@ -165,20 +165,34 @@ fi
 #
 # The probe is python3, NOT a bash loop: `do` and `serve` used to hang and bash
 # has no portable timeout on macOS (no `timeout`, no `gtimeout` — checked).
-HELP_BINS="trace do serve budget loop verify export sandbox repair truth audit stats lens net drift gate"
+#
+# The list is DISCOVERED, never written down. A hand-kept list is a gate the
+# seventeenth binary walks around: whoever adds it has no reason to think of
+# this file, and the suite stays green while the new command answers --help with
+# the ledger. So the probe globs native/rabadon-* and refuses to run on zero.
 
 HELP_REPORT=$(mktemp /tmp/rabadon-help-report.XXXXXX)
-python3 - "$HELP_REPORT" $HELP_BINS <<'PY'
-import os, subprocess, sys, tempfile, time
+python3 - "$HELP_REPORT" <<'PY'
+import glob, os, subprocess, sys, tempfile, time
 
-report, names = sys.argv[1], sys.argv[2:]
+report = sys.argv[1]
 root = os.getcwd()
+names = sorted(os.path.basename(b)[len("rabadon-"):]
+               for b in glob.glob(os.path.join(root, "native", "rabadon-*"))
+               if not b.endswith(".sh") and os.access(b, os.X_OK))
 MAX = 10 * 1024
 BOGUS = "--rabadon-no-such-flag"
 # the two hook binaries: exit 0 is the only safe refusal (see below)
 HOOKS = {"gate", "drift"}
 out = []
 def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
+
+# a glob that matched nothing would make every assertion below vacuous, so the
+# count itself is asserted: the Makefile builds sixteen today.
+rec(len(names) >= 16, "the help probe found %d native binaries to interrogate" % len(names)
+    if len(names) >= 16 else
+    "the help probe found only %d binaries (%s) — build first, this run proves nothing"
+    % (len(names), " ".join(names)))
 
 # A box with a REAL (tiny) ledger in it. Without data the probe would be
 # toothless: a binary that swallows --help and prints its report would find an
