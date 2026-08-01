@@ -45,7 +45,7 @@ JS="$ROOT/bin/rabadon.mjs"
 # you can trust about anything else. Changing it is still one word away.
 VERB="${1:-status}"   # resolved once: the branches below read VERB, never a bare $1
 case "$VERB" in
-  toggle)          G="$(nbin gate)" || exit 1; exec "$G" --toggle ;;
+  toggle)          G="$(nbin gate)" || exit 1; shift; exec "$G" --toggle "$@" ;;
   help|--help|-h)
     cat <<'HELP'
 rabadon — a deterministic gate for coding agents. It refuses a bad action
@@ -98,8 +98,11 @@ examples
 docs: https://github.com/nosey-dewdrop/rabadon
 HELP
     exit 0 ;;
-  on|off|status)   G="$(nbin gate)" || exit 1; exec "$G" "--$VERB" ;;
-  statusline)      G="$(nbin gate)" || exit 1; exec "$G" --statusline ;;
+  # the rest of the line goes to the binary too: `rabadon status --help` used to
+  # drop the flag on the floor and print the mode instead, the same swallow the
+  # binaries themselves were fixed for.
+  on|off|status)   G="$(nbin gate)" || exit 1; shift; exec "$G" "--$VERB" "$@" ;;
+  statusline)      G="$(nbin gate)" || exit 1; shift; exec "$G" --statusline "$@" ;;
   # the cost half of the product. rabadon-lens shipped in every platform
   # package for weeks with no verb in front of it: `npm i -g rabadon` puts ONE
   # file on your PATH (this script), so a binary the dispatcher never names is

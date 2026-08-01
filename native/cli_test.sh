@@ -34,16 +34,135 @@ for FLAG in --help -h help; do
   [ $RC -eq 0 ] && pass "\`rabadon $FLAG\` exits 0" || fail "\`rabadon $FLAG\` exited $RC"
   printf '%s' "$OUT" | grep -qi "unknown command" && fail "\`rabadon $FLAG\` still says 'unknown command'" \
     || pass "\`rabadon $FLAG\` does not say 'unknown command'"
-  # a help screen that lists no verbs is not a help screen
-  MISSING=""
-  for VERB in init usage exec audit doctor drill trace repair; do
-    printf '%s' "$OUT" | grep -q "\b$VERB\b" || MISSING="$MISSING $VERB"
-  done
-  [ -z "$MISSING" ] && pass "\`rabadon $FLAG\` lists the verbs (init/usage/exec/audit/doctor/drill/trace/repair)" \
-    || fail "\`rabadon $FLAG\` omits:$MISSING"
+  # a help screen that lists no verbs is not a help screen. The list is
+  # DERIVED, never written down here — see section 1b for why.
+  printf '%s' "$OUT" > "$HOME_DIR/help.txt"
   printf '%s' "$OUT" | grep -q "rabadon init" \
     && pass "\`rabadon $FLAG\` shows a runnable example" || fail "\`rabadon $FLAG\` has no example"
 done
+
+# ---- 1b. every binary we SHIP is a binary a stranger can run ----
+# This used to be `for VERB in init usage exec audit doctor drill trace repair`,
+# eight verbs typed in by hand, and that hand-kept list is what let the cost half
+# of the product ship invisible: native/rabadon-lens was built by `make all`,
+# listed in the `files` of all four @rabadon/<platform> packages, counted by
+# `rabadon doctor` as 16/16 — and `rabadon lens` answered `unknown command
+# "lens"`, exit 1. Nine of the sixteen were in that state. The suite was green
+# the whole time, because lens was never one of the eight words.
+#
+# package.json `bin` is a single entry, native/rabadon-cli.sh, and the platform
+# packages declare no bin at all. So after `npm i -g rabadon` the dispatcher IS
+# the public surface: a binary it never names cannot be run by anybody who did
+# not clone the repo.
+#
+# So nothing here is written down. The binaries come from the same glob section
+# 5 uses, and the VERBS come from parsing the case arms of rabadon-cli.sh — the
+# dispatch code itself, not a table beside it that could quietly disagree with
+# it. Four assertions per binary, and the ones with teeth are positive:
+#   - some case arm resolves `nbin <name>`            (it is dispatched at all)
+#   - the help screen names one of that arm's labels  (it can be discovered)
+#   - `rabadon <verb> --help` prints "rabadon-<name>" (the verb lands on THAT
+#     binary — without this, "no unknown command" passes for a verb wired to the
+#     wrong binary, or for one whose error string was merely renamed)
+#   - and only then: no "unknown command", exit != 1
+VERB_REPORT=$(mktemp /tmp/rabadon-verb-report.XXXXXX)
+python3 - "$CLI" "$HOME_DIR/help.txt" "$VERB_REPORT" <<'PY'
+import glob, os, re, subprocess, sys, tempfile
+
+cli, helpfile, report = os.path.abspath(sys.argv[1]), sys.argv[2], sys.argv[3]
+out = []
+def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
+
+root = os.getcwd()
+names = sorted(os.path.basename(b)[len("rabadon-"):]
+               for b in glob.glob(os.path.join(root, "native", "rabadon-*"))
+               if not b.endswith(".sh") and os.access(b, os.X_OK))
+# a glob that matched nothing would make every assertion below vacuous
+rec(len(names) >= 16, "the verb probe found %d shipped binaries to account for" % len(names)
+    if len(names) >= 16 else
+    "the verb probe found only %d binaries (%s) — build first, this run proves nothing"
+    % (len(names), " ".join(names)))
+
+# ---- the verb map, read out of the dispatch code ----
+src = open(cli, encoding="utf-8").read()
+head = 'case "$VERB" in'
+block = src[src.index(head) + len(head):src.rindex("esac")]
+verbs = {}          # binary -> [labels], in the order the arms appear
+for arm in block.split(";;"):
+    labels = None
+    for line in arm.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        m = re.match(r"^([^()]*?)\)", s)      # the arm's labels, `a|b|c)`
+        if m:
+            labels = [x.strip() for x in m.group(1).split("|") if x.strip()]
+        break
+    if not labels:
+        continue
+    body = "\n".join(l for l in arm.splitlines() if not l.strip().startswith("#"))
+    for b in re.findall(r"nbin ([a-z][a-z0-9-]*)", body):
+        verbs.setdefault(b, []).extend(labels)
+# the parser checking ITSELF, with no number typed in: every `nbin <name>` call
+# in the file must have been attributed to at least one verb. If a future arm is
+# written in a shape this parser cannot read, that shows up here as a parser
+# fault instead of silently shrinking the map and passing.
+live = "\n".join(l for l in src.splitlines() if not l.strip().startswith("#"))
+called = set(re.findall(r"nbin ([a-z][a-z0-9-]*)", live))
+unattributed = sorted(called - set(verbs))
+rec(bool(called) and not unattributed,
+    "every `nbin` call in %s was traced back to a verb (%d binaries)"
+    % (os.path.basename(cli), len(verbs)) if called and not unattributed else
+    "the parser could not tell which verb reaches: %s — fix the parser, the map "
+    "below is short by that many" % (" ".join(unattributed) or "(no nbin call found at all)"))
+
+helptext = open(helpfile, encoding="utf-8").read()
+rec(len(helptext) > 200, "the help screen was captured (%d bytes) to check verbs against"
+    % len(helptext) if len(helptext) > 200 else
+    "the captured help screen is %d bytes — the discoverability check would be vacuous"
+    % len(helptext))
+
+for name in names:
+    got = verbs.get(name, [])
+    rec(bool(got), "`rabadon %s` reaches rabadon-%s" % (got[0], name) if got else
+        "rabadon-%s ships in every platform package and NO case arm resolves it — "
+        "nobody who installed from npm can run it" % name)
+    if not got:
+        continue
+    listed = [v for v in got if re.search(r"(?<!\w)" + re.escape(v) + r"(?!\w)", helptext)]
+    rec(bool(listed), "the help screen names `%s` for rabadon-%s" % (listed[0], name)
+        if listed else
+        "rabadon-%s is dispatched (%s) but the help screen names none of its verbs"
+        % (name, "/".join(got)))
+
+    # the live half: does that verb actually land on THAT binary?
+    verb = name if name in got else got[0]
+    box = tempfile.mkdtemp(prefix="rabadon-verb.")
+    env = dict(os.environ, RABADON_DIR=box, RABADON_NOTIFY="0", HOME=box)
+    label = "`rabadon %s --help`" % verb
+    try:
+        p = subprocess.run([cli, verb, "--help"], stdin=subprocess.DEVNULL,
+                           capture_output=True, timeout=15, env=env, cwd=root)
+    except subprocess.TimeoutExpired:
+        rec(False, label + " HUNG for 15s instead of reaching rabadon-" + name)
+        continue
+    blob = (p.stdout + p.stderr).decode("utf-8", "replace")
+    named = ("rabadon-" + name) in blob
+    rec(named, label + " lands on rabadon-%s" % name if named else
+        label + " never names rabadon-%s — the verb is wired to something else "
+        "(%d bytes back)" % (name, len(blob)))
+    clean = "unknown command" not in blob.lower() and p.returncode != 1
+    rec(clean, label + " exits %d, no 'unknown command'" % p.returncode if clean else
+        label + " exited %d saying: %s" % (p.returncode, blob.strip().splitlines()[0][:100]
+                                           if blob.strip() else "(nothing)"))
+
+open(report, "w").write("\n".join(out) + "\n")
+PY
+while IFS=$'\t' read -r VERDICT MSG; do
+  [ -z "${VERDICT:-}" ] && continue
+  [ "$VERDICT" = "PASS" ] && pass "$MSG" || fail "$MSG"
+done < "$VERB_REPORT"
+rm -f "$VERB_REPORT"
 
 # ---- 2. a bare `rabadon` REPORTS, it never changes state ----
 # The flag file IS the state, so the test looks at the file rather than
