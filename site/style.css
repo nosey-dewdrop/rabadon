@@ -19,10 +19,10 @@
   --t-body:15px;     /* prose                           */
   --t-num:19px;      /* the numbers that carry the page */
   --t-h2:17px;       /* section headings                */
-  --t-h1:27px;       /* the one claim                   */
+  --t-h1:30px;       /* the one claim                   */
 
-  --g1:8px; --g2:14px; --g3:24px; --sec:40px;
-  --wrap:960px; --measure:78ch; --radius:3px;
+  --g1:8px; --g2:14px; --g3:28px; --sec:48px;
+  --wrap:1280px; --measure:96ch; --radius:3px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -34,7 +34,7 @@ body{
 a{color:var(--pink);text-decoration:underline dotted;transition:transform .18s}
 a:hover{text-decoration:underline}
 code{font:inherit;color:var(--blue)}
-h1{font-size:var(--t-h1);line-height:1.35;font-weight:400;letter-spacing:-.3px;max-width:34ch}
+h1{font-size:var(--t-h1);line-height:1.35;font-weight:400;letter-spacing:-.3px;max-width:52ch}
 h2{font-size:var(--t-h2);line-height:1.5;font-weight:700;margin-bottom:var(--g1)}
 h3{font-size:var(--t-small);line-height:1.6;font-weight:400;color:var(--ink-dim);margin-bottom:var(--g1)}
 p{line-height:1.7;max-width:var(--measure)}
@@ -72,12 +72,12 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 .intro > * + *{margin-top:var(--g2)}
 
 .proof{display:flex;flex-wrap:wrap;gap:var(--g2) var(--g3)}
-.proof div{display:grid;row-gap:0;min-width:15ch}
+.proof div{display:grid;row-gap:0;min-width:18ch;flex:1 1 0}
 .proof .n{font-size:var(--t-num);font-weight:700;letter-spacing:-.4px;line-height:1.3;
           font-variant-numeric:tabular-nums}
 .proof .n.g{color:var(--green)} .proof .n.p{color:var(--pink)}
 .proof .n.b{color:var(--blue)}  .proof .n.y{color:var(--yellow)}
-.proof .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.5;max-width:26ch}
+.proof .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.5;max-width:30ch}
 
 .cta{font-size:var(--t-small);display:flex;gap:var(--g3);flex-wrap:wrap}
 
@@ -108,7 +108,8 @@ details .body{margin-top:var(--g2)}
 details .body > * + *{margin-top:var(--g2)}
 
 /* ---------- laws and commands ---------- */
-.law{display:grid;grid-template-columns:24ch 1fr;column-gap:var(--g3);padding:7px 0;align-items:baseline}
+
+.law{display:grid;grid-template-columns:26ch 1fr;column-gap:var(--g3);padding:7px 0;align-items:baseline}
 .law .k{color:var(--purple);font-size:var(--t-small)}
 .law .v{font-size:var(--t-body);line-height:1.7}
 .law .v em{font-style:normal;color:var(--ink-dim)}
