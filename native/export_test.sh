@@ -189,10 +189,14 @@ evs = os.environ["ALL_EVS"].split()
 p = os.path.join(os.environ["ALL_DIR"], "spool", "2026-01-10.jsonl")
 with open(p, "w") as f:
     for i, ev in enumerate(evs):
-        f.write(json.dumps({"v": 1, "seq": i + 1, "ts": ts + i * 1000,
-                            "run": "r%d" % i, "pipe": "omega:session", "ev": ev,
-                            "step": "s", "customField": "keepme"},
-                           separators=(",", ":")) + "\n")
+        e = {"v": 1, "seq": i + 1, "ts": ts + i * 1000,
+             "run": "r%d" % i, "pipe": "omega:session", "ev": ev,
+             "step": "s", "customField": "keepme"}
+        # only the verb this repo has never heard of is priced — a stranger's
+        # producer that both extends the vocabulary AND reports usage.
+        if ev == "POLICY_ESCALATE":
+            e.update({"tokens": 1545, "in": 1200, "out": 345, "usd_e6": 12345})
+        f.write(json.dumps(e, separators=(",", ":")) + "\n")
 PY
 export ALL_OUT="$TMP/out-all.json"
 RABADON_DIR="$ALL_DIR" "$EXPORT" --otlp --days 7 > "$ALL_OUT"
@@ -219,6 +223,32 @@ a = {x["key"]: x["value"].get("stringValue") for x in gen[0]["attributes"]}
 assert a.get("rabadon.ev") == "POLICY_ESCALATE", a
 assert a.get("rabadon.customField") == "keepme", ("the third-party field is gone", a)
 assert a.get("rabadon.pipe") == "omega:session", a
+PY
+
+# The two MUSTs of SPEC §2 meet here: an unknown verb that is ALSO priced has to
+# render generically AND reach the standard attributes. The token block runs off
+# the line's fields, never off the verb — so a producer that extends the
+# vocabulary is not charged for it by losing its usage. And the raw fields must
+# still ride along as rabadon.<key>: the day someone adds "in"/"out" to
+# is_mapped_field to tidy the duplication, an unknown event whose "out" meant
+# something else entirely would lose it silently, which is the preservation MUST
+# broken by a cleanup.
+python3 - <<'PY' && pass "an unknown ev that is PRICED gets gen_ai.usage.* and keeps its raw fields" || fail "the priced unknown verb lost its usage or its payload"
+import json, os
+sp = json.load(open(os.environ["ALL_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+gen = [s for s in sp if s["name"] == "POLICY_ESCALATE"][0]
+a = {x["key"]: list(x["value"].values())[0] for x in gen["attributes"]}
+assert a.get("gen_ai.usage.input_tokens") == "1200", a
+assert a.get("gen_ai.usage.output_tokens") == "345", a
+assert a.get("rabadon.usd_e6") == "12345", a
+# the split wins over the total: "tokens":1545 must not become an output count
+assert a.get("gen_ai.usage.output_tokens") != "1545", a
+assert a.get("rabadon.tokens") == "1545", ("raw field dropped by a mapping", a)
+assert a.get("rabadon.in") == "1200" and a.get("rabadon.out") == "345", a
+# a KNOWN, unpriced verb next to it stays clean — no manufactured usage block
+known = [s for s in sp if s["name"] == "STEP_OK"][0]
+ka = {x["key"] for x in known["attributes"]}
+assert not any(k.startswith("gen_ai") for k in ka), ka
 PY
 
 # 9. the edge under the edge: a line with no `ev` at all. Not in SPEC's ten and
