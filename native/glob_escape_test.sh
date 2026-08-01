@@ -149,6 +149,20 @@ LEDGER=$(grep -h '"rule":"baseline-rm-rf-outside"' "$RABADON_DIR/spool/"*.jsonl 
 [ -n "$LEDGER" ] && pass "the refusal is on the ledger under the baseline id" \
                  || fail "no baseline-rm-rf-outside event on the ledger"
 
+# `rm -rf /tmp/**/cache` sat on the must-ALLOW list below until the temp
+# carve-out was measured to hand over the shared root's entries. `**` is not
+# "deeper", it is a component like any other: with globstar off bash expands it
+# the way it expands `/tmp/*/cache`, and with globstar on it also reaches every
+# depth. Either way the first component under the shared temp root is
+# unanchored, so the target is a `cache` dir inside every OTHER session's
+# scratch tree — the same handover as `rm -rf /tmp/*`, one level down. The law
+# and both of its directions live in native/temp_root_glob_test.sh; the
+# must-allow list keeps an anchored globstar so this cannot be paid for by
+# refusing `**` outright.
+RC=$(run "$PROJ" "rm -rf /tmp/**/cache")
+[ "$RC" = "2" ] && pass "refused: a globstar whose first component enumerates the shared temp root" \
+                || fail "NOT refused ($RC): rm -rf /tmp/**/cache"
+
 # ---------------------------------------------------------------------------
 # 3. must ALLOW: refusing every pattern would be the cheapest way to pass
 #    section 2, and it would delete the reason the carve-out exists
@@ -165,7 +179,7 @@ a glob one level deeper|rm -rf /tmp/proj-out/*
 a glob in the middle of the path|rm -rf /tmp/build-*/out
 a walk-up after a glob that stays inside the temp area|rm -rf /tmp/a*/../b
 a brace whose every word stays inside the temp area|rm -rf /tmp/{a,b}
-a globstar that only ever goes deeper|rm -rf /tmp/**/cache
+a globstar under a scratch dir the caller named|rm -rf /tmp/proj-out/**/cache
 a glob inside the project tree|rm -rf ./build/*
 a deeper glob inside the project tree|rm -rf node_modules/*/dist
 a walk-up after a glob that stays inside the project|rm -rf build/x*/../out

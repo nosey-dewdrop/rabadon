@@ -207,6 +207,29 @@ inline bool inside(const string& root, const string& path) {
          path[root.size()] == '/';
 }
 
+// ---------- what a glob component leaves behind ----------
+// pattern_forms() (below) rewrites every glob COMPONENT of a delete target into
+// one of these stand-ins before the target is resolved, so where the command
+// lands can be computed without asking the disk. There are TWO because which
+// entries a component can name is the whole question in the temp area:
+// `scratch-*` can only match entries whose names the caller chose, while `*`,
+// `*.log` and `.*` match whatever the directory happens to hold — under a
+// shared temp root, that is every other process's scratch. The leading byte is
+// one no file name can carry, so neither can collide with a real entry.
+inline const string& glob_stand_in() { static const string s = "\x01glob"; return s; }
+inline const string& any_stand_in()  { static const string s = "\x01any";  return s; }
+
+// A component is ANCHORED when a literal name-part leads it: at least one
+// character before the first wildcard, and dots do not count. `.*` is
+// unanchored twice over — it names every dotted entry of its parent, and in
+// bash it also names `.` and `..`.
+inline bool glob_anchored(const string& comp) {
+  const size_t w = comp.find_first_of("*?[");
+  if (w == string::npos) return true;            // not a pattern at all
+  for (size_t i = 0; i < w; i++) if (comp[i] != '.') return true;
+  return false;
+}
+
 // ---------- the system temp area is not data ----------
 // "Outside the project tree" read the machine's scratch space as if it were
 // someone's files. Of the 73 refusals this rule produced across four live
@@ -217,13 +240,24 @@ inline bool inside(const string& root, const string& path) {
 // machine as surely as on this one.
 //
 // The temp area is the one place whose contents are DEFINED to be disposable,
-// so a recursive delete there is not the thing this law is for. What stays
+// so a recursive delete there is not the thing this law is for. But disposable
+// means MY scratch, not THE scratch: the carve-out covers what the caller made
+// under a temp dir, never the shared root's own list of entries. What stays
 // dangerous, and is tested from both sides:
 //   - the temp ROOT itself. `rm -rf /tmp` removes the directory every other
-//     process is holding a path into. A pattern names entries UNDER a
-//     directory, so `rm -rf /tmp/scratch-*` lands one level down and passes —
-//     but it is the EXPANSION that says so, not the text: `rm -rf /tmp/*/..`
-//     is spelled like a pattern and lands on the root, and is refused
+//     process is holding a path into.
+//   - the root's ENTRIES, named by an unanchored pattern. `rm -rf /tmp/*` is
+//     identical to `rm -rf /tmp` for everyone but the OS: it hands over another
+//     session's mktemp tree, a half-written build, an editor swap file, a
+//     database socket. Refusing the root and waiving its contents was the hole
+//     this carve-out opened, and it is strictly worse than the rule it fixed.
+//     So the first component under a temp root must be a name the caller wrote:
+//     `/tmp/scratch-*` and `/tmp/build-*/out` pass, `/tmp/*`, `/tmp/*.log`,
+//     `/tmp/.*` and `/tmp/*/x` do not. One level down the shared root is no
+//     longer being enumerated and a bare glob is fine again: `/tmp/proj-out/*`
+//     passes.
+//     It is the EXPANSION that decides, not the text: `rm -rf /tmp/*/..` is
+//     spelled like a pattern and lands on the root, and is refused
 //     (pattern_forms).
 //   - anything under $HOME, even when $HOME is itself under a temp dir. Test
 //     harnesses point HOME at a mktemp dir, and work lives in a home directory
@@ -285,17 +319,37 @@ inline const vector<string>& temp_roots() {
   return roots;
 }
 
+inline bool is_temp_root(const string& p) {
+  for (const string& t : temp_roots()) if (p == t) return true;
+  return false;
+}
+
+// the entry of `t` that a path passes through, or "" when it is not under t.
+inline string entry_under(const string& t, const string& path) {
+  if (path == t || !inside(t, path)) return "";
+  const string rest = path.substr(t.size() + 1);
+  const size_t s = rest.find('/');
+  return s == string::npos ? rest : rest.substr(0, s);
+}
+
 // `real` is a destination, never a spelling: a pattern is turned into the paths
 // it can name before it gets here (see pattern_forms), so a target that only
 // reaches the temp root by walking back up to it is judged as the temp root.
+// Every root is checked, not the first that matches: with TMPDIR pointing deep
+// inside /var/folders, a target is under two roots at once and only the deeper
+// one can see that its first component is the shared list of entries.
 inline bool in_temp_area(const string& real) {
   const string home = real_home();
   if (!home.empty() && inside(home, real)) return false;
+  bool disposable = false;
   for (const string& t : temp_roots()) {
     if (real == t) continue;              // the root itself is never disposable
-    if (inside(t, real)) return true;
+    if (!inside(t, real)) continue;
+    // ...and neither is a pattern that names whatever the root happens to hold
+    if (entry_under(t, real) == any_stand_in()) return false;
+    disposable = true;
   }
-  return false;
+  return disposable;
 }
 
 // ---------- a pattern is not a path ----------
@@ -319,19 +373,18 @@ inline bool in_temp_area(const string& real) {
 // the temp area cannot be resolved from the text. `rabadon exec` is the hard
 // boundary for adversarial input; this is the law for honest commands.
 
-// the name that stands where a match will go. `*`, `?` and `[...]` never match
+// the stand-ins (glob_stand_in / any_stand_in, defined above with the temp law
+// that reads them) name where a match will go. `*`, `?` and `[...]` never match
 // a `/`, so a glob component is exactly one component: a `..` after it cancels
-// the stand-in exactly as it will cancel the match. The leading byte is one no
-// file name can carry, so it cannot collide with a real entry.
-inline const string& glob_stand_in() { static const string s = "\x01glob"; return s; }
+// the stand-in exactly as it will cancel the match.
 
-// the stand-in, spoken back as what it stands for, so a refusal reads as the
+// a stand-in, spoken back as what it stands for, so a refusal reads as the
 // command was written.
 inline string show_pattern(const string& p) {
   string out = p;
-  const string& g = glob_stand_in();
-  for (size_t i = out.find(g); i != string::npos; i = out.find(g, i))
-    out.replace(i, g.size(), "*");
+  for (const string& g : {glob_stand_in(), any_stand_in()})
+    for (size_t i = out.find(g); i != string::npos; i = out.find(g, i))
+      out.replace(i, g.size(), "*");
   return out;
 }
 
@@ -368,10 +421,12 @@ inline bool brace_expand(const string& w, size_t from, vector<string>& out, size
   return true;
 }
 
-// the concrete paths one word can name. Each glob component becomes the
-// stand-in. A `**` component under globstar can also match NOTHING, and the
-// shallower path is the one a following `..` can walk out of, so that form is
-// judged as well.
+// the concrete paths one word can name. Each glob component becomes a stand-in
+// — the anchored one when a literal name leads the component, the unanchored
+// one when the component names whatever its parent holds, which is the
+// difference the temp carve-out turns on. A `**` component under globstar can
+// also match NOTHING, and the shallower path is the one a following `..` can
+// walk out of, so that form is judged as well.
 inline vector<string> pattern_forms(const string& w) {
   if (w.find_first_of("*?[") == string::npos) return vector<string>{w};
   vector<string> comps;
@@ -381,11 +436,11 @@ inline vector<string> pattern_forms(const string& w) {
     if (j == string::npos) break;
     i = j + 1;
   }
-  const string& sub = glob_stand_in();
   string matched, skipped;                 // `**` matches one entry / matches none
   bool first1 = true, first0 = true, anyStar2 = false;
   for (const string& c : comps) {
-    const string r = c.find_first_of("*?[") == string::npos ? c : sub;
+    const string r = c.find_first_of("*?[") == string::npos
+                       ? c : (glob_anchored(c) ? glob_stand_in() : any_stand_in());
     if (!first1) matched += "/";
     matched += r; first1 = false;
     if (c == "**") { anyStar2 = true; continue; }
@@ -578,6 +633,15 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
       targets.push_back(s);
     }
     if (!recursive) return false;
+    // The project tree is the carve-out because git can undo a delete inside it.
+    // With no worktree above cwd that tree falls back to cwd ITSELF, and if the
+    // shell is sitting in the shared temp root the fallback hands back exactly
+    // what the temp law refuses: `cd /tmp && rm -rf *` would be "inside the
+    // project". A directory every process on the machine writes into is not a
+    // project, so the fallback does not apply there and the temp law judges
+    // those targets — `cd /tmp && rm -rf my-scratch` still passes, and a real
+    // project that merely LIVES under /tmp (root /tmp/work) is untouched.
+    const bool scratchCwd = is_temp_root(root);
     for (const string& raw : targets) {
       if (raw.find('$') != string::npos || raw.find('`') != string::npos) continue;
       // every word the shell can make of this target, then every path each of
@@ -595,12 +659,15 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
           const string abs = lexical_abs(form, cwd);
           if (abs.empty()) continue;
           const string real = resolve_real(abs);
-          if (inside(root, real)) continue;
+          if (!scratchCwd && inside(root, real)) continue;
           if (in_temp_area(real)) continue;
           hit = {"baseline-rm-rf-outside",
                  "a recursive delete outside the project tree cannot be undone by git",
                  "rm -r '" + raw + "' " + (form == raw ? "resolves to " : "expands to ") +
-                 show_pattern(real) + ", outside the project tree (" + root + ")"};
+                 show_pattern(real) +
+                 (scratchCwd ? ", and cwd is the shared temp root itself (" + root +
+                               "), which is not a project tree"
+                             : ", outside the project tree (" + root + ")")};
           return true;
         }
       }

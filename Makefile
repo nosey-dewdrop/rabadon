@@ -79,6 +79,15 @@ test: all
 # lands, then asserts both directions — the escape is refused AND an ordinary
 # scratch glob still passes.
 	./native/glob_escape_test.sh
+# and this one judges WHOSE files the pattern names. computing where a pattern
+# lands closed the escape above and opened a worse one: `rm -rf /tmp` was
+# refused while `rm -rf /tmp/*` passed, so the law protected the shared temp
+# root and handed over everything inside it — another session's mktemp tree, a
+# half-written build, a database socket. it proves the handover with a real
+# shell and a fake deleter, then holds both directions: a pattern that
+# enumerates the shared root is refused, an agent cleaning up the scratch dir it
+# named still passes.
+	./native/temp_root_glob_test.sh
 	./native/guard_lint_test.sh
 	./native/cmdtext_test.sh
 	./native/bypass_test.sh
