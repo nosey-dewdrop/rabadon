@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include "cli_help.h"
 #include "drill.h"
+#include "jsonl.h"
 
 using std::string;
 using std::vector;
@@ -60,30 +61,20 @@ static string read_file(const string& p) {
   return ss.str();
 }
 
+// Read the line AS JSON (jsonl.h), not as the bytes rabadon's own printf emits.
+// These matched the literal `"key":"`, so a spool written by a stock serializer
+// (`"ev": "STOP"`) yielded an empty `ev` for every line, no line matched the
+// exportable set, and the exporter shipped ZERO spans while claiming the
+// standard. rabadon's own G3 evidence ledger,
+// reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl, is in that
+// format: 10 real events, 0 spans. An exporter that only speaks its own
+// emitter's whitespace is not the agent-agnostic surface SPEC Part II promises.
 static string get_field(const string& line, const string& key) {
-  string pat = "\"" + key + "\":\"";
-  size_t k = line.find(pat);
-  if (k == string::npos) return "";
-  size_t i = k + pat.size();
-  string out;
-  while (i < line.size()) {
-    char c = line[i];
-    if (c == '\\' && i + 1 < line.size()) {
-      char e = line[i + 1];
-      if (e == 'n') out += '\n'; else if (e == 't') out += '\t'; else if (e == 'r') out += '\r'; else out += e;
-      i += 2; continue;
-    }
-    if (c == '"') return out;
-    out += c; i++;
-  }
-  return "";
+  return rbjson::get_str(line, key);
 }
 
 static double get_num(const string& line, const string& key) {
-  string pat = "\"" + key + "\":";
-  size_t k = line.find(pat);
-  if (k == string::npos) return 0;
-  return strtod(line.c_str() + k + pat.size(), nullptr);
+  return rbjson::get_num(line, key);
 }
 
 // FNV-1a 64-bit; two of them (salted) make a stable 128-bit trace id
@@ -189,7 +180,7 @@ int main(int argc, char** argv) {
       e.rule = get_field(line, "rule"); e.detail = get_field(line, "detail");
       e.tin = (long long)get_num(line, "tokensIn"); e.tout = (long long)get_num(line, "tokensOut");
       RbDrillEv c;
-      c.has_pipe = line.find("\"pipe\":\"") != string::npos;
+      c.has_pipe = rbjson::has_str(line, "pipe");
       c.pipe = e.pipe; c.ts = ts;
       c.tag = rb_drill_tag(line);
       c.marker = rb_drill_marker(line);

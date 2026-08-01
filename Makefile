@@ -26,7 +26,7 @@ native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/j
 native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h native/chain.h native/jsonl.h native/sha256.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h
+native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-trace: native/trace.cpp native/cli_help.h
