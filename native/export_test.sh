@@ -315,5 +315,78 @@ assert done, [s["name"] for s in sp]
 assert not any(k.startswith("gen_ai.usage") for k in attrs(done[0])), attrs(done[0])
 PY
 
+# 11. the OTHER producer, and the number the product model actually sells.
+#
+#     gate.cpp writes a bare "tokens". loop.cpp writes the full split —
+#     "tokens","in","out","usd_e6","dur_ms","model" — on REPAIR_OK/REPAIR_FAIL
+#     and STEP_TRY. Cost was read by nobody: `usd_e6` never appeared in
+#     export.cpp at all, so the one number rabadon charges for stayed on the
+#     machine while the README sold the OTLP surface as the standard view.
+#
+#     Fixture generated again, by driving rabadon-loop through a real failing
+#     step with a stub proposer that writes the sidecar metrics the way
+#     `claude -p --output-format json` does. No LLM, no network.
+[ -x ./native/rabadon-loop ] && [ -x ./native/rabadon-verify ] \
+  || { echo "export_test: build first (make native/rabadon-loop native/rabadon-verify)"; exit 1; }
+LOOP_DIR="$TMP/rd-loop"; mkdir -p "$LOOP_DIR"
+# NOT under a name starting with "tmp." — drill rule 3 calls that pipe rabadon's
+# own noise and would keep the whole arm home.
+LOOP_PROJ="$TMP/loopproj"; mkdir -p "$LOOP_PROJ"
+printf '43\n' > "$LOOP_PROJ/val.txt"
+cat > "$LOOP_PROJ/prop.sh" <<PROPEOF
+#!/usr/bin/env bash
+# the sidecar accounting a real \`claude -p --output-format json\` leaves behind
+cat > "$LOOP_DIR/.proposer-metrics.json" <<'JSON'
+{"usage":{"input_tokens":1200,"output_tokens":345,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},
+ "total_cost_usd":0.012345,"duration_ms":2500,"modelUsage":{"claude-opus-4-8":{"inputTokens":1200}}}
+JSON
+printf '42\n' > val.txt
+PROPEOF
+chmod +x "$LOOP_PROJ/prop.sh"
+cat > "$LOOP_PROJ/plan.json" <<'EOF'
+{ "steps": [ { "id":"s1","kind":"cmd","do":"true",
+    "contract":[ {"type":"differential","run":"cat val.txt","expect":"42"} ] } ],
+  "accept":[ {"type":"differential","run":"cat val.txt","expect":"42"} ] }
+EOF
+env -u RABADON_NOW -u RABADON_OFF RABADON_DIR="$LOOP_DIR" \
+  RABADON_PROPOSER="bash $LOOP_PROJ/prop.sh" \
+  ./native/rabadon-loop "$LOOP_PROJ" "$LOOP_PROJ/plan.json" >/dev/null 2>&1
+export LOOP_SPOOL_DIR="$LOOP_DIR/spool"
+
+python3 - <<'PY' && pass "rabadon-loop really wrote a priced event, in ITS key names" || fail "no loop-emitted cost line — the arm below would prove nothing"
+import glob, json, os
+lines = []
+for p in glob.glob(os.path.join(os.environ["LOOP_SPOOL_DIR"], "*.jsonl")):
+    lines += [json.loads(l) for l in open(p) if l.strip()]
+# POSITIVE: the producer priced the attempt and split the tokens.
+priced = [e for e in lines if e.get("usd_e6")]
+assert priced, ("rabadon-loop wrote no usd_e6", [e.get("ev") for e in lines])
+e = priced[0]
+assert (e["usd_e6"], e["in"], e["out"], e["tokens"]) == (12345, 1200, 345, 1545), e
+# only now the negative: the reader's old names are still absent here too.
+assert not any("tokensIn" in x or "tokensOut" in x for x in lines), lines
+PY
+
+export LOOP_OUT="$TMP/out-loop.json"
+env -u RABADON_NOW RABADON_DIR="$LOOP_DIR" "$EXPORT" --otlp --days 7 > "$LOOP_OUT"
+python3 - <<'PY' && pass "loop's split tokens, model and COST all reach the export" || fail "the priced event lost its tokens, model or cost on the way out"
+import json, os
+sp = json.load(open(os.environ["LOOP_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+assert sp, "the loop's own events exported as zero spans"
+def attrs(s): return {a["key"]: list(a["value"].values())[0] for a in s["attributes"]}
+priced = [s for s in sp if any(k == "rabadon.usd_e6" for k in attrs(s))]
+assert priced, ("no span carried a cost", [(s["name"], sorted(attrs(s))) for s in sp])
+a = attrs(priced[0])
+assert a["gen_ai.usage.input_tokens"] == "1200", a
+assert a["gen_ai.usage.output_tokens"] == "345", a
+assert a["gen_ai.request.model"] == "claude-opus-4-8", a
+# money: the exact integer is the record, the USD double is the rendering.
+assert a["rabadon.usd_e6"] == "12345", a
+assert abs(float(a["rabadon.cost_usd"]) - 0.012345) < 1e-9, a
+# and rabadon does not squat a namespace it does not own: OTel's GenAI
+# conventions define no cost attribute, they derive money from token counts.
+assert not any(k.startswith("gen_ai") and "cost" in k for k in a), a
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
