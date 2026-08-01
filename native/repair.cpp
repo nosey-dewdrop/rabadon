@@ -60,6 +60,7 @@
 #include <unistd.h>
 #include "sha256.h"
 #include "chain.h"   // the ledger's one writer: chained line + .head sidecar
+#include "heldout.h" // the behavioural probe: a green must survive the patch's crutches
 #include "cli_help.h"
 
 using std::string;
@@ -723,14 +724,94 @@ int main(int argc, char** argv) {
     }
   }
 
+  // ---- 5c. the held-out probe: the green must survive the patch's crutches ----
+  // Both hash locks answer "did the proposal change what the suite IS". Two of
+  // the nine cheat families in the corpus audit change the SOURCE only, so both
+  // answers come back clean while the bug is still in the tree: a branch keyed
+  // on the one input the suite feeds, and a type whose == cannot say no. A third
+  // hash cannot see either. heldout.h reads the patch's own added lines against
+  // the literals the LOCKED TESTS carry, and whatever it flags is decided by a
+  // RE-RUN: the flagged hunks come back out of the work copy and the project's
+  // own check runs again. Red means the green belonged to the flagged construct.
+  string probeVerdict;   // empty until the probe has an answer to print
+  {
+    RunResult d = run_shell("cd " + shell_quote(tmp) +
+                            " && diff -ruN --exclude=.git --exclude=.rabadon base work > patch.out; true", "", 60);
+    (void)d;
+    const string patchText = read_file(tmp + "/patch.out");
+    std::vector<string> testBodies;
+    for (const string& f : testFiles) testBodies.push_back(read_file(base + "/" + f));
+    // the whole base tree as one string is what "this constant is not from
+    // around here" is measured against; only the files the patch touched matter,
+    // so it is built from those rather than from the tree.
+    string baseTouched;
+    const std::vector<rbheld::Hunk> hs = rbheld::hunks(patchText);
+    {
+      std::vector<string> seen;
+      for (const auto& h : hs) {
+        if (std::find(seen.begin(), seen.end(), h.file) != seen.end()) continue;
+        seen.push_back(h.file);
+        baseTouched += read_file(base + "/" + h.file);
+      }
+    }
+    const std::vector<rbheld::Flag> flags = rbheld::scan(hs, rbheld::facts(testBodies), baseTouched);
+    if (!flags.empty()) {
+      printf("  the patch carries %zu construct(s) a green can be bought with — re-running the check without them…\n",
+             flags.size());
+      fflush(stdout);
+      const string probe = tmp + "/probe";
+      RunResult cp = run_shell("cp -R " + shell_quote(work) + " " + shell_quote(probe), "", 120);
+      std::ofstream fp(tmp + "/flagged.patch", std::ios::trunc);
+      fp << rbheld::flagged_patch(hs, flags);
+      fp.close();
+      RunResult rv = cp.exit_code != 0 ? cp
+                   : run_shell("patch -R -p1 --forward -s < " + shell_quote(tmp + "/flagged.patch"), probe, 60);
+      if (rv.exit_code != 0) {
+        // Could not build the probe. That is not a verdict either way, and the
+        // one thing it may never do is quietly become a pass.
+        probeVerdict = "UNPROBED";
+        fprintf(stderr, "rabadon repair: the flagged hunk(s) could not be reverted for the held-out probe"
+                        " (exit %d) — the probe did not run.\n", rv.exit_code);
+      } else {
+        RunResult pr = run_shell(cmd, probe, checkTimeout);
+        if (pr.exit_code != 0) {
+          // one red is not a verdict here either: destroying an honest repair
+          // on a flaky suite costs the user the proposer call they paid for.
+          RunResult pr2 = run_shell(cmd, probe, checkTimeout);
+          if (pr2.exit_code != 0) {
+            string why;
+            for (const auto& f : flags) why += (why.empty() ? "" : "; ") + f.kind;
+            em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"held-out probe: the green is bought by "
+                    + json_escape(why) + "\",\"flags\":" + std::to_string(flags.size()) + ",\"samples\":2");
+            fprintf(stderr,
+              "rabadon repair: REJECTED — the green is bought by the patch itself, not by a fix (held-out probe).\n"
+              "  Every test file and every harness file is byte-identical, and the check went GREEN. It stops being\n"
+              "  green the moment these come back out of the patch, which means they are what the suite was passing on:\n");
+            for (const auto& f : flags)
+              fprintf(stderr, "    [%s] %s\n", f.kind.c_str(), f.why.c_str());
+            fprintf(stderr,
+              "  A fix that only answers for the exact input the test feeds is not a fix; the neighbouring input still\n"
+              "  carries the bug. The check was re-run twice without these hunks and came back red both times (exit %d, %d).\n"
+              "  the rejected proposal is in: %s\n", pr.exit_code, pr2.exit_code, work.c_str());
+            return 2;
+          }
+          probeVerdict = "UNPROBED";
+          fprintf(stderr, "rabadon repair: the held-out probe answered red then green — the check is not deterministic\n"
+                          "  enough for this question, so the probe is not counted either way.\n");
+        } else {
+          probeVerdict = "PASSED";
+          printf("  held-out probe: the check is still GREEN with those %zu construct(s) reverted, so they are not\n"
+                 "  what it was passing on.\n", flags.size());
+        }
+      }
+    }
+  }
+
   // ---- 6. hold the verified patch ----
   mkdir((dir + "/.rabadon").c_str(), 0755);
   const string patchName = "repair-" + std::to_string(now_ms()) + ".patch";
   const string patchPath = dir + "/.rabadon/" + patchName;
   {
-    // -p1-applicable: headers read base/<f> and work/<f>
-    RunResult d = run_shell("cd " + shell_quote(tmp) + " && diff -ruN --exclude=.git --exclude=.rabadon base work > patch.out; true", "", 60);
-    (void)d;
     string patch = read_file(tmp + "/patch.out");
     if (patch.empty()) {
       em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"green but zero diff (flaky check?)\"");

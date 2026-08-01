@@ -25,7 +25,7 @@ native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain
 native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h
+native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h native/heldout.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # exec is the OTHER caller of the shared rule engine (rules.h -> baseline.h) and
@@ -442,6 +442,16 @@ test: all
 	./native/repair_session_test.sh
 	./native/repair_isolation_test.sh
 	./native/harness_lock_test.sh
+# harness_lock_test.sh closes the five families that move the machinery. This one
+# closes the two that move nothing but the source, which is why no hash can see
+# them: a branch keyed on the exact input the suite feeds, and a type whose ==
+# cannot say no. The elimination is structural and decides nothing -- the verdict
+# is a RE-RUN of the project's own check with the flagged hunks taken back out,
+# and red means the green belonged to them. Four must-refuse cases, four twins,
+# and two of the twins are the shapes this could plausibly over-fire on: an
+# honest fix carrying a long string constant, and an honest fix to a comparison
+# method the codebase already had.
+	./native/heldout_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh
 	./native/gate_promise_test.sh
@@ -482,6 +492,12 @@ test: all
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate
 	./native/precision_test.sh
+# and the page. every source the site names has to exist, no headline number may
+# be typed into the template, and a fact that appears on two pages has to have
+# one value. written red: the overview said 207 refusals while the page built
+# from the same ledger said 232, and it named native/gate_bench.sh as a source
+# when no such file existed.
+	./native/site_claims_test.sh
 
 clean:
 	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
