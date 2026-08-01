@@ -1,0 +1,51 @@
+{
+  "project": "rabadon",
+  "bash": [
+    {
+      "id": "no-force-push-main",
+      "deny": "git\\s+push[^|;&]*(--force|-f)\\b[^|;&]*\\b(main|master)\\b",
+      "why": "baseline: force-pushing a shared branch destroys history"
+    },
+    {
+      "id": "no-rm-rf-outside",
+      "deny": "rm\\s+-\\w*[rf]\\w*\\s+(/(?!tmp)|~/(?!\\.)|\\$HOME)",
+      "why": "baseline: recursive delete outside a project is unrecoverable"
+    },
+    {
+      "id": "no-hard-reset-main",
+      "deny": "git\\s+reset\\s+--hard\\s+(origin/)?(main|master)\\b",
+      "why": "baseline: rewrite shared state via commits, not resets"
+    },
+    {
+      "id": "no-hook-bypass",
+      "deny": "git\\s+(commit|push)[^|;&]*--no-verify",
+      "why": "baseline: bypassing hooks bypasses every gate at once"
+    },
+    {
+      "id": "no-gnu-timeout-on-macos",
+      "deny": "(^|[;&|]\\s*)timeout\\s+[0-9]",
+      "why": "`timeout` is not on macOS; the shell aborts and an empty exit code masquerades as a red test suite — use the tool's timeout parameter instead.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-01T11:19:33Z"
+    }
+  ],
+  "protectedPaths": [
+    {
+      "id": "anti-path-frozen",
+      "match": "^(bin/rabadon\\.mjs|index\\.html)$",
+      "why": "HANDOFF §9: bin/rabadon.mjs is anti-path and index.html is damla-approved — never edited, only called"
+    },
+    {
+      "id": "release-workflow-needs-test-gate",
+      "match": "^\\.github/workflows/release\\.(yml|yaml)$",
+      "why": "Any edit to the publish pipeline must be re-checked for a test job and a post-publish smoke install before it can ship an unverified artifact.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-07-31T15:15:30Z"
+    }
+  ],
+  "disabled": [
+    "promise-anti-path",
+    "promise-tamper"
+  ],
+  "generatedBy": "rabadon rework session, override of stale promise rules authorized by damla 2026-07-31 (\"TAMAM ekle onayı için bana sorma\")"
+}

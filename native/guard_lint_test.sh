@@ -225,6 +225,42 @@ clean "$B2" 'rabadon-stamped rule keys (source/authoredBy/incidentAt) lint clean
 # would break for the person running the suite.
 clean "." "this repo's own .rabadon/guard.json lints clean"
 
+# B3b — B3 above only proves something if that file is IN the repo. .gitignore
+# carried `.rabadon/` — the whole directory — so guard.json was never committed:
+# B3 was green on the author's machine and red in every clean clone, which is
+# where a stranger runs it. Measured on a fresh clone of 787bbd9 before the fix:
+#   FAIL - this repo's own .rabadon/guard.json lints clean
+#          exit 1: rabadon lint: no guard at ./.rabadon/guard.json
+# and because `make test` stops at the first red suite, that was suite 14 of 58
+# — 44 suites never ran at all. A test that reads a file the repo does not ship
+# is not testing the repo, it is testing one laptop.
+#
+# POSITIVE: the file B3 reads is tracked by git.
+# NEGATIVE twin: the cheap way to make the positive pass is to un-ignore
+# `.rabadon/` wholesale, and that directory also holds live session state —
+# state.json is rewritten mid-run — so the twin fails the moment any of it gets
+# committed. Without the twin, "fix" and "leak" are the same green.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if git ls-files --error-unmatch .rabadon/guard.json >/dev/null 2>&1; then
+    ok "the guard B3 reads is tracked — a clean clone has it too"
+  else
+    bad "B3 reads .rabadon/guard.json but git does not track it — B3 is green only on this machine"
+  fi
+  # asked of every .rabadon at every depth, not a hardcoded root list: the first
+  # attempt at this fix used `.rabadon/*`, which has a slash and therefore
+  # anchors to the repo root, and it silently un-ignored native/.rabadon,
+  # site/.rabadon and reports/*/.rabadon — three more state.json and a
+  # handoff.md. A root-only twin would have called that green.
+  leaked=$(git ls-files -- '*.rabadon/*' | grep -v '^\.rabadon/guard\.json$' || true)
+  if [ -z "$leaked" ]; then
+    ok "the only tracked file under any .rabadon/ is the root guard (state stays local)"
+  else
+    bad "session state is tracked under .rabadon/: $(printf '%s' "$leaked" | tr '\n' ' ')"
+  fi
+else
+  echo "  skip - git tracking arm: not a git work tree"
+fi
+
 # B4 — no rules at all is not a broken rule.
 B4=$(guard <<'EOF'
 { "project": "lint-fixture", "bash": [], "protectedPaths": [] }

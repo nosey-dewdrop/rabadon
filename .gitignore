@@ -9,7 +9,19 @@ rabadon-study-notlar/
 referans/
 study/
 BUGUN-*.md
-.rabadon/
+# .rabadon/ holds two different things: live per-machine session state, and the
+# guard this repo enforces on ITSELF. Ignoring the directory hid both, so
+# guard_lint_test.sh's "this repo's own guard.json lints clean" arm passed here
+# and died in every clean clone. Ignore the contents, re-include only the guard.
+# `.rabadon/` (whole directory) would make the negation a no-op: git never
+# descends into an excluded directory, so a file inside cannot be un-ignored.
+# The glob must stay `**/.rabadon/*`, not `.rabadon/*`: a pattern with a slash
+# in it anchors to this file's directory, which would un-ignore the nested
+# native/.rabadon, site/.rabadon and reports/*/.rabadon — each of which holds
+# its own state.json/handoff.md. The negation IS anchored, on purpose: only the
+# root guard is shipped, nested ones stay local.
+**/.rabadon/*
+!/.rabadon/guard.json
 # built binaries — the source is the artifact, not the a.out. Every
 # rabadon-<name> executable, never the .cpp/.h/.sh that make them.
 native/rabadon-*
