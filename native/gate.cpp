@@ -1674,6 +1674,17 @@ int main(int argc, char** argv) {
       em.emit("PARSE_DEGRADED", "\"why\":\"" + json_escape(parsed.why) +
               "\",\"fallback\":\"whole-line match\",\"cmd\":\"" +
               json_escape(command.substr(0, 160)) + "\"");
+    // Where reading ONE command line stops. `echo '<text>' | sh` is decided
+    // here because the text is in the line; `curl <url> | sh` is not, and no
+    // amount of parsing will put it there. Allowing it is the right call — the
+    // alternative refuses every install script on the internet — but an allow
+    // that leaves no trace is indistinguishable from a gap nobody found yet, so
+    // the boundary is named in the ledger every time it is reached. Rare on
+    // purpose: only a shell that is definitely reading a program it was never
+    // handed lands here, not every pipe.
+    for (size_t li = 0; li < parsed.limits.size(); li++)
+      em.emit("PARSE_LIMIT", "\"limit\":\"" + json_escape(parsed.limits[li]) +
+              "\",\"cmd\":\"" + json_escape(command.substr(0, 160)) + "\"");
     if (!guardRaw.empty())
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
         if (rbrules::rule_refuses(r.pattern, parsed, command, realCwd))
