@@ -161,10 +161,22 @@ int main(int argc, char** argv) {
   // with the shared drill rules (drill.h) — every line, because rule 4 reads a
   // marker off events this exporter would never have shipped, and a drill's
   // fallout must not look like ordinary traffic just because the marker was a
-  // heartbeat. The second keeps the exportable, non-drill ones.
+  // heartbeat. The second keeps the non-drill ones — ALL of them.
+  //
+  // There used to be a third filter here: a hardcoded eight-name allow-list
+  // (`kept[]`) that silently discarded anything else. It cost two of SPEC §2's
+  // OWN ten values — STEP_OK and REPAIR_START, both emitted by rabadon's own
+  // gate.cpp / repair.cpp / loop.cpp — so the G3 proof ledger
+  // (reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl: 5
+  // REPAIR_START, 2 REPAIR_OK, 3 REPAIR_FAIL) exported as 5 spans: repairs
+  // that finish without ever starting, and every successful step invisible.
+  // Spans here are point-in-time (start == end), so a START is not folded into
+  // its OK; it was simply gone. And it broke the §2 MUST outright — "unknown
+  // `ev` values MUST be rendered generically, never dropped" — which is what
+  // makes Part II's agent-agnostic promise false for any producer that adds a
+  // verb. The only thing that may keep an event home is a drill.
   vector<RbDrillEv> classify;   // one per in-window line
-  vector<Ev> parsed;            // the exportable payload, same indexing
-  vector<char> exportable;
+  vector<Ev> parsed;            // the payload, same indexing
   for (const string& f : files) {
     string body = read_file(spool + "/" + f);
     size_t pos = 0;
@@ -184,11 +196,8 @@ int main(int argc, char** argv) {
       c.pipe = e.pipe; c.ts = ts;
       c.tag = rb_drill_tag(line);
       c.marker = rb_drill_marker(line);
-      static const char* kept[] = {"STEP_START", "CHECK_FAIL", "STOP", "WOULD_BLOCK", "REPAIR_OK", "REPAIR_FAIL", "RUN_START", "RUN_DONE"};
-      bool k = false; for (const char* w : kept) if (e.ev == w) k = true;
       classify.push_back(std::move(c));
       parsed.push_back(std::move(e));
-      exportable.push_back(k ? 1 : 0);
     }
   }
 
@@ -197,7 +206,7 @@ int main(int argc, char** argv) {
   vector<char> isDrill = rb_mark_drills(classify);
   vector<Ev> events;
   for (size_t i = 0; i < parsed.size(); i++) {
-    if (!exportable[i] || isDrill[i]) continue;
+    if (isDrill[i]) continue;
     events.push_back(std::move(parsed[i]));
   }
   std::stable_sort(events.begin(), events.end(), [](const Ev& a, const Ev& b) { return a.ts != b.ts ? a.ts < b.ts : a.seq < b.seq; });
