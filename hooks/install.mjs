@@ -70,6 +70,41 @@ export function nativeBin(name) {
   return path.join(NATIVE_DIRS[0], name);
 }
 
+// What the native core IS, read from the Makefile — the same file `make` reads,
+// never a literal list. `rabadon doctor` held six names while the build produces
+// sixteen, so a tree missing TEN of them (rabadon-truth among them, which repair
+// needs to discover hash-locked tests) printed "all green", exit 0 — and doctor
+// is the command every failure path names. scripts/build.mjs had the same shape
+// of list, one name long: it declared "native binaries already built" on the
+// evidence of rabadon-gate alone.
+//
+// Two derivations, unioned, because the walk-around is always a name that lives
+// in one place and not the other: (1) everything `make all` promises to produce,
+// (2) every explicit binary rule, so a target forgotten out of `all:` is still a
+// subject. The same reason native/cli_test.sh globs instead of listing: "a
+// hand-kept list is a gate the seventeenth binary walks around".
+//
+// One derivation, used by doctor and by the postinstall build — two would drift.
+export function coreBinaries() {
+  const makefile = path.join(PKG_DIR, 'Makefile');
+  let src;
+  try { src = fs.readFileSync(makefile, 'utf8'); } catch { return { names: [], makefile }; }
+  const flat = src.replace(/\\\n/g, ' ');            // make's line continuations
+  const names = new Set();
+  for (const line of flat.matchAll(/^all:(.*)$/gm))
+    for (const b of line[1].matchAll(/native\/(rabadon-[A-Za-z0-9_.-]+)/g)) names.add(b[1]);
+  for (const t of flat.matchAll(/^native\/(rabadon-[A-Za-z0-9_.-]+)\s*:/gm)) names.add(t[1]);
+  return { names: [...names].sort(), makefile };
+}
+
+// The core, minus what is actually on disk. An EMPTY names list is not "nothing
+// missing": it means the subject list could not be read, and every caller has to
+// say so rather than report green.
+export function missingCore() {
+  const core = coreBinaries();
+  return { ...core, missing: core.names.filter((b) => !fs.existsSync(nativeBin(b))) };
+}
+
 export const NATIVE_DIR = NATIVE_DIRS[0];
 export const GATE_BIN = nativeBin('rabadon-gate');
 export const DRIFT_BIN = nativeBin('rabadon-drift');

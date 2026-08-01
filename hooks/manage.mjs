@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, RABADON_CMD_RE } from './install.mjs';
+import { installHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, RABADON_CMD_RE } from './install.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, '..');
@@ -168,30 +168,6 @@ function pkgVersion() {
   catch { return '?'; }
 }
 
-// What the native core IS, read from the Makefile — the same file `make` reads,
-// never a literal list here. doctor used to hold six names while the build
-// produces sixteen, so a tree missing TEN of them (including rabadon-truth,
-// which repair needs to discover hash-locked tests) printed "all green", exit 0
-// — and doctor is the command every failure path names: scripts/build.mjs when
-// a source build dies halfway, native/rabadon-cli.sh when a binary is absent.
-//
-// Two derivations, unioned, because the walk-around is always a name that lives
-// in one place and not the other: (1) everything `make all` promises to
-// produce, (2) every explicit binary rule, so a target forgotten out of `all:`
-// is still a subject. The same reason native/cli_test.sh globs instead of
-// listing: "a hand-kept list is a gate the seventeenth binary walks around".
-function coreBinaries() {
-  const makefile = path.join(PKG_ROOT, 'Makefile');
-  let src;
-  try { src = fs.readFileSync(makefile, 'utf8'); } catch { return { names: [], makefile }; }
-  const flat = src.replace(/\\\n/g, ' ');            // make's line continuations
-  const names = new Set();
-  for (const line of flat.matchAll(/^all:(.*)$/gm))
-    for (const b of line[1].matchAll(/native\/(rabadon-[A-Za-z0-9_.-]+)/g)) names.add(b[1]);
-  for (const t of flat.matchAll(/^native\/(rabadon-[A-Za-z0-9_.-]+)\s*:/gm)) names.add(t[1]);
-  return { names: [...names].sort(), makefile };
-}
-
 function cmdDoctor() {
   let problems = 0;
   const ok = (s) => console.log(`  ok   ${s}`);
@@ -200,8 +176,9 @@ function cmdDoctor() {
   console.log(`rabadon doctor — ${PKG_ROOT}`);
   console.log('');
 
-  // 1) binaries
-  const core = coreBinaries();
+  // 1) binaries — the subject list comes from the Makefile (see coreBinaries in
+  //    install.mjs), so a binary added to the build is one doctor checks for.
+  const core = missingCore();
   if (core.names.length === 0) {
     // An empty subject list would make every check below vacuous — "nothing
     // absent" out of "nothing looked at" is the same false green by another
@@ -209,7 +186,7 @@ function cmdDoctor() {
     warn(`cannot tell what the native core is: no binary targets found in ${core.makefile}`);
     console.log('       doctor cannot certify this install — reinstall the package (npm i -g rabadon)');
   } else {
-    const missing = core.names.filter((b) => !fs.existsSync(nativeBin(b)));
+    const missing = core.missing;
     if (missing.length === 0) ok(`native core built (${core.names.length}/${core.names.length} binaries)`);
     else {
       warn(`native core INCOMPLETE: ${missing.length} of ${core.names.length} binaries absent`);
