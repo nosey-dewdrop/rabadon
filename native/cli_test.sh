@@ -618,5 +618,30 @@ while IFS=$'\t' read -r VERDICT MSG; do
 done < "$HELP_REPORT"
 rm -f "$HELP_REPORT"
 
+# ---- 6. a MISTYPED verb, which is how a stranger meets the command list ----
+# `rabadon usag` used to fall through to bin/rabadon.mjs and answer with a verb
+# list that had been typed in by hand beside the dispatcher instead of read out
+# of it. It named 14 verbs. Five of them — guard, fleet, spin, pack, statusline —
+# are in neither README.md nor docs/, and one of those five, `spin`, starts
+# headless claude sessions in the reader's repo. It omitted 13 of the 17 commands
+# docs/commands.md documents, among them usage, lens, report, trace, audit,
+# replay, drill and export: the entire "seeing what happened" half of the
+# product, missing from the one screen a newcomer reaches by accident. The same
+# binary's `rabadon help` printed the correct set the whole time.
+#
+# This is the defect README already claims is closed for flags ("refuses a flag
+# it does not know rather than swallowing it") and that section 1b closes for the
+# shipped binaries. The rule is the same one: a list that is typed twice goes
+# stale on one side and no test can see it. So the expectation below is PARSED
+# out of the case arms, never written here — if this file named the verbs, it
+# would be the third copy and the next rename would leave it behind too.
+VERB_MSG_REPORT=$(mktemp /tmp/rabadon-unknown-verb.XXXXXX)
+python3 native/unknown_verb_probe.py "$CLI" "$VERB_MSG_REPORT"
+while IFS=$'\t' read -r VERDICT MSG; do
+  [ -z "${VERDICT:-}" ] && continue
+  [ "$VERDICT" = "PASS" ] && pass "$MSG" || fail "$MSG"
+done < "$VERB_MSG_REPORT"
+rm -f "$VERB_MSG_REPORT"
+
 echo "cli: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
