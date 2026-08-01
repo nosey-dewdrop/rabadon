@@ -425,11 +425,32 @@ static void render_run(const Run& r, const Pal& C, string& out){
       C.amb,C.rst, n.no, pad(n.id).c_str(), C.amb,C.rst, metrics.c_str());
     out+=line;
 
-    string kind=check_kind(n.why), test=failing_test(n.why);
+    // What the check SAID. check_kind() reads a category out of the why text and
+    // falls back to "contract" for anything it does not recognise — which is
+    // every rule the guard will ever name, so a refusal by `baseline-force-push`
+    // printed "contract" and the one word a reader needs was nowhere on screen.
+    // The writer already put the rule id in fails[].check; when it is there it
+    // wins, and check_kind() stays the answer for the loop's own steps, which
+    // name no rule.
+    string kind = n.rule.empty()? check_kind(n.why) : n.rule;
+    string test=failing_test(n.why);
     snprintf(line,sizeof line,"     %s├%s %s%s ✗%s %s%s%s     %s◀── the net caught it HERE, at that moment%s\n",
       C.dim,C.rst, C.red,kind.c_str(),C.rst, C.red,test.c_str(),C.rst, C.amb,C.rst);
     out+=line;
 
+    // A catch with NO repair event of either kind. The else branch below was
+    // written as "rejected -> fail-closed" and reached by everything that was
+    // not repaired, so a refusal -- where no fix was ever proposed, because
+    // there was no proposer and nothing ran -- was drawn as a fake fix that got
+    // caught cheating: "fake fix (it neuters the test) -> REPAIR_FAIL". That is
+    // a fabricated event on the surface that ends up in a screenshot, and it is
+    // strictly worse than the CAUGHT 0 it replaced.
+    if(!n.repaired && !n.rejected){
+      snprintf(line,sizeof line,"     %s└%s %sSTOP: %s — refused BEFORE it ran; the action never happened%s\n",
+        C.dim,C.rst, C.red, stopReason.empty()?"BLOCKED":stopReason.c_str(), C.rst);
+      out+=line;
+      continue;
+    }
     if(n.repaired){
       snprintf(line,sizeof line,"     %s│%s    %ssuite RED (%s)%s → REPAIR → %sthe REAL suite went GREEN%s → %sREPAIR_OK ✓%s\n",
         C.dim,C.rst, C.red,test.c_str(),C.rst, C.grn,C.rst, C.grn,C.rst);
@@ -477,7 +498,17 @@ static void render_run(const Run& r, const Pal& C, string& out){
 
   if(caught){
     string saved;
-    if(rejected){
+    // Neither repaired nor rejected: nothing was ever proposed. The "caught and
+    // repaired ... ran on a CLEAN base ... repair cost $0.0000" branch below
+    // used to catch this case and print a repair, a clean base and a price over
+    // a run that had none of the three -- with "steps 2–1" in it, because N is
+    // the node count when the ledger declared no plan. What a refusal actually
+    // saved is the action itself, and that is the sentence.
+    if(!repaired && !rejected){
+      snprintf(f,sizeof f,"  %ssaved:%s the action was refused BEFORE it ran — nothing executed, so there is nothing to undo   %s◀── a passive tracer watches it happen%s\n",
+        C.bold,C.rst, C.dim,C.rst);
+    }
+    else if(rejected){
       snprintf(f,sizeof f,"  %ssaved:%s caught at step %d → STOP, steps %d–%d NEVER ran on a blind base · the spend stayed in your pocket   %s◀── a passive tracer has no such line%s\n",
         C.bold,C.rst, firstCaught, firstCaught+1, N, C.dim,C.rst);
     } else {
