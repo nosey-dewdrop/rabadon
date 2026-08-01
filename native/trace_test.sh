@@ -98,7 +98,7 @@ WRC=$?
 
 # ---- the three readers, over those bytes ------------------------------------
 WBOX="$WBOX" python3 - "$ROOT" "$BOX" <<'PY'
-import json, os, re, subprocess, sys
+import json, os, re, shutil, subprocess, sys, tempfile, time
 root, box = sys.argv[1], sys.argv[2]
 ok = bad = 0
 def pas(m):
@@ -273,6 +273,39 @@ if "baseline-force-push" in wso:
     pas("the watch render still names the rule that fired")
 else:
     bad_("the watch render dropped the rule id")
+
+# ---- arm D: the routed renderer must not draw a dead step green --------------
+# The ONE fixture in this file, and it is written by hand because nothing ships
+# that writes a tier ladder without a live proposer (route_test.sh writes its
+# spool by hand for the same reason). render_routed's green row was reached by
+# "not escalated", which is true of a step that escalated nowhere because it
+# simply died: check failed, no climb, no STEP_OK. It printed "proven cheap".
+rbox = tempfile.mkdtemp(prefix="rabadon-routed-box.")
+os.makedirs(os.path.join(rbox, "spool"))
+day = time.strftime("%Y-%m-%d", time.gmtime())
+now = int(time.time() * 1000)
+with open(os.path.join(rbox, "spool", day + ".jsonl"), "w", encoding="utf-8") as fh:
+    for seq, ev in enumerate([
+        '"ev":"RUN_START","arm":"routed","tiers":"haiku,sonnet","steps":1',
+        '"ev":"STEP_START","step":"ship-it"',
+        '"ev":"CHECK_FAIL","step":"ship-it","fails":[{"check":"testsuite","why":"FAIL testsuite [pytest]: the suite is RED"}]',
+        '"ev":"STOP","reason":"BLOCKED","detail":"the step never passed"',
+    ], 1):
+        fh.write('{"v":1,"seq":%d,"ts":%d,"run":"routed-dead","pipe":"demo:do",%s}\n' % (seq, now + seq, ev))
+renv = dict(os.environ); renv["RABADON_DIR"] = rbox
+p = subprocess.run([os.path.join(root, "native", "rabadon-trace"), "routed-dead", "--no-color"],
+                   capture_output=True, text=True, env=renv)
+rso = p.stdout
+if "CAUGHT" in rso and "testsuite" in rso:
+    pas("the routed renderer draws a step that failed its check and never came back as CAUGHT")
+else:
+    bad_("the routed renderer lost the catch entirely: %r" % rso)
+if "proven cheap" not in rso and "passed" not in rso:
+    pas("...and does NOT draw it as proven cheap / passed")
+else:
+    bad_("a dead step renders green in the routed view: %r" % rso)
+
+shutil.rmtree(rbox, ignore_errors=True)
 
 print("  --- %d ok, %d failed" % (ok, bad))
 sys.exit(1 if bad else 0)

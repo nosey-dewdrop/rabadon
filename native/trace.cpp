@@ -312,6 +312,22 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
     string metrics = n.tokens>0 ? (commafy(n.tokens)+" tok  "+fmt_usd(n.usd_e6)+"  "+fmt_ms(n.dur_ms)) : string("—");
     // the verdict column is padded by hand: these strings are UTF-8, so printf
     // field widths count bytes and would ragged the whole table.
+    // A step whose check FAILED, that never climbed a tier and never came back
+    // OK, drew the green row: this branch was reached by everything that had
+    // not escalated, and "not escalated" is true of a step that simply died.
+    // The renderer that opens a node for an orphan catch can now produce this
+    // node, so it gets the honest row instead of a false "✓ proven cheap".
+    if(n.caught && !n.escalated && !n.ok){
+      snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s%s%s  %-12s %s\n",
+        C.amb,C.rst, n.no, pad(n.id).c_str(), C.amb,
+        n.watched?"⚠ WOULD BLOCK ":"⚠ CAUGHT      ",C.rst, "—", metrics.c_str());
+      out+=line;
+      snprintf(line,sizeof line,"     %s└%s %s%s ✗%s %s%s%s\n",
+        C.dim,C.rst, C.red,(n.rule.empty()?check_kind(n.why):n.rule).c_str(),C.rst,
+        C.red,failing_test(n.why).c_str(),C.rst);
+      out+=line;
+      continue;
+    }
     if(!n.escalated){
       if(n.ok && n.wonTier<=1) cheapProven++;
       snprintf(line,sizeof line,"  %s▸%s %2d  %s   %s%s%s  %-12s %s\n",
