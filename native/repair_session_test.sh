@@ -37,12 +37,15 @@
 #      that half), red-then-green is HELD and labelled FLAKY, and the word
 #      VERIFIED is not spent on it (case 7a pins that the word still appears
 #      when it IS earned).
+#  10. and the second sample is COUNTED, because a verdict confirmed twice is
+#      only affordable if the confirmation is charged where it buys something:
+#      2 check runs to hold a repair, 2 to leave a green repo alone, 3 to reject.
 #
 # Mutation-checked, both directions (this is why 7a exists):
 #   locks==0 branch left saying VERIFIED  -> 15 passed, 2 failed
 #   locks>0 branch made to drop VERIFIED  -> 15 passed, 2 failed (7a + case 2)
-#   arbiter re-sample deleted (grade sample 1) -> 23 passed, 5 failed
-#   entry re-sample deleted (grade sample 1)   -> 25 passed, 3 failed
+#   arbiter re-sample deleted (grade sample 1) -> 25 passed, 6 failed
+#   entry re-sample deleted (grade sample 1)   -> 27 passed, 4 failed
 set -u
 cd "$(dirname "$0")/.."
 REPAIR=./native/rabadon-repair
@@ -279,6 +282,43 @@ else pass "the false sentence never reached the hash-chained ledger"; fi
 # and the flaky events chain like every other event
 OUT=$(RABADON_DIR="$L8" "$AUDIT" --days 2); RC=$?
 if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "INTACT"; then pass "audit: the flaky events are chained too, verdict INTACT"; else fail "audit(L8) rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+# 10) THE PRICE OF THE SECOND SAMPLE, COUNTED.
+# Confirming a verdict is only affordable if it is charged where it buys
+# something. The second sample is spent on the two answers that throw work away
+# — a green that sends repair home, a red that rejects a proposal — and on
+# nothing else. So the successful repair path (entry red, arbiter green) must
+# still cost exactly TWO runs of the check, the same as before this existed. On
+# a real suite that is the difference between a repair and twice a repair.
+mkcounted() { # mkcounted DIR COUNTERFILE — the project's own test, run through a tally
+  local d="$1" ctr="$2"; mkproj "$d"; mkdir -p "$(dirname "$ctr")"; rm -f "$ctr"
+  cat > "$d/check.sh" <<EOF
+#!/bin/sh
+echo run >> "$ctr"
+python3 test_calc.py >/dev/null 2>&1
+EOF
+  chmod +x "$d/check.sh"
+}
+runs() { wc -l < "$1" 2>/dev/null | tr -d ' '; }
+
+C9="$TMP/flakes/p9.n"; P9="$TMP/p9"; mkcounted "$P9" "$C9"
+RABADON_DIR="$L8" RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P9" --cmd ./check.sh >/dev/null 2>&1; RC=$?
+if [ $RC -eq 0 ] && [ "$(runs "$C9")" = "2" ]; then
+  pass "held repair still costs exactly 2 check runs — the happy path pays nothing for sampling"
+else fail "honest path ran the check $(runs "$C9") time(s), rc=$RC (want 2 runs, rc 0)"; fi
+
+C10="$TMP/flakes/p10.n"; P10="$TMP/p10"; mkcounted "$P10" "$C10"
+printf 'def add(a, b):\n    return a + b\n' > "$P10/calc.py"   # already green
+RABADON_DIR="$L8" RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P10" --cmd ./check.sh >/dev/null 2>&1; RC=$?
+if [ $RC -eq 0 ] && [ "$(runs "$C10")" = "2" ]; then
+  pass "green repo runs the check twice — the green that ends the session is confirmed"
+else fail "green path ran the check $(runs "$C10") time(s), rc=$RC (want 2 runs, rc 0)"; fi
+
+C11="$TMP/flakes/p11.n"; P11="$TMP/p11"; mkcounted "$P11" "$C11"
+RABADON_DIR="$L8" RABADON_CLAUDE_BIN="$(mkfake useless)" "$REPAIR" "$P11" --cmd ./check.sh >/dev/null 2>&1; RC=$?
+if [ $RC -eq 2 ] && [ "$(runs "$C11")" = "3" ]; then
+  pass "rejection costs a 3rd run — no proposal is thrown away on one sample"
+else fail "rejection path ran the check $(runs "$C11") time(s), rc=$RC (want 3 runs, rc 2)"; fi
 
 echo "repair session: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
