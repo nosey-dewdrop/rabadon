@@ -122,6 +122,24 @@ rec(len(helptext) > 200, "the help screen was captured (%d bytes) to check verbs
     "the captured help screen is %d bytes — the discoverability check would be vacuous"
     % len(helptext))
 
+# The verbs the help screen actually LISTS, which is not the same as the words
+# it contains. Deleting the `lens [--days N]` line still left the word "lens" in
+# the examples block and in a sentence, so a plain word search called the verb
+# documented when it was not listed anywhere — the check passed on prose.
+# A listed verb owns the left column: on an indented line, take everything up to
+# the first double space (the signature), split it on `|`, and the verb must be
+# the FIRST word of one of those alternatives. "on | off | toggle" lists three;
+# "rabadon lens --days 30" in the examples lists none, its first word is rabadon.
+listed_verbs = set()
+for line in helptext.splitlines():
+    if not line.startswith("  ") or not line.strip():
+        continue
+    sig = re.split(r"\s{2,}", line.strip())[0]
+    for alt in sig.split("|"):
+        words = alt.split()
+        if words:
+            listed_verbs.add(words[0])
+
 for name in names:
     got = verbs.get(name, [])
     rec(bool(got), "`rabadon %s` reaches rabadon-%s" % (got[0], name) if got else
@@ -129,11 +147,11 @@ for name in names:
         "nobody who installed from npm can run it" % name)
     if not got:
         continue
-    listed = [v for v in got if re.search(r"(?<!\w)" + re.escape(v) + r"(?!\w)", helptext)]
-    rec(bool(listed), "the help screen names `%s` for rabadon-%s" % (listed[0], name)
+    listed = [v for v in got if v in listed_verbs]
+    rec(bool(listed), "the help screen lists `%s` for rabadon-%s" % (listed[0], name)
         if listed else
-        "rabadon-%s is dispatched (%s) but the help screen names none of its verbs"
-        % (name, "/".join(got)))
+        "rabadon-%s is dispatched (%s) but no help line starts with any of its "
+        "verbs — a stranger cannot find it" % (name, "/".join(got)))
 
     # the live half: does that verb actually land on THAT binary?
     verb = name if name in got else got[0]
