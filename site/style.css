@@ -14,15 +14,15 @@
   --bg:#171221; --bg-soft:#1f1930; --ink:#efe8f7; --ink-dim:#9d92b5;
   --pink:#ff8fb3; --purple:#c9a6ff; --green:#b8e39a; --yellow:#ffd479; --blue:#8fc7ff;
 
-  --t-mono:12.5px;   /* terminal blocks                 */
-  --t-small:13px;    /* captions, nav                   */
-  --t-body:15px;     /* prose                           */
-  --t-num:19px;      /* the numbers that carry the page */
-  --t-h2:17px;       /* section headings                */
-  --t-h1:30px;       /* the one claim                   */
+  --t-mono:15px;     /* terminal blocks                 */
+  --t-small:16px;    /* captions, nav                   */
+  --t-body:18px;     /* prose                           */
+  --t-num:30px;      /* the numbers that carry the page */
+  --t-h2:22px;       /* section headings                */
+  --t-h1:36px;       /* the one claim                   */
 
   --g1:8px; --g2:14px; --g3:28px; --sec:48px;
-  --wrap:1280px; --measure:96ch; --radius:3px;
+  --wrap:1320px; --measure:88ch; --radius:3px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -98,6 +98,18 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 @keyframes blink{50%{opacity:0}}
 .cap{font-size:var(--t-small);color:var(--ink-dim);line-height:1.7;max-width:var(--measure)}
 
+/* ---------- the numbers, as one big block in the middle of the page ---------- */
+.stats{background:var(--bg-soft);border-radius:var(--radius);padding:26px 30px;
+       display:grid;grid-template-columns:14ch 1fr;column-gap:var(--g3);row-gap:var(--g2);
+       align-items:baseline}
+.stats .n{font-size:var(--t-num);font-weight:700;text-align:right;letter-spacing:-.5px;
+          font-variant-numeric:tabular-nums;line-height:1.25}
+.stats .n.g{color:var(--green)} .stats .n.p{color:var(--pink)}
+.stats .n.b{color:var(--blue)}  .stats .n.y{color:var(--yellow)}
+.stats .t{font-size:var(--t-body);color:var(--ink-dim);line-height:1.45;max-width:none}
+.stats .t a{color:var(--pink)}
+.stats .rule{grid-column:1 / -1;height:1px;background:var(--ink-dim);opacity:.18;margin:2px 0}
+
 /* ---------- disclosure ---------- */
 details summary{cursor:pointer;font-size:var(--t-small);color:var(--pink);
   list-style:none;text-decoration:underline dotted;display:inline-block}
@@ -121,7 +133,9 @@ footer{padding:var(--sec) 0 52px;font-size:var(--t-small);color:var(--ink-dim);
 footer .sp{margin-left:auto}
 
 @media(max-width:820px){
-  :root{--sec:30px;--t-h1:22px;--t-mono:11.5px}
+  :root{--sec:30px;--t-h1:26px;--t-mono:13px;--t-body:17px;--t-small:15px;--t-num:24px}
+  .stats{grid-template-columns:1fr;padding:20px;row-gap:4px}
+  .stats .n{text-align:left}
   header.site nav{margin-left:0;gap:var(--g2)}
   .pair{grid-template-columns:1fr}
   .law{grid-template-columns:1fr;row-gap:0}

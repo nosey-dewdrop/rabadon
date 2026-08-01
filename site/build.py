@@ -15,6 +15,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import sys
 from collections import Counter, OrderedDict
 
@@ -304,6 +305,8 @@ def ledger():
     sample, projects = {}, Counter()
     per = {}          # project -> Counter(rule)
     per_ex = {}       # project -> {rule: the line the ledger wrote}
+    raw = {}          # rule -> [the actual ledger entries, for the reader to check]
+    dirs = set()
     for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
         for line in open(f, encoding="utf-8", errors="replace"):
             try:
@@ -311,6 +314,8 @@ def ledger():
             except json.JSONDecodeError:
                 continue
             ev[d.get("ev", "?")] += 1
+            if d.get("pipe"):
+                dirs.add(str(d["pipe"]).split(":")[0])
             if d.get("ev") != "WOULD_BLOCK":
                 continue
             rule = str(d.get("rule", "?"))
@@ -329,11 +334,16 @@ def ledger():
                 sample[rule] = det[:150]
             if det:
                 per_ex.setdefault(proj, {}).setdefault(rule, det[:150])
-    return real, drill, ev, sample, projects, per, per_ex
+            if det and len(raw.setdefault(rule, [])) < 8:
+                ts = d.get("ts", 0)
+                day = ("%04d-%02d-%02d" % time.gmtime(ts / 1000)[:3]) if ts else "?"
+                clock = ("%02d:%02d" % time.gmtime(ts / 1000)[3:5]) if ts else "?"
+                raw[rule].append((day, clock, proj, det[:210]))
+    return real, drill, ev, sample, projects, per, per_ex, raw
 
 
 def catches():
-    real, drill, ev, sample, projects, per, per_ex = ledger()
+    real, drill, ev, sample, projects, per, per_ex, raw = ledger()
     total = sum(real.values())
     mine = projects.get("rabadon", 0)
     others = len([p for p in projects if p != "rabadon"])
@@ -351,14 +361,17 @@ def catches():
            f'<div><span class="n y">{sum(drill.values())}</span><span class="t">drills, excluded from the total</span></div>',
            "</div></div>"]
 
-    # what a buyer actually asks: which project, and what was it about to do
+    # what a buyer actually asks: which project, and what was it about to do.
+    # every count opens onto the ledger lines behind it, so no number on this
+    # page has to be taken on trust.
     NICE = {"damummyphus": "the home directory itself",
             "damla_projects_2026": "the projects root",
             "icerik": "the writing repository",
             "p": "a scratch repository"}
     out.append("<section><h2>project by project</h2>"
                '<p class="small dim">Each line is the sentence the ledger wrote at the moment the command '
-               "was refused, with the home path stripped and nothing else changed.</p>")
+               "was refused, with the home path stripped and nothing else changed. Open any rule to read the "
+               "raw entries behind the count.</p>")
     for proj, count in projects.most_common():
         if count < 2 and proj not in per_ex:
             continue
@@ -374,8 +387,28 @@ def catches():
         out.append('<div class="term">' + "\n".join(body) + "</div>")
     out.append('<p class="cap">The delete law reads a resolved path, not the text of the command, which is '
                "why a target written as a relative name and a target written through a temp directory are the "
-               "same question to it. The line from LMCache is the sharpest one on this page: a stray "
-               "redirection was about to be handed to a recursive delete as if it were a directory.</p>")
+               "same question to it. The line from LMCache is the sharpest one here: a stray redirection was "
+               "about to be handed to a recursive delete as if it were a directory.</p>")
+    out.append("</section>")
+
+    out.append("<section><h2>the raw ledger, rule by rule</h2>"
+               '<p class="small dim">Nothing above needs to be taken on trust. These are entries as the gate '
+               "wrote them, timestamp, project and reason, with only the home path replaced. Some of them "
+               "fired while rabadon's own test scaffolding was running, and those are left in rather than "
+               "quietly dropped, because a page that hides its own noise is asking to be believed instead of "
+               "checked.</p>")
+    for rule, count in real.most_common():
+        entries = raw.get(rule, [])
+        if not entries:
+            continue
+        lines = []
+        for day, clock, proj, det in entries:
+            lines.append(f'<span class="o">{day} {clock}</span>  '
+                         f'<span class="u">{html.escape(proj)[:22].ljust(22)}</span>'
+                         f'<span class="o">{html.escape(det)}</span>')
+        out.append("<details><summary>" + html.escape(rule) + f", {count} refused, "
+                   f"showing {len(entries)}</summary><div class=\"body\">"
+                   '<div class="term">' + "\n".join(lines) + "</div></div></details>")
     out.append("</section>")
 
     out.append('<section><h2>what it repaired</h2>'

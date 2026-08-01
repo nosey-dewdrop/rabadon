@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>rabadon is an agent aid</title>
-<meta name="description" content="rabadon is an agent aid. It refuses a destructive command before the process starts, writes every refusal to a hash-chained ledger, and holds a repair only when the proof could not be bought. 207 commands refused on one machine, 100.0% precision, 0 fake repairs accepted.">
+<title>rabadon, guardrails and a verifiable record for coding agents</title>
+<meta name="description" content="Guardrails and a verifiable record for coding agents. 207 commands refused before they ran, 31 real defects found in express, lodash, ajv, commander, click, jinja, markupsafe and pyyaml, 0 fake repairs ever accepted.">
 <meta name="author" content="Damla Su Bilge">
 <link rel="canonical" href="https://rabadon.noseydewdrop.com/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="rabadon is an agent aid">
-<meta property="og:description" content="207 commands refused before they ran. 100.0% precision, 100.0% recall. 0 fake repairs accepted.">
+<meta property="og:title" content="rabadon, run your coding agent without watching it">
+<meta property="og:description" content="207 commands refused before they ran. 31 real defects found in eight open-source projects. 0 fake repairs accepted.">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
@@ -37,23 +37,29 @@
 </header>
 
 <div class="top">
-  <p class="tag"><b>rabadon is an agent aid.</b> It stands in the way of the command, keeps the receipt, and repairs what breaks.</p>
+  <p class="tag"><b>rabadon is an agent aid.</b> Guardrails and a verifiable record for coding agents.</p>
 
-  <h1>an agent that can edit your repository can also delete it.</h1>
+  <h1>run your coding agent without sitting there watching it.</h1>
 
-  <p>A law written into a prompt is a request, and the model can drift off it or be argued out of it. rabadon sits underneath, compiled into the path every command takes, so refusing costs the agent the execution rather than an apology. Every refusal lands in a hash-chained ledger that cannot be quietly rewritten afterwards.</p>
+  <p>It refuses the destructive command before the process starts, writes a receipt you can verify afterwards, and when a check goes red it repairs the code without being able to buy its own green. On this machine it has refused 207 commands, and it has found 31 real defects in express, lodash, ajv, commander, click, jinja, markupsafe and pyyaml.</p>
 
-  <div class="proof">
-    <div><span class="n p">207</span><span class="t">commands refused before they ran</span></div>
-    <div><span class="n g">100.0%</span><span class="t">precision, recall 100.0%</span></div>
-    <div><span class="n b">0</span><span class="t">fake repairs ever accepted</span></div>
-    <div><span class="n y">42.0&micro;s</span><span class="t">to judge one command</span></div>
+  <div class="stats">
+    <span class="n p">207</span><span class="t">commands refused before they ran, across 78 repositories on one machine. <a href="/catches">read the ledger entries behind every one of them</a></span>
+    <span class="n g">100.0%</span><span class="t">precision, recall 100.0%, over 34 cases lifted out of real sessions</span>
+    <span class="n b">0</span><span class="t">fake repairs accepted, on every run there is a record of</span>
+    <span class="n y">42.0&micro;s</span><span class="t">to judge one command, so the gate is not what you switch off to go faster</span>
+    <span class="rule"></span>
+    <span class="n">70,116</span><span class="t">lines written to the hash-chained ledger</span>
+    <span class="n">37,384</span><span class="t">actions handed to the gate to be judged</span>
+    <span class="n">31</span><span class="t">real defects mined out of 545 commits in 8 open-source projects</span>
+    <span class="n">31,316</span><span class="t">tests in the 12 suites it was run against. <a href="/benchmarks">the measurements, with the command each came from</a></span>
+    <span class="n">251</span><span class="t">commits in this repository, in 8 days. <a href="/patch-notes">all of them, with the day each landed</a></span>
   </div>
 </div>
 
 <section id="run">
   <h2>run it</h2>
-  <p class="small dim">Five commands. It starts in watch mode and stays there until you say otherwise, because a tool that blocks your work on the first day is a tool you delete on the second.</p>
+  <p>Five commands. It starts in watch mode and stays there until you say otherwise, because a tool that blocks your work on the first day is a tool you delete on the second.</p>
   <div class="term"><span class="p">$</span> <span class="c">git clone https://github.com/nosey-dewdrop/rabadon &amp;&amp; cd rabadon &amp;&amp; make</span>
 
 <span class="b">rabadon watch</span>                     <span class="o">record what it would have refused, block nothing</span>
@@ -62,6 +68,7 @@
 <span class="b">rabadon repair --cmd "npm test"</span>   <span class="o">catch a red check, hold a fix only if the proof survives</span>
 <span class="b">rabadon audit</span>                     <span class="o">verify the ledger chain back to the first line written</span></div>
   <p class="cap">A dependency-free C++ core. Nothing is uploaded, nothing calls home, and the ledger is a file on your own disk.</p>
+  <p>A law written into a prompt is a request, and the model can drift off it or be argued out of it. rabadon sits underneath, compiled into the path every command takes, so refusing costs the agent the execution rather than an apology.</p>
 </section>
 
 <section id="proof">
@@ -192,7 +199,7 @@ pass <span class="b">6</span>   fail <span class="b">0</span></div>
 
 <section id="ledger">
   <h2>the ledger</h2>
-  <p class="small dim">There are no customers yet. Every number here comes from one machine that runs this all day, which is the only honest place a reliability tool gets proven first.</p>
+  <p class="small dim">Every number here comes from one machine that runs this all day, which is the only honest place a reliability tool gets proven first.</p>
   <div class="term"><span class="p">$</span> <span class="c">rabadon usage --days 30</span>
 
   <span class="p">61</span>   <span class="o">destructive actions refused before they happened</span>
