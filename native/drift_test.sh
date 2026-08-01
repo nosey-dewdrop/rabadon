@@ -34,7 +34,7 @@ mkdir -p "$B/web"; echo "export const x=1" > "$B/web/feature.mjs"; echo "body{}"
 RD="$(mktemp -d)"; out="$(RABADON_DIR="$RD" "$BIN" "$B" 2>&1)"; rc=$?
 [ $rc -eq 3 ] && ok "off-target + .mjs session verdict is DRIFT (exit 3)" || bad "drift should be exit 3 (got $rc)"
 echo "$out" | grep -q "swore off" && ok "drift names the forbidden ground it touched" || bad "drift should name the anti-path"
-day="$(date +%Y-%m-%d)"
+day="$(date -u +%Y-%m-%d)"   # the ledger day is UTC (native/ledger_day_test.sh)
 grep -q '"check":"goal-drift"' "$RD/spool/$day.jsonl" 2>/dev/null \
   && ok "the ledger finally carries a goal-drift event" || bad "drift must write CHECK_FAIL goal-drift to the spool"
 

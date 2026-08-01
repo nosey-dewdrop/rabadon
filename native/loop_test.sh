@@ -98,7 +98,7 @@ RABADON_DIR="$RD5" RABADON_TIERS="cheap,pricey" RABADON_MAX_REPAIRS=0 \
   RABADON_PROPOSER="bash $D5/prop_tier.sh" "$LOOP" "$D5" "$D5/plan.json" >/dev/null 2>&1 \
   && ok "cheap tier rejected -> auto-escalated -> pricey tier proven -> accept PASS" \
   || bad "escalation should have rescued the run (exit 0 expected)"
-S5="$RD5/spool/$(date +%Y-%m-%d).jsonl"
+S5="$RD5/spool/$(date -u +%Y-%m-%d).jsonl"   # ledger day is UTC (ledger_day_test.sh)
 grep -q '"ev":"ESCALATE".*"from":"cheap","to":"pricey"' "$S5" 2>/dev/null \
   && ok "the escalation is on the ledger with its from/to tier" || bad "ESCALATE event missing"
 grep -q '"ev":"STEP_OK".*"tier":2' "$S5" 2>/dev/null \
@@ -116,14 +116,14 @@ chmod +x "$D6/prop_tier.sh"
 cp "$D5/plan.json" "$D6/plan.json"
 RABADON_DIR="$RD6" RABADON_TIERS="cheap,pricey" RABADON_MAX_REPAIRS=0 \
   RABADON_PROPOSER="bash $D6/prop_tier.sh" "$LOOP" "$D6" "$D6/plan.json" >/dev/null 2>&1
-S6="$RD6/spool/$(date +%Y-%m-%d).jsonl"
+S6="$RD6/spool/$(date -u +%Y-%m-%d).jsonl"
 if grep -q '"ev":"ESCALATE"' "$S6" 2>/dev/null; then bad "escalated even though the cheap tier passed"
 else ok "cheap tier passes the arbiter -> no escalation, no extra spend"; fi
 grep -q '"ev":"STEP_OK".*"tier":1' "$S6" 2>/dev/null \
   && ok "a cheap step is recorded as PROVEN at tier 1" || bad "tier-1 STEP_OK missing"
 
 # ---- 7: the report exists — events landed in the spool ----
-day="$(date +%Y-%m-%d)"
+day="$(date -u +%Y-%m-%d)"
 grep -q '"ev":"REPAIR_OK"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "a real REPAIR_OK is on the ledger (not a demo pipe)" || bad "repair event missing from spool"
 grep -q '"ev":"RUN_DONE"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "run outcomes are reported to the spool" || bad "RUN_DONE missing from spool"
 

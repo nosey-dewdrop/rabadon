@@ -340,7 +340,12 @@ int main(int argc, char** argv) {
   // -------- session commands from the spool (this project's window) --------
   string cmdsBlob;
   {
-    char day[16]; { time_t t = time(nullptr); struct tm tmv; localtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
+    // UTC: the file this READS is the file the gate WRITES, and the gate names
+    // it with gmtime. Asking for the local name meant that east of Greenwich
+    // after midnight this opened a file that did not exist, cmdsBlob came back
+    // empty, and the vocabulary check below scored a session that had run the
+    // right commands as though it had run none (measured: 1/1 present -> 0/1).
+    char day[16]; { time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
     for (const string& d : { string(day) }) {
       std::ifstream f(rdir + "/spool/" + d + ".jsonl");
       string line;
@@ -406,7 +411,8 @@ int main(int argc, char** argv) {
   // -------- write the event the ledger never had --------
   if (drift) {
     mkdir((rdir + "/spool").c_str(), 0755);
-    char day[16]; { time_t t = time(nullptr); struct tm tmv; localtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
+    // UTC, same one name as every other writer of this file.
+    char day[16]; { time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
     std::ofstream sp(rdir + "/spool/" + string(day) + ".jsonl", std::ios::app);
     string why = reasons.empty() ? "off the north star" : reasons[0];
     sp << "{\"v\":1,\"ts\":" << now_ms() << ",\"pipe\":\"" << json_escape(project)

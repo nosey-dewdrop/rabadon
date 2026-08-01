@@ -74,6 +74,16 @@ test: all
 	./native/version_test.sh
 	./native/cli_test.sh
 	./native/audit_test.sh
+# audit_test.sh proves the chain INSIDE one day file. this one proves there IS
+# one day file. the chained spool is named by a date and the repo held two
+# answers to "which date": gate, repair, sandbox and the js bus name it in UTC,
+# loop and drift named it in local time. east of Greenwich after midnight that
+# is two files, two chains, one session split between them, and a direction
+# check reading a file nobody wrote. it does not wait for midnight to say so --
+# it picks a zone off the clock that is provably a different date from UTC right
+# now, so it is as red at 15:00 as at 00:48, and every must-land-together check
+# has its must-not-move twin under UTC.
+	./native/ledger_day_test.sh
 	./native/baseline_test.sh
 # baseline_test.sh asks the push law about the three spellings it knows: --force,
 # -f, and a leading + on a refspec. this one asks about the spelling that

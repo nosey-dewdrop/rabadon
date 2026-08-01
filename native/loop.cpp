@@ -178,7 +178,13 @@ int main(int argc,char** argv){
   // spool
   const char* home=getenv("HOME"); const char* rd=getenv("RABADON_DIR");
   string rdir=rd?rd:(string(home?home:".")+"/.rabadon"); mkdir(rdir.c_str(),0755); mkdir((rdir+"/spool").c_str(),0755);
-  char day[16]; { time_t t=time(nullptr); struct tm tmv; localtime_r(&t,&tmv); strftime(day,16,"%Y-%m-%d",&tmv); }
+  // UTC, because the day file has ONE name, and gmtime is the name every other
+  // writer uses (gate.cpp, repair.cpp, sandbox.cpp, the JS bus's toISOString).
+  // localtime_r here made the Emitter comment above false east of Greenwich
+  // after midnight: gate and loop opened two different files, one session in
+  // two chains, and every reader that tails "today" saw half of it.
+  // native/ledger_day_test.sh holds this at any hour of any day.
+  char day[16]; { time_t t=time(nullptr); struct tm tmv; gmtime_r(&t,&tmv); strftime(day,16,"%Y-%m-%d",&tmv); }
   string project=dir; size_t ps=project.rfind('/'); if(ps!=string::npos) project=project.substr(ps+1);
   Emitter em; em.spool=rdir+"/spool/"+string(day)+".jsonl"; em.pipe=project+":do"; em.run="loop-"+std::to_string(now_ms()%100000000)+"-"+std::to_string(getpid());
 
