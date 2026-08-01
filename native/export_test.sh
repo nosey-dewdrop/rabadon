@@ -33,6 +33,8 @@ cat > "$RABADON_DIR/spool/2026-01-10.jsonl" <<EOF
 {"v":1,"seq":1,"ts":$TS,"run":"d3","pipe":"rabadon-bench-x:session","ev":"STOP","reason":"BLOCKED","rule":"bench-noise"}
 {"v":1,"seq":1,"ts":$TS,"run":"d4","pipe":"epsilon:session","ev":"RUN_START","sid":"doctor-7"}
 {"v":1,"seq":2,"ts":$((TS+5000)),"run":"d5","pipe":"epsilon:session","ev":"STOP","reason":"BLOCKED","rule":"window-fallout"}
+{"v":1,"seq":1,"ts":$TS,"run":"d6","pipe":"zeta:session","ev":"HEARTBEAT","sid":"fleet-9"}
+{"v":1,"seq":2,"ts":$((TS+5000)),"run":"d7","pipe":"zeta:session","ev":"STOP","reason":"BLOCKED","rule":"zeta-fallout"}
 EOF
 
 echo "export: OTLP/JSON"
@@ -93,7 +95,11 @@ assert len(sp) == 3, ("exactly the three real events ship, got", sorted(names))
 for shape, rule in [("1 emit tag", "drilled"),
                     ("2 marker session id", "marker-drill"),
                     ("3 self pipe", "bench-noise"),
-                    ("4 window association", "window-fallout")]:
+                    ("4 window association", "window-fallout"),
+                    # the marker that names this drill is a HEARTBEAT, an event
+                    # export itself never ships: classify every line or a drill
+                    # whose marker is invisible to the exporter reads as work
+                    ("4 window, marker on a non-exported event", "zeta-fallout")]:
     assert not any(rule in n for n in names), ("rule " + shape + " leaked", sorted(names))
 pipes={a["value"]["stringValue"] for s in sp for a in s["attributes"] if a["key"]=="rabadon.pipe"}
 assert not any(p.startswith("rabadon-bench") for p in pipes), pipes
