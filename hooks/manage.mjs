@@ -168,6 +168,30 @@ function pkgVersion() {
   catch { return '?'; }
 }
 
+// What the native core IS, read from the Makefile — the same file `make` reads,
+// never a literal list here. doctor used to hold six names while the build
+// produces sixteen, so a tree missing TEN of them (including rabadon-truth,
+// which repair needs to discover hash-locked tests) printed "all green", exit 0
+// — and doctor is the command every failure path names: scripts/build.mjs when
+// a source build dies halfway, native/rabadon-cli.sh when a binary is absent.
+//
+// Two derivations, unioned, because the walk-around is always a name that lives
+// in one place and not the other: (1) everything `make all` promises to
+// produce, (2) every explicit binary rule, so a target forgotten out of `all:`
+// is still a subject. The same reason native/cli_test.sh globs instead of
+// listing: "a hand-kept list is a gate the seventeenth binary walks around".
+function coreBinaries() {
+  const makefile = path.join(PKG_ROOT, 'Makefile');
+  let src;
+  try { src = fs.readFileSync(makefile, 'utf8'); } catch { return { names: [], makefile }; }
+  const flat = src.replace(/\\\n/g, ' ');            // make's line continuations
+  const names = new Set();
+  for (const line of flat.matchAll(/^all:(.*)$/gm))
+    for (const b of line[1].matchAll(/native\/(rabadon-[A-Za-z0-9_.-]+)/g)) names.add(b[1]);
+  for (const t of flat.matchAll(/^native\/(rabadon-[A-Za-z0-9_.-]+)\s*:/gm)) names.add(t[1]);
+  return { names: [...names].sort(), makefile };
+}
+
 function cmdDoctor() {
   let problems = 0;
   const ok = (s) => console.log(`  ok   ${s}`);
@@ -177,15 +201,26 @@ function cmdDoctor() {
   console.log('');
 
   // 1) binaries
-  const binaries = ['rabadon-gate', 'rabadon-stats', 'rabadon-drift', 'rabadon-audit', 'rabadon-repair', 'rabadon-sandbox'];
-  const missing = binaries.filter((b) => !fs.existsSync(nativeBin(b)));
-  if (missing.length === 0) ok(`native core built (${binaries.length} binaries)`);
-  else {
-    warn(`native binaries missing: ${missing.join(', ')}`);
-    const cxx = ['clang++', 'g++', 'c++'].find((c) => spawnSync(c, ['--version'], { stdio: 'ignore' }).status === 0);
-    console.log(cxx
-      ? `       build them: (cd ${PKG_ROOT} && make)`
-      : `       no C++ compiler found — install one first:\n         macOS: xcode-select --install\n         debian: sudo apt install g++ make`);
+  const core = coreBinaries();
+  if (core.names.length === 0) {
+    // An empty subject list would make every check below vacuous — "nothing
+    // absent" out of "nothing looked at" is the same false green by another
+    // route, so it is a problem, not a pass.
+    warn(`cannot tell what the native core is: no binary targets found in ${core.makefile}`);
+    console.log('       doctor cannot certify this install — reinstall the package (npm i -g rabadon)');
+  } else {
+    const missing = core.names.filter((b) => !fs.existsSync(nativeBin(b)));
+    if (missing.length === 0) ok(`native core built (${core.names.length}/${core.names.length} binaries)`);
+    else {
+      warn(`native core INCOMPLETE: ${missing.length} of ${core.names.length} binaries absent`);
+      for (let i = 0; i < missing.length; i += 4)
+        console.log(`         absent: ${missing.slice(i, i + 4).join('  ')}`);
+      console.log('       each one is a command that fails when you run it, not when you install it');
+      const cxx = ['clang++', 'g++', 'c++'].find((c) => spawnSync(c, ['--version'], { stdio: 'ignore' }).status === 0);
+      console.log(cxx
+        ? `       build them: (cd ${PKG_ROOT} && make)`
+        : `       no C++ compiler found — install one first:\n         macOS: xcode-select --install\n         debian: sudo apt install g++ make`);
+    }
   }
 
   // 2) version lockstep
