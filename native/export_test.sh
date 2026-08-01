@@ -7,7 +7,9 @@
 #   3. a refusal (STOP/CHECK_FAIL/WOULD_BLOCK/REPAIR_FAIL) is status ERROR
 #      (code 2) so it renders red in a trace viewer;
 #   4. token counts surface as GenAI-semconv attributes;
-#   5. drills never leave the machine (excluded from the export too);
+#   5. drills never leave the machine — all four rules `rabadon usage` excludes
+#      by (emit tag, marker session id, self pipe, drill window), and the
+#      exported refusal count matches the local one;
 #   6. timestamps are unix-nanos strings (OTLP requires string, not number).
 set -u
 cd "$(dirname "$0")/.."

@@ -13,7 +13,9 @@
 //   - one SPAN per meaningful event (STEP_START / CHECK_FAIL / STOP /
 //     WOULD_BLOCK / REPAIR_OK / REPAIR_FAIL), spanId = 64-bit hash of run+seq+ts;
 //   - a catch/refusal sets span status = ERROR with the rule as the message —
-//     so a refused action is red in any trace viewer;
+//     so a refused action is red in any trace viewer, which is exactly why the
+//     drill rules here (drill.h, shared with rabadon-stats) have to be the same
+//     four the local number uses: this is the surface strangers read;
 //   - attributes: rabadon.ev, rabadon.rule, rabadon.detail, and the GenAI
 //     conventions gen_ai.system / gen_ai.usage.* where token counts exist.
 //
@@ -118,7 +120,10 @@ static const char* kHelp =
   "rabadon-export — the ledger in OTLP/JSON on stdout, GenAI semantic conventions.\n"
   "Reads the local spool and emits spans any OpenTelemetry collector accepts, so\n"
   "rabadon runs land next to the rest of your traces. Drills never leave the\n"
-  "machine: any event marked drill is dropped before it is written.\n"
+  "machine, by the same four rules `rabadon usage` excludes them with: the emit\n"
+  "tag, a fleet/doctor/drill session id, rabadon's own bench and demo pipes, and\n"
+  "events inside a drill's 2-minute window. The count you read here and the count\n"
+  "you read locally are the same count.\n"
   "\n"
   "usage: rabadon-export --otlp [--days N]\n"
   "\n"

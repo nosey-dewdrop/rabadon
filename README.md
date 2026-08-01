@@ -57,7 +57,7 @@ rabadon usage — last 7 day(s) · local, nothing leaves this machine
   (3,495 event(s) from rabadon's own drills and self-tests — excluded from every number above)
 ```
 
-The drill exclusion is load-bearing: a tool that counts its own self-tests as catches is worthless, so rabadon tags them at emit and never counts them. That honesty is the brand.
+The drill exclusion is load-bearing: a tool that counts its own self-tests as catches is worthless, so rabadon tags them at emit and never counts them. That honesty is the brand — and it holds hardest on the surface that leaves the machine, so `rabadon export --otlp` runs the identical predicate. The refusals in your Jaeger are the refusals in your terminal, to the event.
 
 So is the second line. `repairs held` and `repairs unverified` used to be one number called "repairs accepted", and that number also swept in green push-gate suites and freshly written rules — four different events sharing one name in the ledger. Split apart, the honest reading of this machine is that the repair path has produced **zero** fixes proven against hash-locked test files, and three that nothing was holding. A fix nobody could witness is not a fix rabadon gets to count.
 

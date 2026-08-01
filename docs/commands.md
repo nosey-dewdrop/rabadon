@@ -207,8 +207,11 @@ Apply a held patch yourself: `patch -p1 < .rabadon/repair-<ts>.patch`.
 Emit the ledger as OpenTelemetry OTLP/JSON traces on stdout: one trace per
 session, refusals as ERROR spans, GenAI semantic-convention token attributes
 where token counts exist. Drop it into Jaeger, Grafana Tempo, Honeycomb, or
-Langfuse's OTLP endpoint. Drills are excluded here too — nothing leaves the
-machine unless you pipe it out.
+Langfuse's OTLP endpoint. Drills are excluded here by the same four rules
+`rabadon usage` uses (the emit tag, a `fleet-`/`doctor-`/`drill-` session id,
+rabadon's own bench and demo pipes, and events inside a drill's 2-minute
+window), one shared predicate, so the refusal count you export is the refusal
+count you read locally. Nothing leaves the machine unless you pipe it out.
 
 Flags: `--otlp` (the only format today, required) · `--days N`.
 
