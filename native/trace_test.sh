@@ -32,7 +32,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 
-for b in rabadon-trace rabadon-stats rabadon-export rabadon-gate rabadon-sandbox; do
+for b in rabadon-trace rabadon-stats rabadon-export rabadon-gate rabadon-sandbox rabadon-loop; do
   [ -x "./native/$b" ] || { echo "trace_test: build first (make native/$b)"; exit 1; }
 done
 
@@ -312,8 +312,207 @@ sys.exit(1 if bad else 0)
 PY
 PYRC=$?
 
-rm -rf "$BOX" "$REPO" "$WBOX"
+# ---------------------------------------------------------------------------
+# arms E-I: the `saved:` line, over ledgers the REAL loop wrote.
+#
+# That line is the only sentence on this screen that makes a claim about steps
+# which did not run and about money, and every number in it was assembled by
+# hand from firstCaught+1 and a plan count. Over a run whose catch IS the last
+# step it printed "steps 2–1" — a range that counts backwards — and the repaired
+# arm ended with a hardcoded "the bug never reached step 10" on a plan that has
+# one step. Both are numbers on the surface README says ends up in a screenshot,
+# and neither is in the ledger.
+#
+# The producer is repair_proof.sh's, because it is the only one that writes a
+# real REPAIR_OK / REPAIR_FAIL with no LLM in the room: rabadon-loop against a
+# genuinely broken project, with the proposer scripted. The arbiter still
+# decides — the honest proposer fixes the code, the cheat one neuters the test
+# and is refused on the forbidden sha.
+# ---------------------------------------------------------------------------
+echo "trace: the saved: line, over real repair events"
+SAVED=$(mktemp -d /tmp/rabadon-saved-line.XXXXXX)
+mkdir -p "$SAVED/bin"
+# The fix is a byte LONGER than the bug, and the suite below runs `python3 -B`:
+# the two files are otherwise the same size and are written inside the same
+# second, so CPython would have validated its own __pycache__/calc.pyc (mtime +
+# size) and re-imported the BUG after a correct repair. The honest arm passed or
+# failed on which side of a second boundary it landed.
+cat > "$SAVED/bin/honest.sh" <<'EOF'
+#!/bin/bash
+cat >/dev/null                                  # the repair prompt, ignored
+printf 'def add(a, b):\n    return a + b  # fixed\n' > calc.py   # fix the REAL bug
+EOF
+cat > "$SAVED/bin/cheat.sh" <<'EOF'
+#!/bin/bash
+cat >/dev/null
+printf 'print("ok")\n' > test_calc.py           # neuter the test instead
+EOF
+chmod +x "$SAVED/bin"/*.sh
+
+# <name> <honest|cheat|none> <declared steps>.  `none` is the zero-repair run:
+# RABADON_MAX_REPAIRS=0, so the catch is written and no repair is ever proposed.
+saved_scenario() {
+  local name=$1 prop=$2 n=$3
+  local d="$SAVED/$name" box="$SAVED/box-$name"
+  mkdir -p "$d" "$box/spool"
+  printf 'def add(a, b):\n    return a - b\n' > "$d/calc.py"     # the bug: subtracts
+  printf 'import calc\nassert calc.add(2, 3) == 5\nprint("ok")\n' > "$d/test_calc.py"
+  python3 - "$d" "$n" "$prop" <<'PY'
+import json, sys
+d, n, prop = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+h = 1469598103934665603                 # FNV-1a 64: what rabadon-verify hashes with
+for b in open(d + "/test_calc.py", "rb").read():
+    h = ((h ^ b) * 1099511628211) & 0xffffffffffffffff
+steps = [{"id": "fix-add", "kind": "llm" if prop == "none" else "cmd", "do": "true",
+          "contract": [{"type": "testsuite", "run": "python3 -B test_calc.py"},
+                       {"type": "forbidden", "path": "test_calc.py", "sha": str(h)}]}]
+for k in range(2, n + 1):               # steps AFTER the catch, so a range exists
+    steps.append({"id": "step-%d" % k, "kind": "cmd", "do": "true",
+                  "contract": [{"type": "fileExists", "path": "calc.py"}]})
+json.dump({"steps": steps, "accept": []}, open(d + "/plan.json", "w"))
+PY
+  if [ "$prop" = none ]; then
+    RABADON_DIR="$box" RABADON_MAX_REPAIRS=0 RABADON_PROPOSER=true \
+      "$ROOT/native/rabadon-loop" "$d" "$d/plan.json" >/dev/null 2>&1
+  else
+    RABADON_DIR="$box" RABADON_MAX_REPAIRS=1 RABADON_PROPOSER="$SAVED/bin/$prop.sh" \
+      "$ROOT/native/rabadon-loop" "$d" "$d/plan.json" >/dev/null 2>&1
+  fi
+}
+
+saved_scenario last-repaired  honest 1    # catch on the LAST step: no range exists
+saved_scenario last-rejected  cheat  1
+saved_scenario later-repaired honest 3    # catch on step 1 of 3: a range DOES exist
+saved_scenario later-rejected cheat  3
+saved_scenario no-repair      none   1    # a catch with zero REPAIR_* in the ledger
+
+python3 - "$ROOT" "$SAVED" <<'PY'
+import json, os, re, subprocess, sys
+root, saved = sys.argv[1], sys.argv[2]
+ok = bad = 0
+def pas(m):
+    global ok; ok += 1; print("  ok   - " + m)
+def bad_(m):
+    global bad; bad += 1; print("  FAIL - " + m)
+
+def render(name):
+    box = os.path.join(saved, "box-" + name)
+    evs = []
+    for f in os.listdir(os.path.join(box, "spool")):
+        if f.endswith(".jsonl"):
+            evs += [json.loads(l) for l in open(os.path.join(box, "spool", f), encoding="utf-8") if l.strip()]
+    env = dict(os.environ); env["RABADON_DIR"] = box
+    p = subprocess.run([os.path.join(root, "native", "rabadon-trace"), "--last", "--no-color"],
+                       capture_output=True, text=True, env=env)
+    return evs, p.stdout
+
+def saved_line(so):
+    for l in so.splitlines():
+        if "saved:" in l:
+            return l
+    return ""
+
+# The ledger has to hold the shape each arm claims to be about, or every
+# assertion under it is vacuous: a run with no REPAIR_OK cannot test the
+# repaired branch, and "no fake fix is printed" is free if nothing was caught.
+SHAPE = {"last-repaired":  ("REPAIR_OK",   1),
+         "last-rejected":  ("REPAIR_FAIL", 1),
+         "later-repaired": ("REPAIR_OK",   3),
+         "later-rejected": ("REPAIR_FAIL", 3),
+         "no-repair":      (None,          1)}
+out = {}
+for name, (want, declared) in SHAPE.items():
+    evs, so = render(name)
+    out[name] = so
+    kinds = [e["ev"] for e in evs]
+    n = max([e.get("steps", 0) for e in evs if e["ev"] == "RUN_START"] or [0])
+    repairs = [k for k in kinds if k.startswith("REPAIR_") and k != "REPAIR_START"]
+    if want is None:
+        if not repairs and "CHECK_FAIL" in kinds and n == declared:
+            pas("%s: the loop wrote a catch and ZERO REPAIR_OK/REPAIR_FAIL (%s)" % (name, ",".join(kinds)))
+        else:
+            bad_("%s: wanted a catch with no repair event, got %r (steps=%d)" % (name, kinds, n))
+    elif repairs == [want] and "CHECK_FAIL" in kinds and n == declared:
+        pas("%s: the real loop wrote CHECK_FAIL + %s over a %d-step plan" % (name, want, declared))
+    else:
+        bad_("%s: wanted CHECK_FAIL + %s over %d steps, got %r (steps=%d)"
+             % (name, want, declared, kinds, n))
+
+# ---- the headline each arm hangs on (positive first, K2) --------------------
+for name, want in (("last-repaired", "REPAIRED 1"), ("later-repaired", "REPAIRED 1"),
+                   ("last-rejected", "FAKE FIX REJECTED 1"), ("later-rejected", "FAKE FIX REJECTED 1"),
+                   ("no-repair", "REPAIRED 0")):
+    if want in out[name]:
+        pas("%s: the footer counts %s" % (name, want))
+    else:
+        bad_("%s: footer does not read %s: %r" % (name, want, re.findall(r"CAUGHT.*", out[name])))
+
+# ---- the detail line is TRUE here: there is a REPAIR_FAIL in this run -------
+# This is the positive half of the "no invented fake fix" assertion further
+# down. Without it, renaming the sentence would make that negative pass forever.
+for name in ("last-rejected", "later-rejected"):
+    if "fake fix" in out[name] and "REPAIR_FAIL" in out[name]:
+        pas("%s: the rejected repair is drawn as a fake fix -> REPAIR_FAIL, which is what the ledger says" % name)
+    else:
+        bad_("%s: a real REPAIR_FAIL is not rendered: %r" % (name, out[name]))
+
+# ---- the range: forward when later steps exist, absent when they do not -----
+for name in ("later-repaired", "later-rejected"):
+    if "steps 2–3" in out[name]:
+        pas("%s: the saved: line names the steps that really follow the catch (steps 2–3)" % name)
+    else:
+        bad_("%s: the run has steps 2 and 3 after the catch, the line does not say so: %r"
+             % (name, saved_line(out[name])))
+for name in ("last-repaired", "last-rejected"):
+    if re.search(r"\bstep 1 of 1\b", saved_line(out[name])):
+        pas("%s: with nothing after the catch the line says step 1 of 1, not a range" % name)
+    else:
+        bad_("%s: the catch is the last step, the line still invents a range: %r"
+             % (name, saved_line(out[name])))
+
+# ---- NEGATIVE 1: no range may count backwards ------------------------------
+for name, so in sorted(out.items()):
+    back = [(a, b) for a, b in re.findall(r"steps (\d+)–(\d+)", so) if int(a) > int(b)]
+    if back:
+        bad_("%s: a step range counts backwards: %r" % (name, back))
+    else:
+        pas("%s: every step range printed runs forwards" % name)
+
+# ---- NEGATIVE 2: no step number that is not in the run ---------------------
+# The general form of the hardcoded "step 10": every number the render attaches
+# to the word step has to be inside 1..N for THAT run.
+for name, so in sorted(out.items()):
+    n = SHAPE[name][1]
+    seen = set()
+    for a, b in re.findall(r"steps? (\d+)(?:–(\d+))?", so):
+        seen.add(int(a))
+        if b:
+            seen.add(int(b))
+    outside = sorted(x for x in seen if x < 1 or x > n)
+    if outside:
+        bad_("%s: the render names step(s) %r over a %d-step run" % (name, outside, n))
+    else:
+        pas("%s: every step number on screen (%s) is a step this %d-step run really had"
+            % (name, ",".join(str(x) for x in sorted(seen)) or "-", n))
+
+# ---- NEGATIVE 3: the zero-repair run invents nothing ------------------------
+# The four strings the discovery run found on a ledger with no REPAIR_* in it.
+# Each one is asserted PRESENT on the rejected/repaired arms above, so this is
+# not a check that passes by renaming.
+for token in ("fake fix", "REPAIR_FAIL", "repaired", "step 10"):
+    if token in out["no-repair"]:
+        bad_("no-repair: %r is on screen over a run whose ledger has no REPAIR event" % token)
+    else:
+        pas("no-repair: %r never appears — nothing was proposed, so nothing is reported" % token)
+
+print("  --- %d ok, %d failed" % (ok, bad))
+sys.exit(1 if bad else 0)
+PY
+PY2RC=$?
+
+rm -rf "$BOX" "$REPO" "$WBOX" "$SAVED"
 if [ $PYRC -ne 0 ]; then bad=$((bad+1)); fi
+if [ $PY2RC -ne 0 ]; then bad=$((bad+1)); fi
 echo "  --- $ok ok, $bad failed (shell arm)"
 [ $bad -eq 0 ] || exit 1
 exit 0
