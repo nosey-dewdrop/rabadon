@@ -165,7 +165,7 @@ fi
 #
 # The probe is python3, NOT a bash loop: `do` and `serve` used to hang and bash
 # has no portable timeout on macOS (no `timeout`, no `gtimeout` — checked).
-HELP_BINS="trace"
+HELP_BINS="trace do serve"
 
 HELP_REPORT=$(mktemp /tmp/rabadon-help-report.XXXXXX)
 python3 - "$HELP_REPORT" $HELP_BINS <<'PY'

@@ -20,6 +20,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "cli_help.h"
 
 using std::string;
 
@@ -44,9 +45,36 @@ static string unfence(string s){
   return s;
 }
 
+static const char* kHelp =
+  "rabadon-do — one task in, a gate-verified pipeline out.\n"
+  "One model call decomposes the task into steps whose every contract is checked\n"
+  "by machine; rabadon-loop then runs it, repairs what fails, and refuses a fix\n"
+  "that only pretends to pass.\n"
+  "\n"
+  "usage: rabadon-do \"<task>\" [dir]\n"
+  "\n"
+  "  \"<task>\"   what you want done, in one sentence.\n"
+  "  [dir]      the project it runs in (default: the current directory).\n"
+  "  -h, --help this screen. costs nothing — no model call is made.\n"
+  "\n"
+  "environment:\n"
+  "  RABADON_PROPOSER    the coding-agent command the loop calls for repairs.\n"
+  "  RABADON_MAX_REPAIRS repair attempts per step (default 1).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-do \"add a --json flag to the stats command\" ~/src/myrepo\n";
+
 int main(int argc,char** argv){
-  if(argc<2){ fprintf(stderr,"usage: rabadon-do \"<task>\" [dir]\n"); return 2; }
+  // FIRST statement, before the repo walk and before claude() — `rabadon-do
+  // --help` used to take the flag as the task and open a paid model call, so
+  // the one word a new user types first HUNG and cost money.
+  rb_help(argc, argv, kHelp);
+
+  if(argc<2){ fprintf(stderr,"usage: rabadon-do \"<task>\" [dir]\n  run `rabadon-do --help`\n"); return 2; }
   string task=argv[1];
+  // a task is a sentence, never a flag. without this, a mistyped option became
+  // the prompt and was billed.
+  if(rb_is_flag(task.c_str())) rb_unknown_flag("rabadon-do", task.c_str());
   string dir=argc>2?argv[2]:".";
   { char buf[4096]; if(dir=="."){ if(getcwd(buf,sizeof buf)) dir=buf; } }
   mkdir((dir+"/.rabadon").c_str(),0755);

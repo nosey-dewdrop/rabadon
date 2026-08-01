@@ -57,6 +57,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+#include "cli_help.h"
 
 using std::string;
 using std::vector;
@@ -416,7 +417,29 @@ static void handle(Server& sv, int fd) {
 static std::atomic<bool> g_stop{false};
 static void on_signal(int) { g_stop = true; }
 
+static const char* kHelp =
+  "rabadon-serve — the team ledger. Append-only HTTP store for pipeline runs.\n"
+  "POST /ingest with an API key to push a machine's spool; GET / and GET /run/<id>\n"
+  "render the same catch -> fix -> proof -> cost trace the terminal prints.\n"
+  "Every accepted batch is fsync'd before the 200 goes out.\n"
+  "\n"
+  "usage: rabadon-serve [--port N] [--store DIR] [--keys FILE] [--threads N]\n"
+  "\n"
+  "  --port N      TCP port to listen on (default 4319).\n"
+  "  --store DIR   where shards are written (default $RABADON_DIR/team).\n"
+  "  --keys FILE   one `<secret-key> <project-name>` per line; with no keys\n"
+  "                every /ingest is refused (default $RABADON_DIR/keys).\n"
+  "  --threads N   worker threads (default 8).\n"
+  "  -h, --help    this screen. no socket is opened.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-serve --port 4319 --keys ~/.rabadon/keys\n";
+
 int main(int argc, char** argv) {
+  // FIRST statement: `rabadon-serve -h` was an unknown flag, fell through the
+  // parser, and started listening. A help request must never open a socket.
+  rb_help(argc, argv, kHelp);
+
   int port = 4319, threads = 8;
   string store, keysPath;
   for (int i = 1; i < argc; i++) {
@@ -425,10 +448,10 @@ int main(int argc, char** argv) {
     else if (a == "--store" && i + 1 < argc) store = argv[++i];
     else if (a == "--keys" && i + 1 < argc) keysPath = argv[++i];
     else if (a == "--threads" && i + 1 < argc) threads = std::max(1, atoi(argv[++i]));
-    else if (a == "--help") {
-      printf("usage: rabadon-serve [--port N] [--store DIR] [--keys FILE] [--threads N]\n");
-      return 0;
-    }
+    // any other word: refused. `-h` used to fall through this loop and START
+    // THE SERVER — the flag was unknown, so nothing stopped it, and the
+    // stranger's terminal froze on a listening socket.
+    else rb_unknown_flag("rabadon-serve", a.c_str());
   }
   const char* rd = getenv("RABADON_DIR");
   const char* home = getenv("HOME");
