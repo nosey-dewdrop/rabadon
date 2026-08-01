@@ -109,6 +109,72 @@ check "--md reproducible pointer" 'rabadon usage --days 7' "$M"
 EMPTY_DIR="$TMP/empty"; mkdir -p "$EMPTY_DIR/spool"
 check "empty state points at rabadon drill" 'rabadon drill' "$(RABADON_DIR="$EMPTY_DIR" RABADON_NOW="$NOW" TZ=UTC COLUMNS=100 $NATIVE --days 7)"
 
+# A FILTER THAT MATCHED NOTHING IS A FAILED QUESTION, NOT AN EMPTY LEDGER.
+# `usage --project X` dropped every project, fell into the projects.empty()
+# branch and printed the onboarding block ("the ledger fills itself: run
+# `claude` inside a project where `rabadon init` has been run") at exit 0 — it
+# told a user who had already run init, already run claude and already had
+# catches on disk that rabadon had recorded nothing. The ledger was not empty;
+# the filter was. `rabadon trace nosuchrun` already exits 1 and names the word
+# it could not find; the ledger — the surface the README calls the only sales
+# artifact that matters — now does the same, on all three renderers.
+#
+# The positive assertion comes FIRST and stays first: the onboarding copy must
+# still be printed, verbatim, for the ledger that really is empty. Without it a
+# rename of that block would make every check_not below pass on its own.
+EMPTY_OUT="$(RABADON_DIR="$EMPTY_DIR" RABADON_NOW="$NOW" TZ=UTC COLUMNS=100 $NATIVE --days 7)"; EMPTY_RC=$?
+check "the truly empty ledger still gets the onboarding copy" 'the ledger fills itself' "$EMPTY_OUT"
+if [ "$EMPTY_RC" -eq 0 ]; then ok=$((ok+1)); echo "  ok   - the truly empty ledger is not an error (rc: $EMPTY_RC)"
+else bad=$((bad+1)); echo "  FAIL - empty ledger exited $EMPTY_RC, wanted 0"; fi
+
+# stdout and stderr kept apart: the diagnosis belongs on stderr, and stdout of
+# a failed question must not carry a report a pipe would read as an answer.
+NP_ERR="$TMP/np.err"
+NP_OUT="$(run --days 7 --project nosuchproject 2>"$NP_ERR")"; NP_RC=$?
+NP_E="$(cat "$NP_ERR")"
+check "a filter that matched nothing names the project asked for" '"nosuchproject"' "$NP_E"
+check "and names the projects that ARE in the window (alpha)" 'alpha' "$NP_E"
+check "and names all of them, not just the first (beta)" 'beta' "$NP_E"
+check_not "the onboarding copy is not the answer to a wrong name" 'the ledger fills itself' "$NP_OUT$NP_E"
+check_not "and neither is a zeroed report on stdout" 'refused before they happened' "$NP_OUT"
+if [ "$NP_RC" -ne 0 ]; then ok=$((ok+1)); echo "  ok   - a filter that matched nothing exits non-zero (rc: $NP_RC)"
+else bad=$((bad+1)); echo "  FAIL - --project nosuchproject exited 0"; printf '%s\n' "$NP_OUT" | sed 's/^/    | /'; fi
+
+# --md and --json are the same failed question. A script asking "how many
+# catches for project X this week" could not tell a wrong name from a clean
+# week: --md printed "_no events in this window._" and --json emitted
+# "projects":[] with every total 0, both at exit 0.
+NPM_OUT="$(run --days 7 --project nosuchproject --md 2>"$NP_ERR")"; NPM_RC=$?
+check "--md names the project asked for on stderr" '"nosuchproject"' "$(cat "$NP_ERR")"
+check_not "--md prints no empty-window report body" 'no events in this window' "$NPM_OUT"
+if [ "$NPM_RC" -ne 0 ]; then ok=$((ok+1)); echo "  ok   - --md exits non-zero for a wrong name (rc: $NPM_RC)"
+else bad=$((bad+1)); echo "  FAIL - --md --project nosuchproject exited 0"; fi
+
+NPJ_OUT="$(run --days 7 --project nosuchproject --json 2>"$NP_ERR")"; NPJ_RC=$?
+check "--json names the project asked for on stderr" '"nosuchproject"' "$(cat "$NP_ERR")"
+check_not "--json emits no all-zero body a caller would trust" '"projects":\[\]' "$NPJ_OUT"
+if [ "$NPJ_RC" -ne 0 ]; then ok=$((ok+1)); echo "  ok   - --json exits non-zero for a wrong name (rc: $NPJ_RC)"
+else bad=$((bad+1)); echo "  FAIL - --json --project nosuchproject exited 0"; fi
+
+# the same block fired for a window that cannot exist: `--days -5` rendered
+# "last -5 day(s)" over a spool with events and then the onboarding copy, at 0.
+NEG_OUT="$(run --days -5 2>"$NP_ERR")"; NEG_RC=$?
+NEG_E="$(cat "$NP_ERR")"
+# [-] not \- : the pattern reaches grep as an argument, and a leading dash is
+# read as an option; a bracket expression is the portable literal hyphen.
+check "a negative window is refused by name" '[-]5' "$NEG_E"
+check_not "a negative window is never rendered as a heading" 'last -5 day' "$NEG_OUT"
+check_not "and never answered with the onboarding copy" 'the ledger fills itself' "$NEG_OUT$NEG_E"
+if [ "$NEG_RC" -ne 0 ]; then ok=$((ok+1)); echo "  ok   - --days -5 exits non-zero (rc: $NEG_RC)"
+else bad=$((bad+1)); echo "  FAIL - --days -5 exited 0"; printf '%s\n' "$NEG_OUT" | sed 's/^/    | /'; fi
+
+# and the name that IS there still answers, at 0 — the refusal above must not
+# have been bought by failing every --project.
+GOOD_OUT="$(run --days 7 --project alpha)"; GOOD_RC=$?
+check "a project that IS in the window still renders" '^  alpha +last event:' "$GOOD_OUT"
+if [ "$GOOD_RC" -eq 0 ]; then ok=$((ok+1)); echo "  ok   - a matching --project still exits 0 (rc: $GOOD_RC)"
+else bad=$((bad+1)); echo "  FAIL - --project alpha exited $GOOD_RC"; fi
+
 # ellipsis contract: a very long why must end in … and fit the width
 LONGDIR="$TMP/long"; mkdir -p "$LONGDIR/spool"
 LONGWHY=$(printf 'w%.0s' $(seq 1 300))
