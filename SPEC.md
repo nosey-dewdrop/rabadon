@@ -159,6 +159,20 @@ producers that predate the chain (or that do not implement it) carry no `prev`
 and MUST be tolerated as *unchained* — counted and reported, never silently
 trusted.
 
+**Serialization is NOT part of the contract.** A line is JSON. This spec fixes
+no byte layout: no compact separators, no key order, no "the bytes rabadon's
+own printf emits". A producer using a stock serializer writes `"prev": "..."`
+with a space, and its chain is exactly as valid. Every reader — audit, export,
+usage, the chain writer's own line count — MUST therefore parse the line, and
+MUST NOT decide by substring-matching `"key":"`. This is not a style note: the
+byte match made `rabadon audit` answer *TAMPER-EVIDENT BREAK, the chain was
+stripped out* over a ledger whose every `prev` was the correct SHA-256, and
+made `rabadon export --otlp` render zero spans over ten real events. A verifier
+whose true predicate is "these bytes came from me" does not verify a chain, it
+fingerprints an emitter — and it converts Part II's agent-agnostic promise into
+a false accusation against the first stranger who honours it. Held by
+`native/audit_test.sh` arms (g)/(h) and `native/export_test.sh` arm 7.
+
 ## 3. Guard schema (v1)
 
 The guard is the project's law, machine-checkable, stored at
