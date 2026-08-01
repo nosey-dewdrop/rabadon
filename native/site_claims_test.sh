@@ -65,9 +65,13 @@ for k, v in d.items():
     if k.startswith('_'):
         continue
     cmd = v.get('cmd', '')
+    # a cmd is either a path (native/gate_bench.sh) or a one-liner that NAMES a
+    # path (grep -c ... reports/.../06-locks.txt). either way at least one word
+    # of it has to be a file in this repository, or the number is unsourced.
+    words = [w.strip("'\"") for w in cmd.split()]
     if not cmd:
         print('MISSING-CMD', k); bad += 1
-    elif not os.path.exists(cmd.split()[0]):
+    elif not any(os.path.exists(w) for w in words):
         print('MISSING-FILE', k, cmd); bad += 1
     else:
         print('OK', k, cmd)

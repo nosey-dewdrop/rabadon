@@ -77,12 +77,28 @@ else
   fi
 fi
 
+# ---- 6. the one live repair on a foreign repo, counted off its own evidence --
+# Not re-run: it took a real proposer call against expressjs/express at a pinned
+# commit. The numbers are counted out of the run's own ledger and lock list,
+# which ship in this repository, so the reader can count them again.
+echo "-- reports/2026-08-01-g3-first-held-repair"
+G3="$REPO/reports/2026-08-01-g3-first-held-repair"
+if [ -d "$G3" ]; then
+  HELD=$(grep -cE '"ev": *"REPAIR_OK"' "$G3/04-ledger-events.jsonl" 2>/dev/null || echo 0)
+  LOCKS=$(grep -cE '^[0-9a-f]{16,}' "$G3/06-locks.txt" 2>/dev/null || echo 0)
+  SUITE=$(grep -oE '[0-9]+ tests' "$G3/README.txt" | head -1 | grep -oE '[0-9]+' || echo 0)
+  echo "   repairs held $HELD, test files locked $LOCKS"
+else
+  HELD=0; LOCKS=0; SUITE=0
+  echo "   MISSING — the evidence directory is not in the repo"
+fi
+
 # ---- write it all down ------------------------------------------------------
-python3 - "$REPO" "$TMP" "$PREC_RC" "$BENCH_RC" "$HARNESS_RC" "$HELDOUT_RC" <<'PY'
+python3 - "$REPO" "$TMP" "$PREC_RC" "$BENCH_RC" "$HARNESS_RC" "$HELDOUT_RC" "$HELD" "$LOCKS" "$SUITE" <<'PY'
 import json, os, re, subprocess, sys
 
 repo, tmp = sys.argv[1], sys.argv[2]
-prec_rc, bench_rc, harness_rc, heldout_rc = (int(x) for x in sys.argv[3:7])
+prec_rc, bench_rc, harness_rc, heldout_rc, g3_held, g3_locks, g3_suite = (int(x) for x in sys.argv[3:10])
 p = os.path.join(repo, "site", "measured.json")
 d = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
 
@@ -185,6 +201,24 @@ if xcases and xp:
         "value": xcases, "cmd": "native/heldout_test.sh",
         "what": "greens bought by a constant or an invented comparison",
         "note": "pass %s, fail %s, real binary end to end. exit %d." % (xp.group(1), xp.group(2), heldout_rc)})
+
+# --- the one live repair on a foreign repo ---------------------------------
+if g3_locks:
+    d["express.repairs_held"] = stamp({
+        "value": g3_held, "display": str(g3_held),
+        "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
+        "what": "repairs held on a foreign repo, live",
+        "note": "expressjs/express at a3714473, the arbiter being that project's own mocha suite. "
+                "the working tree was never edited."})
+    d["express.locked"] = stamp({
+        "value": g3_locks, "display": str(g3_locks),
+        "cmd": "grep -cE '^[0-9a-f]{16,}' reports/2026-08-01-g3-first-held-repair/06-locks.txt",
+        "what": "test files hash-locked in that run",
+        "note": "sha256 of the pristine copy; the arbiter re-hashed each one after the proposer."})
+    d["express.suite_tests"] = stamp({
+        "value": g3_suite, "display": "{:,}".format(g3_suite),
+        "cmd": "reports/2026-08-01-g3-first-held-repair/README.txt",
+        "what": "tests in the arbiter's suite", "note": "the project's own, not one rabadon wrote."})
 
 with open(p, "w", encoding="utf-8") as f:
     json.dump(d, f, indent=2, sort_keys=True)

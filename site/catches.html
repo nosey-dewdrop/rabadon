@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>rabadon, what it caught</title>
-<meta name="description" content="221 commands refused before they ran, read out of the gate's own ledger.">
+<meta name="description" content="238 commands refused before they ran, read out of the gate's own ledger.">
 <meta name="author" content="Damla Su Bilge">
 <link rel="canonical" href="https://rabadon.noseydewdrop.com/catches">
 <meta property="og:type" content="website">
 <meta property="og:title" content="rabadon, what it caught">
-<meta property="og:description" content="221 commands refused before they ran, read out of the gate's own ledger.">
+<meta property="og:description" content="238 commands refused before they ran, read out of the gate's own ledger.">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com/catches">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,31 +28,35 @@
 <h1>what it actually caught.</h1>
 <p class="lede small dim">Read straight out of the gate's own spool when this page was built. Every line below is a command that was about to run on a real machine, during real work, and did not run. Rehearsals fired by the test suite are counted separately and left out of the total, because a tool that pads its own numbers with its own drills has no business judging anyone else's proof.</p>
 <div class="proof">
-<div><span class="n p">221</span><span class="t">commands refused before they ran</span></div>
+<div><span class="n p">238</span><span class="t">commands refused before they ran</span></div>
 <div><span class="n b">9</span><span class="t">repositories they were refused in</span></div>
 <div><span class="n g">31</span><span class="t">repairs held after the proof survived</span></div>
 <div><span class="n y">1</span><span class="t">drills, excluded from the total</span></div>
 </div></div>
 <section><h2>project by project</h2><p class="small dim">Each line is the sentence the ledger wrote at the moment the command was refused, with the home path stripped and nothing else changed. Open any rule to read the raw entries behind the count.</p>
-<div class="term"><span class="c">rabadon</span><span class="o">   115 refused</span>
+<div class="term"><span class="c">rabadon</span><span class="o">   126 refused</span>
 
-<span class="r">[&times;]</span>  74  <span class="u">no-force-push-main</span>
+<span class="r">[&times;]</span>  79  <span class="u">no-force-push-main</span>
        <span class="o">source /tmp/rbtest_prefix; export HOME=&quot;$T2/home&quot;; PFX=&quot;$T2/pfx&quot;; RB=&quot;$PFX/bin/rabadon&quot;; PROJ=&quot;$T2/proj&quot;; mkdir -p &quot;$PRO</span>
-<span class="r">[&times;]</span>  29  <span class="u">baseline-rm-rf-outside</span>
+<span class="r">[&times;]</span>  30  <span class="u">baseline-rm-rf-outside</span>
        <span class="o">rm -r &#x27;latbench&#x27; resolves to /private/tmp/latbench, outside the project tree (~/damla_projects_2026/rabadon)</span>
-<span class="r">[&times;]</span>   6  <span class="u">promise-off-target</span>
+<span class="r">[&times;]</span>   7  <span class="u">promise-off-target</span>
        <span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level s</span>
 <span class="r">[&times;]</span>   4  <span class="u">no-rm-rf-outside</span>
        <span class="o">PROBE=$(cat /tmp/rbprobe.path); BIN=~/damla_projects_2026/rabadon/native/rabadon-gate N=100 probe(){ N=$((N+1)); RD=$(mk</span>
+<span class="r">[&times;]</span>   3  <span class="u">baseline-force-push</span>
+       <span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
 <span class="r">[&times;]</span>   1  <span class="u">no-gnu-timeout-on-macos</span>
        <span class="o">cd /tmp/mine-lodash-Ekjzus/repo &amp;&amp; timeout 600 node test/test.js &gt; /tmp/mine-lodash-Ekjzus/base.out 2&gt;&amp;1; echo &quot;EXIT=$?&quot;</span>
 <span class="r">[&times;]</span>   1  <span class="u">no-hook-bypass</span>
-       <span class="o">cd ~/damla_projects_2026/rabadon git -c commit.gpgsign=false commit -F /tmp/rb_commit_msg.txt --no-verify 2&gt;&amp;1 | tail -5</span></div>
-<div class="term"><span class="c">damummyphus  (the home directory itself)</span><span class="o">   26 refused</span>
+       <span class="o">cd ~/damla_projects_2026/rabadon git -c commit.gpgsign=false commit -F /tmp/rb_commit_msg.txt --no-verify 2&gt;&amp;1 | tail -5</span>
+<span class="r">[&times;]</span>   1  <span class="u">baseline-branch-delete</span>
+       <span class="o">git push deletes shared branch &#x27;main&#x27; on the remote (written as &#x27;main&#x27;) — delete your own branch instead, or silence bas</span></div>
+<div class="term"><span class="c">damummyphus  (the home directory itself)</span><span class="o">   32 refused</span>
 
-<span class="r">[&times;]</span>  14  <span class="u">no-force-push-main</span>
+<span class="r">[&times;]</span>  18  <span class="u">no-force-push-main</span>
        <span class="o">source /tmp/rbtest_prefix; export HOME=&quot;$T2/home&quot;; PFX=&quot;$T2/pfx&quot;; RB=&quot;$PFX/bin/rabadon&quot;; PROJ=&quot;$T2/proj&quot; HOOK=&quot;$PFX/lib/</span>
-<span class="r">[&times;]</span>   5  <span class="u">no-gnu-timeout-on-macos</span>
+<span class="r">[&times;]</span>   7  <span class="u">no-gnu-timeout-on-macos</span>
        <span class="o">cd /tmp/click-hunt-cXNETT/repo &amp;&amp; timeout 600 .venv/bin/python -m pytest -q 2&gt;&amp;1 | tail -15</span>
 <span class="r">[&times;]</span>   5  <span class="u">baseline-force-push</span>
        <span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
@@ -101,7 +105,7 @@
 <p class="cap">The delete law reads a resolved path, not the text of the command, which is why a target written as a relative name and a target written through a temp directory are the same question to it. The line from LMCache is the sharpest one here: a stray redirection was about to be handed to a recursive delete as if it were a directory.</p>
 </section>
 <section><h2>the raw ledger, rule by rule</h2><p class="small dim">Nothing above needs to be taken on trust. These are entries as the gate wrote them, timestamp, project and reason, with only the home path replaced. Some of them fired while rabadon's own test scaffolding was running, and those are left in rather than quietly dropped, because a page that hides its own noise is asking to be believed instead of checked.</p>
-<details><summary>no-force-push-main, 88 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-07-31 13:42</span>  <span class="u">rabadon               </span><span class="o">source /tmp/rbtest_prefix; export HOME=&quot;$T2/home&quot;; PFX=&quot;$T2/pfx&quot;; RB=&quot;$PFX/bin/rabadon&quot;; PROJ=&quot;$T2/proj&quot;; mkdir -p &quot;$PROJ&quot;; cd &quot;$PROJ&quot; &amp;&amp; git init -q echo &quot;===</span>
+<details><summary>no-force-push-main, 97 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-07-31 13:42</span>  <span class="u">rabadon               </span><span class="o">source /tmp/rbtest_prefix; export HOME=&quot;$T2/home&quot;; PFX=&quot;$T2/pfx&quot;; RB=&quot;$PFX/bin/rabadon&quot;; PROJ=&quot;$T2/proj&quot;; mkdir -p &quot;$PROJ&quot;; cd &quot;$PROJ&quot; &amp;&amp; git init -q echo &quot;===</span>
 <span class="o">2026-07-31 13:42</span>  <span class="u">damummyphus           </span><span class="o">source /tmp/rbtest_prefix; export HOME=&quot;$T2/home&quot;; PFX=&quot;$T2/pfx&quot;; RB=&quot;$PFX/bin/rabadon&quot;; PROJ=&quot;$T2/proj&quot; HOOK=&quot;$PFX/lib/node_modules/rabadon/native/rabadon-gate</span>
 <span class="o">2026-07-31 14:30</span>  <span class="u">damummyphus           </span><span class="o">ls /tmp/rabadon-wild/flask/uv.lock /tmp/rabadon-wild/babel/yarn.lock 2&gt;&amp;1; cd /tmp/rabadon-wild/express &amp;&amp; export RABADON_DIR=/tmp/rabadon-wild/rhome &amp;&amp; claude</span>
 <span class="o">2026-07-31 14:34</span>  <span class="u">rabadon               </span><span class="o">git add -A native/gate.cpp native/sigpipe_test.sh hooks/gate.mjs hooks/gate.test.mjs &amp;&amp; git commit -q -m &quot;close the git -C bypass: an agent in the wild wrote &#x27;g</span>
@@ -109,7 +113,7 @@
 <span class="o">2026-07-31 15:07</span>  <span class="u">rabadon               </span><span class="o">PROBE=$(cat /tmp/rbprobe.path); BIN=~/damla_projects_2026/rabadon/native/rabadon-gate RD=$(mktemp -d); : &gt; &quot;$RD/enabled&quot; run1(){ printf &#x27;{&quot;hook</span>
 <span class="o">2026-07-31 15:07</span>  <span class="u">rabadon               </span><span class="o">cd /tmp/drilltest &amp;&amp; echo &#x27;{&quot;session_id&quot;:&quot;t&quot;,&quot;tool_name&quot;:&quot;Bash&quot;,&quot;tool_input&quot;:{&quot;command&quot;:&quot;git push --force origin main&quot;},&quot;cwd&quot;:&quot;/tmp/drilltest&quot;}&#x27; | RABADON_DIR=/</span>
 <span class="o">2026-07-31 15:07</span>  <span class="u">rabadon               </span><span class="o">rm -rf /tmp/drillhome &amp;&amp; mkdir -p /tmp/drillhome/spool &amp;&amp; touch /tmp/drillhome/enabled &amp;&amp; cd /tmp/drilltest &amp;&amp; echo &#x27;{&quot;session_id&quot;:&quot;t1&quot;,&quot;tool_name&quot;:&quot;Bash&quot;,&quot;tool</span></div></div></details>
-<details><summary>baseline-rm-rf-outside, 75 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-07-31 17:04</span>  <span class="u">youkiddingme          </span><span class="o">rm -r &#x27;/tmp/lulupro&#x27; resolves to /private/tmp/lulupro, outside the project tree (~/damla_projects_2026/youkiddingme)</span>
+<details><summary>baseline-rm-rf-outside, 76 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-07-31 17:04</span>  <span class="u">youkiddingme          </span><span class="o">rm -r &#x27;/tmp/lulupro&#x27; resolves to /private/tmp/lulupro, outside the project tree (~/damla_projects_2026/youkiddingme)</span>
 <span class="o">2026-07-31 17:04</span>  <span class="u">youkiddingme          </span><span class="o">rm -r &#x27;/tmp/f1&#x27; resolves to /private/tmp/f1, outside the project tree (~/damla_projects_2026/youkiddingme)</span>
 <span class="o">2026-07-31 17:05</span>  <span class="u">icerik                </span><span class="o">rm -r &#x27;/tmp/f1&#x27; resolves to /private/tmp/f1, outside the project tree (~)</span>
 <span class="o">2026-07-31 17:05</span>  <span class="u">icerik                </span><span class="o">rm -r &#x27;/tmp/pilot1&#x27; resolves to /private/tmp/pilot1, outside the project tree (~)</span>
@@ -125,7 +129,7 @@
 <span class="o">2026-07-31 22:26</span>  <span class="u">stitchu               </span><span class="o">code was edited after the last passing test run — run the test suite first</span>
 <span class="o">2026-07-31 22:27</span>  <span class="u">stitchu               </span><span class="o">code was edited after the last passing test run — run the test suite first</span>
 <span class="o">2026-07-31 23:00</span>  <span class="u">stitchu               </span><span class="o">code was edited after the last passing test run — run the test suite first</span></div></div></details>
-<details><summary>baseline-force-push, 13 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-08-01 13:24</span>  <span class="u">youkiddingme          </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
+<details><summary>baseline-force-push, 16 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-08-01 13:24</span>  <span class="u">youkiddingme          </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
 <span class="o">2026-08-01 19:45</span>  <span class="u">damummyphus           </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
 <span class="o">2026-08-01 19:46</span>  <span class="u">damummyphus           </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
 <span class="o">2026-08-01 19:48</span>  <span class="u">damummyphus           </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
@@ -133,18 +137,21 @@
 <span class="o">2026-08-01 19:51</span>  <span class="u">damummyphus           </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
 <span class="o">2026-08-01 20:13</span>  <span class="u">p                     </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span>
 <span class="o">2026-08-01 20:13</span>  <span class="u">p                     </span><span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span></div></div></details>
-<details><summary>promise-off-target, 6 refused, showing 6</summary><div class="body"><div class="term"><span class="o">2026-07-31 13:38</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
-<span class="o">2026-07-31 15:40</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
-<span class="o">2026-07-31 17:28</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
-<span class="o">2026-07-31 20:43</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
-<span class="o">2026-07-31 23:12</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
-<span class="o">2026-08-01 11:22</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span></div></div></details>
-<details><summary>no-gnu-timeout-on-macos, 6 refused, showing 6</summary><div class="body"><div class="term"><span class="o">2026-08-01 11:20</span>  <span class="u">rabadon               </span><span class="o">cd /tmp/mine-lodash-Ekjzus/repo &amp;&amp; timeout 600 node test/test.js &gt; /tmp/mine-lodash-Ekjzus/base.out 2&gt;&amp;1; echo &quot;EXIT=$?&quot;; tail -20 /tmp/mine-lodash-Ekjzus/base.</span>
+<details><summary>no-gnu-timeout-on-macos, 8 refused, showing 8</summary><div class="body"><div class="term"><span class="o">2026-08-01 11:20</span>  <span class="u">rabadon               </span><span class="o">cd /tmp/mine-lodash-Ekjzus/repo &amp;&amp; timeout 600 node test/test.js &gt; /tmp/mine-lodash-Ekjzus/base.out 2&gt;&amp;1; echo &quot;EXIT=$?&quot;; tail -20 /tmp/mine-lodash-Ekjzus/base.</span>
 <span class="o">2026-08-01 18:01</span>  <span class="u">damummyphus           </span><span class="o">cd /tmp/click-hunt-cXNETT/repo &amp;&amp; timeout 600 .venv/bin/python -m pytest -q 2&gt;&amp;1 | tail -15</span>
 <span class="o">2026-08-01 19:15</span>  <span class="u">damummyphus           </span><span class="o">cd /tmp/av/elmohq_elmo/apps/web &amp;&amp; timeout 500 ../../node_modules/.bin/tsc --noEmit -p tsconfig.json 2&gt;&amp;1 | grep -E &quot;prompts-list-editor|bulk-prompts|error TS&quot;</span>
 <span class="o">2026-08-01 19:31</span>  <span class="u">damummyphus           </span><span class="o">W=$(cat /tmp/click-hunt-path.txt); cd $W/click &amp;&amp; timeout 500 .venv/bin/python -m pytest -v --tb=short -x -m stress --override-ini=addopts= -p no:randomly 2&gt;&amp;1</span>
 <span class="o">2026-08-01 19:34</span>  <span class="u">damummyphus           </span><span class="o">which uv make; cd /tmp/hunt-dsb/clean-sdist &amp;&amp; timeout 240 make test-python &gt; /tmp/hunt-dsb/make_test.txt 2&gt;&amp;1; echo &quot;EXIT=$?&quot;; tail -30 /tmp/hunt-dsb/make_test</span>
-<span class="o">2026-08-01 19:40</span>  <span class="u">damummyphus           </span><span class="o">cd /tmp/jinja-hunt/repo &amp;&amp; timeout 120 /tmp/jinja-hunt/venv/bin/python - &lt;&lt;&#x27;EOF&#x27; import time from jinja2 import Environment from jinja2.lexer import get_lexer e</span></div></div></details>
+<span class="o">2026-08-01 19:40</span>  <span class="u">damummyphus           </span><span class="o">cd /tmp/jinja-hunt/repo &amp;&amp; timeout 120 /tmp/jinja-hunt/venv/bin/python - &lt;&lt;&#x27;EOF&#x27; import time from jinja2 import Environment from jinja2.lexer import get_lexer e</span>
+<span class="o">2026-08-01 21:26</span>  <span class="u">damummyphus           </span><span class="o">cd /tmp/rabadon-hakem &amp;&amp; make native/rabadon-repair 2&gt;&amp;1 | tail -3 &amp;&amp; python3 - &lt;&lt;&#x27;PY&#x27; s=open(&#x27;native/repair.cpp&#x27;,encoding=&#x27;utf-8&#x27;).read() s=s.replace(&#x27;&#x27;&#x27;    &quot;-</span>
+<span class="o">2026-08-01 21:27</span>  <span class="u">damummyphus           </span><span class="o">cd /tmp &amp;&amp; rm -rf mvnfix &amp;&amp; mkdir -p mvnfix/src/main/java mvnfix/src/test/java &amp;&amp; cd mvnfix &amp;&amp; cat &gt; pom.xml &lt;&lt;&#x27;EOF&#x27; &lt;project xmlns=&quot;http://maven.apache.org/POM</span></div></div></details>
+<details><summary>promise-off-target, 7 refused, showing 7</summary><div class="body"><div class="term"><span class="o">2026-07-31 13:38</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
+<span class="o">2026-07-31 15:40</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
+<span class="o">2026-07-31 17:28</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
+<span class="o">2026-07-31 20:43</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
+<span class="o">2026-07-31 23:12</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
+<span class="o">2026-08-01 11:22</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span>
+<span class="o">2026-08-01 23:05</span>  <span class="u">rabadon               </span><span class="o">star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch-&gt;propose-&gt;re-verify repair</span></div></div></details>
 <details><summary>no-rm-rf-outside, 4 refused, showing 4</summary><div class="body"><div class="term"><span class="o">2026-07-31 15:08</span>  <span class="u">rabadon               </span><span class="o">PROBE=$(cat /tmp/rbprobe.path); BIN=~/damla_projects_2026/rabadon/native/rabadon-gate N=100 probe(){ N=$((N+1)); RD=$(mktemp -d); : &gt; &quot;$RD/enab</span>
 <span class="o">2026-08-01 10:32</span>  <span class="u">rabadon               </span><span class="o">TMP=$(cat /tmp/rbd_measure_root.txt); mkdir -p &quot;$TMP/home/.claude/hooks&quot; cat &gt; &quot;$TMP/home/.claude/settings.json&quot; &lt;&lt;&#x27;JSON&#x27; {   &quot;$schema&quot;: &quot;https://json.schemasto</span>
 <span class="o">2026-08-01 10:34</span>  <span class="u">rabadon               </span><span class="o">TMP=$(cat /tmp/rbmeas_path.txt); source &quot;$TMP/env.sh&quot;; PROJ=&quot;$HOME/myproj&quot;; cd &quot;$PROJ&quot;; mkdir -p &quot;$HOME/sacrificial/deep&quot;; echo hi &gt; &quot;$HOME/sacrificial/deep/f.t</span>
@@ -158,10 +165,226 @@
 <span class="o">2026-08-01 18:14</span>  <span class="u">damummyphus           </span><span class="o">cd ~/damla_projects_2026/rabadon &amp;&amp; git add native/pathres.h native/baseline.h native/temp_root_glob_test.sh native/glob_escape_test.sh docs/gu</span></div></div></details>
 <details><summary>no-hard-reset-main, 1 refused, showing 1</summary><div class="body"><div class="term"><span class="o">2026-07-31 14:35</span>  <span class="u">damummyphus           </span><span class="o">export RABADON_DIR=/tmp/rabadon-wild/rhome run() { cd /tmp/rabadon-wild/$1 &amp;&amp; claude -p &quot;$2&quot; --allowedTools &quot;Bash Edit Write Read&quot; --max-turns 4 &gt; /tmp/rabadon-</span></div></div></details>
 <details><summary>baseline-hard-reset, 1 refused, showing 1</summary><div class="body"><div class="term"><span class="o">2026-08-01 13:27</span>  <span class="u">youkiddingme          </span><span class="o">git reset --hard onto &#x27;origin/main&#x27; — commit or stash first, or reset to a local ref</span></div></div></details>
+<details><summary>baseline-branch-delete, 1 refused, showing 1</summary><div class="body"><div class="term"><span class="o">2026-08-01 22:25</span>  <span class="u">rabadon               </span><span class="o">git push deletes shared branch &#x27;main&#x27; on the remote (written as &#x27;main&#x27;) — delete your own branch instead, or silence baseline-branch-delete by id</span></div></div></details>
 </section>
 <section><h2>what it repaired</h2><p class="small dim" style="margin-bottom:var(--g2)">A catch is half the product. When a check goes red, a fix is proposed in an isolated copy and only held if the project's own suite goes green with every test file and every harness file byte-identical.</p>
-<div class="ledger"><div class="item"><span class="n g">31</span><span class="t">repairs held, proof intact</span></div><div class="item"><span class="n p">9</span><span class="t">repairs refused, fail-closed, tree untouched</span></div><div class="item"><span class="n b">1,912</span><span class="t">red checks caught in flight</span></div><div class="item"><span class="n y">1,177</span><span class="t">runs stopped rather than allowed to produce something wrong</span></div></div>
+<div class="ledger"><div class="item"><span class="n g">31</span><span class="t">repairs held, proof intact</span></div><div class="item"><span class="n p">9</span><span class="t">repairs refused, fail-closed, tree untouched</span></div><div class="item"><span class="n b">1,933</span><span class="t">red checks caught in flight</span></div><div class="item"><span class="n y">1,177</span><span class="t">runs stopped rather than allowed to produce something wrong</span></div></div>
 <p class="cap">Two of those held repairs were real source defects in expressjs/express, an off-by-one and a reversed comparison, judged by that project's own suite of 1,260 tests with 91 test files hash-locked. The working tree was never edited. On the same run a proposer that bought its green by skipping tests was refused.</p></section>
+<section><h2>what it found</h2><p class="small dim" style="margin-bottom:var(--g2)">A refusal is what the gate stopped. This is the other column: defects found in code, in rabadon's own source and in other people's, each with the command that demonstrates it. Written by <code>site/finding.py</code> when the defect is found, never typed into this page, so a finding cannot be here without the run that produced it.</p>
+<div class="ledger"><div class="item"><span class="n p">35</span><span class="t">defects on the ledger, each with its own command</span></div><div class="item"><span class="n b">31</span><span class="t">in 8 open-source projects that are not this one</span></div><div class="item"><span class="n g">4</span><span class="t">fixed, with the suite that proves it</span></div></div>
+<h3>in rabadon itself</h3>
+<details><summary>2026-08-02  <span class="st merged">fixed</span>  the HELD, UNVERIFIED headline stopped naming which half of the proof was missing when the harnes</summary><div class="body"><div class="term"><span class="c">rabadon  native/repair.cpp</span>
+<span class="o">the HELD, UNVERIFIED headline stopped naming which half of the proof was missing when the harness-lock work rewrote it</span>
+
+<span class="o">the word anti-tamper fell out of the sentence, so the screen withheld the word VERIFIED without saying why the tamper check had not run. repair_session_test.sh had been red on exactly this line and make test was failing on it.</span>
+
+<span class="p">$</span> <span class="u">./native/repair_session_test.sh</span></div></div></details>
+<details><summary>2026-08-02  <span class="st merged">fixed</span>  the overview kept its headline numbers by hand and had drifted 31 refusals and 39 commits behind</summary><div class="body"><div class="term"><span class="c">rabadon  site/index.html</span>
+<span class="o">the overview kept its headline numbers by hand and had drifted 31 refusals and 39 commits behind the pages generated from the same sources</span>
+
+<span class="o">the catches page rebuilds itself from the gate spool and the patch-notes page from git log; the overview did not, so it started lying the moment the next command was refused. it is a template now and the test refuses any literal in a headline slot.</span>
+
+<span class="p">$</span> <span class="u">./native/site_claims_test.sh</span></div></div></details>
+<details><summary>2026-08-02  <span class="st merged">fixed</span>  the gate&#x27;s Bash decision site was a hand-written second copy of rbrules::judge_command, the exac</summary><div class="body"><div class="term"><span class="c">rabadon  native/gate.cpp</span>
+<span class="o">the gate&#x27;s Bash decision site was a hand-written second copy of rbrules::judge_command, the exact caller rules.h warns about</span>
+
+<span class="o">rules.h says a caller who re-implements half of judge_command is how exec became a bypass, and the caller doing it was the gate itself. the two answers agreed and nothing held them there. the gate calls the shared verdict now, and gate_bench.sh replays all 34 fixture cases through both and refuses to print a timing unless every verdict matches.</span>
+
+<span class="p">$</span> <span class="u">./native/gate_bench.sh</span></div></div></details>
+<details><summary>2026-08-02  <span class="st merged">fixed</span>  the benchmarks page named native/gate_bench.sh as the source of 42.0us to judge one command, and</summary><div class="body"><div class="term"><span class="c">rabadon  site/build.py</span>
+<span class="o">the benchmarks page named native/gate_bench.sh as the source of 42.0us to judge one command, and that file did not exist</span>
+
+<span class="o">no micro benchmark existed in the repository at all. the only real measurement was native/bench.py, which times the whole hook and answers a different question. the first honest measurement of judge_command came back 125.5us, three times the number the page had been carrying.</span>
+
+<span class="p">$</span> <span class="u">./native/site_claims_test.sh</span></div></div></details>
+<h3>in other people's code</h3>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix handling of __slots__ (#161)</summary><div class="body"><div class="term"><span class="c">yaml/pyyaml  lib3/yaml/constructor.py</span>
+<span class="o">Fix handling of __slots__ (#161)</span>
+
+<span class="o">1 source line(s), 2 test(s) fall, deterministic over three runs. upstream fix 5a0cfab86f6b. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/pyyaml-slots-setattr.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Dos in merge key (#937)</summary><div class="body"><div class="term"><span class="c">yaml/pyyaml  lib/yaml/constructor.py</span>
+<span class="o">Dos in merge key (#937)</span>
+
+<span class="o">15 source line(s), 4 test(s) fall, deterministic over three runs. upstream fix 34a9bf82357f. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/pyyaml-merge-key-dos.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix float resolver for &#x27;.&#x27; and &#x27;._&#x27;</summary><div class="body"><div class="term"><span class="c">yaml/pyyaml  lib/yaml/resolver.py</span>
+<span class="o">Fix float resolver for &#x27;.&#x27; and &#x27;._&#x27;</span>
+
+<span class="o">1 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 8f2793279662. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/pyyaml-float-resolver-dot.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix issue with representing Enum types</summary><div class="body"><div class="term"><span class="c">yaml/pyyaml  lib/yaml/representer.py</span>
+<span class="o">Fix issue with representing Enum types</span>
+
+<span class="o">1 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 961ce9dcf53d. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/pyyaml-enum-representer.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  match newlines when stripping tags</summary><div class="body"><div class="term"><span class="c">pallets/markupsafe  src/markupsafe/__init__.py</span>
+<span class="o">match newlines when stripping tags</span>
+
+<span class="o">4 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix e49d257126d0. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/markupsafe-striptags-dotall-newlines.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  collapse spaces after stripping tags</summary><div class="body"><div class="term"><span class="c">pallets/markupsafe  src/markupsafe/__init__.py</span>
+<span class="o">collapse spaces after stripping tags</span>
+
+<span class="o">5 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 0b6bee071fbd. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/markupsafe-striptags-collapse-spaces.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  relax speedups str check</summary><div class="body"><div class="term"><span class="c">pallets/markupsafe  src/markupsafe/_speedups.c</span>
+<span class="o">relax speedups str check</span>
+
+<span class="o">2 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 8cb1691ca038. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/markupsafe-speedups-str-subclass-check.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  raise error on missing single placeholder</summary><div class="body"><div class="term"><span class="c">pallets/markupsafe  src/markupsafe/__init__.py</span>
+<span class="o">raise error on missing single placeholder</span>
+
+<span class="o">7 source line(s), 2 test(s) fall, deterministic over three runs. upstream fix 3d809aed7b7b. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/markupsafe-mod-single-placeholder.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  fix(zipObjectDeep): prototype pollution (#4759)</summary><div class="body"><div class="term"><span class="c">lodash/lodash  lodash.js</span>
+<span class="o">fix(zipObjectDeep): prototype pollution (#4759)</span>
+
+<span class="o">4 source line(s), 10 test(s) fall, deterministic over three runs. upstream fix c84fe82760fb. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/lodash-zipObjectDeep-proto-pollution.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Ensure `orderBy` will accept iteratee path arrays #4438 (#4513)</summary><div class="body"><div class="term"><span class="c">lodash/lodash  lodash.js</span>
+<span class="o">Ensure `orderBy` will accept iteratee path arrays #4438 (#4513)</span>
+
+<span class="o">15 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 659e8c019cca. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/lodash-orderBy-iteratee-path-arrays.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix lodash.isEqual for circular references (#4320) (#4515)</summary><div class="body"><div class="term"><span class="c">lodash/lodash  lodash.js</span>
+<span class="o">Fix lodash.isEqual for circular references (#4320) (#4515)</span>
+
+<span class="o">18 source line(s), 2 test(s) fall, deterministic over three runs. upstream fix 0cec225778d4. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/lodash-isEqual-circular-refs.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  fix: prototype pollution in _.defaultsDeep (#4336)</summary><div class="body"><div class="term"><span class="c">lodash/lodash  lodash.js</span>
+<span class="o">fix: prototype pollution in _.defaultsDeep (#4336)</span>
+
+<span class="o">6 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 1f8ea0774696. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/lodash-defaultsDeep-constructor-pollution.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Pass context when using select</summary><div class="body"><div class="term"><span class="c">pallets/jinja  src/jinja2/filters.py</span>
+<span class="o">Pass context when using select</span>
+
+<span class="o">2 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix d05bd3858c3f. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/jinja-select-filter-drops-context.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix pickle/copy support for the `missing` singleton</summary><div class="body"><div class="term"><span class="c">pallets/jinja  src/jinja2/utils.py</span>
+<span class="o">Fix pickle/copy support for the `missing` singleton</span>
+
+<span class="o">9 source line(s), 7 test(s) fall, deterministic over three runs. upstream fix 7232b8246200. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/jinja-missing-singleton-pickle-copy.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  fix f-string syntax error in code generation</summary><div class="body"><div class="term"><span class="c">pallets/jinja  src/jinja2/compiler.py</span>
+<span class="o">fix f-string syntax error in code generation</span>
+
+<span class="o">7 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 56a724644b1a. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/jinja-fstring-curly-brace-codegen.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  attr filter uses env.getattr</summary><div class="body"><div class="term"><span class="c">pallets/jinja  src/jinja2/filters.py</span>
+<span class="o">attr filter uses env.getattr</span>
+
+<span class="o">33 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 065334d1ee5b. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/jinja-attr-filter-sandbox-escape.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix incorrect middleware execution with unanchored RegExps</summary><div class="body"><div class="term"><span class="c">expressjs/express  lib/router/index.js</span>
+<span class="o">Fix incorrect middleware execution with unanchored RegExps</span>
+
+<span class="o">6 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 99a369f3d51b. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/express-unanchored-regexp-prefix-match.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix routing requests without method</summary><div class="body"><div class="term"><span class="c">expressjs/express  lib/router/route.js</span>
+<span class="o">Fix routing requests without method</span>
+
+<span class="o">9 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 74beeac0718c. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/express-route-missing-method.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  fix(res.send): add Content-Length header only if Transfer-Encoding is not present (#4893)</summary><div class="body"><div class="term"><span class="c">expressjs/express  lib/response.js</span>
+<span class="o">fix(res.send): add Content-Length header only if Transfer-Encoding is not present (#4893)</span>
+
+<span class="o">7 source line(s), 4 test(s) fall, deterministic over three runs. upstream fix 18e5985b8a9d. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/express-res-send-content-length-transfer-encoding.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  fix: don&#x27;t render redirect values in anchor href</summary><div class="body"><div class="term"><span class="c">expressjs/express  lib/response.js</span>
+<span class="o">fix: don&#x27;t render redirect values in anchor href</span>
+
+<span class="o">2 source line(s), 4 test(s) fall, deterministic over three runs. upstream fix 54271f69b511. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/express-redirect-no-anchor-href.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Exit with non-zero code when subprocess terminated by signal (#2023)</summary><div class="body"><div class="term"><span class="c">tj/commander.js  lib/command.js</span>
+<span class="o">Exit with non-zero code when subprocess terminated by signal (#2023)</span>
+
+<span class="o">16 source line(s), 3 test(s) fall, deterministic over three runs. upstream fix 5aaca0d66627. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/commander-subprocess-signal-exit-code.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Assume a string parameter to implies is name of boolean option. (#1854)</summary><div class="body"><div class="term"><span class="c">tj/commander.js  lib/option.js</span>
+<span class="o">Assume a string parameter to implies is name of boolean option. (#1854)</span>
+
+<span class="o">7 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix f4c7349a78a5. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/commander-implies-string-argument.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Trim description when there&#x27;s only extra info (#2348)</summary><div class="body"><div class="term"><span class="c">tj/commander.js  lib/help.js</span>
+<span class="o">Trim description when there&#x27;s only extra info (#2348)</span>
+
+<span class="o">6 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 672e3806c684. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/commander-help-option-description-leading-space.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Make .configureOutput() create copy of settings instead of in-place change (#2350)</summary><div class="body"><div class="term"><span class="c">tj/commander.js  lib/command.js</span>
+<span class="o">Make .configureOutput() create copy of settings instead of in-place change (#2350)</span>
+
+<span class="o">6 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 68199e64b318. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/commander-configureoutput-shared-object.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix `HelpFormatter.write_usage` producing spurious characters</summary><div class="body"><div class="term"><span class="c">pallets/click  src/click/formatting.py</span>
+<span class="o">Fix `HelpFormatter.write_usage` producing spurious characters</span>
+
+<span class="o">8 source line(s), 7 test(s) fall, deterministic over three runs. upstream fix 0551bf53588a. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/click-write-usage-spurious-chars.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix speculative speculative empty string check</summary><div class="body"><div class="term"><span class="c">pallets/click  src/click/core.py</span>
+<span class="o">Fix speculative speculative empty string check</span>
+
+<span class="o">2 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix d340b0c12022. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/click-show-default-empty-string-type-check.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Use non-shadowed help option name in error hint</summary><div class="body"><div class="term"><span class="c">pallets/click  src/click/exceptions.py</span>
+<span class="o">Use non-shadowed help option name in error hint</span>
+
+<span class="o">6 source line(s), 3 test(s) fall, deterministic over three runs. upstream fix 1241abaed4e4. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/click-help-hint-shadowed-option-name.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  Fix double-bracketing of choices in synopsis</summary><div class="body"><div class="term"><span class="c">pallets/click  src/click/core.py</span>
+<span class="o">Fix double-bracketing of choices in synopsis</span>
+
+<span class="o">7 source line(s), 2 test(s) fall, deterministic over three runs. upstream fix 762c97eef7c1. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/click-argument-double-bracket-metavar.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  fix(pattern): use configured RegExp engine with $data keyword to mitigate ReDoS attacks (CVE-202</summary><div class="body"><div class="term"><span class="c">ajv-validator/ajv  lib/vocabularies/validation/pattern.ts</span>
+<span class="o">fix(pattern): use configured RegExp engine with $data keyword to mitigate ReDoS attacks (CVE-2025-69873) (#2586)</span>
+
+<span class="o">19 source line(s), 4 test(s) fall, deterministic over three runs. upstream fix 720a23fa453f. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/ajv-pattern-redos-cve-2025-69873.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  test/fix prototype pollution via $data ref with format keyword (#2607)</summary><div class="body"><div class="term"><span class="c">ajv-validator/ajv  lib/core.ts</span>
+<span class="o">test/fix prototype pollution via $data ref with format keyword (#2607)</span>
+
+<span class="o">1 source line(s), 2 test(s) fall, deterministic over three runs. upstream fix e8d2bdc501b3. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/ajv-format-proto-pollution.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+<details><summary>2026-08-01  <span class="st closed">reported</span>  compileAsync a schema with discriminator and $ref, fixes #2427  (#2433)</summary><div class="body"><div class="term"><span class="c">ajv-validator/ajv  lib/vocabularies/discriminator/index.ts</span>
+<span class="o">compileAsync a schema with discriminator and $ref, fixes #2427  (#2433)</span>
+
+<span class="o">5 source line(s), 1 test(s) fall, deterministic over three runs. upstream fix 5f20d5f90adc. the test that catches it was written by the same engineer in the same commit and was never touched.</span>
+
+<span class="p">$</span> <span class="u">git apply reports/2026-08-01-real-defect-mine/patches/ajv-discriminator-compileasync-ref.patch &amp;&amp; &lt;the project&#x27;s own suite&gt;</span></div></div></details>
+</section>
 <footer>
   <span>built by <a href="https://www.noseydewdrop.com/">Damla Su Bilge</a></span>
   <span><a href="https://github.com/nosey-dewdrop/rabadon">github.com/nosey-dewdrop/rabadon</a></span>

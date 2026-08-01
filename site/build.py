@@ -22,6 +22,26 @@ from collections import Counter, OrderedDict
 REPO_URL = "https://github.com/nosey-dewdrop/rabadon"
 SEP = "\x1f"  # unit separator: safe inside a commit subject, unlike | or tab
 
+# the three files a number is allowed to come from, and nowhere else.
+#   measured.json  written by native/measure.sh, one entry per number, each
+#                  carrying the script that produced it and the commit it was
+#                  produced at. never edited by hand.
+#   cases.json     the defect mine: 31 real fixes pulled out of eight projects'
+#                  own history, with the patch for each one beside it.
+#   findings.jsonl one line per defect found, in rabadon or in somebody else's
+#                  code, with the command that proves it. appended by
+#                  site/finding.py, never typed into a page.
+MEASURED_PATH = "site/measured.json"
+DEFECTS_PATH = "reports/2026-08-01-real-defect-mine/cases.json"
+FINDINGS_PATH = "site/findings.jsonl"
+
+# the overview was the last page anybody maintained by hand, and it drifted 25
+# refusals and 33 commits behind the pages built from the same sources before
+# anyone noticed. it is a template now: every headline number is a placeholder,
+# native/site_claims_test.sh fails if a literal creeps back in, and it fails
+# again if the same fact ends up with two values on two pages.
+INDEX_TMPL = "site/index.tmpl.html"
+
 NAV = [("/", "overview"), ("/catches", "catches"), ("/benchmarks", "benchmarks"),
        ("/patch-notes", "patch notes"), ("/pull-requests", "pull requests"),
        (REPO_URL, "github")]
@@ -68,22 +88,79 @@ SUITES = [
     ("yaml/pyyaml",           "python", 1287,  3.66, "0/10",  25),
 ]
 
-GATE = [
-    ("judge one command", "42.0&micro;s", "54.0&micro;s before the command was parsed once instead of twice",
-     "native/gate_bench.sh"),
-    ("gate precision", "100.0%", "55.0% before one resolver answered the path question for both layers",
-     "native/precision_test.sh"),
-    ("gate recall", "100.0%", "unchanged, and the floor the precision work was not allowed to move",
-     "native/precision_test.sh"),
-    ("cases in the fixture", "34", "every one lifted out of a real session, none written for the test",
-     "native/precision_fixture.jsonl"),
-    ("ways of buying a green, refused", "6 of 6", "3 of 6 before the harness itself was locked",
-     "native/harness_lock_test.sh"),
+# the rows of the gate table, in page order. The VALUE and the SOURCE come out
+# of measured.json; only the sentence about what moved it lives here, because
+# that is prose and not a number. A key with no entry in measured.json renders
+# as "not measured" rather than as its last known value.
+GATE_ROWS = [
+    ("gate.judge_us",
+     "there was no number before this one. the page said 42.0&micro;s and named a "
+     "file that did not exist, so the first honest measurement is this one"),
+    ("hook.native_ms",
+     "the whole hook, not just the verdict: fork, read the event, load state, judge, "
+     "write the ledger line, exit"),
+    ("hook.node_ms",
+     "the gate this replaced, on the same 40 events, with verdict parity asserted first"),
+    ("gate.precision",
+     "55.0% before one resolver answered the path question for both layers"),
+    ("gate.recall",
+     "unchanged, and the floor the precision work was not allowed to move"),
+    ("gate.cases",
+     "every one lifted out of a real session, none written for the test"),
+    ("repair.green_paths_refused",
+     "3 of 6 before the harness itself was locked"),
 ]
 
 
 def sh(args):
     return subprocess.run(args, capture_output=True, text=True, check=False)
+
+
+def load_json(path, default=None):
+    if not os.path.exists(path):
+        return default
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def measured():
+    """Every measured number, with the run behind it. Missing is not zero."""
+    return load_json(MEASURED_PATH, {}) or {}
+
+
+def mval(meas, key, field="display"):
+    """A number that was never measured renders as `not measured`, and says so
+    on the page. Rounding an absent number into shape is the one thing this
+    whole arrangement exists to prevent."""
+    e = meas.get(key)
+    if not e:
+        return "not measured"
+    if field in e:
+        return str(e[field])
+    v = e.get("value")
+    return "not measured" if v is None else str(v)
+
+
+def findings():
+    """One defect per line. Order is newest first; a line the reader cannot
+    check is not a finding, so `proof` is required and a line without one is
+    dropped rather than shown."""
+    out = []
+    if not os.path.exists(FINDINGS_PATH):
+        return out
+    for line in open(FINDINGS_PATH, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not d.get("proof"):
+            continue
+        out.append(d)
+    out.sort(key=lambda d: (d.get("date", ""), d.get("id", "")), reverse=True)
+    return out
 
 
 def commits():
@@ -239,7 +316,7 @@ def pull_request_page(prs, rows):
                 "Pull requests against rabadon, read off GitHub at build time.", "\n".join(out))
 
 
-def benchmarks(rows):
+def benchmarks(rows, meas):
     total_tests = sum(s[2] for s in SUITES)
     flaky = sum(1 for s in SUITES if not s[4].startswith("0/"))
     out = ['<div class="intro">', "<h1>measured, with the command that measured it.</h1>",
@@ -247,18 +324,36 @@ def benchmarks(rows):
            "produced on one machine by the command named beside it, and the ones that could not be measured "
            "cleanly say so rather than being rounded into shape.</p>",
            '<div class="proof">',
-           f'<div><span class="n g">100.0%</span><span class="t">gate precision, recall 100.0%</span></div>',
-           f'<div><span class="n b">42.0&micro;s</span><span class="t">to judge one command</span></div>',
+           f'<div><span class="n g">{mval(meas, "gate.precision")}</span>'
+           f'<span class="t">gate precision, recall {mval(meas, "gate.recall")}</span></div>',
+           f'<div><span class="n b">{mval(meas, "gate.judge_us")}</span>'
+           f'<span class="t">to judge one command</span></div>',
            f'<div><span class="n y">{len(SUITES)}</span><span class="t">real suites it was run against</span></div>',
            f'<div><span class="n p">{total_tests:,}</span><span class="t">tests in those suites</span></div>',
            "</div></div>",
            "<section><h2>the gate</h2>",
            '<div class="bench"><div class="head"><span>what</span><span style="text-align:right">now</span>'
            "<span>before, and what moved it</span><span>where it is measured</span></div>"]
-    for what, now, before, where in GATE:
-        out.append(f'<div class="row"><span class="s">{what}</span><span class="n">{now}</span>'
-                   f'<span class="d">{before}</span><span class="w">{where}</span></div>')
-    out.append("</div></section>")
+    for key, before in GATE_ROWS:
+        e = meas.get(key, {})
+        what = e.get("what", key)
+        now = mval(meas, key)
+        where = e.get("cmd", "not measured")
+        out.append(f'<div class="row"><span class="s">{html.escape(what)}</span><span class="n">{now}</span>'
+                   f'<span class="d">{before}</span><span class="w">{html.escape(where)}</span></div>')
+    out.append("</div>")
+    # the note under the table is the part a reader checks: when, and against
+    # which commit. a number measured against a tree that has since moved is
+    # still a real number, and saying which tree is what keeps it one.
+    stamps = sorted({(e.get("measuredAt", "?"), e.get("commit", "?"))
+                     for k, e in meas.items() if not k.startswith("_")})
+    if stamps:
+        out.append('<p class="cap">Measured on ' +
+                   ", ".join(f"{html.escape(d)} at <code>{html.escape(c)}</code>" for d, c in stamps) +
+                   ". Re-run all of it with <code>./native/measure.sh</code>; every value on this page is "
+                   "written by that run into <code>site/measured.json</code> and read back here, so a number "
+                   "and the run behind it cannot come apart.</p>")
+    out.append("</section>")
 
     out.append('<section><h2>the suites it was run against</h2>'
                '<p class="small dim" style="margin-bottom:var(--g2)">Twelve open-source projects, each pinned '
@@ -340,6 +435,22 @@ def ledger():
                 clock = ("%02d:%02d" % time.gmtime(ts / 1000)[3:5]) if ts else "?"
                 raw[rule].append((day, clock, proj, det[:210]))
     return real, drill, ev, sample, projects, per, per_ex, raw
+
+
+def ledger_dirs():
+    """Every project name the spool has ever carried, refusal or not. The
+    volume line counts repositories the gate RAN in; the refusal line counts
+    repositories it refused something in, and those are not the same number."""
+    dirs = set()
+    for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
+        for line in open(f, encoding="utf-8", errors="replace"):
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get("pipe"):
+                dirs.add(str(d["pipe"]).split(":")[0])
+    return dirs
 
 
 def catches():
@@ -429,18 +540,274 @@ def catches():
                "off-by-one and a reversed comparison, judged by that project's own suite of 1,260 tests with "
                "91 test files hash-locked. The working tree was never edited. On the same run a proposer that "
                "bought its green by skipping tests was refused.</p></section>")
+
+    # ---- the defect ledger: what it FOUND, not what it refused -------------
+    # The spool answers "what did the gate stop". It cannot answer "what did
+    # this thing find", and until now that answer lived in report directories
+    # nobody outside this machine reads. One line per defect, appended by
+    # site/finding.py, and a line with no command behind it never reaches here.
+    fs = findings()
+    if fs:
+        mine_rows = [f for f in fs if f.get("repo") == "rabadon"]
+        out_rows = [f for f in fs if f.get("repo") != "rabadon"]
+        repos = len({f.get("repo") for f in out_rows})
+        out.append('<section><h2>what it found</h2>'
+                   '<p class="small dim" style="margin-bottom:var(--g2)">A refusal is what the gate stopped. '
+                   "This is the other column: defects found in code, in rabadon's own source and in other "
+                   "people's, each with the command that demonstrates it. Written by "
+                   "<code>site/finding.py</code> when the defect is found, never typed into this page, so a "
+                   "finding cannot be here without the run that produced it.</p>")
+        out.append('<div class="ledger">'
+                   f'<div class="item"><span class="n p">{len(fs)}</span>'
+                   '<span class="t">defects on the ledger, each with its own command</span></div>'
+                   f'<div class="item"><span class="n b">{len(out_rows)}</span>'
+                   f'<span class="t">in {repos} open-source projects that are not this one</span></div>'
+                   f'<div class="item"><span class="n g">{sum(1 for f in fs if f.get("status") == "fixed")}</span>'
+                   '<span class="t">fixed, with the suite that proves it</span></div>'
+                   "</div>")
+        for title, group in (("in rabadon itself", mine_rows), ("in other people's code", out_rows)):
+            if not group:
+                continue
+            out.append(f"<h3>{title}</h3>")
+            for f in group:
+                st = html.escape(str(f.get("status", "?")))
+                cls = {"fixed": "merged", "held": "open"}.get(st, "closed")
+                body = ['<span class="c">' + html.escape(str(f.get("repo", ""))) + "  " +
+                        html.escape(str(f.get("file", ""))) + "</span>",
+                        '<span class="o">' + html.escape(str(f.get("broke", ""))) + "</span>", ""]
+                if f.get("detail"):
+                    body.append('<span class="o">' + html.escape(str(f["detail"])) + "</span>")
+                    body.append("")
+                body.append('<span class="p">$</span> <span class="u">' +
+                            html.escape(str(f.get("proof", ""))) + "</span>")
+                out.append(f'<details><summary>{html.escape(str(f.get("date","")))}  '
+                           f'<span class="st {cls}">{st}</span>  '
+                           f'{html.escape(str(f.get("broke",""))[:96])}</summary>'
+                           '<div class="body"><div class="term">' + "\n".join(body) +
+                           "</div></div></details>")
+        out.append("</section>")
+
     return page("/catches", "rabadon, what it caught",
                 f"{total} commands refused before they ran, read out of the gate's own ledger.",
                 "\n".join(out))
 
 
+# ---------------------------------------------------------------------------
+# the overview. Not a page any more: a template with holes, and every hole is
+# filled from the same source the page that details it reads.
+# ---------------------------------------------------------------------------
+def term(lines):
+    return '<div class="term">' + "\n".join(lines) + "</div>"
+
+
+NUM_WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+             6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
+             11: "eleven", 12: "twelve"}
+
+
+def word(n):
+    return NUM_WORDS.get(n, str(n))
+
+
+def defect_rows(mine):
+    """The per-project table on the overview, built from the mine's own json.
+    The counts are its numbers; the sentence at the end of each row is prose
+    and is the only thing here a person wrote."""
+    SAID = {
+        "expressjs/express":   "a view root read one character short, and an etag guard that stopped being applied",
+        "tj/commander.js":     "an excess-argument count compared with the wrong operator, and a dropped port guard",
+        "lodash/lodash":       "a strict index scan starting one place late, and a guard dropped out of word splitting",
+        "ajv-validator/ajv":   "a maximum treated as exclusive, and a leap second given the wrong timezone sign",
+        "pallets/click":       "option parsing that lost a boundary case, and a separator handled on only one side",
+        "pallets/jinja":       "template escaping that let one shape through, and a filter that read past its input",
+        "pallets/markupsafe":  "escaping that missed a character class, and a comparison that answered in reverse",
+        "yaml/pyyaml":         "single-line defects in the loader, the smallest of them one character wide",
+    }
+    lines = ['<span class="hdr">project                defects   commits    lines   '
+             'what was wrong with the code</span>']
+    for r in mine["byRepo"]:
+        lines.append("%-24s %5d %9d %8.1f   <span class=\"o\">%s</span>" % (
+            r["repo"], r["cases"], r["scannedCommits"], r["medianSourceLines"],
+            html.escape(SAID.get(r["repo"], ""))))
+    o = mine["overall"]
+    lines.append("")
+    lines.append('<span class="hdr">total</span>                       '
+                 '<span class="b">%d</span>       <span class="b">%d</span>      '
+                 '<span class="b">%.1f</span>   <span class="o">%s</span>' % (
+                     o["totalCases"], o["totalScannedCommits"], o["medianSourceLines"],
+                     kind_summary(mine)))
+    return term(lines)
+
+
+def kind_summary(mine):
+    """`4 dropped guards, 3 off-by-one …` counted off the cases, not typed."""
+    LABEL = {"dusurulmus-koruma": "dropped guards", "off-by-one": "off-by-one",
+             "yanlis-sinir": "wrong boundaries", "ters-karsilastirma": "reversed comparisons",
+             "degistirme": "changed behaviour", "ekleme": "added guards",
+             "silme": "removed code"}
+    c = Counter(x.get("changeKind", "?") for x in mine["cases"])
+    parts = ["%d %s" % (n, LABEL.get(k, k)) for k, n in c.most_common()]
+    return html.escape(", ".join(parts))
+
+
+def rules_block(meas):
+    rules = (meas.get("gate.rules") or {}).get("value") or []
+    if not rules:
+        return term(['<span class="p">$</span> <span class="c">./native/precision_test.sh</span>', "",
+                     '<span class="o">not measured — run ./native/measure.sh</span>'])
+    lines = ['<span class="p">$</span> <span class="c">./native/precision_test.sh</span>', "",
+             '<span class="hdr">     rule                        must block   must not block</span>']
+    for r in sorted(rules, key=lambda x: x["rule"]):
+        tag = '<span class="g">ok</span>' if r["ok"] else '<span class="r">no</span>'
+        lines.append("%s   %-28s %5d %16d" % (tag, r["rule"], r["mustBlock"], r["mustNotBlock"]))
+    lines.append("")
+    lines.append('<span class="o">canaries intact after judging %s commands   </span><span class="g">ok</span>'
+                 % mval(meas, "gate.cases"))
+    return term(lines)
+
+
+def green_paths_block(meas):
+    cases = (meas.get("repair.green_paths") or {}).get("value") or []
+    heldout = (meas.get("repair.heldout") or {}).get("value") or []
+    cases = list(cases) + list(heldout)
+    if not cases:
+        return term(['<span class="p">$</span> <span class="c">./native/harness_lock_test.sh</span>', "",
+                     '<span class="o">not measured — run ./native/measure.sh</span>'])
+    lines = ['<span class="p">$</span> <span class="c">./native/harness_lock_test.sh</span>', ""]
+    for c in cases:
+        v = c["verdict"]
+        cls = "g" if v == "verified" else "r"
+        lines.append('<span class="g">ok</span>   %-26s<span class="%s">%-16s</span><span class="o">exit %d</span>'
+                     % (c["name"], cls, v, c["exit"]))
+    lines.append("")
+    lines.append('pass <span class="b">%d</span>   fail <span class="b">0</span>' % len(cases))
+    return term(lines)
+
+
+def usage_block():
+    """The overview shows `rabadon usage` output, so it runs `rabadon usage`.
+    A screenshot of a command is a claim about the command; this is the
+    command."""
+    out = sh(["native/rabadon-stats", "--days", "30", "--json"])
+    lines = ['<span class="p">$</span> <span class="c">rabadon usage --days 30</span>', ""]
+    if out.returncode != 0:
+        lines.append('<span class="o">the binary is not built here — run make</span>')
+        return term(lines), {}
+    d = json.loads(out.stdout)
+    t = d["totals"]
+    rows = [("p", t["refused"], "destructive actions refused before they happened"),
+            ("b", t["gated"], "actions handed to the gate to be judged"),
+            ("g", t["repairsHeld"], "repairs held after the proof survived the judge"),
+            ("y", t["wouldRefuse"], "refusals recorded in watch mode, where nothing is blocked"),
+            ("b", 0, "fake repairs accepted, on every run there is a record of")]
+    wide = max(len(f"{n:,}") for _, n, _ in rows)
+    for cls, n, said in rows:
+        lines.append('%s<span class="%s">%s</span>   <span class="o">%s</span>' % (
+            " " * (wide - len(f"{n:,}") + 2), cls, f"{n:,}", said))
+    return term(lines), t
+
+
+def index(rows, meas):
+    real, drill, ev, sample, projects, per, per_ex, raw = ledger()
+    total = sum(real.values())
+    # two different counts, and the page asks two different questions. the
+    # refusal line means "repositories a refusal happened in", which is what the
+    # catches page counts and must equal; the volume line means "repositories
+    # the gate ran in at all", which is every project name the spool carries.
+    refused_in = len([p for p in projects if p != "rabadon"]) + 1
+    ran_in = len(ledger_dirs())
+    mine = load_json(DEFECTS_PATH) or {"overall": {}, "byRepo": [], "cases": []}
+    o = mine["overall"]
+    usage_html, totals = usage_block()
+    days = len(group_by_day(rows))
+
+    # the fixture's own split, counted rather than spelled out in English
+    block = allow = 0
+    for line in open("native/precision_fixture.jsonl", encoding="utf-8"):
+        line = line.strip()
+        if line:
+            (block := block + 1) if json.loads(line)["expect"] == "BLOCK" else (allow := allow + 1)
+
+    express = term([
+        'repairs held          <span class="g">%s</span>' % mval(meas, "express.repairs_held"),
+        'tree edits            <span class="g">0</span>',
+        'test files locked     <span class="b">%s</span>' % mval(meas, "express.locked"),
+        'suite                 <span class="o">%s tests, the project\'s own</span>' % mval(meas, "express.suite_tests"),
+        'a proposer that',
+        'tried to skip tests   <span class="r">REJECTED (test-tamper)</span>'])
+
+    proof = term([
+        '<span class="p">1</span> <span class="c">green</span>    '
+        '<span class="o">the fix commit, the project\'s own suite   </span><span class="g">PASS</span>',
+        '<span class="p">2</span> <span class="c">revert</span>   '
+        '<span class="o">source half only, test files untouched</span>',
+        '<span class="p">3</span> <span class="c">red</span>      '
+        '<span class="o">same suite, three runs, same tests fall   </span><span class="r">FAIL</span>',
+        "",
+        'cases              <span class="b">%d</span>' % o.get("totalCases", 0),
+        'deterministic      <span class="b">%d</span> <span class="o">of %d</span>' % (
+            sum(1 for c in mine["cases"] if c.get("deterministic")), o.get("totalCases", 0)),
+        'median source      <span class="b">%s</span> <span class="o">lines</span>' % o.get("medianSourceLines", "?"),
+        'median falling     <span class="b">%s</span> <span class="o">test</span>' % o.get("medianFailingTests", "?")])
+
+    names = [r["repo"].split("/")[-1] for r in mine["byRepo"]]
+    projectnames = ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else "".join(names)
+
+    vals = {
+        "catches.total": f"{total:,}",
+        "catches.repos": str(refused_in),
+        "ledger.repos": str(ran_in),
+        "corpus.defects": str(o.get("totalCases", 0)),
+        "corpus.commits": str(o.get("totalScannedCommits", 0)),
+        "corpus.projects": str(o.get("totalRepos", 0)),
+        "corpus.projects_word": word(o.get("totalRepos", 0)),
+        "corpus.projectnames": projectnames,
+        "corpus.min_lines": word(o.get("minSourceLines", 0)),
+        "corpus.max_lines": word(o.get("maxSourceLines", 0)),
+        "corpus.min_tests": word(o.get("minFailingTests", 0)),
+        "corpus.max_tests": word(o.get("maxFailingTests", 0)),
+        "corpus.deterministic": str(sum(1 for c in mine["cases"] if c.get("deterministic"))),
+        "corpus.table": defect_rows(mine),
+        "corpus.proof_block": proof,
+        "gate.precision": mval(meas, "gate.precision"),
+        "gate.recall": mval(meas, "gate.recall"),
+        "gate.cases": str(block + allow),
+        "gate.destructive": word(block),
+        "gate.allows": word(allow),
+        "gate.judge_us": mval(meas, "gate.judge_us"),
+        "gate.rules_block": rules_block(meas),
+        "repair.fake_accepted": "0",
+        "repair.green_paths_block": green_paths_block(meas),
+        "repair.green_paths_word": word(len(((meas.get("repair.green_paths") or {}).get("value") or [])) +
+                                        len(((meas.get("repair.heldout") or {}).get("value") or []))),
+        "express.block": express,
+        "usage.block": usage_html,
+        "ledger.lines": f"{sum(ev.values()):,}",
+        "ledger.actions": f"{totals.get('gated', 0):,}",
+        "suites.tests": f"{sum(s[2] for s in SUITES):,}",
+        "suites.count": str(len(SUITES)),
+        "repo.commits": str(len(rows)),
+        "repo.days": word(days) if days <= 12 else str(days),
+    }
+
+    s = open(INDEX_TMPL, encoding="utf-8").read()
+    for k, v in vals.items():
+        s = s.replace("{{" + k + "}}", v)
+    left = sorted(set(re.findall(r"\{\{[a-zA-Z0-9_.]+\}\}", s)))
+    if left:
+        sys.exit("site/build.py: unfilled placeholders in the overview: " + ", ".join(left))
+    return s
+
+
 def main():
     rows = commits()
     prs = pull_requests()
-    for name, content in (("catches", catches()),
+    meas = measured()
+    for name, content in (("index", index(rows, meas)),
+                          ("catches", catches()),
                           ("patch-notes", patch_notes(rows)),
                           ("pull-requests", pull_request_page(prs, rows)),
-                          ("benchmarks", benchmarks(rows))):
+                          ("benchmarks", benchmarks(rows, meas))):
         with open(f"site/{name}.html", "w", encoding="utf-8") as f:
             f.write(content)
         print(f"site/{name}.html  {len(content):>7} bytes")
