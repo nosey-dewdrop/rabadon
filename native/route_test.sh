@@ -209,6 +209,64 @@ S7="$TMP/drillab.jsonl"; sed 's/"pipe":"demo:do"/"pipe":"do-test:do"/g' "$S" > "
   && bad "a self-pipe drill still produced a MEASURED A/B money claim" \
   || ok "a drill run is kept out of the MEASURED A/B block (no money claim from a self-test)"
 
+# ---- fixture 7: the exclusion is PER RUN, not per file --------------------
+# The cheap way to make the checks above pass is to drop the whole spool the
+# moment one drill line appears in it. That would silently delete the customer's
+# real catches, which is a worse failure than the one being fixed: the drill and
+# the day's real work land in the SAME day file. Both runs are asserted from one
+# render — the real one must still count everything.
+S8="$TMP/mixed.jsonl"
+{
+echo '{"v":1,"ts":1000,"run":"drillrun","pipe":"do-test:do","ev":"RUN_START","steps":1}'
+echo '{"v":1,"ts":1010,"run":"drillrun","pipe":"do-test:do","ev":"STEP_START","step":"d1"}'
+echo '{"v":1,"ts":1020,"run":"drillrun","pipe":"do-test:do","ev":"CHECK_FAIL","step":"d1","fails":[{"check":"contract","why":"FAIL testsuite: RED"}]}'
+echo '{"v":1,"ts":1030,"run":"drillrun","pipe":"do-test:do","ev":"REPAIR_OK","step":"d1","attempt":1,"tokens":9999,"usd_e6":99999}'
+echo '{"v":1,"ts":1040,"run":"drillrun","pipe":"do-test:do","ev":"STEP_OK","step":"d1"}'
+echo '{"v":1,"ts":1050,"run":"drillrun","pipe":"do-test:do","ev":"RUN_DONE","verdict":"PASS"}'
+echo '{"v":1,"ts":2000,"run":"realrun","pipe":"acme-api:do","ev":"RUN_START","steps":1}'
+echo '{"v":1,"ts":2010,"run":"realrun","pipe":"acme-api:do","ev":"STEP_START","step":"r1"}'
+echo '{"v":1,"ts":2020,"run":"realrun","pipe":"acme-api:do","ev":"CHECK_FAIL","step":"r1","fails":[{"check":"contract","why":"FAIL testsuite: RED"}]}'
+echo '{"v":1,"ts":2030,"run":"realrun","pipe":"acme-api:do","ev":"REPAIR_OK","step":"r1","attempt":1,"tokens":1000,"usd_e6":5000}'
+echo '{"v":1,"ts":2040,"run":"realrun","pipe":"acme-api:do","ev":"STEP_OK","step":"r1"}'
+echo '{"v":1,"ts":2050,"run":"realrun","pipe":"acme-api:do","ev":"RUN_DONE","verdict":"PASS"}'
+} > "$S8"
+OUT8="$("$TRACE" "$S8" --no-color)"
+echo "$OUT8" | grep -q '(2 runs)'      && ok "a mixed spool still renders BOTH runs (the drill is labelled, not deleted)" || bad "a drill line dropped the whole file: $(echo "$OUT8" | head -1)"
+echo "$OUT8" | grep -q 'CAUGHT 0'      && ok "in a mixed spool the drill run counts 0"                                    || bad "the drill run in a mixed spool still counted"
+echo "$OUT8" | grep -q 'CAUGHT 1 (step 1)' && ok "in the SAME render the customer's real run still counts CAUGHT 1"       || bad "the drill exclusion swallowed a real run's catch — worse than the bug it fixes"
+echo "$OUT8" | grep -q '  saved:'      && ok "the real run keeps its money line while the drill has none"                 || bad "the real run lost its 'saved:' line"
+echo "$OUT8" | grep -q '\$0.0050'      && ok "the real run keeps its own measured cost (\$0.0050)"                        || bad "the real run's cost went missing"
+# and the drill's OWN spend stays visible: an operator debugging their own drill
+# needs to see what it cost. It is excluded from the counts, not erased from the
+# record — erasing real spend would just be a different false number.
+echo "$OUT8" | grep -q '9,999 tok'     && ok "the drill's own spend is still shown to the operator, under the exclusion banner" || bad "the drill's real spend was erased rather than excluded"
+
+# ---- fixture 8: the fail-closed branch is a brand number too ---------------
+# "FAKE FIX REJECTED" and the STOP money line ("the remaining steps NEVER ran")
+# are separate claims on a separate code path from the repaired branch, and a
+# demo pipe is exactly where a rejected fake fix gets rehearsed. Positive arm
+# first: the identical events on an ordinary pipe MUST print both.
+stopspool(){   # $1 out file · $2 pipe
+  local out="$1" pipe="$2"
+  {
+  echo "{\"v\":1,\"ts\":1000,\"run\":\"ds\",\"pipe\":\"$pipe\",\"ev\":\"RUN_START\",\"steps\":4}"
+  echo "{\"v\":1,\"ts\":1010,\"run\":\"ds\",\"pipe\":\"$pipe\",\"ev\":\"STEP_START\",\"step\":\"x1\"}"
+  echo "{\"v\":1,\"ts\":1020,\"run\":\"ds\",\"pipe\":\"$pipe\",\"ev\":\"CHECK_FAIL\",\"step\":\"x1\",\"fails\":[{\"check\":\"contract\",\"why\":\"FAIL testsuite: RED\"}]}"
+  echo "{\"v\":1,\"ts\":1030,\"run\":\"ds\",\"pipe\":\"$pipe\",\"ev\":\"REPAIR_FAIL\",\"step\":\"x1\",\"attempt\":1}"
+  echo "{\"v\":1,\"ts\":1040,\"run\":\"ds\",\"pipe\":\"$pipe\",\"ev\":\"STOP\",\"reason\":\"BLOCKED\",\"detail\":\"fake fix\"}"
+  echo "{\"v\":1,\"ts\":1050,\"run\":\"ds\",\"pipe\":\"$pipe\",\"ev\":\"RUN_DONE\",\"verdict\":\"CHECK_FAILED\"}"
+  } > "$out"
+}
+stopspool "$TMP/stop-ord.jsonl" "demo:do"
+O9="$("$TRACE" "$TMP/stop-ord.jsonl" --no-color)"
+echo "$O9" | grep -q 'FAKE FIX REJECTED 1' && ok "needle proved present: an ordinary pipe renders FAKE FIX REJECTED 1" || bad "the positive arm lost FAKE FIX REJECTED 1 — the drill check below would be vacuous"
+echo "$O9" | grep -q 'NEVER ran on a blind base' && ok "needle proved present: the ordinary run prints the fail-closed money line" || bad "the fail-closed money line is gone"
+stopspool "$TMP/stop-drill.jsonl" "vibecoded-demo:do"
+O10="$("$TRACE" "$TMP/stop-drill.jsonl" --no-color)"
+echo "$O10" | grep -q 'FAKE FIX REJECTED 0' && ok "a drill's rejected fake fix is NOT counted as a refusal (FAKE FIX REJECTED 0)" || bad "a drill still claimed a fake fix refusal: $(echo "$O10" | grep -i 'REJECTED' | tail -1)"
+echo "$O10" | grep -q 'NEVER ran on a blind base' && bad "a drill still printed the fail-closed money claim" || ok "a drill prints no fail-closed money claim"
+echo "$O10" | grep -q '1 refusal-shaped' && ok "the drill's refusal is still reported as a SHAPE, so nothing is hidden from the operator" || bad "the drill's refusal-shaped event was hidden instead of excluded"
+
 echo ""
 echo "route: $PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]
