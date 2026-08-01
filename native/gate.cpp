@@ -1660,18 +1660,26 @@ int main(int argc, char** argv) {
     // (rules.h -> cmdtext.h). When the line cannot be parsed the old whole-line
     // match decides instead; that is the safe direction, but it is not allowed
     // to be silent, so it lands in the ledger.
-    bool degraded = false; string degradedWhy;
-    const std::vector<string> denyTexts = rbrules::match_texts(command, &degraded, &degradedWhy);
-    if (degraded)
-      em.emit("PARSE_DEGRADED", "\"why\":\"" + json_escape(degradedWhy) +
+    //
+    // And a deny rule that is about a PATH is decided by where the path lands,
+    // not by how it is spelled: `rm -rf /tmp/build` is machine scratch to the
+    // compiled law and "outside the project" to a hand-written regex, and that
+    // one disagreement is 9 of the 20 refusals in the precision fixture
+    // (rules.h -> pathres.h). Both layers read the same resolver, off the same
+    // parse, from the same resolved cwd — parsing or resolving twice here is
+    // how the two answers came apart in the first place.
+    const rbtext::Parsed parsed = rbtext::parse(command);
+    const string realCwd = rbpath::resolve_real(rbpath::lexical_abs(cwd, "/"));
+    if (parsed.degraded)
+      em.emit("PARSE_DEGRADED", "\"why\":\"" + json_escape(parsed.why) +
               "\",\"fallback\":\"whole-line match\",\"cmd\":\"" +
               json_escape(command.substr(0, 160)) + "\"");
     if (!guardRaw.empty())
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
-        if (rbrules::rx_test_any(r.pattern, denyTexts))
+        if (rbrules::rule_refuses(r.pattern, parsed, command, realCwd))
           block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
     rbbase::Hit bh;
-    if (rbbase::check(command, cwd, disabled, bh)) block(bh.id, bh.why, bh.detail);
+    if (rbbase::check_parsed(parsed, cwd, disabled, bh)) block(bh.id, bh.why, bh.detail);
   }
 
   if (!guardRaw.empty()) {

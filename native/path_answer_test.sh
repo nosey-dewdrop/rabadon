@@ -199,13 +199,21 @@ done
 echo
 echo "== the project's own rule is still the project's own rule =="
 # The fix gives the rule a resolved path. It must not give it a different
-# ANCHOR: a delete inside this project's tree is still outside the tree the
-# rule named, and the rule still refuses it and still says so by id.
-R=$(rule_of "$PROJ" "rm -rf $PROJ/src")
+# ANCHOR. A delete in somebody ELSE'S project tree is not machine scratch, is
+# not suppressed, and is still refused under the rule's own id — the project
+# wrote that rule and still has it.
+#
+# (This lab's own project lives inside a mktemp dir, so a delete under it is
+# disposable by the temp law and is SUPPOSED to be allowed here. That is the
+# same carve-out baseline_test.sh holds from the other side, and it is why the
+# anchor probe has to name a tree that is not scratch.)
+R=$(rule_of "$PROJ" "rm -rf /Users/u/otherproj/src")
 case "$R" in
   no-rm-rf-outside-project*) pass "the hand-written rule still fires, by its own id" ;;
   *) fail "the project's rule stopped firing on its own anchor (rule='$R')" ;;
 esac
+# and one disposable target does not buy a pass for the one next to it
+both "scratch and a real tree in one command" "rm -rf /tmp/scratch /Users/u/otherproj" 2
 # and an unknown variable is still waived, not guessed at
 RC=$(run "$BARE" "rm -rf \$TARGET/build")
 [ "$RC" = "0" ] && pass "an unknown \$VAR is still waived, not guessed" \

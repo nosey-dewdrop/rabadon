@@ -225,6 +225,74 @@ inline bool rx_test_cmd(const string& pattern, const string& cmd) {
   return rx_test_any(pattern, match_texts(cmd));
 }
 
+// ---------- a deny rule about a PATH is decided by where the path lands ------
+// The rule a project writes for itself is a regex, and the most common one by
+// far is "no recursive delete outside my tree", spelled as an exclusion around
+// the project's own absolute path:
+//
+//   "deny": "rm\\s+(-\\w*[rf]\\w*\\s+)+(/(?!Users/u/work/proj1)\\S*|~\\S*|\\$HOME\\S*)"
+//
+// That rule is right about what it wants and blind about what it is looking at.
+// It reads the SPELLING, so `/tmp/proj1-build` is "a path that is not the
+// project" and the agent that created that directory ninety seconds earlier
+// cannot remove it. Nine of the twenty refusals in native/precision_fixture.jsonl
+// are this one rule, all nine on the machine's own scratch — while the compiled
+// law sitting underneath resolved the very same target and allowed it. One
+// question, two answers: the thing cmdtext.h ended for COMMANDS, still open for
+// PATHS.
+//
+// So the rule keeps its pattern, its id and its anchor, and gains the one thing
+// it never had: the destination. When a rule that talks about paths matches a
+// DELETE and pathres.h says every target of that delete lands in the machine's
+// temp area, the text match was answering a different question, and the rule
+// does not fire on that segment.
+//
+// This can only ever SUPPRESS, and only on that one shape:
+//   - the pattern must name a filesystem location at all
+//   - the segment must be a delete command — the only place "which path" is the
+//     entire content of the rule
+//   - EVERY target must come back CONTAINED. An unresolved `$`, a brace
+//     expansion too wide to compute, one target landing anywhere else: any of
+//     them and the refusal stands, because failing toward a refusal is the safe
+//     direction and a rule the resolver cannot read is a rule it must not
+//     overrule.
+// A project that anchored a rule to its own tree still has that rule. A delete
+// inside some OTHER project is not disposable, is not suppressed, and is still
+// refused under the project's own rule id.
+inline bool pattern_names_a_path(const string& p) {
+  return p.find('/') != string::npos || p.find('~') != string::npos ||
+         p.find("$HOME") != string::npos || p.find("$TMPDIR") != string::npos;
+}
+
+inline bool all_targets_disposable(const rbtext::Seg& sg, const string& cwd) {
+  const rbpath::Delete d = rbpath::delete_of(sg.words);
+  if (!d.isDelete || d.targets.empty()) return false;
+  for (size_t i = 0; i < d.targets.size(); i++)
+    if (rbpath::land_of(d.targets[i], cwd, string()).where != rbpath::CONTAINED) return false;
+  return true;
+}
+
+// One rule against one whole command, segment by segment — because the
+// suppression above has to be decided where the delete actually is, and
+// because a segment is judged in the directory it really runs in (the `cd`
+// walk both layers now share, rbpath::segment_cwds).
+inline bool rule_refuses(const string& pattern, const rbtext::Parsed& p, const string& cmd,
+                         const string& cwd) {
+  // a line the parser could not read is judged the OLD way, whole segments of
+  // raw text: no words, so no targets, so nothing to resolve.
+  if (p.degraded) return rx_test_any(pattern, rbtext::raw_segments(cmd));
+  const bool pathRule = pattern_names_a_path(pattern);
+  const std::vector<string> cwds = rbpath::segment_cwds(p, cwd);
+  for (size_t i = 0; i < p.segs.size(); i++) {
+    if (p.segs[i].surface.empty()) continue;
+    const std::vector<string> one(1, p.segs[i].surface);
+    if (!rx_test_any(pattern, one)) continue;
+    if (pathRule && all_targets_disposable(p.segs[i], cwds[i])) continue;
+    return true;
+  }
+  return false;
+}
+
 // ---------- the whole verdict, in one call ----------
 // Everything that can refuse a Bash command before it runs: the project's own
 // deny rules first (so a refusal carries THEIR id and THEIR reason), then the
@@ -240,10 +308,13 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
   // the surface walk is O(len) not O(len × rules), and — the reason this header
   // exists — a second walk is a second answer to the same question.
   const rbtext::Parsed parsed = rbtext::parse(cmd);
+  // resolved once, and the SAME cwd both layers judge against: a rule that is
+  // about a path cannot be given a different starting directory than the law
+  // underneath it without the two disagreeing again.
+  const string realCwd = rbpath::resolve_real(rbpath::lexical_abs(cwd, "/"));
   if (!guard.empty()) {
-    const std::vector<string> texts = texts_of(parsed, cmd);
     for (const auto& r : parse_rules(guard, "bash", "deny", disabled)) {
-      if (rx_test_any(r.pattern, texts)) {
+      if (rule_refuses(r.pattern, parsed, cmd, realCwd)) {
         v.refused = true; v.id = r.id; v.why = r.why;
         v.detail = "command matched deny rule: " + cmd.substr(0, 160);
         return v;
