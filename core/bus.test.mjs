@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process';
 // isolate: point the bus at a temp dir BEFORE importing it
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rabadon-bus-test-'));
 process.env.RABADON_DIR = tmp;
-const { emitter, listen, jsSpoolPath } = await import('./bus.mjs');
+const { emitter, listen, jsSpoolPath, chainedAppend } = await import('./bus.mjs');
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -145,4 +145,40 @@ test('concurrent node writers do not break the chain', async () => {
   assert.equal(n, 24, `all 24 events must be chained, not failed open (got ${n})`);
   assert.equal(fs.existsSync(path.join(dir, 'spool', `${day}.js.unchained.jsonl`)), false,
     'nothing should have failed open: the lock is uncontended for microseconds at a time');
+});
+
+test('a held lock fails open to the sibling, never bare into the chained file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rabadon-bus-lock-'));
+  const day = new Date().toISOString().slice(0, 10);
+  fs.mkdirSync(path.join(dir, 'spool'), { recursive: true });
+  const file = path.join(dir, 'spool', `${day}.js.jsonl`);
+  fs.writeFileSync(file + '.lock', '');   // a live writer is holding it
+
+  const line = chainedAppend(file, { v: 1, seq: 1, ts: Date.now(), pipe: 'locked-out', ev: 'RUN_START' });
+
+  // chain.h's own fail-open, to the letter: the line is kept, marked unlocked,
+  // and put OUTSIDE the chained file — so the day's proof survives our fail-open.
+  assert.match(line, /"unlocked":true/, 'the event is kept and marked, not dropped');
+  const sibling = path.join(dir, 'spool', `${day}.js.unchained.jsonl`);
+  assert.equal(fs.existsSync(sibling), true, 'it lands in the .unchained sibling');
+  assert.equal(JSON.parse(fs.readFileSync(sibling, 'utf8').trim()).pipe, 'locked-out');
+  assert.equal(fs.existsSync(file), false, 'and NOT bare into the chained day file');
+});
+
+test('a lock left behind by a killed writer is stolen, not obeyed forever', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rabadon-bus-stale-'));
+  const day = new Date().toISOString().slice(0, 10);
+  fs.mkdirSync(path.join(dir, 'spool'), { recursive: true });
+  const file = path.join(dir, 'spool', `${day}.js.jsonl`);
+  fs.writeFileSync(file + '.lock', '');
+  const old = new Date(Date.now() - 60_000);
+  fs.utimesSync(file + '.lock', old, old);   // the holder died a minute ago
+
+  chainedAppend(file, { v: 1, seq: 1, ts: Date.now(), pipe: 'stale-lock', ev: 'RUN_START' });
+
+  // flock is released by the kernel when a process dies; a lock file is not, so
+  // without this a single SIGKILL would push every later event out of the chain.
+  assert.equal(fs.existsSync(file), true, 'the stale lock must not block the chain forever');
+  assert.equal(verifyChain(file), null, 'and what it writes after stealing is a valid chain');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8').trim()).prev, 'genesis');
 });
