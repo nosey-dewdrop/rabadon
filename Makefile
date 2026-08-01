@@ -91,6 +91,13 @@ test: all
 # enumerates the shared root is refused, an agent cleaning up the scratch dir it
 # named still passes.
 	./native/temp_root_glob_test.sh
+# and this one asks whether the two layers give the SAME answer. The compiled
+# delete law resolves its target; a guard.json deny rule is a regex and reads
+# the spelling, so `rm -rf /tmp/build` was scratch to one layer and a delete
+# outside the project to the other. It holds both directions per spelling
+# (symlink, `..`, glob, $TMPDIR): every must-not-block case has a must-block
+# twin, and the twins are re-run with TMPDIR pointed at $HOME and at /.
+	./native/path_answer_test.sh
 	./native/guard_lint_test.sh
 	./native/cmdtext_test.sh
 	./native/bypass_test.sh
