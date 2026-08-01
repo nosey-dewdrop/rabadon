@@ -25,6 +25,10 @@
 #      prints HELD, UNVERIFIED with the reason. Both halves are asserted, the
 #      positive one first — a lone "must not say VERIFIED" check would start
 #      passing for free the moment someone renamed the line.
+#   8. ONE SAMPLE IS NOT A VERDICT, entry side: a check that flakes GREEN on the
+#      entry run must not end the session with "nothing to repair" while the
+#      break is still in the tree. Green is confirmed by a second sample;
+#      disagreement is FLAKY with its own reason and its own exit code (4).
 #
 # Mutation-checked, both directions (this is why 7a exists):
 #   locks==0 branch left saying VERIFIED  -> 15 passed, 2 failed
@@ -182,6 +186,53 @@ else fail "locks==0 headline never says UNVERIFIED"; printf '%s\n' "$OUT" | sed 
 if printf '%s' "$OUT" | grep -q "0 test files" && printf '%s' "$OUT" | grep -q "anti-tamper"; then
   pass "locks==0: the reason is stated (0 test files, anti-tamper never ran)"
 else fail "locks==0 gives no reason"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+# 8) THE ENTRY SAMPLE IS NOT A VERDICT.
+# A nondeterministic check that flakes GREEN on the entry run used to end the run
+# with "the check is GREEN — nothing to repair.", exit 0 — a caught break dropped
+# on the floor, with nothing on the ledger to show it ever happened. The check
+# below is deterministically flaky: green on odd runs, and on even runs it tells
+# the truth (the bug is there). Sample 1 green, sample 2 red -> FLAKY.
+L8="$TMP/ledger8"; mkdir -p "$L8/spool"
+mkflaky() { # mkflaky DIR MODE  — MODE=entry (flake green odd) | arbiter (flake red even)
+  local d="$1" mode="$2"; rm -rf "$d"; mkdir -p "$d"
+  printf 'def add(a, b):\n    return a - b  # BUG\n' > "$d/calc.py"
+  # the run counter lives OUTSIDE both the repo and the isolated copies, so the
+  # same physical counter is shared by the entry run, the arbiter and the re-sample
+  local ctr="$TMP/flakes/$(basename "$d").n"; mkdir -p "$TMP/flakes"; rm -f "$ctr"
+  if [ "$mode" = entry ]; then
+    cat > "$d/check.sh" <<EOF
+#!/bin/sh
+n=\$(cat "$ctr" 2>/dev/null || echo 0); n=\$((n+1)); echo \$n > "$ctr"
+[ \$((n % 2)) -eq 1 ] && exit 0
+python3 -c 'import calc,sys; sys.exit(0 if calc.add(2,3)==5 else 1)'
+EOF
+  else
+    cat > "$d/check.sh" <<EOF
+#!/bin/sh
+n=\$(cat "$ctr" 2>/dev/null || echo 0); n=\$((n+1)); echo \$n > "$ctr"
+python3 -c 'import calc,sys; sys.exit(0 if calc.add(2,3)==5 else 1)' || exit 1
+[ \$((n % 2)) -eq 0 ] && exit 1
+exit 0
+EOF
+  fi
+  chmod +x "$d/check.sh"
+}
+
+P7="$TMP/p7"; mkflaky "$P7" entry
+OUT=$(RABADON_DIR="$L8" RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P7" --cmd ./check.sh 2>&1); RC=$?
+# POSITIVE FIRST (K2): the run must SAY flaky and exit on its own code. Without
+# this half, the "must not say nothing to repair" check below would start passing
+# for free the moment the headline was renamed — or removed altogether.
+if [ $RC -eq 4 ] && has_word FLAKY "$OUT"; then
+  pass "entry flake (green then red): FLAKY, exit 4 — its own verdict, not exit 0"
+else fail "entry flake rc=$RC (want 4)"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+if printf '%s' "$OUT" | grep -q "nothing to repair"; then
+  fail "entry flake still claims 'nothing to repair' — the break was dropped"
+else pass "entry flake: the run never claims 'nothing to repair'"; fi
+if grep -q '"why":"flaky check: entry samples disagree' "$L8/spool/"*.jsonl 2>/dev/null; then
+  pass "entry flake: the ledger carries its OWN reason (entry samples disagree)"
+else fail "entry flake left no flaky reason on the ledger"; fi
 
 echo "repair session: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

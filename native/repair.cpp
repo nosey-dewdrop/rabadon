@@ -430,10 +430,32 @@ int main(int argc, char** argv) {
   }
 
   // ---- 2. run it for real ----
+  // ONE sample is not a verdict. A check that happens to flake GREEN on this run
+  // would send repair home with "nothing to repair" while the break is still
+  // sitting in the tree — a caught break silently dropped. So the green that ends
+  // the run is confirmed by a second sample; the red that starts it is not, because
+  // red only costs a proposal, while a wrong green costs the whole catch.
   RunResult before = run_shell(cmd, dir, checkTimeout);
   if (before.exit_code == 0) {
-    printf("  the check is GREEN — nothing to repair.\n");
-    return 0;
+    RunResult confirm = run_shell(cmd, dir, checkTimeout);
+    if (confirm.exit_code == 0) {
+      printf("  the check is GREEN — nothing to repair.\n");
+      return 0;
+    }
+    // Same command, same untouched tree, two different answers. Sending the
+    // operator home green is a claim this run cannot support, and the ledger is
+    // the product's word — so FLAKY gets its own reason and its own exit code (4),
+    // never silence and never a verdict about a proposal that was never made.
+    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"flaky check: entry samples disagree (green, then exit " +
+            std::to_string(confirm.exit_code) + ")\",\"samples\":2");
+    fprintf(stderr,
+      "rabadon repair: FLAKY CHECK — the same check, on the same untouched tree, ran GREEN and then RED (exit %d)%s.\n"
+      "  A coin flip is not a verdict. Calling this repo healthy would drop a break that may really be there,\n"
+      "  and grading a proposal against this check would be just as arbitrary. Nothing was attempted, nothing is claimed.\n"
+      "  Make the check deterministic (or hand a deterministic one to --cmd) and run repair again.\n",
+      confirm.exit_code, confirm.timed_out ? " [timed out]" : "");
+    print_tail("the second entry run", confirm.tail);
+    return 4;
   }
   printf("  RED (exit %d)%s — caught.\n",
          before.exit_code, before.timed_out ? " [timed out]" : "");
