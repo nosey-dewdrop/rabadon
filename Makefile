@@ -105,6 +105,7 @@ test: all
 	./native/doctor_test.sh
 	./native/repair_session_test.sh
 	./native/repair_isolation_test.sh
+	./native/harness_lock_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh
 	./native/gate_promise_test.sh
