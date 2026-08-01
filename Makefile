@@ -165,6 +165,20 @@ test: all
 # line is refusing work no iteration performs. section 1 runs a real bash with
 # stub git and rm to show the body does reach the destructive argv.
 	./native/loop_body_test.sh
+# every suite above asks which WORD is the command. this one asks what a word
+# MEANS: `HEAD` and `@` are not branch names, they are the ref the repo
+# resolves, and the force-push law compared them against main/master/trunk/
+# develop and let them through. git-push(1) calls `git push origin HEAD` a handy
+# way to push the current branch to the same name on the remote, so on main that
+# line IS the refused one — while the same push with NO refspec at all was
+# already refused, because with nothing written down the law had to go read
+# .git/HEAD. writing the word turned that resolution off. the twins are where
+# this one earns its keep: the SAME command on a branch that is hers must still
+# go (force-pushing your own branch is how a review gets fixed up),
+# `git reset --hard HEAD` names a commit and must still go, and `main:HEAD` is
+# measured against real git — it creates refs/heads/HEAD on the remote, so a fix
+# that read the word HEAD anywhere in a refspec would refuse a harmless push.
+	./native/head_ref_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
 	./native/repair_session_test.sh

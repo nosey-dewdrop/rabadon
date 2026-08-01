@@ -125,6 +125,44 @@ inline bool shared_branch(const string& refIn) {
   return r == "main" || r == "master" || r == "trunk" || r == "develop";
 }
 
+// `HEAD` and `@` are not branch names. They are the ref the repo resolves, and
+// shared_branch() above is a NAME comparison: it strips a `+`, a `refs/heads/`
+// prefix and a remote prefix, then compares what is left against four words.
+// Both spellings survive every one of those strips because they need none, so
+// the law read the word HEAD, found it in none of the four, and allowed
+// `git push --force origin HEAD` while refusing the same push with the branch
+// spelled out. git-push(1): "git push origin HEAD — A handy way to push the
+// current branch to the same name on the remote." On main, HEAD IS main.
+//
+// The law already knew this. With NO refspec at all it reads .git/HEAD and
+// resolves the current branch (see the refs.empty() case below); writing the
+// word `HEAD` where the refspec goes turned that resolution off, because the
+// argument was there, so nothing had to be resolved, so nothing was. This is
+// that same resolution, applied to the two words that ask for it.
+//
+// THE COLON GOES THE OTHER WAY, AND IT WAS MEASURED, NOT REASONED ABOUT:
+//   git push --dry-run --porcelain origin main:HEAD
+//     -> refs/heads/main:refs/heads/HEAD   [new branch]
+// A destination written after a colon is taken literally, so `HEAD` there is a
+// branch called HEAD that git will CREATE on the remote — and creating a branch
+// rewrites nobody's history. A fix that saw the word HEAD anywhere in a refspec
+// would have bought this block with a false refusal.
+//
+// AND IT IS SCOPED TO PUSH. In `git reset --hard HEAD` the same word names a
+// COMMIT, not a destination branch; resolving it there would turn the most
+// ordinary line in git into a refusal on every shared branch. The hard-reset
+// law below keeps reading names, on purpose. native/head_ref_test.sh holds all
+// three of these from both directions.
+inline string current_branch(const string& root);
+
+inline string push_dest_ref(const string& refIn, const string& root) {
+  if (refIn.find(':') != string::npos) return refIn;   // the destination is written down
+  string r = refIn;
+  while (!r.empty() && r[0] == '+') r = r.substr(1);   // the force refspec form
+  if (r != "HEAD" && r != "@") return refIn;
+  return current_branch(root);   // "" on a detached HEAD: it is on no branch
+}
+
 inline string current_branch(const string& root) {
   std::ifstream f(root + "/.git/HEAD");
   if (!f) return "";
@@ -235,11 +273,19 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
           const string b = current_branch(root);
           if (!b.empty()) refs.push_back(b);
         }
-        for (const string& r : refs) {
+        for (const string& raw : refs) {
+          // `HEAD` and `@` name no branch; they ask the repo which one it is on.
+          // Every other spelling reaches the name comparison untouched.
+          const string r = push_dest_ref(raw, root);
+          if (r.empty()) continue;
           if (!shared_branch(r)) continue;
+          // when the branch was not the word the line carried, say both: the
+          // operator asked about HEAD and needs to be told which branch that is
+          const string wrote = (r == raw) ? string() : " (written as " + raw + ")";
           hit = {"baseline-force-push",
                  "a force-push to a shared branch rewrites history other people already have",
-                 "force-push to shared branch '" + r + "' — use --force-with-lease, or push to your own branch"};
+                 "force-push to shared branch '" + r + "'" + wrote +
+                     " — use --force-with-lease, or push to your own branch"};
           return true;
         }
       }
