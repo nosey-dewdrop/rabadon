@@ -13,9 +13,14 @@
 // the fix PROVEN against the real suite (and a fake fix REJECTED), so steps
 // downstream never ran on a broken base." Catch + fix + proof + cost, one view.
 //
-// Usage:  rabadon-trace [spool.jsonl | dir]  [--run <id>] [--last] [--no-color]
+// Usage:  rabadon-trace [run] [spool.jsonl | dir] [--run <id>] [--days N]
+//                       [--last] [--no-color]
 //   source: a path arg (a .jsonl file, or a dir -> its newest *.jsonl), else
 //   $RABADON_DIR/spool, else ~/.rabadon/spool (newest day file).
+//   run:    a bare word that is not an existing path is a RUN ID — the form the
+//   help screen teaches — looked for across the whole --days window (default 7)
+//   rather than in the newest day file alone. Nothing matched is a FAILED
+//   question: message on stderr, empty stdout, exit 1.
 
 #include <cstdio>
 #include <cstdlib>

@@ -12,7 +12,7 @@ a refusal or bad usage, `3` a precondition missing (no backend, no proposer, no
 runnable check). Specific codes noted per verb.
 
 Also dispatched, each with its own `--help` screen, reference section still to
-be written: `trace` (one run step by step) · `budget` (write the spend ceiling
+be written: `budget` (write the spend ceiling
 the gate halts at) · `do` (plan a task into steps and run them under the
 arbiter) · `loop` (run an existing plan) · `verify` (decide pass/fail on one
 contract) · `net` (run this repo's strongest check and record the verdict) ·
@@ -143,6 +143,36 @@ propagate it).
 
 ```
 rabadon drill
+```
+
+---
+
+## `rabadon trace [run] [--days N] [--last]`   [stable]
+
+One run, step by step: which step was caught, what the check said, whether the
+repair was accepted or the fake fix refused, and what the repair cost. Reads the
+spool only — nothing here calls a model, and every number printed is already in
+the ledger.
+
+`[run]` is a run id, not a file. A bare word is taken as a run whenever it is
+not a path that exists; a path (a `.jsonl`, or a directory whose newest day file
+wins) is taken as the ledger to read. `--run <id>` is the same thing spelled
+long. The id is matched as a substring, so the eight characters the header
+prints are enough to address the run.
+
+The id is looked for across the whole `--days` window (default 7), not in the
+newest day file alone — a run written yesterday is still addressable today. When
+more than one day file carries the run, the header names the first and counts
+the rest.
+
+Exit: `0` when a run rendered. `1` when none did — the message names the run and
+the window it searched, and stdout stays empty, so a caller can tell "not there"
+apart from "there and empty". `2` on an unknown flag or a second positional.
+
+```
+rabadon trace ms92w639-mdr-1          # one run, wherever in the window it is
+rabadon trace --last --no-color       # the newest run, pipe-safe
+rabadon trace --run ms92w639 --days 30
 ```
 
 ---
