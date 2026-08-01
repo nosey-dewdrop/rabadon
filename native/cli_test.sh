@@ -148,5 +148,88 @@ sys.exit(0)" && pass "the RENDERED trace contains no Turkish characters" \
   rm -rf "$TDIR"
 fi
 
+# ---- 5. every native binary answers --help ----
+# Same sixty seconds, one layer down. A stranger who gets past `rabadon --help`
+# reaches the binaries, and there the first word they type used to do one of
+# three things, none of which is a help screen:
+#   - HANG. `rabadon-do --help` took the flag as the task and opened a model
+#     call; `rabadon-serve -h` started the HTTP server.
+#   - PRINT THE REAL LEDGER. `rabadon-trace --help` swallowed the flag and
+#     dumped 31798 bytes of the live spool, not even valid UTF-8.
+#   - REFUSE. budget/loop/verify/export/sandbox/repair/truth exited 1, 2 or 3.
+#
+# Three assertions per binary, and the third is the one that has teeth: the
+# output must NAME the binary. Without it "exit 0 and under 10KB" is passed by
+# a binary that prints nothing at all — which is what `rabadon-gate --help` and
+# `rabadon-drift --help` already did, 0 bytes, exit 0, looking healthy.
+#
+# The probe is python3, NOT a bash loop: `do` and `serve` used to hang and bash
+# has no portable timeout on macOS (no `timeout`, no `gtimeout` — checked).
+HELP_BINS="trace"
+
+HELP_REPORT=$(mktemp /tmp/rabadon-help-report.XXXXXX)
+python3 - "$HELP_REPORT" $HELP_BINS <<'PY'
+import os, subprocess, sys, tempfile, time
+
+report, names = sys.argv[1], sys.argv[2:]
+root = os.getcwd()
+MAX = 10 * 1024
+out = []
+def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
+
+# A box with a REAL (tiny) ledger in it. Without data the probe would be
+# toothless: a binary that swallows --help and prints its report would find an
+# empty spool, print "nothing recorded", and look indistinguishable from one
+# that printed help. With a ledger present, swallowing the flag produces a
+# ledger dump — which is exactly the bug, at 1/1000 the size.
+def make_box():
+    box = tempfile.mkdtemp(prefix="rabadon-help.")
+    os.makedirs(box + "/spool", exist_ok=True)
+    ms = int(time.time() * 1000)
+    day = time.strftime("%Y-%m-%d")
+    rows = [
+        '{"v":1,"seq":1,"ts":%d,"run":"h1","pipe":"probe:do","ev":"RUN_START","goal":"probe ledger","steps":1}' % ms,
+        '{"v":1,"seq":2,"ts":%d,"run":"h1","pipe":"probe:do","ev":"STEP_START","step":"probe-step"}' % (ms + 5),
+        '{"v":1,"seq":3,"ts":%d,"run":"h1","pipe":"probe:do","ev":"STEP_OK","step":"probe-step","tier":1,"tokens":10,"usd_e6":20,"dur_ms":30}' % (ms + 10),
+        '{"v":1,"seq":4,"ts":%d,"run":"h1","pipe":"probe:do","ev":"RUN_DONE","verdict":"OK"}' % (ms + 15),
+    ]
+    open("%s/spool/%s.jsonl" % (box, day), "w").write("\n".join(rows) + "\n")
+    return box
+
+for name in names:
+    path = os.path.join(root, "native", "rabadon-" + name)
+    if not os.path.exists(path):
+        rec(False, "rabadon-%s is not built — the help probe cannot run" % name)
+        continue
+    for flag in ("--help", "-h"):
+        box = make_box()
+        env = dict(os.environ, RABADON_DIR=box, RABADON_NOTIFY="0", HOME=box)
+        label = "`rabadon-%s %s`" % (name, flag)
+        try:
+            p = subprocess.run([path, flag], stdin=subprocess.DEVNULL,
+                               capture_output=True, timeout=10, env=env, cwd=box)
+        except subprocess.TimeoutExpired:
+            rec(False, label + " HUNG for 10s instead of printing help")
+            continue
+        blob = p.stdout + p.stderr
+        rec(p.returncode == 0, label + (" exits 0" if p.returncode == 0
+                                        else " exited %d" % p.returncode))
+        # positive: the screen must name the thing it describes. this is what
+        # keeps the size assertion below from being satisfied by silence.
+        named = ("rabadon-" + name).encode() in blob
+        rec(named, label + (" names itself" if named
+                            else " never says 'rabadon-%s' (%d bytes)" % (name, len(blob))))
+        rec(len(blob) <= MAX,
+            label + (" stays under 10KB (%d bytes)" % len(blob) if len(blob) <= MAX
+                     else " printed %d bytes — that is the ledger, not a help screen" % len(blob)))
+
+open(report, "w").write("\n".join(out) + "\n")
+PY
+while IFS=$'\t' read -r VERDICT MSG; do
+  [ -z "${VERDICT:-}" ] && continue
+  [ "$VERDICT" = "PASS" ] && pass "$MSG" || fail "$MSG"
+done < "$HELP_REPORT"
+rm -f "$HELP_REPORT"
+
 echo "cli: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

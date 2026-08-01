@@ -26,6 +26,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "cli_help.h"
 
 using std::string;
 using std::vector;
@@ -361,7 +362,29 @@ static void render_run(const Run& r, const Pal& C, string& out){
   }
 }
 
+static const char* kHelp =
+  "rabadon-trace — render one pipeline run from the ledger: what was caught,\n"
+  "what was repaired, what the repair cost, and which fake fixes were refused.\n"
+  "Nothing here calls a model; every number printed already exists in the spool.\n"
+  "\n"
+  "usage: rabadon-trace [spool.jsonl | dir] [--run <id>] [--last] [--no-color]\n"
+  "\n"
+  "  [spool.jsonl | dir]  a ledger file, or a directory whose newest *.jsonl wins.\n"
+  "                       omitted: $RABADON_DIR/spool, else ~/.rabadon/spool.\n"
+  "  --run <id>           render only the run with this id.\n"
+  "  --last               render only the most recent run.\n"
+  "  --no-color / --color force ANSI off/on (default: on when stdout is a tty).\n"
+  "  -h, --help           this screen.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-trace --last --no-color\n";
+
 int main(int argc,char** argv){
+  // FIRST statement: `rabadon-trace --help` used to fall through to the source
+  // resolver, which ignored the unknown word and printed the whole live ledger
+  // — 31798 bytes of it, and not valid UTF-8.
+  rb_help(argc, argv, kHelp);
+
   string source, wantRun; bool onlyLast=false, color=isatty(fileno(stdout));
   for(int i=1;i<argc;i++){
     string a=argv[i];
@@ -369,6 +392,10 @@ int main(int argc,char** argv){
     else if(a=="--last"){ onlyLast=true; }
     else if(a=="--no-color"){ color=false; }
     else if(a=="--color"){ color=true; }
+    // an unrecognised flag is refused, never taken as the source path: taking
+    // it silently is how --help became "a file named --help" and the renderer
+    // fell back to the real spool as if the flag had been honoured.
+    else if(rb_is_flag(a.c_str())){ rb_unknown_flag("rabadon-trace", a.c_str()); }
     else if(source.empty()){ source=a; }
   }
   // resolve source file

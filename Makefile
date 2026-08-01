@@ -4,43 +4,43 @@ CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
 all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-audit: native/audit.cpp native/sha256.h
+native/rabadon-audit: native/audit.cpp native/sha256.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h
+native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-sandbox: native/sandbox.cpp
+native/rabadon-sandbox: native/sandbox.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-export: native/export.cpp
+native/rabadon-export: native/export.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-trace: native/trace.cpp
+native/rabadon-trace: native/trace.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-serve: native/serve.cpp
+native/rabadon-serve: native/serve.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -pthread -o $@ $<
 
-native/rabadon-truth: native/truth.cpp
+native/rabadon-truth: native/truth.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-net: native/net.cpp
+native/rabadon-net: native/net.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-lens: native/lens.cpp native/usage.h
+native/rabadon-lens: native/lens.cpp native/usage.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-budget: native/budget.cpp
+native/rabadon-budget: native/budget.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-stats: native/stats.cpp
+native/rabadon-stats: native/stats.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-drift: native/drift.cpp
+native/rabadon-drift: native/drift.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # measured, not claimed: median hook latency, native vs the legacy node gate,
@@ -86,11 +86,11 @@ clean:
 
 .PHONY: all bench clean
 
-native/rabadon-verify: native/verify.cpp
+native/rabadon-verify: native/verify.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-loop: native/loop.cpp native/sha256.h native/chain.h
+native/rabadon-loop: native/loop.cpp native/sha256.h native/chain.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-do: native/do.cpp
+native/rabadon-do: native/do.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
