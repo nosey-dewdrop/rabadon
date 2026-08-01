@@ -82,9 +82,22 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 .cta{font-size:var(--t-small);display:flex;gap:var(--g3);flex-wrap:wrap}
 
 /* ---------- terminal: the one surface, and every table lives in one ---------- */
-.term{background:var(--bg-soft);border-radius:var(--radius);padding:15px 18px;
+/* the box is as wide as its longest line and no wider, so a short run never
+   leaves a dead field of background to the right of itself */
+.term{background:var(--bg-soft);border-radius:var(--radius);padding:16px 20px;
       font-size:var(--t-mono);line-height:1.9;overflow-x:auto;white-space:pre;
+      width:fit-content;max-width:100%;
       font-variant-ligatures:none;font-variant-numeric:tabular-nums}
+
+/* a narrow run sits beside the sentence that introduces it rather than under it */
+.side{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--sec);
+      align-items:start}
+/* the claim carries the argument on the left and the evidence on the right */
+.side.hero{grid-template-columns:minmax(0,40ch) minmax(0,1fr);column-gap:var(--sec);
+           align-items:start;margin-top:var(--g3)}
+.side.hero .col p{font-size:var(--t-small);line-height:1.65}
+.side > .col > * + *{margin-top:var(--g2)}
+.side h2{margin-bottom:var(--g1)}
 .term .p{color:var(--pink)}
 .term .c{color:var(--ink)}
 .term .o{color:var(--ink-dim)}
@@ -99,14 +112,14 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 .cap{font-size:var(--t-small);color:var(--ink-dim);line-height:1.7;max-width:var(--measure)}
 
 /* ---------- the numbers, as one big block in the middle of the page ---------- */
-.stats{background:var(--bg-soft);border-radius:var(--radius);padding:26px 30px;
+.stats{background:var(--bg-soft);border-radius:var(--radius);padding:24px 28px;
        display:grid;grid-template-columns:14ch 1fr;column-gap:var(--g3);row-gap:var(--g2);
        align-items:baseline}
 .stats .n{font-size:var(--t-num);font-weight:700;text-align:right;letter-spacing:-.5px;
           font-variant-numeric:tabular-nums;line-height:1.25}
 .stats .n.g{color:var(--green)} .stats .n.p{color:var(--pink)}
 .stats .n.b{color:var(--blue)}  .stats .n.y{color:var(--yellow)}
-.stats .t{font-size:var(--t-body);color:var(--ink-dim);line-height:1.45;max-width:none}
+.stats .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.5;max-width:none}
 .stats .t a{color:var(--pink)}
 .stats .rule{grid-column:1 / -1;height:1px;background:var(--ink-dim);opacity:.18;margin:2px 0}
 
@@ -137,7 +150,8 @@ footer .sp{margin-left:auto}
   .stats{grid-template-columns:1fr;padding:20px;row-gap:4px}
   .stats .n{text-align:left}
   header.site nav{margin-left:0;gap:var(--g2)}
-  .pair{grid-template-columns:1fr}
+  .pair,.side{grid-template-columns:1fr}
+  .side{row-gap:var(--g2)}
   .law{grid-template-columns:1fr;row-gap:0}
   footer .sp{margin-left:0}
 }

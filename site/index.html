@@ -41,21 +41,26 @@
 
   <h1>run your coding agent without sitting there watching it.</h1>
 
-  <p>It refuses the destructive command before the process starts, writes a receipt you can verify afterwards, and when a check goes red it repairs the code without being able to buy its own green. On this machine it has refused 207 commands, and it has found 31 real defects in express, lodash, ajv, commander, click, jinja, markupsafe and pyyaml.</p>
+  <div class="side hero">
+    <div class="col">
+      <p>It refuses the destructive command before the process starts, writes a receipt you can verify afterwards, and when a check goes red it repairs the code without being able to buy its own green.</p>
+      <p>On this machine it has refused 207 commands, and it has found 31 real defects in express, lodash, ajv, commander, click, jinja, markupsafe and pyyaml.</p>
+      <p class="cta"><a href="https://github.com/nosey-dewdrop/rabadon">read the source</a><a href="/catches">see what it caught</a></p>
+    </div>
 
-  <div class="stats">
-    <span class="n p">207</span><span class="t">commands refused before they ran, across 78 repositories on one machine. <a href="/catches">read the ledger entries behind every one of them</a></span>
-    <span class="n g">100.0%</span><span class="t">precision, recall 100.0%, over 34 cases lifted out of real sessions</span>
-    <span class="n b">0</span><span class="t">fake repairs accepted, on every run there is a record of</span>
-    <span class="n y">42.0&micro;s</span><span class="t">to judge one command, so the gate is not what you switch off to go faster</span>
-    <span class="rule"></span>
-    <span class="n">70,116</span><span class="t">lines written to the hash-chained ledger</span>
-    <span class="n">37,384</span><span class="t">actions handed to the gate to be judged</span>
-    <span class="n">31</span><span class="t">real defects mined out of 545 commits in 8 open-source projects</span>
-    <span class="n">31,316</span><span class="t">tests in the 12 suites it was run against. <a href="/benchmarks">the measurements, with the command each came from</a></span>
-    <span class="n">251</span><span class="t">commits in this repository, in 8 days. <a href="/patch-notes">all of them, with the day each landed</a></span>
+    <div class="stats">
+      <span class="n p">207</span><span class="t">commands refused before they ran, across 78 repositories. <a href="/catches">the ledger entry behind every one</a></span>
+      <span class="n g">100.0%</span><span class="t">precision, recall 100.0%, over 34 cases lifted out of real sessions</span>
+      <span class="n b">0</span><span class="t">fake repairs accepted, on every run there is a record of</span>
+      <span class="n y">42.0&micro;s</span><span class="t">to judge one command, so the gate is not what you switch off to go faster</span>
+      <span class="rule"></span>
+      <span class="n">70,116</span><span class="t">lines written to the hash-chained ledger</span>
+      <span class="n">37,384</span><span class="t">actions handed to the gate to be judged</span>
+      <span class="n">31</span><span class="t">real defects mined out of 545 commits in 8 projects</span>
+      <span class="n">31,316</span><span class="t">tests in the 12 suites it ran against. <a href="/benchmarks">the measurements</a></span>
+      <span class="n">251</span><span class="t">commits here, in 8 days. <a href="/patch-notes">all of them</a></span>
+    </div>
   </div>
-</div>
 
 <section id="run">
   <h2>run it</h2>
@@ -71,9 +76,12 @@
   <p>A law written into a prompt is a request, and the model can drift off it or be argued out of it. rabadon sits underneath, compiled into the path every command takes, so refusing costs the agent the execution rather than an apology.</p>
 </section>
 
-<section id="proof">
-  <h2>the gate, on the cases it was built against</h2>
-  <p class="small dim">Thirty-four cases lifted out of real sessions, eleven of them genuinely destructive. Printed as it came, on this machine.</p>
+<section id="proof" class="side">
+  <div class="col">
+    <h2>the gate, on the cases it was built against</h2>
+    <p>Thirty-four cases lifted out of real sessions, eleven of them genuinely destructive, and the gate refuses all eleven and nothing else. Printed as it came, on this machine.</p>
+    <p class="cap">The eleven are not hypotheticals. They are commands that were typed during real work, by an agent, in a repository that mattered.</p>
+  </div>
   <div class="term" id="typed"></div>
 </section>
 
@@ -197,9 +205,12 @@ pass <span class="b">6</span>   fail <span class="b">0</span></div>
   </details>
 </section>
 
-<section id="ledger">
-  <h2>the ledger</h2>
-  <p class="small dim">Every number here comes from one machine that runs this all day, which is the only honest place a reliability tool gets proven first.</p>
+<section id="ledger" class="side">
+  <div class="col">
+    <h2>the ledger</h2>
+    <p>Every number here comes from one machine that runs this all day, which is the only honest place a reliability tool gets proven first.</p>
+    <p class="cap"><a href="/catches">every command it refused, rule by rule, with the raw entry behind each count</a></p>
+  </div>
   <div class="term"><span class="p">$</span> <span class="c">rabadon usage --days 30</span>
 
   <span class="p">61</span>   <span class="o">destructive actions refused before they happened</span>
@@ -207,7 +218,6 @@ pass <span class="b">6</span>   fail <span class="b">0</span></div>
    <span class="g">2</span>   <span class="o">repairs held after the proof survived the judge</span>
  <span class="y">198</span>   <span class="o">refusals recorded in watch mode, where nothing is blocked</span>
    <span class="b">0</span>   <span class="o">fake repairs accepted, on every run there is a record of</span></div>
-  <p class="cap"><a href="/catches">every command it refused, rule by rule</a></p>
 </section>
 
 <footer>
