@@ -11,6 +11,18 @@ Common exit-code convention: `0` success, `1` an error or a failed check, `2`
 a refusal or bad usage, `3` a precondition missing (no backend, no proposer, no
 runnable check). Specific codes noted per verb.
 
+Also dispatched, each with its own `--help` screen, reference section still to
+be written: `trace` (one run step by step) · `budget` (write the spend ceiling
+the gate halts at) · `do` (plan a task into steps and run them under the
+arbiter) · `loop` (run an existing plan) · `verify` (decide pass/fail on one
+contract) · `net` (run this repo's strongest check and record the verdict) ·
+`truth` (what this repo already knows how to check) · `drift` (did the session
+wander off its promise) · `serve` (the team ledger) · `fleet` (install the hooks
+across every git repo under a root). `native/cli_test.sh` holds every shipped binary to being reachable
+through this CLI and listed on the help screen, because `npm i -g rabadon`
+installs exactly one file onto your PATH — the dispatcher — so a binary it does
+not name is a binary nobody can run.
+
 ---
 
 ## `rabadon init [dir] [--no-llm] [--global]`   [stable]
