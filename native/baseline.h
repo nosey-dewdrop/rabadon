@@ -697,9 +697,18 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
                    "git push " + flag + " writes every branch, and '" + r + "' is one of them" +
                        inRepo + " — name the branch you mean, or push to your own branch"};
           } else {
+            // NAME THE BRANCH, NOT THE SPELLING. `r` may still be a whole
+            // refspec — a config value is one — and a refusal that reads
+            // "shared branch 'refs/heads/x:refs/heads/main'" names something
+            // that is not a branch. dest_name() is the function that already
+            // answered which branch this writes, and shared_branch() next to it
+            // just said yes to that answer; printing anything else here would
+            // be a second derivation of it.
+            const string b = dest_name(r);
             // when the branch was not the word the line carried, say both: the
-            // operator asked about HEAD and needs to be told which branch that is
-            const string wrote = (r == raw) ? string() : " (written as " + raw + ")";
+            // operator asked about HEAD, or about a refspec out of a file, and
+            // needs to be told which branch that is
+            const string wrote = (b == raw) ? string() : " (written as " + raw + ")";
             // Someone who WROTE a lease and is refused anyway must not be told
             // to use one. The remedy for that line is the opposite word: take
             // the --force off and the lease they already wrote does its job.
@@ -709,7 +718,7 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
                       : " — use --force-with-lease, or push to your own branch";
             hit = {"baseline-force-push",
                    "a force-push to a shared branch rewrites history other people already have",
-                   "force-push to shared branch '" + r + "'" + wrote + inRepo + viaCfg + advice};
+                   "force-push to shared branch '" + b + "'" + wrote + inRepo + viaCfg + advice};
           }
           return true;
         }
