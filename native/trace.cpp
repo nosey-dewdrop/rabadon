@@ -430,7 +430,13 @@ static void render_run(const Run& r, const Pal& C, string& out){
   bool watchedOnly = refusalOnly;
   for(const Node& n: nodes) if(!n.watched){ watchedOnly=false; break; }
 
-  int N = r.declaredSteps>0 ? r.declaredSteps : (int)nodes.size();
+  // How many steps this run really had. The declared count is the plan's, and a
+  // fail-closed run stops short of it, so the steps that DIDN'T run are exactly
+  // the difference — that is the number the footer is allowed to talk about.
+  // max(), not "declared or else the nodes": a ledger that declares fewer steps
+  // than it then started would have made the footer's range end before its own
+  // last step.
+  int N = std::max(r.declaredSteps, (int)nodes.size());
   int firstCaught=0; for(const Node& n: nodes) if(n.caught){ firstCaught=n.no; break; }
 
   // widest id for column alignment (cap so the metrics stay on screen)
@@ -601,12 +607,34 @@ static void render_run(const Run& r, const Pal& C, string& out){
       snprintf(f,sizeof f,"  %ssaved:%s the action was refused BEFORE it ran — nothing executed, so there is nothing to undo   %s◀── a passive tracer watches it happen%s\n",
         C.bold,C.rst, C.dim,C.rst);
     }
-    else if(rejected){
-      snprintf(f,sizeof f,"  %ssaved:%s caught at step %d → STOP, steps %d–%d NEVER ran on a blind base · the spend stayed in your pocket   %s◀── a passive tracer has no such line%s\n",
-        C.bold,C.rst, firstCaught, firstCaught+1, N, C.dim,C.rst);
-    } else {
-      snprintf(f,sizeof f,"  %ssaved:%s caught and repaired at step %d → steps %d–%d ran on a CLEAN base (the bug never reached step 10) · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
-        C.bold,C.rst, firstCaught, firstCaught+1, N, fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
+    else {
+      // The steps AFTER the catch — the only ones this sentence is entitled to
+      // talk about. It used to print firstCaught+1..N with nothing asserting
+      // that anything follows the catch at all, so a run whose catch IS its last
+      // step read "steps 2–1": a range that counts backwards. And the repaired
+      // arm ended in a literal "the bug never reached step 10" over a one-step
+      // plan. Two step numbers on the screen README says ends up in a
+      // screenshot, neither of them in the spool.
+      int after = N - firstCaught;
+      char rest[64]="";
+      if(after==1)     snprintf(rest,sizeof rest,"step %d", N);
+      else if(after>1) snprintf(rest,sizeof rest,"steps %d–%d", firstCaught+1, N);
+
+      if(rejected && after>0)
+        snprintf(f,sizeof f,"  %ssaved:%s caught at step %d → STOP, %s NEVER ran on a blind base · the spend stayed in your pocket   %s◀── a passive tracer has no such line%s\n",
+          C.bold,C.rst, firstCaught, rest, C.dim,C.rst);
+      else if(rejected)
+        // Nothing followed it, so no downstream step was saved and claiming one
+        // would be the same fabrication in a new sentence. What did happen is
+        // that the repair was refused and the run ended fail-closed.
+        snprintf(f,sizeof f,"  %ssaved:%s caught at step %d of %d → the repair was REFUSED and the run ends fail-closed — nothing unproven was let through   %s◀── a passive tracer has no such line%s\n",
+          C.bold,C.rst, firstCaught, N, C.dim,C.rst);
+      else if(after>0)
+        snprintf(f,sizeof f,"  %ssaved:%s caught and repaired at step %d → %s ran on a CLEAN base (the bug never reached step %d) · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
+          C.bold,C.rst, firstCaught, rest, N, fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
+      else
+        snprintf(f,sizeof f,"  %ssaved:%s caught and repaired at step %d of %d — the last step, so no later step ran on the bug · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
+          C.bold,C.rst, firstCaught, N, fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
     }
     out+=f;
   }
