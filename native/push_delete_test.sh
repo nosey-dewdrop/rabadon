@@ -212,6 +212,7 @@ the delete switch on your own branch|git push --delete origin my-branch
 the short switch on your own branch|git push -d origin experiment
 deleting a branch merely named after main|git push origin :main-backup
 deleting a tag, not a branch|git push origin :refs/tags/v1.2.0
+deleting the tag docs/guard.md prints as the example|git push origin :refs/tags/nightly
 an ordinary push to main|git push origin main
 an ordinary push to a feature branch|git push origin feature/x
 setting upstream|git push -u origin feature/x
