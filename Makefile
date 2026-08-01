@@ -9,7 +9,7 @@ all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon
 # bump answered `make` with "up to date" and shipped a binary announcing the
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cli_help.h native/version.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h
@@ -23,7 +23,7 @@ native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/j
 # to the rule engine answered `make` with "up to date" and left exec enforcing
 # the previous version of the law while the gate enforced the new one — the
 # divergence rules.h exists to prevent, reintroduced by the build.
-native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h native/chain.h native/jsonl.h native/sha256.h native/cli_help.h
+native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h native/cmdtext.h native/chain.h native/jsonl.h native/sha256.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native/jsonl.h
@@ -73,6 +73,7 @@ test: all
 	./native/audit_test.sh
 	./native/baseline_test.sh
 	./native/guard_lint_test.sh
+	./native/cmdtext_test.sh
 	./native/bypass_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
@@ -104,7 +105,11 @@ test: all
 # what it was told. This one asks the question none of them ask: was being told
 # that the right call? It replays real refusals out of the watch-mode ledger and
 # measures how many of them would have cut work that was never dangerous. It
-# fails today at 33.3% against a 90% floor. The floor lives in exactly one place
+# fails today at 50.0% against a 90% floor — it was 33.3% until deny rules
+# stopped matching text a command CARRIES (heredoc bodies, quoted arguments,
+# comments) and started matching only the text a shell will RUN. Every remaining
+# wrong refusal is one rule reading /tmp as "outside the project". The floor
+# lives in exactly one place
 # (native/precision_test.sh) and moving it down is the one edit that makes the
 # file worthless. `make precision` runs it alone.
 	./native/precision_test.sh

@@ -1654,9 +1654,21 @@ int main(int argc, char** argv) {
   // now a fresh install refused nothing. guard.json extends this floor;
   // disabled[] can remove any of the three by id.
   if (toolName == "Bash" && !command.empty()) {
+    // A deny rule matches what the shell will RUN, not every byte the command
+    // carries — a force-push quoted inside a commit message is a sentence, and
+    // refusing it blocked real work 11 times in the watch-mode ledger
+    // (rules.h -> cmdtext.h). When the line cannot be parsed the old whole-line
+    // match decides instead; that is the safe direction, but it is not allowed
+    // to be silent, so it lands in the ledger.
+    bool degraded = false; string degradedWhy;
+    const std::vector<string> denyTexts = rbrules::match_texts(command, &degraded, &degradedWhy);
+    if (degraded)
+      em.emit("PARSE_DEGRADED", "\"why\":\"" + json_escape(degradedWhy) +
+              "\",\"fallback\":\"whole-line match\",\"cmd\":\"" +
+              json_escape(command.substr(0, 160)) + "\"");
     if (!guardRaw.empty())
       for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
-        if (rx_test_cmd(r.pattern, command))
+        if (rbrules::rx_test_any(r.pattern, denyTexts))
           block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
     rbbase::Hit bh;
     if (rbbase::check(command, cwd, disabled, bh)) block(bh.id, bh.why, bh.detail);

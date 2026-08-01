@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "baseline.h"
+#include "cmdtext.h"
 
 namespace rbrules {
 
@@ -169,8 +170,8 @@ inline bool rx_test(const string& pattern, const string& text) {
   } catch (...) { return false; } // a broken rule must not take the gate down
 }
 
-// A user rule is judged PER SEGMENT of the command, and each segment is tried
-// both as written and with git's global options stripped.
+// A user rule is judged PER EXECUTABLE SURFACE of the command, and each surface
+// is tried both as written and with git's global options stripped.
 //
 // Segments, because a rule that matched the whole line refused ordinary work:
 // four of the five guards written for the wild repos blocked
@@ -178,17 +179,43 @@ inline bool rx_test(const string& pattern, const string& text) {
 // `git push` in another. A false refusal costs more than a missed one; it is
 // the thing that makes people turn the gate off.
 //
+// Surfaces and not raw slices, because segmenting alone still read DATA as
+// code. `git commit -m "...an agent wrote git push --force"` was refused as a
+// force-push: the whole force-push lived inside one quoted argument, in one
+// segment, and the rule could not tell a command from a sentence about one.
+// cmdtext.h answers only "what will actually run" — heredoc bodies, quoted
+// data and comments are out, chained commands / subshells / `bash -c` strings
+// are in. 11 of the ledger's 22 false refusals were this one mistake.
+//
 // Stripped, because agents write `git -C /path push --force` and
 // `git --exec-path=/x push --force`, and every `git\s+push` rule slides right
 // past them (both caught live, 31.07). The walk is structural now — every
 // leading option, not a hand-kept list (baseline.h).
-inline bool rx_test_cmd(const string& pattern, const string& cmd) {
-  for (const string& seg : rbbase::raw_segments(cmd)) {
+inline bool rx_test_any(const string& pattern, const std::vector<string>& texts) {
+  for (const string& seg : texts) {
     if (rx_test(pattern, seg)) return true;
     const string norm = rbbase::strip_git_globals(seg);
     if (norm != seg && rx_test(pattern, norm)) return true;
   }
   return false;
+}
+
+// The texts a deny rule is allowed to see. A command this header cannot parse
+// is judged the OLD way — the whole line, one segment at a time — because
+// failing toward more refusals is the safe direction. The caller is expected to
+// record that it happened (gate.cpp emits PARSE_DEGRADED); a silent fallback
+// would hide the one case where the new matcher is not the one deciding.
+inline std::vector<string> match_texts(const string& cmd, bool* degraded = nullptr,
+                                       string* why = nullptr) {
+  const rbtext::Surfaces s = rbtext::exec_surfaces(cmd);
+  if (degraded) *degraded = s.degraded;
+  if (why) *why = s.why;
+  if (s.degraded) return rbbase::raw_segments(cmd);
+  return s.texts;
+}
+
+inline bool rx_test_cmd(const string& pattern, const string& cmd) {
+  return rx_test_any(pattern, match_texts(cmd));
 }
 
 // ---------- the whole verdict, in one call ----------
@@ -203,8 +230,11 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
   if (cmd.empty()) return v;
   const std::vector<string> disabled = parse_disabled(guard);
   if (!guard.empty()) {
+    // parsed ONCE for every rule: the gate has a 2.3ms budget and the surface
+    // walk is O(len), not O(len × rules)
+    const std::vector<string> texts = match_texts(cmd);
     for (const auto& r : parse_rules(guard, "bash", "deny", disabled)) {
-      if (rx_test_cmd(r.pattern, cmd)) {
+      if (rx_test_any(r.pattern, texts)) {
         v.refused = true; v.id = r.id; v.why = r.why;
         v.detail = "command matched deny rule: " + cmd.substr(0, 160);
         return v;
