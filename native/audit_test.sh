@@ -215,6 +215,113 @@ rm -f "$LEGACY"
 # `rabadon loop` run would read exactly like a stripped line.
 grep -q "rbchain::append" native/loop.cpp && pass "rabadon-loop appends through the same chained writer (chain.h)" || fail "loop.cpp writes to the spool unchained"
 
+# ---------------------------------------------------------------------------
+# g) A STRANGER'S SERIALIZER. SPEC §2 fixes the ledger as single-line JSON whose
+#    prev is the sha256 of the whole previous line. It fixes NO byte layout, and
+#    SPEC Part II exists so someone else's agent can write this ledger. A stock
+#    serializer (python json.dumps, Go encoding/json, JSON.stringify) puts a
+#    space after every ':' and ','.
+#
+#    audit used to read fields by matching the literal bytes `"prev":"`, so it
+#    answered `NOT ONE line carries prev — the chain was stripped out` /
+#    TAMPER-EVIDENT BREAK over a chain that was mathematically perfect. Every
+#    line carried prev. An INTACT ledger accused of being edited is the worst
+#    verdict a tamper-evidence tool can return, and it is the one the byte match
+#    picked.
+#
+#    The arm is PAIRED so it cannot pass by going blind: the same spaced file is
+#    first proven INTACT with the chained COUNT asserted (a reader that sees
+#    nothing reports 0 chained and fails here), then mutated and required to
+#    convict at the right line. A reader that stopped parsing would fail the
+#    first half; a reader that convicts everything would fail it too.
+SPACED="$TMP/spaced"; mkdir -p "$SPACED/spool"
+python3 - "$SPACED/spool" <<'PY'
+import datetime, hashlib, json, os, sys, time
+spool = sys.argv[1]
+path = os.path.join(spool, datetime.date.today().isoformat() + ".jsonl")
+prev, out = "genesis", []
+for i in range(3):
+    e = {"v": 1, "seq": i + 1, "ts": int(time.time() * 1000) + i,
+         "run": "stranger-1", "pipe": "vendor:session", "ev": "STEP_OK",
+         "step": "Bash", "prev": prev}
+    line = json.dumps(e)                 # default separators: ", " and ": "
+    out.append(line)
+    prev = hashlib.sha256(line.encode()).hexdigest()
+open(path, "w").write("\n".join(out) + "\n")
+open(path + ".head", "w").write(prev + " 3\n")
+PY
+SPACED_DAY="$SPACED/spool/$(date +%Y-%m-%d).jsonl"
+
+# the fixture must really be spaced, or the arm proves nothing about spacing
+grep -q '"prev": "' "$SPACED_DAY" && pass "(g) the stranger fixture really is stock-serialized (\"prev\": \" with a space)" || fail "(g) fixture is not spaced — the arm would prove nothing"
+
+# ...and its chain must really be valid, judged outside rabadon
+if python3 - "$SPACED_DAY" <<'PY'
+import hashlib, json, sys
+lines = open(sys.argv[1]).read().rstrip("\n").split("\n")
+prev = "genesis"
+for l in lines:
+    if json.loads(l).get("prev") != prev: sys.exit(1)
+    prev = hashlib.sha256(l.encode()).hexdigest()
+head = open(sys.argv[1] + ".head").read().split()
+sys.exit(0 if head[0] == prev and int(head[1]) == len(lines) else 1)
+PY
+then pass "(g) that fixture's chain is valid per SPEC, verified independently of rabadon"
+else fail "(g) fixture chain is not valid — fix the fixture before trusting the verdict"; fi
+
+OUT=$(RABADON_DIR="$SPACED" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT" && printf '%s' "$OUT" | grep -q "3 chained" && printf '%s' "$OUT" | grep -q "0 unchained"; then
+  pass "(g) a stock-serialized chain audits INTACT — 3 chained, 0 unchained (exit 0)"
+else fail "(g) spaced chain falsely accused: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+# the negative half, on the SAME spaced file: edit one field of line 2, keeping
+# it valid JSON with the same spacing. Line 3's prev no longer matches.
+python3 - "$SPACED_DAY" <<'PY'
+import sys
+p = sys.argv[1]
+lines = open(p).read().rstrip("\n").split("\n")
+assert '"step": "Bash"' in lines[1], lines[1]
+lines[1] = lines[1].replace('"step": "Bash"', '"step": "Edit"')
+open(p, "w").write("\n".join(lines) + "\n")
+PY
+OUT=$(RABADON_DIR="$SPACED" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 1 ] && printf '%s' "$OUT" | grep -q "chain BROKEN at line 3" && printf '%s' "$OUT" | grep -q "verdict: TAMPER-EVIDENT BREAK"; then
+  pass "(g) one field edited in that same spaced file -> chain BROKEN at line 3 (exit 1)"
+else fail "(g) spaced tamper not caught: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+# h) the same stranger format through the MIGRATION path: a pre-0.4 sidecar
+#    carries a hash but no count, so chain.h recounts the file before appending.
+#    That recount used to require the literal suffix `,"prev":"<v>"}`, counted a
+#    spaced file as 1 chained line instead of 3, committed the low count, and
+#    audit convicted the file the moment the real gate touched it.
+MIG="$TMP/mig"; mkdir -p "$MIG/spool"; touch "$MIG/enabled"   # enforce, like $RABADON_DIR
+cp "$SPACED/spool"/*.jsonl "$MIG/spool/" 2>/dev/null
+MIG_DAY="$MIG/spool/$(date +%Y-%m-%d).jsonl"
+python3 - "$MIG_DAY" <<'PY'
+import hashlib, sys
+p = sys.argv[1]
+lines = open(p).read().rstrip("\n").split("\n")
+# restore the untampered 3rd line's chain so the file is clean again
+import json, time
+prev = "genesis"; out = []
+for i, l in enumerate(lines):
+    e = json.loads(l); e["prev"] = prev
+    l2 = json.dumps(e); out.append(l2)
+    prev = hashlib.sha256(l2.encode()).hexdigest()
+open(p, "w").write("\n".join(out) + "\n")
+open(p + ".head", "w").write(prev + "\n")   # pre-0.4: hash only, NO count
+PY
+printf '{"hook_event_name":"PreToolUse","session_id":"s-mig","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$PROJ" \
+  | RABADON_DIR="$MIG" "$GATE" >/dev/null 2>&1
+COMMITTED=$(awk '{print $2}' "$MIG_DAY.head")
+if [ "$COMMITTED" = "5" ]; then
+  pass "(h) migrating a stock-serialized spool recounts all 3 chained lines (sidecar commits 5 after the gate's 2)"
+else fail "(h) migration miscounted: sidecar committed '$COMMITTED', expected 5"; sed 's/^/    | /' "$MIG_DAY.head"; fi
+OUT=$(RABADON_DIR="$MIG" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT" && printf '%s' "$OUT" | grep -q "5 chained"; then
+  pass "(h) the migrated spool — stranger's 3 lines + rabadon's 2 — audits INTACT (exit 0)"
+else fail "(h) migrated spool: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
 # and after all of it, the untouched spool still verifies
 OUT=$("$AUDIT" --days 2); RC=$?
 if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT"; then pass "the restored spool verifies INTACT again (exit 0)"; else fail "post-restore: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
