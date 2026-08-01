@@ -67,6 +67,7 @@ setting up
   remove              uninstall the hooks from a project
 
 seeing what happened
+  lens [--days N]     sessions, tokens and cost, read off the transcripts on disk
   usage [--days N]    what was refused, in which project, by which rule
   report [--days N]   the same, as markdown
   trace [run]         one run step by step: caught, repaired, refused
@@ -90,6 +91,12 @@ HELP
     exit 0 ;;
   on|off|status)   G="$(nbin gate)" || exit 1; exec "$G" "--$VERB" ;;
   statusline)      G="$(nbin gate)" || exit 1; exec "$G" --statusline ;;
+  # the cost half of the product. rabadon-lens shipped in every platform
+  # package for weeks with no verb in front of it: `npm i -g rabadon` puts ONE
+  # file on your PATH (this script), so a binary the dispatcher never names is
+  # a binary nobody outside this repo can run. `cost` is kept as a spelling
+  # because that is the word people reach for.
+  lens|cost)       L="$(nbin lens)" || exit 1; shift; exec "$L" "$@" ;;
   stats|usage)     S="$(nbin stats)" || exit 1; shift; exec "$S" "$@" ;;
   report)          S="$(nbin stats)" || exit 1; shift; exec "$S" --md "$@" ;;
   trace)           T="$(nbin trace)" || exit 1; shift; exec "$T" "$@" ;;
