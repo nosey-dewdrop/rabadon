@@ -60,6 +60,32 @@ rabadon status
 
 ---
 
+## `rabadon lens [transcript.jsonl | dir] [--days N]`   [stable]
+
+Alias: `rabadon cost`. Sessions, tokens and cost, read straight off the
+transcripts Claude Code already writes to disk. Zero instrumentation: nothing
+has to be wrapped, no key is needed, and **no model is called to produce any
+number here** — the metering is byte-exact arithmetic over files that are
+already on your machine.
+
+One row per session: project, model, input / output / cache tokens, total
+tokens, cost in USD, tool calls, wall duration.
+
+Argument: a single transcript, or a directory of them. Omitted, it reads
+`$RABADON_LENS_DIR`, else `~/.claude/projects`.
+
+Flags: `--days N` (window, default 7).
+
+Exit: `0`.
+
+```
+rabadon lens
+rabadon lens --days 30
+rabadon lens ~/.claude/projects/-Users-me-src-api
+```
+
+---
+
 ## `rabadon usage [--days N] [--project P] [--full] [--json]`   [stable]
 
 Alias: `rabadon stats`. The ledger. Refusals grouped by rule id with each rule's

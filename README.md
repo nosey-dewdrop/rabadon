@@ -98,9 +98,11 @@ The session guard is one binding of a smaller thing: a runtime that runs work in
 
 ## Commands
 
-`init` · `on`/`off`/`status` · `usage` (`stats`) · `report` · `drill` · `audit` · `replay` · `exec` · `repair` · `export` · `lint` · `doctor` · `remove` · `watch`. Full reference: [docs/commands.md](docs/commands.md). How the hooks, spool and modes fit together: [docs/how-it-works.md](docs/how-it-works.md).
+`init` · `on`/`off`/`status` · `budget` · `lens` (`cost`) · `usage` (`stats`) · `report` · `trace` · `drift` · `drill` · `audit` · `replay` · `exec` · `do` · `loop` · `repair` · `verify` · `net` · `truth` · `export` · `lint` · `doctor` · `remove` · `watch` · `serve`. Full reference: [docs/commands.md](docs/commands.md). How the hooks, spool and modes fit together: [docs/how-it-works.md](docs/how-it-works.md).
 
-Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. `native/cli_test.sh` discovers the binaries by glob and holds all sixteen to that.
+`rabadon lens` is the cost half: sessions, tokens and USD read straight off the transcripts Claude Code already writes to disk — no wrapper, no key, and no model call to produce any number.
+
+Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. `native/cli_test.sh` discovers the binaries by glob and holds all sixteen to that, **and to being reachable**: `npm i -g rabadon` puts exactly one file on your PATH, so a shipped binary the dispatcher never names is a binary nobody can run. The verb list in that test is parsed out of the dispatcher itself, never typed in.
 
 ## Prove it yourself
 
