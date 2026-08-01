@@ -174,43 +174,90 @@ inline string real_home() {
   return norm_dir(resolve_real(lexical_abs(h, "/")));
 }
 
-// $TMPDIR comes from the environment, and the environment is exactly what an
-// agent can change. A root offered there is taken only when it could plausibly
-// be a temp dir: TMPDIR=/ or TMPDIR=$HOME must not turn the whole machine into
-// scratch space.
-inline bool plausible_temp_root(const string& real, const string& home) {
-  if (real.size() < 2 || real[0] != '/') return false;
-  static const char* systemDir[] = {"/etc", "/usr", "/bin", "/sbin", "/var", "/private",
-                                    "/System", "/Library", "/Applications", "/opt", "/dev"};
-  for (const char* d : systemDir) if (real == d) return false;
-  static const char* userTree[] = {"/Users", "/home", "/Volumes", "/mnt", "/media"};
-  for (const char* d : userTree) if (inside(d, real)) return false;
-  if (!home.empty() && inside(home, real)) return false;
-  return true;
+inline void add_root(vector<string>& roots, const string& p) {
+  const string d = norm_dir(p);
+  if (d.size() < 2 || d[0] != '/') return;
+  for (const string& e : roots) if (e == d) return;
+  roots.push_back(d);
 }
 
-// /tmp and its real location (/private/tmp on macOS), /var/tmp, and the
-// /var/folders tree mktemp -d writes into under a launchd session. Each is
-// added both as written and as it resolves, so the list is right on a machine
-// where /tmp is a symlink and on one where it is not.
+// The machine's own scratch, read WITHOUT the environment: /tmp and its real
+// location (/private/tmp on macOS), /var/tmp, and the /var/folders tree
+// mktemp -d writes into under a launchd session. Each is added both as written
+// and as it resolves, so the list is right on a machine where /tmp is a symlink
+// and on one where it is not.
+//
+// This is a separate list from temp_roots() below because plausible_temp_root()
+// has to read it: the question it answers is whether the root $TMPDIR names is
+// part of the machine's temp area, and it cannot ask a list that already
+// contains $TMPDIR's own answer.
+inline const vector<string>& machine_temp_roots() {
+  static vector<string> roots;
+  static bool built = false;
+  if (built) return roots;
+  built = true;
+  const char* fixed[] = {"/tmp", "/var/tmp", "/var/folders"};
+  for (const char* f : fixed) { add_root(roots, f); add_root(roots, resolve_real(f)); }
+  return roots;
+}
+
+// $TMPDIR comes from the environment, and the environment is exactly what an
+// agent writes for itself. Naming a root there does not make that root's
+// contents disposable — it makes THIS LAW'S OPINION of them disposable, which
+// is why the value is checked at all.
+//
+// The check used to be a DENYLIST of system directories compared for exact
+// equality, and it scored what a list of spellings always scores. Eleven of
+// twelve measured shapes walked through it:
+//
+//     TMPDIR=/usr        rm -rf /usr/lib          refused   (on the list)
+//     TMPDIR=/usr/local  rm -rf /usr/local/lib    ALLOWED   (one level down)
+//     TMPDIR=/root       rm -rf /root/backups     ALLOWED   (never on the list)
+//     TMPDIR=/srv        rm -rf /srv/www          ALLOWED
+//     TMPDIR=/lib /boot /nix /data ...            ALLOWED
+//
+// One `TMPDIR=` assignment ahead of the command turned the delete law off for
+// the tree underneath. The same function already read the USER trees as
+// subtrees (`inside`) and the system trees as exact names (`==`), and there was
+// never a reason for the difference — a subdirectory of /etc is no more
+// disposable than /etc.
+//
+// So the test is inverted, and the list it consults is the one thing here that
+// is not a guess: a root offered through the environment is taken only when it
+// lands in the machine's OWN temp area, and never under $HOME (a harness that
+// points HOME at a mktemp dir must not hand back the home directory it just
+// made). Nothing else is asked, because every other question is a denylist
+// again.
+//
+// THE COST, STATED: a genuinely unusual $TMPDIR — /run/user/1000 under systemd,
+// $SCRATCH on a cluster — is no longer read as scratch. What it holds is then
+// judged like any other path, so a recursive delete there is refused when it is
+// also outside the project tree. That is a false refusal, silenceable by id in
+// guard.json's disabled[]; the direction it fails in is the one that keeps
+// files. /tmp, /var/tmp and /var/folders are unaffected and need no $TMPDIR at
+// all, which is where an agent's scratch actually is.
+inline bool plausible_temp_root(const string& real, const string& home) {
+  if (real.size() < 2 || real[0] != '/') return false;
+  if (!home.empty() && inside(home, real)) return false;
+  for (const string& t : machine_temp_roots()) if (inside(t, real)) return true;
+  return false;
+}
+
+// the machine's temp area plus whatever $TMPDIR adds to it, which is what a
+// target is judged against. $TMPDIR can only ever name a root DEEPER than one
+// already here (plausible_temp_root), and that depth is the point: only the
+// deeper root can see that the first component under it is a shared list of
+// entries rather than one caller's scratch.
 inline const vector<string>& temp_roots() {
   static vector<string> roots;
   static bool built = false;
   if (built) return roots;
   built = true;
-  const string home = real_home();
-  auto add = [&](const string& p) {
-    const string d = norm_dir(p);
-    if (d.size() < 2 || d[0] != '/') return;
-    for (const string& e : roots) if (e == d) return;
-    roots.push_back(d);
-  };
-  const char* fixed[] = {"/tmp", "/var/tmp", "/var/folders"};
-  for (const char* f : fixed) { add(f); add(resolve_real(f)); }
+  roots = machine_temp_roots();
   const char* td = getenv("TMPDIR");
   if (td && td[0]) {
     const string a = norm_dir(resolve_real(lexical_abs(td, "/")));
-    if (plausible_temp_root(a, home)) add(a);
+    if (plausible_temp_root(a, real_home())) add_root(roots, a);
   }
   return roots;
 }

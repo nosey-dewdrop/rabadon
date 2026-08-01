@@ -59,11 +59,20 @@ run() { # run <cwd> <command> -> exit code
     | "$GATE" >/dev/null 2>&1
   echo $?
 }
+run_env() { # run_env <cwd> <command> <VAR=VAL>... -> exit code
+  cwd="$1"; cmd="$2"; shift 2
+  printf '{"hook_event_name":"PreToolUse","session_id":"s-glob","cwd":"%s","tool_name":"Bash","tool_input":{"command":%s}}' \
+    "$cwd" "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$cmd")" \
+    | env "$@" "$GATE" >/dev/null 2>&1
+  echo $?
+}
 detail() { # detail <cwd> <command> -> the sentence the gate prints
   printf '{"hook_event_name":"PreToolUse","session_id":"s-glob","cwd":"%s","tool_name":"Bash","tool_input":{"command":%s}}' \
     "$1" "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$2")" \
     | "$GATE" 2>&1
 }
+MKTMP=$(mktemp -d)                           # /var/folders/... under a launchd session
+MKPARENT=$(dirname "$MKTMP")
 
 # ---------------------------------------------------------------------------
 # 1. the shell really leaves the directory the pattern names (fake rm, no delete)
@@ -163,6 +172,25 @@ RC=$(run "$PROJ" "rm -rf /tmp/**/cache")
 [ "$RC" = "2" ] && pass "refused: a globstar whose first component enumerates the shared temp root" \
                 || fail "NOT refused ($RC): rm -rf /tmp/**/cache"
 
+# A pattern under a root the COMMAND'S OWN ENVIRONMENT calls temp. The two rules
+# that judge a pattern here — where the words land, and whether the first
+# component enumerates a shared root — both start from the list of temp roots,
+# and one entry of that list is read from $TMPDIR. So `TMPDIR=/usr/local` moved
+# the whole question: /usr/local/lib/* is a pattern one level UNDER the named
+# root, which is exactly the shape the carve-out is FOR, and it was waved
+# through. The pattern was never the weak part; the list it was measured
+# against was. The twin below is the same shape over a root that really is
+# scratch, so this cannot be paid for by refusing patterns under $TMPDIR.
+RC=$(run_env "$PROJ" "rm -rf /usr/local/lib/*" "TMPDIR=/usr/local")
+[ "$RC" = "2" ] && pass "refused: a pattern under a system dir the environment called \$TMPDIR" \
+                || fail "NOT refused ($RC): TMPDIR=/usr/local rm -rf /usr/local/lib/*"
+RC=$(run_env "$PROJ" "rm -rf /srv/www/*/dist" "TMPDIR=/srv")
+[ "$RC" = "2" ] && pass "refused: a pattern in the middle of a path under a bogus \$TMPDIR" \
+                || fail "NOT refused ($RC): TMPDIR=/srv rm -rf /srv/www/*/dist"
+RC=$(run_env "$PROJ" "rm -rf $MKTMP/build-*/out" "TMPDIR=$MKPARENT")
+[ "$RC" = "0" ] && pass "allowed: the same pattern shape under a \$TMPDIR that really is scratch" \
+                || fail "WRONGLY refused ($RC): TMPDIR=$MKPARENT rm -rf $MKTMP/build-*/out"
+
 # ---------------------------------------------------------------------------
 # 3. must ALLOW: refusing every pattern would be the cheapest way to pass
 #    section 2, and it would delete the reason the carve-out exists
@@ -195,6 +223,8 @@ EOF
   && pass "the pattern's own matches are still on disk" || fail "the matched dirs are gone"
 [ -d /tmp ] && [ -d /etc ] && [ -d "$HOME" ] \
   && pass "/tmp, /etc and the home dir are still on the machine" || fail "the test ran what it judged"
+
+rmdir "$MKTMP" 2>/dev/null
 
 echo "glob escape: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

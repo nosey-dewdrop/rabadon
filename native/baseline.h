@@ -23,7 +23,11 @@
 //                           a regex, and all five failed open on `..` — which is
 //                           why this is code, not a pattern.) The temp carve-out
 //                           is documented at in_temp_area(), the pattern rule
-//                           and its one remaining limit at pattern_forms().
+//                           and its one remaining limit at pattern_forms(), and
+//                           which roots the carve-out covers at
+//                           plausible_temp_root() — $TMPDIR is environment, and
+//                           an assignment an agent writes for itself does not
+//                           get to name a tree disposable.
 //   baseline-hard-reset     `git reset --hard` onto a shared branch.
 //
 // Any of them can be silenced by id in guard.json's disabled[].

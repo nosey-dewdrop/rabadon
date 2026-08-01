@@ -236,6 +236,85 @@ RC=$(run "$PROJ" "rm -rf $MKTMP"); allowed=$((allowed+1))
 [ "$RC" = "0" ] && pass "allowed: the dir mktemp -d handed out, removed" \
                 || fail "WRONGLY refused ($RC): rm -rf $MKTMP"
 
+# ---------------------------------------------------------------------------
+# 3b. THE ROOT OFFERED THROUGH THE ENVIRONMENT MUST BE THE MACHINE'S OWN SCRATCH
+#
+# $TMPDIR is read from the environment, and the environment is the one input an
+# agent writes for itself. Naming a root there does not make that root's contents
+# disposable; it makes the delete law's opinion of them disposable. The guard for
+# that was a DENYLIST of system directories compared for exact equality, so it
+# only ever refused the eleven spellings someone thought to type:
+#
+#     TMPDIR=/usr          rm -rf /usr/lib          refused   (on the list)
+#     TMPDIR=/usr/local    rm -rf /usr/local/lib    ALLOWED   (one level down)
+#     TMPDIR=/root         rm -rf /root/backups     ALLOWED   (never on the list)
+#     TMPDIR=/srv          rm -rf /srv/www          ALLOWED
+#
+# Eleven of twelve measured shapes walked through, which is what a denylist of
+# spellings always scores: /lib, /boot, /srv, /root, /nix and every subdirectory
+# of every listed dir were absent, and one `TMPDIR=` assignment ahead of the
+# command turned the delete law off for the tree underneath. The same file
+# already treated the USER trees as subtrees (`inside`) and the system trees as
+# exact names (`==`), and there was never a reason for the difference.
+#
+# The line this section holds: a root offered through the environment is taken
+# only when it lands in the machine's OWN temp area — /tmp and where /tmp really
+# is, /var/tmp, the /var/folders tree mktemp writes into — and never under $HOME.
+# Anywhere else the target is judged like any other path, which for a recursive
+# delete outside the project tree means refused.
+echo "temp root: a root NAMED in the environment is not a root (the positives)"
+while IFS='|' read -r desc td cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run_env "$PROJ" "$cmd" "TMPDIR=$td")
+  blocked=$((blocked+1))
+  [ "$RC" = "2" ] && pass "refused: $desc" || fail "NOT refused ($RC): TMPDIR=$td $cmd"
+done <<EOF
+a subdirectory of a listed system dir|/usr/local|rm -rf /usr/local/lib
+the same, one the denylist did name at top level|/usr|rm -rf /usr/lib
+config under a subdirectory of /etc|/etc/ssh|rm -rf /etc/ssh/keys
+the directory services database|/var/db|rm -rf /var/db/dslocal
+a system dir behind its real location|/private/etc|rm -rf /private/etc/hosts.d
+the machine-wide library cache|/Library/Caches|rm -rf /Library/Caches/x
+the package manager's tree|/opt/homebrew|rm -rf /opt/homebrew/lib
+a top-level dir nobody put on the list: the other user's home|/root|rm -rf /root/backups
+a top-level dir nobody put on the list: served data|/srv|rm -rf /srv/www
+a top-level dir nobody put on the list: shared objects|/lib|rm -rf /lib/x86_64-linux-gnu
+a top-level dir nobody put on the list: the boot partition|/boot|rm -rf /boot/efi
+a top-level dir nobody put on the list: a data mount|/data|rm -rf /data/production
+a top-level dir nobody put on the list: the nix store|/nix|rm -rf /nix/store
+the root itself, named as scratch by the same assignment|/usr/local|rm -rf /usr/local
+EOF
+
+# ...and the twin, which is what the denylist was protecting and must survive:
+# an env-named root that really is inside the machine's temp area still carves
+# out the caller's own scratch, and a bogus one does not cost the real roots.
+echo "temp root: an env-named root inside the real temp area still works (the twin)"
+RC=$(run_env "$PROJ" "rm -rf $MKTMP/mine" "TMPDIR=$MKTMP"); allowed=$((allowed+1))
+[ "$RC" = "0" ] && pass "allowed: a named entry under a \$TMPDIR that is really under /var/folders" \
+                || fail "WRONGLY refused ($RC): TMPDIR=$MKTMP rm -rf $MKTMP/mine"
+RC=$(run_env "$PROJ" "rm -rf /tmp/scratch" "TMPDIR=/tmp"); allowed=$((allowed+1))
+[ "$RC" = "0" ] && pass "allowed: \$TMPDIR naming /tmp itself, cleaning a dir the caller made" \
+                || fail "WRONGLY refused ($RC): TMPDIR=/tmp rm -rf /tmp/scratch"
+RC=$(run_env "$PROJ" "rm -rf /tmp/scratch" "TMPDIR=/usr/local"); allowed=$((allowed+1))
+[ "$RC" = "0" ] && pass "allowed: a bogus \$TMPDIR does not take the machine's real temp roots away" \
+                || fail "WRONGLY refused ($RC): TMPDIR=/usr/local rm -rf /tmp/scratch"
+RC=$(run_env "$PROJ" "rm -rf ./build" "TMPDIR=/srv"); allowed=$((allowed+1))
+[ "$RC" = "0" ] && pass "allowed: a bogus \$TMPDIR does not reach into the project tree either" \
+                || fail "WRONGLY refused ($RC): TMPDIR=/srv rm -rf ./build"
+# the deeper env-named root is still READ as a root: this is the case that keeps
+# the fix from being "ignore \$TMPDIR", which would pass every must-block above
+RC=$(run_env "$PROJ" "rm -rf $MKTMP/*" "TMPDIR=$MKTMP"); blocked=$((blocked+1))
+[ "$RC" = "2" ] && pass "refused: the env-named root is still a root — its own entries are still shared" \
+                || fail "NOT refused ($RC): TMPDIR=$MKTMP rm -rf $MKTMP/*"
+
+# it is the delete law that refuses a bogus env root, not another rule
+DENV=$(printf '{"hook_event_name":"PreToolUse","session_id":"%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":"rm -rf /usr/local/lib"}}' \
+  "$SID" "$PROJ" | env "TMPDIR=/usr/local" "$GATE" 2>&1)
+case "$DENV" in
+  *baseline-rm-rf-outside*) pass "the env-root refusal carries the delete law's id" ;;
+  *) fail "wrong rule refused it: $(printf '%s' "$DENV" | head -2 | tr '\n' ' ')" ;;
+esac
+
 # neither list may be empty: that is what makes the other one mean something
 [ "$blocked" -gt 0 ] && [ "$allowed" -gt 0 ] \
   && pass "both directions ran: $blocked must-block, $allowed must-allow" \
