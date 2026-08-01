@@ -470,7 +470,25 @@ int main(int argc,char** argv){
     // it silently is how --help became "a file named --help" and the renderer
     // fell back to the real spool as if the flag had been honoured.
     else if(rb_is_flag(a.c_str())){ rb_unknown_flag("rabadon-trace", a.c_str()); }
-    else if(source.empty()){ source=a; }
+    // ...and the same law, one word wider. That comment was written for FLAGS
+    // and left positionals open, which is the form the docs teach: README and
+    // `rabadon help` both print `trace [run]`. There was no positional run
+    // support at all — the word became a candidate source path, stat() failed,
+    // `file` stayed empty, and the resolver fell back to the newest day file:
+    // `rabadon-trace ms92w639-mdr-1` answered with 18837 lines of the WHOLE
+    // ledger at exit 0, and the requested run was not among them. Silent in
+    // exactly the way the swallowed flag was silent — real output, so the
+    // filter looks honoured.
+    else {
+      struct stat pst;
+      if(source.empty() && stat(a.c_str(),&pst)==0) source=a;  // it names a real path
+      else if(wantRun.empty()) wantRun=a;                      // else it names a run
+      else {
+        fprintf(stderr,"rabadon-trace: unexpected argument \"%s\" — the run is already \"%s\"; run `rabadon-trace --help`\n",
+                a.c_str(), wantRun.c_str());
+        return 2;
+      }
+    }
   }
   // resolve source file
   string file; struct stat st;

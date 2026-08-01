@@ -285,6 +285,102 @@ sys.exit(0)" && pass "the RENDERED trace contains no Turkish characters" \
   rm -rf "$TDIR"
 fi
 
+# ---- 4c. `trace <run>` — the form the docs teach, on a positional ----
+# Section 5 below states the law for FLAGS: a word this binary does not know is
+# refused, never swallowed, because a swallow prints REAL output and the filter
+# then looks honoured. The law stopped at the leading dash, and the form both
+# README and `rabadon help` teach has no dash in it:
+#
+#     trace [run]         one run step by step: caught, repaired, refused
+#
+# `rabadon-trace ms92w639-mdr-1` took the id as a candidate path, stat() failed,
+# and the resolver fell back to the newest day file: 18837 lines of the entire
+# ledger, 3401 runs, exit 0 — and the run that was asked for was in yesterday's
+# file, not among them. The exact swallow, one word wider.
+#
+# Every negative below is paired with a positive, because a "must not dump the
+# ledger" assertion on its own is passed by a binary that prints nothing at all,
+# and by a binary whose spool the probe forgot to fill. So the first assertion
+# is that the un-filtered render DOES carry both runs: that is what makes the
+# absence of the second run downstream mean something.
+TRACE_REPORT=$(mktemp /tmp/rabadon-trace-arg.XXXXXX)
+python3 - "$TRACE_REPORT" <<'PY'
+import os, subprocess, sys, tempfile, time
+
+report = sys.argv[1]
+BIN = os.path.join(os.getcwd(), "native", "rabadon-trace")
+out = []
+def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
+
+if not os.access(BIN, os.X_OK):
+    rec(False, "native/rabadon-trace is not built — the positional probe cannot run")
+    open(report, "w").write("\n".join(out) + "\n"); sys.exit(0)
+
+def run_rows(run, pipe, ms):
+    return [
+        '{"v":1,"seq":1,"ts":%d,"run":"%s","pipe":"%s","ev":"RUN_START","goal":"g","steps":1}' % (ms, run, pipe),
+        '{"v":1,"seq":2,"ts":%d,"run":"%s","pipe":"%s","ev":"STEP_START","step":"s"}' % (ms + 5, run, pipe),
+        '{"v":1,"seq":3,"ts":%d,"run":"%s","pipe":"%s","ev":"STEP_OK","step":"s","tier":1}' % (ms + 10, run, pipe),
+        '{"v":1,"seq":4,"ts":%d,"run":"%s","pipe":"%s","ev":"RUN_DONE","verdict":"PASS"}' % (ms + 15, run, pipe),
+    ]
+
+def make_box():
+    """today's day file with two runs in it."""
+    box = tempfile.mkdtemp(prefix="rabadon-trace-arg.")
+    os.makedirs(box + "/spool", exist_ok=True)
+    ms = int(time.time() * 1000)
+    rows = run_rows("alpha-r1", "probe:alpha", ms) + run_rows("beta-r1", "probe:beta", ms + 100)
+    open("%s/spool/%s.jsonl" % (box, time.strftime("%Y-%m-%d")), "w").write("\n".join(rows) + "\n")
+    return box
+
+def trace(box, *args):
+    env = dict(os.environ, RABADON_DIR=box, RABADON_NOTIFY="0", HOME=box)
+    p = subprocess.run([BIN] + list(args) + ["--no-color"], stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=20, env=env, cwd=box)
+    return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
+
+# POSITIVE 1 — the surface the swallow fell back to is live and carries BOTH
+# runs. Without this the assertions below are satisfied by an empty spool.
+box = make_box()
+rc, so, se = trace(box)
+both = "alpha-r1" in so and "beta-r1" in so
+rec(rc == 0 and both,
+    "`rabadon-trace` with no argument renders the whole day file (both runs present)"
+    if rc == 0 and both else
+    "the un-filtered render is not the two-run baseline (rc=%d, alpha=%s beta=%s) — every check below would be vacuous"
+    % (rc, "alpha-r1" in so, "beta-r1" in so))
+
+# POSITIVE 2 — the documented form. A bare positional that is not a path is the
+# run id, and it renders THAT run.
+rc, so, se = trace(box, "alpha-r1")
+rec(rc == 0 and "alpha-r1" in so,
+    "`rabadon-trace alpha-r1` renders the run named on the command line"
+    if rc == 0 and "alpha-r1" in so else
+    "`rabadon-trace alpha-r1` did not render that run (rc=%d, %d bytes)" % (rc, len(so)))
+
+# NEGATIVE, paired to POSITIVE 2 — and this is the whole defect: the OTHER run
+# must be gone. It was not; the whole ledger came back instead.
+rec("beta-r1" not in so,
+    "`rabadon-trace alpha-r1` does NOT also print the other runs in the file"
+    if "beta-r1" not in so else
+    "`rabadon-trace alpha-r1` swallowed the id and dumped the whole ledger (%d bytes)" % len(so))
+
+# NEGATIVE — a word that is neither a path nor a run must not answer with the
+# default spool. Paired with POSITIVE 1: that spool demonstrably has content.
+rc, so, se = trace(box, "no-such-run-anywhere")
+rec("alpha-r1" not in so and "beta-r1" not in so,
+    "`rabadon-trace no-such-run-anywhere` does not fall back to the default spool"
+    if "alpha-r1" not in so and "beta-r1" not in so else
+    "an unknown word still printed the default spool (%d bytes) as if it had been honoured" % len(so))
+
+open(report, "w").write("\n".join(out) + "\n")
+PY
+while IFS=$'\t' read -r VERDICT MSG; do
+  [ -z "${VERDICT:-}" ] && continue
+  [ "$VERDICT" = "PASS" ] && pass "$MSG" || fail "$MSG"
+done < "$TRACE_REPORT"
+rm -f "$TRACE_REPORT"
+
 # ---- 5. every native binary answers --help ----
 # Same sixty seconds, one layer down. A stranger who gets past `rabadon --help`
 # reaches the binaries, and there the first word they type used to do one of
