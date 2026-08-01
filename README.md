@@ -100,6 +100,8 @@ The session guard is one binding of a smaller thing: a runtime that runs work in
 
 `init` · `on`/`off`/`status` · `usage` (`stats`) · `report` · `drill` · `audit` · `replay` · `exec` · `repair` · `export` · `lint` · `doctor` · `remove` · `watch`. Full reference: [docs/commands.md](docs/commands.md). How the hooks, spool and modes fit together: [docs/how-it-works.md](docs/how-it-works.md).
 
+Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. `native/cli_test.sh` discovers the binaries by glob and holds all sixteen to that.
+
 ## Prove it yourself
 
 ```sh
