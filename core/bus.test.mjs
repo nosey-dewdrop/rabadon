@@ -153,7 +153,7 @@ test('a held lock fails open to the sibling, never bare into the chained file', 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rabadon-bus-lock-'));
   const day = new Date().toISOString().slice(0, 10);
   fs.mkdirSync(path.join(dir, 'spool'), { recursive: true });
-  const file = path.join(dir, 'spool', `${day}.js.jsonl`);
+  const file = path.join(dir, 'spool', `${day}.jsonl`);
   fs.writeFileSync(file + '.lock', '');   // a live writer is holding it
 
   const line = chainedAppend(file, { v: 1, seq: 1, ts: Date.now(), pipe: 'locked-out', ev: 'RUN_START' });
@@ -161,7 +161,7 @@ test('a held lock fails open to the sibling, never bare into the chained file', 
   // chain.h's own fail-open, to the letter: the line is kept, marked unlocked,
   // and put OUTSIDE the chained file — so the day's proof survives our fail-open.
   assert.match(line, /"unlocked":true/, 'the event is kept and marked, not dropped');
-  const sibling = path.join(dir, 'spool', `${day}.js.unchained.jsonl`);
+  const sibling = path.join(dir, 'spool', `${day}.unchained.jsonl`);
   assert.equal(fs.existsSync(sibling), true, 'it lands in the .unchained sibling');
   assert.equal(JSON.parse(fs.readFileSync(sibling, 'utf8').trim()).pipe, 'locked-out');
   assert.equal(fs.existsSync(file), false, 'and NOT bare into the chained day file');
@@ -171,7 +171,7 @@ test('a lock left behind by a killed writer is stolen, not obeyed forever', () =
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rabadon-bus-stale-'));
   const day = new Date().toISOString().slice(0, 10);
   fs.mkdirSync(path.join(dir, 'spool'), { recursive: true });
-  const file = path.join(dir, 'spool', `${day}.js.jsonl`);
+  const file = path.join(dir, 'spool', `${day}.jsonl`);
   fs.writeFileSync(file + '.lock', '');
   const old = new Date(Date.now() - 60_000);
   fs.utimesSync(file + '.lock', old, old);   // the holder died a minute ago
