@@ -829,8 +829,56 @@ int main(int argc, char** argv) {
         }
       }
     };
+    // ...and every rule object must actually BE a rule. The top-level walk
+    // above stops at depth 1, so it catches "protectedPathz" and is blind one
+    // level down — inside the rule object, where the author is typing. A rule
+    // written {"id":..., "denies":..., "why":...} is valid JSON, carries an id
+    // and a why, and reads as enforced; parse_rules drops it for having no
+    // pattern and the gate allows the command. Measured before this check:
+    // gate exit 0 on `npx wrangler deploy`, lint "is valid", exit 0. Same for a
+    // rule with no pattern key at all. That is this command's own stated
+    // failure mode ("the gate would OBSERVE where the author meant it to
+    // BLOCK") surviving one nesting level deeper than the check that ended it.
+    //
+    // Legal beside the pattern: `why`/`id` (the schema, docs/guard.md),
+    // `authoredBy`+`incidentAt` (rules born from an incident, below) and
+    // `source` (`rabadon pack import`). Those are keys rabadon writes itself —
+    // reject them and rabadon's output fails rabadon's own linter. The other
+    // section's pattern key is deliberately NOT legal: a `match` inside bash[]
+    // is inert, and reading as enforced while matching nothing is the bug.
+    auto lint_rule_objects = [&](const char* section, const char* patKey) {
+      static const char* kRuleKeys[] = {"id", "why", "authoredBy", "incidentAt", "source"};
+      int idx = -1;
+      for (const string& obj : rbrules::parse_rule_objects(g, section)) {
+        idx++;
+        const string id = rbrules::get_str(obj, "id");
+        // an id-less broken rule still has to be findable in the file
+        const string named = id.empty() ? string(section) + "[" + std::to_string(idx) + "]" : id;
+        bool hasPattern = false;
+        for (const string& key : rbrules::rule_object_keys(obj)) {
+          if (key == patKey) { hasPattern = true; continue; }
+          bool ok = false;
+          for (const char* k : kRuleKeys) if (key == k) ok = true;
+          if (!ok) {
+            fprintf(stderr, "rabadon lint: rule \"%s\" in %s has unknown key \"%s\" (typo for \"%s\"? the gate ignores it)\n",
+                    named.c_str(), section, key.c_str(), patKey);
+            problems++;
+          }
+        }
+        // present-but-empty counts as absent: parse_rules drops an empty
+        // pattern too, so the key being there is not the rule existing.
+        if (hasPattern && rbrules::get_str(obj, patKey).empty()) hasPattern = false;
+        if (!hasPattern) {
+          fprintf(stderr, "rabadon lint: rule \"%s\" in %s has no \"%s\" pattern — it matches nothing, the gate skips it\n",
+                  named.c_str(), section, patKey);
+          problems++;
+        }
+      }
+    };
     lint_rules("bash", "deny");
     lint_rules("protectedPaths", "match");
+    lint_rule_objects("bash", "deny");
+    lint_rule_objects("protectedPaths", "match");
     if (problems == 0) { printf("rabadon lint: %s is valid.\n", path.c_str()); return 0; }
     fprintf(stderr, "rabadon lint: %d problem(s) — fix them or the gate silently ignores those rules.\n", problems);
     return 1;

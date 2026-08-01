@@ -93,13 +93,23 @@ inline std::vector<string> parse_disabled(const string& guard) {
   return out;
 }
 
-inline std::vector<Rule> parse_rules(const string& guard, const string& section,
-                                     const string& patKey, const std::vector<string>& disabled) {
-  std::vector<Rule> rules;
+// The raw text of every object in a section's array — INCLUDING the ones
+// parse_rules is about to throw away.
+//
+// parse_rules keeps a rule only if its pattern key is present and non-empty.
+// That is right for enforcement: a rule with no pattern can match nothing, and
+// the gate must not crash on a half-written guard. But it drops those rules
+// SILENTLY, which is precisely how a one-letter typo ("denies" for "deny")
+// becomes an inert rule that still reads as law. lint's whole job is to see
+// what enforcement discards, so it needs the objects before the filter — and it
+// has to be THIS walker, not a second copy of it, or the two will disagree
+// about what a rule even is (the divergence this header exists to end).
+inline std::vector<string> parse_rule_objects(const string& guard, const string& section) {
+  std::vector<string> objs;
   size_t sec = guard.find("\"" + section + "\"");
-  if (sec == string::npos) return rules;
+  if (sec == string::npos) return objs;
   size_t arrStart = guard.find('[', sec);
-  if (arrStart == string::npos) return rules;
+  if (arrStart == string::npos) return objs;
   // walk objects in the array (depth-tracking, strings skipped)
   int depth = 0; size_t objStart = 0;
   for (size_t i = arrStart; i < guard.size(); i++) {
@@ -109,18 +119,45 @@ inline std::vector<Rule> parse_rules(const string& guard, const string& section,
       continue;
     }
     if (c == '{') { if (depth == 1) objStart = i; depth++; }
-    else if (c == '}') {
-      depth--;
-      if (depth == 1) {
-        string obj = guard.substr(objStart, i - objStart + 1);
-        Rule r{ get_str(obj, "id"), get_str(obj, patKey), get_str(obj, "why") };
-        bool off = false;
-        for (const auto& d : disabled) if (d == r.id) off = true;
-        if (!r.pattern.empty() && !off) rules.push_back(r);
-      }
-    }
+    else if (c == '}') { depth--; if (depth == 1) objs.push_back(guard.substr(objStart, i - objStart + 1)); }
     else if (c == '[') depth++;
     else if (c == ']') { depth--; if (depth == 0) break; }
+  }
+  return objs;
+}
+
+// The keys declared directly ON one rule object. Nested objects and arrays are
+// skipped by depth, so a key sitting inside some nested value is never mistaken
+// for a field of the rule itself.
+inline std::vector<string> rule_object_keys(const string& obj) {
+  std::vector<string> keys;
+  int depth = 0;
+  for (size_t i = 0; i < obj.size(); i++) {
+    char c = obj[i];
+    if (c == '"') {
+      string key;
+      for (i++; i < obj.size(); i++) { if (obj[i] == '\\') i++; else if (obj[i] == '"') break; else key += obj[i]; }
+      size_t j = i + 1;
+      while (j < obj.size() && isspace((unsigned char)obj[j])) j++;
+      // a quoted run followed by ':' is a key; anything else is a value, and
+      // skipping it here is what keeps values from being read as field names
+      if (depth == 1 && j < obj.size() && obj[j] == ':') keys.push_back(key);
+      continue;
+    }
+    if (c == '{' || c == '[') depth++;
+    else if (c == '}' || c == ']') depth--;
+  }
+  return keys;
+}
+
+inline std::vector<Rule> parse_rules(const string& guard, const string& section,
+                                     const string& patKey, const std::vector<string>& disabled) {
+  std::vector<Rule> rules;
+  for (const string& obj : parse_rule_objects(guard, section)) {
+    Rule r{ get_str(obj, "id"), get_str(obj, patKey), get_str(obj, "why") };
+    bool off = false;
+    for (const auto& d : disabled) if (d == r.id) off = true;
+    if (!r.pattern.empty() && !off) rules.push_back(r);
   }
   return rules;
 }
