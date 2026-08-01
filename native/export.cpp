@@ -10,8 +10,12 @@
 //
 // Mapping:
 //   - one TRACE per session pipe (traceId = 128-bit hash of the pipe name);
-//   - one SPAN per meaningful event (STEP_START / CHECK_FAIL / STOP /
-//     WOULD_BLOCK / REPAIR_OK / REPAIR_FAIL), spanId = 64-bit hash of run+seq+ts;
+//   - one SPAN per event — EVERY event, spanId = 64-bit hash of run+seq+ts.
+//     SPEC §2's ten `ev` values keep their shaping; anything else (a verb a
+//     stranger's agent invented, or a line with no `ev`) renders generically
+//     with its own fields carried as rabadon.<key> attributes, because §2 says
+//     unknown `ev` values are rendered generically and never dropped. The only
+//     event that stays home is a drill;
 //   - a catch/refusal sets span status = ERROR with the rule as the message —
 //     so a refused action is red in any trace viewer, which is exactly why the
 //     drill rules here (drill.h, shared with rabadon-stats) have to be the same

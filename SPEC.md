@@ -148,7 +148,15 @@ A `STOP` with `"reason": "BLOCKED"` is a catch: something was refused before it
 happened; it also carries `"rule"` (the id) and `"sid"` (session id). A
 `WOULD_BLOCK` is the watch-mode counterpart — the same verdict, recorded but
 not enforced. Unknown fields MUST be preserved; unknown `ev` values MUST be
-rendered generically, never dropped.
+rendered generically, never dropped. A reader that decides what to render from
+a hardcoded list of verbs breaks this the day anyone extends the vocabulary,
+and it breaks quietly — `rabadon export --otlp` carried an eight-name
+allow-list that dropped every unknown `ev` *and* two of the ten above,
+`STEP_OK` and `REPAIR_START`, which this project's own binaries emit. The G3
+proof ledger — 5 `REPAIR_START`, 2 `REPAIR_OK`, 3 `REPAIR_FAIL` — left the
+machine as five spans: repairs that finish without ever starting. Held by
+`native/export_test.sh` arms 8 and 9, as a COUNT of events in against spans
+out, so a filter cannot return under a longer list.
 
 **Hash chain (tamper-evidence).** Each event carries `prev` = the SHA-256 of
 the entire previous event line in the same day-file (`"genesis"` for the

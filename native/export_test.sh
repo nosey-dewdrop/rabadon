@@ -10,7 +10,12 @@
 #   5. drills never leave the machine — all four rules `rabadon usage` excludes
 #      by (emit tag, marker session id, self pipe, drill window), and the
 #      exported refusal count matches the local one;
-#   6. timestamps are unix-nanos strings (OTLP requires string, not number).
+#   6. timestamps are unix-nanos strings (OTLP requires string, not number);
+#   7. a stranger's serializer exports identically to rabadon's own bytes;
+#   8. EVERY event renders — all ten of SPEC §2's `ev` values plus verbs this
+#      repo has never heard of, counted in and counted out, with an unknown
+#      event's own fields carried as attributes;
+#   9. even a line with no `ev` ships, under a name a human can read.
 set -u
 cd "$(dirname "$0")/.."
 EXPORT=./native/rabadon-export
