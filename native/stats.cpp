@@ -475,6 +475,17 @@ int main(int argc, char** argv) {
       bool nan = false;
       double v = js_number(argv[i + 1], nan);
       days = (nan || v == 0) ? 7 : v;
+      // A window cannot run backwards. `--days -5` was accepted, rendered the
+      // heading "last -5 day(s)" over a spool full of events, matched no event
+      // (every ts is newer than a cutoff in the future) and then answered with
+      // the empty-ledger onboarding copy at exit 0 — the same lie as a wrong
+      // --project, from the other direction. Refused where it is read, so no
+      // renderer ever sees a negative window.
+      if (days < 0) {
+        fprintf(stderr, "rabadon-stats: --days must be positive — \"%s\" asks for a window that ends"
+                        " before it starts; the ledger only looks backwards from now\n", argv[i + 1]);
+        return 2;
+      }
       i++;
     } else if (strcmp(argv[i], "--full") == 0) full = true;
     else if (strcmp(argv[i], "--json") == 0) json = true;
