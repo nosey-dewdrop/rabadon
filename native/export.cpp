@@ -253,7 +253,12 @@ int main(int argc, char** argv) {
     string tid = trace_id(e.pipe.empty() ? "?" : e.pipe);
     string sid = span_id(e.run + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts));
     bool isCatch = (e.ev == "STOP" || e.ev == "CHECK_FAIL" || e.ev == "WOULD_BLOCK" || e.ev == "REPAIR_FAIL");
-    string name = e.ev;
+    // A line with no `ev` at all is not in the vocabulary and not outside it
+    // either — but it is still something that happened, and dropping it is the
+    // silence this exporter just stopped committing. It ships under a name a
+    // human can see in a trace list instead of the blank row an empty name
+    // renders as; its fields ride along like any other unrecognised event.
+    string name = e.ev.empty() ? "UNKNOWN" : e.ev;
     if (!e.rule.empty()) name += ":" + e.rule;
     string attrs = attr_str("rabadon.ev", e.ev);
     if (!e.rule.empty()) attrs += "," + attr_str("rabadon.rule", e.rule);

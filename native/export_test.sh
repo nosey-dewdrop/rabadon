@@ -216,5 +216,36 @@ assert a.get("rabadon.customField") == "keepme", ("the third-party field is gone
 assert a.get("rabadon.pipe") == "omega:session", a
 PY
 
+# 9. the edge under the edge: a line with no `ev` at all. Not in SPEC's ten and
+#    not an unknown verb either — but still something that happened, so the one
+#    thing it must not do is vanish. It used to leave a span with an EMPTY name,
+#    which is a blank row in a trace list: present, unreadable, as good as gone.
+export NOEV_DIR="$TMP/rd-noev"; mkdir -p "$NOEV_DIR/spool"
+python3 - <<'PY'
+import json, os
+now = int(os.environ["RABADON_NOW"]); ts = now - 3600000
+p = os.path.join(os.environ["NOEV_DIR"], "spool", "2026-01-10.jsonl")
+with open(p, "w") as f:
+    f.write(json.dumps({"v": 1, "seq": 1, "ts": ts, "run": "r1",
+                        "pipe": "omega:session", "note": "no ev field at all"}) + "\n")
+    f.write(json.dumps({"v": 1, "seq": 2, "ts": ts + 1, "run": "r1",
+                        "pipe": "omega:session", "ev": "STOP",
+                        "reason": "BLOCKED", "rule": "x"}) + "\n")
+PY
+export NOEV_OUT="$TMP/out-noev.json"
+RABADON_DIR="$NOEV_DIR" "$EXPORT" --otlp --days 7 > "$NOEV_OUT"
+python3 - <<'PY' && pass "an event with no ev ships under a readable name, payload intact" || fail "the ev-less event vanished or rendered nameless"
+import json, os
+sp = json.load(open(os.environ["NOEV_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+names = [s["name"] for s in sp]
+assert "STOP:x" in names, ("the ordinary event stopped shipping", names)
+assert len(sp) == 2, ("2 events in, spans out:", len(sp), names)
+assert "" not in names, ("a nameless span is a blank row in the viewer", names)
+assert "UNKNOWN" in names, names
+u = [s for s in sp if s["name"] == "UNKNOWN"][0]
+a = {x["key"]: x["value"].get("stringValue") for x in u["attributes"]}
+assert a.get("rabadon.note") == "no ev field at all", a
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
