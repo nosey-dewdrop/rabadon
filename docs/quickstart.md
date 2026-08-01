@@ -43,7 +43,7 @@ rabadon doctor
 ```
 rabadon doctor — /usr/local/lib/node_modules/rabadon
 
-  ok   native core built (6 binaries)
+  ok   native core built (16/16 binaries)
   ok   version <x.y.z> (binary matches package.json)
   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
   ok   claude CLI present (guard authoring + repair proposer available)

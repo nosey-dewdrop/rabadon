@@ -262,6 +262,14 @@ Health check: native binaries built, binary/package version lockstep, kernel
 sandbox backend, global hook health (every hook command points at a file that
 exists), `claude` CLI presence, spool size and retention.
 
+The binary check knows what the core is by reading the `Makefile` — every target
+`make all` produces, plus every explicit `native/rabadon-*` rule — so a binary
+added to the build is a binary doctor checks for, with nothing to keep in sync.
+Any that are absent are listed by name: an absent binary is a command that fails
+when you run it, not when you install it, and a partial source build (`make`
+stopped on one target) still reports install success. If the `Makefile` cannot
+be read, doctor says so and refuses to certify rather than reporting green.
+
 Exit: `0` all green · `1` at least one thing to look at.
 
 ```
