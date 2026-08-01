@@ -108,7 +108,13 @@ Flags: `--days N` (window, default 7) · `--project P` (one project only) ·
 `--full` (list every catch with timestamp and detail) · `--json` (machine
 output).
 
-Exit: `0`.
+Exit: `0` when the ledger rendered — including a genuinely empty ledger, which
+is a real answer and comes with the onboarding block. `1` when `--project P`
+matched nothing: the message names `P`, the spool and the window it searched,
+lists the projects that ARE in the window, and stdout stays empty on all three
+renderers, so a script asking "how many catches for P this week" can tell a
+wrong name apart from a clean week. `2` on an unknown flag, or on a `--days`
+that is negative — a window cannot end before it starts.
 
 ```
 rabadon usage --days 30
