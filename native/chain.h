@@ -31,31 +31,36 @@
 #include <sys/file.h>
 #include <unistd.h>
 #include "sha256.h"
+#include "jsonl.h"
 
 namespace rbchain {
 
 using std::string;
 
 // number of chained lines already in the file. Only ever called once per day
-// file, to migrate a pre-0.4 sidecar that carries no count. A chained line ends
-// in `,"prev":"<value>"}` — matched as a suffix, and the value is read as
-// whatever sits there, because the FIRST line of every day carries
+// file, to migrate a pre-0.4 sidecar that carries no count.
+//
+// A line is chained when it carries a non-empty top-level `prev` — the SAME
+// predicate audit.cpp judges by, read the same way (jsonl.h). The value is read
+// as whatever sits there, because the FIRST line of every day carries
 // prev:"genesis", not a hash. Requiring 64 hex here undercounted every migrated
 // file by exactly one and made it read as tampered forever.
+//
+// This used to require the literal suffix `,"prev":"<value>"}`, which is a fact
+// about rabadon's own printf, not about the SPEC — SPEC §2 says single-line
+// JSON and fixes neither spacing nor key order. On a spool written by a stock
+// serializer (`"prev": "..."`, or prev not written last) the suffix matched
+// nothing: 3 chained lines counted as 1, the migrated sidecar then committed a
+// count lower than the file's, and audit convicted an intact ledger — the very
+// same false accusation, arriving through the migration path instead.
 inline long long count_chained_lines(const string& path) {
   std::ifstream f(path);
   if (!f) return 0;
   long long n = 0;
   string line;
-  const string tag = ",\"prev\":\"";
   while (std::getline(f, line)) {
-    if (line.size() < tag.size() + 2) continue;
-    if (line.compare(line.size() - 2, 2, "\"}") != 0) continue;
-    const size_t p = line.rfind(tag);
-    if (p == string::npos || p + tag.size() > line.size() - 2) continue;
-    // the value must be one unbroken run with no quote in it
-    if (line.find('"', p + tag.size()) != line.size() - 2) continue;
-    n++;
+    if (line.empty()) continue;
+    if (rbjson::has_str(line, "prev")) n++;
   }
   return n;
 }
