@@ -29,21 +29,21 @@
 <p class="lede small dim">A number with no run behind it is a slogan. Every row here was produced on one machine by the command named beside it, and the ones that could not be measured cleanly say so rather than being rounded into shape.</p>
 <div class="proof">
 <div><span class="n g">100.0%</span><span class="t">gate precision, recall 100.0%</span></div>
-<div><span class="n b">128.8&micro;s</span><span class="t">to judge one command</span></div>
+<div><span class="n b">130.0&micro;s</span><span class="t">to judge one command</span></div>
 <div><span class="n y">12</span><span class="t">real suites it was run against</span></div>
 <div><span class="n p">31,316</span><span class="t">tests in those suites</span></div>
 </div></div>
 <section><h2>the gate</h2>
 <div class="bench"><div class="head"><span>what</span><span style="text-align:right">now</span><span>before, and what moved it</span><span>where it is measured</span></div>
-<div class="row"><span class="s">to judge one command</span><span class="n">128.8&micro;s</span><span class="d">there was no number before this one. the page said 42.0&micro;s and named a file that did not exist, so the first honest measurement is this one</span><span class="w">native/gate_bench.sh</span></div>
-<div class="row"><span class="s">the whole hook, native, median</span><span class="n">2.56ms</span><span class="d">the whole hook, not just the verdict: fork, read the event, load state, judge, write the ledger line, exit</span><span class="w">native/bench.py</span></div>
-<div class="row"><span class="s">the same hook on the node gate it replaced</span><span class="n">101ms</span><span class="d">the gate this replaced, on the same 40 events, with verdict parity asserted first</span><span class="w">native/bench.py</span></div>
+<div class="row"><span class="s">to judge one command</span><span class="n">130.0&micro;s</span><span class="d">there was no number before this one. the page said 42.0&micro;s and named a file that did not exist, so the first honest measurement is this one</span><span class="w">native/gate_bench.sh</span></div>
+<div class="row"><span class="s">the whole hook, native, median</span><span class="n">2.69ms</span><span class="d">the whole hook, not just the verdict: fork, read the event, load state, judge, write the ledger line, exit</span><span class="w">native/bench.py</span></div>
+<div class="row"><span class="s">the same hook on the node gate it replaced</span><span class="n">100ms</span><span class="d">the gate this replaced, on the same 40 events, with verdict parity asserted first</span><span class="w">native/bench.py</span></div>
 <div class="row"><span class="s">gate precision</span><span class="n">100.0%</span><span class="d">55.0% before one resolver answered the path question for both layers</span><span class="w">native/precision_test.sh</span></div>
 <div class="row"><span class="s">gate recall</span><span class="n">100.0%</span><span class="d">unchanged, and the floor the precision work was not allowed to move</span><span class="w">native/precision_test.sh</span></div>
 <div class="row"><span class="s">cases in the fixture</span><span class="n">34</span><span class="d">every one lifted out of a real session, none written for the test</span><span class="w">native/precision_fixture.jsonl</span></div>
 <div class="row"><span class="s">ways of buying a green, refused</span><span class="n">8 of 8</span><span class="d">3 of 6 before the harness itself was locked</span><span class="w">native/harness_lock_test.sh</span></div>
 </div>
-<p class="cap">Measured on 2026-08-02 at <code>0450f9e</code>, 2026-08-02 at <code>43e43cf</code>, ? at <code>?</code>. Re-run all of it with <code>./native/measure.sh</code>; every value on this page is written by that run into <code>site/measured.json</code> and read back here, so a number and the run behind it cannot come apart.</p>
+<p class="cap">Measured on 2026-08-02 at <code>0450f9e</code>, 2026-08-02 at <code>43e43cf</code>, 2026-08-02 at <code>bdbc448</code>, ? at <code>?</code>. Re-run all of it with <code>./native/measure.sh</code>; every value on this page is written by that run into <code>site/measured.json</code> and read back here, so a number and the run behind it cannot come apart.</p>
 </section>
 <section><h2>the suites it was run against</h2><p class="small dim" style="margin-bottom:var(--g2)">Twelve open-source projects, each pinned to a commit, each installed and taken green before anything was measured. Flake is the share of clean runs that came back red with no patch applied at all, which is the number that decides whether a red run may be treated as a verdict. Locked is how many test files the judge hashes before a proposer is allowed to touch the tree.</p><div class="bench wide"><div class="head"><span>project</span><span style="text-align:right">tests</span><span style="text-align:right">green</span><span style="text-align:right">flake</span><span style="text-align:right">locked</span><span>language</span></div>
 <div class="row"><span class="s">expressjs/express</span><span class="n">1,260</span><span class="n">1.85s</span><span class="n y">3/10</span><span class="n">91</span><span class="d">node</span></div>

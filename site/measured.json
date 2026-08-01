@@ -79,7 +79,7 @@
   },
   "express.locked": {
     "cmd": "grep -cE '^[0-9a-f]{16,}' reports/2026-08-01-g3-first-held-repair/06-locks.txt",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "display": "91",
     "measuredAt": "2026-08-02",
     "note": "sha256 of the pristine copy; the arbiter re-hashed each one after the proposer.",
@@ -88,7 +88,7 @@
   },
   "express.repairs_held": {
     "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "display": "2",
     "measuredAt": "2026-08-02",
     "note": "expressjs/express at a3714473, the arbiter being that project's own mocha suite. the working tree was never edited.",
@@ -97,7 +97,7 @@
   },
   "express.suite_tests": {
     "cmd": "reports/2026-08-01-g3-first-held-repair/README.txt",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "display": "1,260",
     "measuredAt": "2026-08-02",
     "note": "the project's own, not one rabadon wrote.",
@@ -106,7 +106,7 @@
   },
   "gate.cases": {
     "cmd": "native/precision_fixture.jsonl",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "display": "34",
     "measuredAt": "2026-08-02",
     "note": "every one lifted out of a real session, none written for the test.",
@@ -115,14 +115,14 @@
   },
   "gate.judge_us": {
     "cmd": "native/gate_bench.sh",
-    "display": "128.8&micro;s",
-    "note": "median over 34 real cases from native/precision_fixture.jsonl, 200 judgements each, p95 214.2\u00b5s. in process, the same rbrules::judge_command the gate calls, verdict parity with the shipped binary asserted on all 34 before the timer is read.",
-    "value": 128.8,
+    "display": "130.0&micro;s",
+    "note": "median over 34 real cases from native/precision_fixture.jsonl, 200 judgements each, p95 213.9\u00b5s. in process, the same rbrules::judge_command the gate calls, verdict parity with the shipped binary asserted on all 34 before the timer is read.",
+    "value": 130.0,
     "what": "to judge one command"
   },
   "gate.precision": {
     "cmd": "native/precision_test.sh",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "display": "100.0%",
     "measuredAt": "2026-08-02",
     "note": "34 cases lifted out of real sessions: 11 correct refusals, 0 wrong refusals, 0 missed, 23 correct allows. exit 0.",
@@ -131,7 +131,7 @@
   },
   "gate.recall": {
     "cmd": "native/precision_test.sh",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "display": "100.0%",
     "measuredAt": "2026-08-02",
     "note": "real harm the gate stops, over the same 34 cases.",
@@ -140,7 +140,7 @@
   },
   "gate.rules": {
     "cmd": "native/precision_test.sh",
-    "commit": "0450f9e",
+    "commit": "bdbc448",
     "measuredAt": "2026-08-02",
     "note": "printed by the suite, rule by rule.",
     "value": [
@@ -198,29 +198,29 @@
   },
   "hook.native_ms": {
     "cmd": "native/bench.py",
-    "commit": "0450f9e",
-    "display": "2.56ms",
+    "commit": "bdbc448",
+    "display": "2.69ms",
     "measuredAt": "2026-08-02",
     "note": "fork to exit: read the event, load state, judge, write the ledger line. n=40. exit 0.",
-    "value": 2.56,
+    "value": 2.69,
     "what": "the whole hook, native, median"
   },
   "hook.node_ms": {
     "cmd": "native/bench.py",
-    "commit": "0450f9e",
-    "display": "101ms",
+    "commit": "bdbc448",
+    "display": "100ms",
     "measuredAt": "2026-08-02",
     "note": "same events, same verdicts \u2014 parity is asserted before either is timed. n=40.",
-    "value": 100.53,
+    "value": 99.92,
     "what": "the same hook on the node gate it replaced"
   },
   "hook.speedup": {
     "cmd": "native/bench.py",
-    "commit": "0450f9e",
-    "display": "39&times;",
+    "commit": "bdbc448",
+    "display": "37&times;",
     "measuredAt": "2026-08-02",
-    "note": "2.56ms against 100.53ms, median, same 40 events and the same verdicts.",
-    "value": 39.3,
+    "note": "2.69ms against 99.92ms, median, same 40 events and the same verdicts.",
+    "value": 37.1,
     "what": "faster than the gate it replaced"
   },
   "repair.green_paths": {
