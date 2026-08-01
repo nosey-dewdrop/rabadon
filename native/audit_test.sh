@@ -398,5 +398,82 @@ PY
 # the negative above ("no unchained line") can only be trusted while a positive
 # arm proves lines with that pipe exist at all — hence found >= 4 inside it.
 
+# ---------------------------------------------------------------------------
+# j) ONE CHAINED FILE, TWO IMPLEMENTATIONS, ONE MUTEX. chain.h (C++) and
+#    core/bus.mjs (JS) both append to `<day>.jsonl`, and a chain has exactly one
+#    critical section: read_head -> append -> rewrite head. flock(2) cannot be
+#    the mutex across that pair — Node has no flock binding and macOS ships no
+#    flock(1) to shell out to. The one atomic primitive both ends share is an
+#    O_EXCL create, so the lock is the sentinel `<day>.jsonl.lock` and BOTH
+#    writers take it. Without it the two read the same head, append the same
+#    prev, and the second line's prev stops matching: audit convicting an honest
+#    ledger of a BREAK. A false accusation is worse than the bug it reports.
+DAY="$(date -u +%Y-%m-%d)"
+LKDIR="$TMP/lock"; mkdir -p "$LKDIR/spool"; touch "$LKDIR/enabled"
+LKPROJ="$TMP/lockproj"; mkdir -p "$LKPROJ/.rabadon"
+cp "$PROJ/.rabadon/guard.json" "$LKPROJ/.rabadon/guard.json"
+LKFILE="$LKDIR/spool/$DAY.jsonl"
+fire_native() {   # one gated (blocked) action -> the native writer appends
+  printf '{"hook_event_name":"PreToolUse","session_id":"s-lk","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$LKPROJ" \
+    | RABADON_DIR="$LKDIR" "$GATE" >/dev/null 2>&1 || true
+}
+lines_in() { [ -f "$1" ] && grep -c . "$1" || echo 0; }
+
+# POSITIVE HALF FIRST. The arm below asserts the native writer did NOT append;
+# that assertion is satisfied for free by a writer that never appends at all.
+fire_native
+BEFORE=$(lines_in "$LKFILE")
+[ "$BEFORE" -gt 0 ] && pass "(j) baseline: with no lock held the native writer appends $BEFORE line(s) to the day file" \
+  || fail "(j) baseline: the native writer wrote nothing to $LKFILE"
+
+# a live JS writer holds the sentinel: the native writer must stay out of the
+# chained file and fail open to the sibling, exactly as it does for flock.
+: > "$LKFILE.lock"
+fire_native
+AFTER=$(lines_in "$LKFILE")
+if [ "$AFTER" = "$BEFORE" ] && [ -s "$LKDIR/spool/$DAY.unchained.jsonl" ]; then
+  pass "(j) a lock held by the JS writer keeps the native writer out of the chained file"
+else
+  fail "(j) native ignored the cross-language lock: $BEFORE -> $AFTER line(s), sibling $([ -s "$LKDIR/spool/$DAY.unchained.jsonl" ] && echo present || echo missing)"
+fi
+
+# a lock FILE is not released by the kernel when its holder is killed, the way
+# flock is. Without a stale reap one SIGKILL would push every later event of the
+# day out of the chain — the fail-open turned permanent.
+python3 -c "import os,sys,time; t=time.time()-60; os.utime(sys.argv[1],(t,t))" "$LKFILE.lock"
+fire_native
+AFTER2=$(lines_in "$LKFILE")
+[ "$AFTER2" -gt "$AFTER" ] && pass "(j) a lock left by a killed writer is stolen, not obeyed forever" \
+  || fail "(j) the stale lock blocked the chain forever (still $AFTER line(s))"
+
+# ---------------------------------------------------------------------------
+# k) BOTH WRITERS, ONE FILE, ONE VERDICT. The readers of this ledger look up
+#    exactly one name: ui/server.mjs (the `rabadon watch` cockpit) tails
+#    `<day>.jsonl`, and hooks/gate.mjs — the hook `rabadon init` installs — reads
+#    it back to build handoff.md. Giving the JS bus its own second day file makes
+#    every event the shipped gate records invisible to both, silently. So they
+#    share the file, and audit must still return INTACT over the mixture.
+MXDIR="$TMP/mixed"; mkdir -p "$MXDIR/spool"; touch "$MXDIR/enabled"
+MXPROJ="$TMP/mixedproj"; mkdir -p "$MXPROJ/.rabadon"
+cp "$PROJ/.rabadon/guard.json" "$MXPROJ/.rabadon/guard.json"
+printf '{"hook_event_name":"PreToolUse","session_id":"s-mx","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$MXPROJ" \
+  | RABADON_DIR="$MXDIR" "$GATE" >/dev/null 2>&1
+RABADON_DIR="$MXDIR" node -e \
+  "import('./index.mjs').then(m=>m.pipeline('mixed-api').step('a',async()=>'ok').bound({maxSteps:2}).run('x'))" \
+  >/dev/null 2>&1
+printf '{"hook_event_name":"PreToolUse","session_id":"s-mx2","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$MXPROJ" \
+  | RABADON_DIR="$MXDIR" "$GATE" >/dev/null 2>&1
+
+MXFILE="$MXDIR/spool/$DAY.jsonl"
+if grep -q '"mixed-api"' "$MXFILE" 2>/dev/null && grep -q '"ev":"STOP"' "$MXFILE" 2>/dev/null; then
+  pass "(k) the JS bus and the native gate land in the SAME day file the readers tail"
+else
+  fail "(k) the two writers split the day: $(ls "$MXDIR/spool" | tr '\n' ' ')"
+fi
+OUT=$(RABADON_DIR="$MXDIR" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT"; then
+  pass "(k) interleaved C++ and JS writes verify as one chain -> INTACT (exit 0)"
+else fail "(k) the mixed-writer day file does not verify: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
 echo "audit: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
