@@ -1,0 +1,194 @@
+/* ============================================================
+   rabadon, one stylesheet for every page.
+   one palette (pal-a from noseydewdrop.com, dark only)
+   one type scale, one spacing rhythm, one radius, zero borders.
+   every size is a token: a font size is never written inline.
+   ============================================================ */
+:root{
+  --bg:#171221; --bg-soft:#1f1930; --ink:#efe8f7; --ink-dim:#9d92b5;
+  --pink:#ff8fb3; --purple:#c9a6ff; --green:#b8e39a; --yellow:#ffd479; --blue:#8fc7ff;
+
+  --t-mono:12.5px;   /* captured terminal output        */
+  --t-small:13px;    /* captions, table cells, nav      */
+  --t-body:15px;     /* prose                           */
+  --t-num:19px;      /* the numbers that carry the page */
+  --t-h2:17px;       /* section headings                */
+  --t-h1:27px;       /* the one claim                   */
+
+  --g1:8px; --g2:14px; --g3:26px; --sec:38px;
+  --wrap:1060px; --radius:3px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:'IBM Plex Mono',monospace; background:var(--bg); color:var(--ink);
+  font-size:var(--t-body); line-height:1.7; overflow-x:hidden; cursor:default;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--pink);text-decoration:underline dotted;display:inline-block;transition:transform .18s}
+a:hover{text-decoration:underline;transform:translateY(-3px)}
+code{font:inherit;color:var(--blue)}
+h1{font-size:var(--t-h1);line-height:1.35;font-weight:400;letter-spacing:-.3px}
+h2{font-size:var(--t-h2);line-height:1.5;font-weight:700;margin-bottom:var(--g2)}
+h3{font-size:var(--t-small);line-height:1.6;font-weight:400;color:var(--ink-dim);margin-bottom:var(--g1)}
+p{max-width:70ch;line-height:1.7}
+p + p{margin-top:10px}
+.dim{color:var(--ink-dim)}
+.small{font-size:var(--t-small)}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 var(--g3);position:relative;z-index:1}
+section{padding:var(--sec) 0}
+.mt{margin-top:var(--g3)}
+
+/* ---------- starfield and sprinkle, same construction as the portfolio ---------- */
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.star{position:absolute;font-size:11px;color:var(--ink-dim);opacity:.32;animation:tw 3.4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.12}50%{opacity:.75}}
+.cf{position:fixed;z-index:30;pointer-events:none;font-size:16px;animation:fall 1.1s ease-out forwards}
+@keyframes fall{to{transform:translateY(70px) rotate(220deg);opacity:0}}
+
+/* ---------- braille art, drawn by Damla, carried over from the portfolio ---------- */
+.art{font-size:10px;line-height:1.05;white-space:pre;user-select:none;pointer-events:none;
+     color:var(--purple);opacity:.9}
+.art.bob{animation:bob 4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+/* ---------- header ---------- */
+header.site{display:flex;align-items:baseline;gap:18px;padding:22px 0 0;font-size:var(--t-small);flex-wrap:wrap}
+.mark{font-size:var(--t-body);font-weight:700;letter-spacing:1px}
+.mark i{font-style:normal;color:var(--pink)}
+header.site nav{margin-left:auto;display:flex;gap:15px;flex-wrap:wrap}
+header.site nav a{color:var(--ink-dim);text-decoration:none}
+header.site nav a.here{color:var(--ink)}
+header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
+
+/* ---------- intro block, shared by the generated pages ---------- */
+.intro{padding:34px 0 var(--g2)}
+.intro .lede{margin-top:var(--g2)}
+
+/* ---------- above the fold on the overview ---------- */
+.top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,430px);
+     gap:var(--sec);align-items:start;padding:30px 0 var(--g3)}
+.top .lede{margin-top:var(--g2)}
+.top .term{min-height:236px}
+.tag{font-size:var(--t-small);color:var(--ink-dim);margin-bottom:var(--g2)}
+.tag b{color:var(--green);font-weight:400}
+
+.proof{display:flex;flex-wrap:wrap;gap:var(--g1) var(--g3);margin-top:var(--g3)}
+.proof div{display:grid;grid-template-columns:auto auto;gap:9px;align-items:baseline}
+.proof .n{font-size:var(--t-num);font-weight:700;letter-spacing:-.4px}
+.proof .n.g{color:var(--green)} .proof .n.p{color:var(--pink)}
+.proof .n.b{color:var(--blue)}  .proof .n.y{color:var(--yellow)}
+.proof .t{font-size:var(--t-small);color:var(--ink-dim)}
+
+.cta{margin-top:var(--g3);font-size:var(--t-small)}
+.cta a{margin-right:var(--g3)}
+
+/* ---------- terminal, one component for every captured run ---------- */
+.term{background:var(--bg-soft);border-radius:var(--radius);padding:14px 16px;
+      font-size:var(--t-mono);line-height:1.85;overflow-x:auto;white-space:pre;
+      font-variant-ligatures:none}
+.term .p{color:var(--pink)}
+.term .c{color:var(--ink)}
+.term .o{color:var(--ink-dim)}
+.term .g{color:var(--green)}
+.term .r{color:var(--pink)}
+.term .b{color:var(--blue)}
+.term .y{color:var(--yellow)}
+.cur{color:var(--green);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.cap{font-size:var(--t-small);color:var(--ink-dim);line-height:1.7;margin-top:var(--g1);max-width:70ch}
+
+/* ---------- findings, evidence opens on click ---------- */
+.find{margin-top:var(--g2)}
+.find .head,.find .row{display:grid;
+  grid-template-columns:150px 62px 92px 118px 1fr;gap:var(--g2);
+  align-items:baseline;font-size:var(--t-small);padding:5px 0}
+.find .head{color:var(--ink-dim)}
+.find .row .repo{color:var(--ink)}
+.find .row .n{color:var(--blue);text-align:right}
+.find .row .d{color:var(--ink-dim)}
+details{margin-top:var(--g1)}
+details summary{cursor:pointer;font-size:var(--t-small);color:var(--pink);
+  list-style:none;text-decoration:underline dotted;display:inline-block}
+details summary::-webkit-details-marker{display:none}
+details summary:hover{text-decoration:underline}
+details[open] summary{color:var(--ink-dim)}
+details .body{margin-top:var(--g2)}
+
+/* ---------- ledger ---------- */
+.ledger{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 var(--sec);margin-top:2px}
+.ledger .item{display:grid;grid-template-columns:104px 1fr;gap:var(--g2);padding:5px 0;align-items:baseline}
+.ledger .n{font-size:var(--t-num);font-weight:700;text-align:right;letter-spacing:-.4px}
+.ledger .n.g{color:var(--green)} .ledger .n.p{color:var(--pink)}
+.ledger .n.y{color:var(--yellow)} .ledger .n.b{color:var(--blue)}
+.ledger .t{font-size:var(--t-small);line-height:1.6;color:var(--ink-dim)}
+
+/* ---------- laws ---------- */
+.law{display:grid;grid-template-columns:186px 1fr;gap:var(--g3);padding:9px 0;align-items:baseline}
+.law .k{color:var(--purple);font-size:var(--t-small)}
+.law .v{font-size:var(--t-body);line-height:1.7}
+.law .v em{font-style:normal;color:var(--ink-dim)}
+
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--g3);margin-top:var(--g1);align-items:start}
+
+/* ---------- run ---------- */
+.api{display:grid;grid-template-columns:276px 1fr;gap:var(--g1) var(--g3);font-size:var(--t-small);margin-top:2px}
+.api .c{color:var(--blue)}
+.api .d{color:var(--ink-dim);line-height:1.6}
+
+/* ---------- patch notes ---------- */
+.day{display:grid;grid-template-columns:118px 1fr;gap:var(--g3);padding:var(--g2) 0 4px;align-items:baseline}
+.day .d{color:var(--purple);font-size:var(--t-small);position:sticky;top:12px}
+.day .c{color:var(--ink-dim);font-size:var(--t-mono)}
+.rows{display:grid;gap:1px}
+.r{display:grid;grid-template-columns:64px 50px 1fr;gap:var(--g2);font-size:var(--t-small);
+   line-height:1.75;align-items:baseline}
+.r .h a{color:var(--blue);text-decoration:none;transition:none}
+.r .h a:hover{text-decoration:underline dotted;transform:none}
+.r .t{color:var(--ink-dim)}
+.r .s{color:var(--ink)}
+
+/* ---------- pull requests ---------- */
+.pr{display:grid;grid-template-columns:56px 1fr 150px;gap:var(--g2);font-size:var(--t-small);
+    padding:4px 0;align-items:baseline}
+.pr .h a{color:var(--blue);text-decoration:none}
+.pr .st{color:var(--ink-dim)}
+.pr .merged{color:var(--green)} .pr .open{color:var(--yellow)} .pr .closed{color:var(--ink-dim)}
+
+/* ---------- benchmarks ---------- */
+.bench{margin-top:var(--g1)}
+.bench .head,.bench .row{display:grid;grid-template-columns:230px 92px 1fr 210px;
+  gap:var(--g2);align-items:baseline;font-size:var(--t-small);padding:5px 0}
+.bench.wide .head,.bench.wide .row{grid-template-columns:200px 74px 74px 74px 74px 1fr}
+.bench .head{color:var(--ink-dim)}
+.bench .row .s{color:var(--ink)}
+.bench .row .n{color:var(--blue);text-align:right}
+.bench .row .n.g{color:var(--green)} .bench .row .n.y{color:var(--yellow)}
+.bench .row .d,.bench .row .w{color:var(--ink-dim)}
+
+footer{padding:var(--g3) 0 48px;font-size:var(--t-small);color:var(--ink-dim);
+       display:flex;gap:var(--g3);flex-wrap:wrap;align-items:baseline}
+footer .sp{margin-left:auto}
+
+@media(max-width:880px){
+  :root{--sec:28px;--t-h1:22px}
+  .top{grid-template-columns:1fr;gap:var(--g3);padding:24px 0 var(--g2)}
+  .top .term{min-height:0}
+  .ledger,.pair{grid-template-columns:1fr}
+  .law{grid-template-columns:1fr;gap:0}
+  .api{grid-template-columns:1fr;gap:0}
+  .api .d{margin-bottom:var(--g2)}
+  .find .head,.bench .head{display:none}
+  .find .row{grid-template-columns:1fr 60px;gap:var(--g1);padding:7px 0}
+  .find .row .d,.find .row .commits{display:none}
+  .bench .row,.bench.wide .row{grid-template-columns:1fr 84px;gap:var(--g1);padding:7px 0}
+  .bench .row .d,.bench .row .w{display:none}
+  .day{grid-template-columns:1fr;gap:2px}
+  .day .d{position:static}
+  .r{grid-template-columns:62px 1fr;gap:10px}
+  .r .t{display:none}
+  .pr{grid-template-columns:46px 1fr}
+  .pr .st{grid-column:1 / -1}
+  .art{display:none}
+  footer .sp{margin-left:0}
+}
