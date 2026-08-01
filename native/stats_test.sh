@@ -120,5 +120,38 @@ LONGEST=$(printf '%s\n' "$LOUT" | python3 -c 'import sys; print(max((len(l.rstri
 if [ "$LONGEST" -le 80 ]; then ok=$((ok+1)); echo "  ok   - no line exceeds COLUMNS (longest: $LONGEST)"
 else bad=$((bad+1)); echo "  FAIL - line exceeds COLUMNS=80 (longest: $LONGEST)"; fi
 
+# one repo is ONE row. The producers label the pipe by surface: the hooks emit
+# "<project>:session", `rabadon do` emits "<project>:do", `rabadon exec` emits
+# "<project>:exec" (native/sandbox.cpp). Same repo, same rules — so the ledger
+# must fold every suffix back to the project. When it did not, the headline
+# artifact printed `proj` and `proj:exec` as two different projects, and the
+# more a user leaned on `rabadon exec` the more split the one screen they would
+# show someone else became.
+XDIR="$TMP/exec"; mkdir -p "$XDIR/spool"
+cat > "$XDIR/spool/$DAY.jsonl" <<EOF
+{"v":1,"seq":1,"ts":$TS1,"run":"x1","pipe":"proj:session","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"no-wrangler-deploy","why":"deploys go through CI"}]}
+{"v":1,"seq":2,"ts":$TS1,"run":"x1","pipe":"proj:session","ev":"STOP","reason":"BLOCKED","rule":"no-wrangler-deploy","sid":"s1","detail":"command matched deny rule: npx wrangler deploy"}
+{"v":1,"seq":1,"ts":$TS1,"run":"x2","pipe":"proj:exec","ev":"CHECK_FAIL","step":"exec","mode":"enforce","fails":[{"check":"no-wrangler-deploy","why":"command matched deny rule: npx wrangler deploy — deploys go through CI"}]}
+{"v":1,"seq":2,"ts":$TS1,"run":"x2","pipe":"proj:exec","ev":"STOP","reason":"BLOCKED","rule":"no-wrangler-deploy","sid":"exec","detail":"command matched deny rule: npx wrangler deploy"}
+{"v":1,"seq":1,"ts":$TS1,"run":"x3","pipe":"proj:do","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"no-wrangler-deploy","why":"deploys go through CI"}]}
+EOF
+xrun() { RABADON_DIR="$XDIR" RABADON_NOW="$NOW" TZ=UTC COLUMNS=100 $NATIVE "$@"; }
+X="$(xrun --days 7)"
+# positive first: the row that MUST be there, with every surface's events on it
+check "session+exec+do fold into one row named proj" '^  proj +last event: 2026-01-10 11:00' "$X"
+check "both catches counted on that one row" 'caught before happening:  2' "$X"
+check "all three checks counted on that one row" 'checks failed \(caught\):   3' "$X"
+check "one rule, counted twice, not once on each of two rows" '2x  no-wrangler-deploy' "$X"
+# only now the negatives — a rename of the suffix cannot make these pass alone
+check_not "no phantom project from the exec pipe" 'proj:exec' "$X"
+check_not "no phantom project from the do pipe" 'proj:do' "$X"
+# and exactly one row exists, whatever it is called (python3: macOS grep has no -P)
+XROWS=$(printf '%s\n' "$X" | python3 -c 'import sys,re; print(sum(1 for l in sys.stdin if re.match(r"^  \S.*last event: ", l)))')
+if [ "$XROWS" -eq 1 ]; then ok=$((ok+1)); echo "  ok   - exactly one project row (rows: $XROWS)"
+else bad=$((bad+1)); echo "  FAIL - one repo rendered as $XROWS rows"; printf '%s\n' "$X" | sed 's/^/    | /'; fi
+XSECT=$(printf '%s\n' "$(xrun --days 7 --md)" | python3 -c 'import sys; print(",".join(l.strip() for l in sys.stdin if l.startswith("## ")))')
+if [ "$XSECT" = "## proj" ]; then ok=$((ok+1)); echo "  ok   - report (--md) has one section: $XSECT"
+else bad=$((bad+1)); echo "  FAIL - report (--md) sections: $XSECT"; fi
+
 echo "stats: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
