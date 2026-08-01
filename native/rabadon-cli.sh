@@ -57,12 +57,14 @@ usage: rabadon <command> [args]
 supervision
   on | off | toggle   turn enforcement on or off (machine-wide)
   status              print the current mode and the file it was read from
+  budget [cap] [dir]  write the spend ceiling the gate halts a run at
   drill               feed one synthetic dangerous command through the REAL gate
   doctor              check the install: binaries, hooks, sandbox backend
 
 setting up
   init [dir]          write the hooks into a project and author its guard.json
   lint [dir]          find rules in a project's guard.json that cannot fire
+  truth [dir]         the strongest check this repo already knows how to run
   fleet [root]        install the hooks across every git repo under root
   remove              uninstall the hooks from a project
 
@@ -71,19 +73,26 @@ seeing what happened
   usage [--days N]    what was refused, in which project, by which rule
   report [--days N]   the same, as markdown
   trace [run]         one run step by step: caught, repaired, refused
+  drift [dir]         did this session wander off what it promised to work on
   audit [--days N]    verify the ledger has not been tampered with
   replay              re-run a recorded session against the current rules
   export [--otlp]     the ledger in an open format, for your own tooling
 
 acting
   exec -- <cmd>       run a command under the project's law AND a kernel sandbox
+  do "<task>" [dir]   plan a task into steps and run them under the arbiter
+  loop <dir> <plan>   run an existing plan, every step checked before the next
   repair              attempt a bounded, re-checked fix for a failing check
+  verify <dir> <c>    decide pass/fail on one contract, the arbiter alone
+  net [dir]           run this repo's strongest check, record the verdict
   watch | ui          live view of the current session
+  serve [--port N]    the team ledger: an append-only HTTP store for runs
 
 examples
   rabadon init                    set up the project you are standing in
   rabadon drill                   see the refusal an agent would get
   rabadon usage --days 7          what it caught this week
+  rabadon lens --days 30          sessions, tokens and cost for the month
   rabadon exec -- npm run deploy  run it under the guard, refused if forbidden
 
 docs: https://github.com/nosey-dewdrop/rabadon
@@ -107,6 +116,19 @@ HELP
   replay)          A="$(nbin audit)" || exit 1; shift; exec "$A" --replay "$@" ;;
   lint)            G="$(nbin gate)" || exit 1; shift; exec "$G" --lint "${1:-.}" ;;
   export)          E="$(nbin export)" || exit 1; shift; exec "$E" "$@" ;;
+  # the same defect as lens, seven more times: budget/do/drift/loop/net/truth/
+  # verify/serve all ship in the platform packages and none of them had a verb.
+  # `do` reached its binary only through bin/rabadon.mjs, which resolves
+  # ../native directly and therefore misses the prebuilt platform package
+  # entirely — nbin is the resolver that does not.
+  budget)          B="$(nbin budget)" || exit 1; shift; exec "$B" "$@" ;;
+  do)              D="$(nbin do)" || exit 1; shift; exec "$D" "$@" ;;
+  drift)           D="$(nbin drift)" || exit 1; shift; exec "$D" "$@" ;;
+  loop)            L="$(nbin loop)" || exit 1; shift; exec "$L" "$@" ;;
+  net)             N="$(nbin net)" || exit 1; shift; exec "$N" "$@" ;;
+  truth)           T="$(nbin truth)" || exit 1; shift; exec "$T" "$@" ;;
+  verify)          V="$(nbin verify)" || exit 1; shift; exec "$V" "$@" ;;
+  serve)           S="$(nbin serve)" || exit 1; shift; exec "$S" "$@" ;;
   init|remove|uninstall|doctor)
                    exec node "$ROOT/hooks/manage.mjs" "$@" ;;
   drill)
