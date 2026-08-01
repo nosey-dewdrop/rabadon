@@ -182,7 +182,16 @@ from the test suite or the net's last red verdict) · `--timeout <sec>`
 
 Exit: `0` held a verified patch, or the check was already green · `2`
 REPAIR_FAIL (still red, test-tampered, or a zero-diff flake) · `3` no runnable
-check or no proposer.
+check, no proposer, or **the check resolves outside the isolated copy**.
+
+That last one is what `pip install -e .` does: the editable install writes an
+absolute path into a `.pth` in `site-packages`, the copy inherits it, and the
+copy's interpreter imports **your** tree instead. repair refuses before it
+copies anything, names the file, and records nothing — grading a proposal
+against code it never touched is not a verdict in either direction. Same for an
+absolute symlink back into the tree (`npm link`) and for a `bin/` shim your
+check invokes by name. Give it a check that stands up inside a fresh copy:
+`--cmd "PYTHONPATH=src python3 -m pytest"`.
 
 ```
 rabadon repair
