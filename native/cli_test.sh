@@ -438,6 +438,37 @@ rec(rc == 0 and so.strip(),
     if rc == 0 and so.strip() else
     "the failure path swallowed the success path too (rc=%d, %d bytes)" % (rc, len(so)))
 
+# ---- a path that does not exist ----
+# The same swallow wearing a file extension. `rabadon-trace /no/such/file.jsonl`
+# answered rc=0 with 21568 lines of the live spool: stat() failed, the source
+# stayed empty, and the fallback printed the default ledger as if the file the
+# operator named had been read. Measured against the pre-fix binary just now.
+rc, so, se = trace(box, "/no/such/file.jsonl")
+rec(rc != 0 and not so.strip(),
+    "`rabadon-trace /no/such/file.jsonl` exits %d with an empty stdout" % rc
+    if rc != 0 and not so.strip() else
+    "a ledger path that does not exist still answered with the default spool (rc=%d, %d bytes)"
+    % (rc, len(so)))
+
+# ---- a path AND a run, the two positionals the docs allow ----
+# POSITIVE: the pair works, and it is the only reading that makes both words
+# mean something.
+day = os.path.join(box, "spool")
+rc, so, se = trace(box, day, "alpha-r1")
+good = rc == 0 and "alpha-r1" in so and "beta-r1" not in so
+rec(good, "`rabadon-trace <dir> alpha-r1` reads that ledger and renders that run"
+    if good else
+    "a directory plus a run id did not resolve to one run in that ledger (rc=%d, %d bytes)"
+    % (rc, len(so)))
+
+# NEGATIVE: a THIRD word has no meaning left, and guessing one is how this whole
+# section started. It ends the run and says which word.
+rc, so, se = trace(box, day, "alpha-r1", "beta-r1")
+good = rc != 0 and "beta-r1" in se and not so.strip()
+rec(good, "a third positional is refused (exit %d) and named back" % rc
+    if good else
+    "a third positional was swallowed (rc=%d, %d bytes on stdout)" % (rc, len(so)))
+
 open(report, "w").write("\n".join(out) + "\n")
 PY
 while IFS=$'\t' read -r VERDICT MSG; do
