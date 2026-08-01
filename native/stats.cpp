@@ -354,12 +354,21 @@ struct Event {
 // The four drill rules live in drill.h — one implementation, so the number
 // printed here and the spans rabadon-export ships agree on what a drill is.
 
+// A pipe label is "<project>:<surface>": the hooks write ":session"
+// (gate.cpp, drift.cpp, repair.cpp), `rabadon do` writes ":do" (loop.cpp),
+// `rabadon exec` writes ":exec" (sandbox.cpp). The surface is how the event
+// arrived, not what it happened to — so the ledger folds it off and groups by
+// the project. Listing the known suffixes was the bug: ":exec" was not on the
+// list, so one repo rendered as two projects, `proj` and `proj:exec`, in the
+// one screen a user would show someone else. Cut at the LAST colon instead —
+// the same rule trace.cpp already uses — so a new surface can never fork a
+// row again. No colon (or an empty/absent pipe) means the label is already the
+// project.
 static string project_of(bool has_pipe, const string& pipe) {
-  string p = (has_pipe && !pipe.empty()) ? pipe : "?";
-  const string a = ":session", b = ":do";
-  if (p.size() >= a.size() && p.compare(p.size() - a.size(), a.size(), a) == 0) return p.substr(0, p.size() - a.size());
-  if (p.size() >= b.size() && p.compare(p.size() - b.size(), b.size(), b) == 0) return p.substr(0, p.size() - b.size());
-  return p;
+  const string p = (has_pipe && !pipe.empty()) ? pipe : "?";
+  const size_t c = p.rfind(':');
+  if (c == string::npos || c == 0) return p;
+  return p.substr(0, c);
 }
 
 static bool parse_day_utc(const string& name, double& out_ms) {
