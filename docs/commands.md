@@ -167,6 +167,17 @@ what the arbiter WOULD have stopped and lets the command run; that renders as
 `WOULD BLOCK`, on its own line, against `CAUGHT 0` — the same split `rabadon
 usage` keeps between `refused` and `wouldRefuse`.
 
+The `saved:` line is the only sentence here that talks about steps which did NOT
+run, so every number in it is measured off the run rather than assumed from the
+catch. The steps it says NEVER ran are the plan's declared count minus the steps
+the run actually started — never "everything after the catch", because the run
+may have gone on for several steps before it stopped. The steps it says ran on a
+clean base are the ones that started after the catch. A catch on the run's last
+step has no range at all and prints none. A rejected repair followed by an
+accepted one is not a STOP; it is reported as both. And a run whose ledger holds
+no `REPAIR_FAIL` for a step never prints a refused fake fix for it, exactly as a
+run with `REPAIRED 0` never says repaired.
+
 `[run]` is a run id, not a file. A bare word is taken as a run whenever it is
 not a path that exists; a path (a `.jsonl`, or a directory whose newest day file
 wins) is taken as the ledger to read. `--run <id>` is the same thing spelled
