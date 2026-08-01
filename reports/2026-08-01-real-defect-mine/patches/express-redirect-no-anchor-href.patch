@@ -1,0 +1,13 @@
+diff --git a/lib/response.js b/lib/response.js
+index 76b6b54a..68d969ff 100644
+--- a/lib/response.js
++++ b/lib/response.js
+@@ -969,7 +969,7 @@ res.redirect = function redirect(url) {
+ 
+     html: function(){
+       var u = escapeHtml(address);
+-      body = '<p>' + statuses.message[status] + '. Redirecting to ' + u + '</p>'
++      body = '<p>' + statuses.message[status] + '. Redirecting to <a href="' + u + '">' + u + '</a></p>'
+     },
+ 
+     default: function(){

@@ -1,0 +1,36 @@
+diff --git a/lodash.js b/lodash.js
+index cbf3b3848..d8b959a17 100644
+--- a/lodash.js
++++ b/lodash.js
+@@ -5634,11 +5634,10 @@
+       if (arrLength != othLength && !(isPartial && othLength > arrLength)) {
+         return false;
+       }
+-      // Check that cyclic values are equal.
+-      var arrStacked = stack.get(array);
+-      var othStacked = stack.get(other);
+-      if (arrStacked && othStacked) {
+-        return arrStacked == other && othStacked == array;
++      // Assume cyclic values are equal.
++      var stacked = stack.get(array);
++      if (stacked && stack.get(other)) {
++        return stacked == other;
+       }
+       var index = -1,
+           result = true,
+@@ -5800,11 +5799,10 @@
+           return false;
+         }
+       }
+-      // Check that cyclic values are equal.
+-      var objStacked = stack.get(object);
+-      var othStacked = stack.get(other);
+-      if (objStacked && othStacked) {
+-        return objStacked == other && othStacked == object;
++      // Assume cyclic values are equal.
++      var stacked = stack.get(object);
++      if (stacked && stack.get(other)) {
++        return stacked == other;
+       }
+       var result = true;
+       stack.set(object, other);

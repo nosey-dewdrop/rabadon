@@ -1,0 +1,13 @@
+diff --git a/lib3/yaml/constructor.py b/lib3/yaml/constructor.py
+index 31e9318..f8d71a1 100644
+--- a/lib3/yaml/constructor.py
++++ b/lib3/yaml/constructor.py
+@@ -585,7 +585,7 @@ class FullConstructor(SafeConstructor):
+             elif state:
+                 slotstate.update(state)
+             for key, value in slotstate.items():
+-                setattr(instance, key, value)
++                setattr(object, key, value)
+ 
+     def construct_python_object(self, suffix, node):
+         # Format:

@@ -2,7 +2,18 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
+all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
+
+# the OTHER benchmark, and the one the site was quoting without owning: how long
+# rbrules::judge_command takes, in process, over the 34 real cases in the
+# precision fixture. native/bench.py answers the end-to-end question (the whole
+# hook, fork to exit, against the node gate it replaced); this answers the one
+# the words "to judge one command" actually name. It is in `all` because the
+# site names it as a source, and a source that is not built is a source nobody
+# can run.
+native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native/cmdtext.h native/pathres.h
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
 
 # native/version.h is a prerequisite of every rule whose source includes it,
 # and make does not read #include lines. it was listed nowhere, so a version
@@ -63,8 +74,9 @@ native/rabadon-drift: native/drift.cpp native/cli_help.h native/version.h
 
 # measured, not claimed: median hook latency, native vs the legacy node gate,
 # same events, same verdicts. prints the table the readme numbers come from.
-bench: native/rabadon-gate
+bench: native/rabadon-gate native/gate_bench
 	python3 native/bench.py
+	./native/gate_bench.sh
 
 # native proofs: the direction check fires in both directions and fails open.
 # `test: all` and not a hand-kept list: the list named 11 binaries while the
@@ -368,7 +380,7 @@ precision: native/rabadon-gate
 	./native/precision_test.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
 
 .PHONY: all bench clean precision
 

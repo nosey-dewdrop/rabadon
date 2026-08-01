@@ -1668,8 +1668,19 @@ int main(int argc, char** argv) {
     // (rules.h -> pathres.h). Both layers read the same resolver, off the same
     // parse, from the same resolved cwd — parsing or resolving twice here is
     // how the two answers came apart in the first place.
-    const rbtext::Parsed parsed = rbtext::parse(command);
-    const string realCwd = rbpath::resolve_real(rbpath::lexical_abs(cwd, "/"));
+    //
+    // This site used to be a hand-written second copy of rbrules::judge_command,
+    // kept apart from it only so the parse would still be in scope for the two
+    // diagnostics below. rules.h says in as many words that a caller who
+    // re-implements half of it is how exec became a bypass, and the caller doing
+    // it was this one, in the binary that paragraph was written for. The two
+    // answers happened to agree; nothing held them there. judge_command hands
+    // the parse back now, so the gate asks the shared verdict exactly the way
+    // sandbox does, and native/gate_bench.sh replays all 34 fixture cases
+    // through this binary and through that call and refuses to print a
+    // measurement unless every verdict still matches.
+    rbtext::Parsed parsed;
+    const rbrules::Verdict verdict = rbrules::judge_command(guardRaw, command, cwd, &parsed);
     if (parsed.degraded)
       em.emit("PARSE_DEGRADED", "\"why\":\"" + json_escape(parsed.why) +
               "\",\"fallback\":\"whole-line match\",\"cmd\":\"" +
@@ -1685,12 +1696,7 @@ int main(int argc, char** argv) {
     for (size_t li = 0; li < parsed.limits.size(); li++)
       em.emit("PARSE_LIMIT", "\"limit\":\"" + json_escape(parsed.limits[li]) +
               "\",\"cmd\":\"" + json_escape(command.substr(0, 160)) + "\"");
-    if (!guardRaw.empty())
-      for (const auto& r : parse_rules(guardRaw, "bash", "deny", disabled))
-        if (rbrules::rule_refuses(r.pattern, parsed, command, realCwd))
-          block(r.id, r.why, "command matched deny rule: " + command.substr(0, 160));
-    rbbase::Hit bh;
-    if (rbbase::check_parsed(parsed, cwd, disabled, bh)) block(bh.id, bh.why, bh.detail);
+    if (verdict.refused) block(verdict.id, verdict.why, verdict.detail);
   }
 
   if (!guardRaw.empty()) {

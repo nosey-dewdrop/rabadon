@@ -24,3 +24,6 @@ npm/*/rabadon-*
 
 # npm pack output
 *.tgz
+
+# the micro benchmark is a built binary like the rest; the source is the artifact
+native/gate_bench

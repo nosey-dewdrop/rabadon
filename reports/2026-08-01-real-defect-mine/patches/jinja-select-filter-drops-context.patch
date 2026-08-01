@@ -1,0 +1,13 @@
+diff --git a/src/jinja2/filters.py b/src/jinja2/filters.py
+index e5b5a00c..a92832a3 100644
+--- a/src/jinja2/filters.py
++++ b/src/jinja2/filters.py
+@@ -1780,7 +1780,7 @@ def prepare_select_or_reject(
+         args = args[1 + off :]
+ 
+         def func(item: t.Any) -> t.Any:
+-            return context.environment.call_test(name, item, args, kwargs, context)
++            return context.environment.call_test(name, item, args, kwargs)
+ 
+     except LookupError:
+         func = bool  # type: ignore

@@ -1,0 +1,28 @@
+diff --git a/lib/router/route.js b/lib/router/route.js
+index a65756d6..cc643ac8 100644
+--- a/lib/router/route.js
++++ b/lib/router/route.js
+@@ -60,10 +60,7 @@ Route.prototype._handles_method = function _handles_method(method) {
+     return true;
+   }
+ 
+-  // normalize name
+-  var name = typeof method === 'string'
+-    ? method.toLowerCase()
+-    : method
++  var name = method.toLowerCase();
+ 
+   if (name === 'head' && !this.methods['head']) {
+     name = 'get';
+@@ -106,10 +103,8 @@ Route.prototype.dispatch = function dispatch(req, res, done) {
+   if (stack.length === 0) {
+     return done();
+   }
+-  var method = typeof req.method === 'string'
+-    ? req.method.toLowerCase()
+-    : req.method
+ 
++  var method = req.method.toLowerCase();
+   if (method === 'head' && !this.methods['head']) {
+     method = 'get';
+   }

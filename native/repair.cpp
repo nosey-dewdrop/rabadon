@@ -758,10 +758,16 @@ int main(int argc, char** argv) {
       printf("  All %zu hash-locked test file(s) are untouched — that half of the proof did run.\n", locks.size());
   }
   else if (locks.empty())
-    printf("  HELD, UNVERIFIED: the same check re-ran GREEN in the isolated copy, but 0 test files were discovered to hash-lock.\n"
-           "  The %zu harness file(s) that decide which tests run are byte-identical with none added, so the check that ran is\n"
-           "  the check that was chosen. What is missing is the other half: nothing here rules out a proposal that rewrote the\n"
-           "  assertions themselves. Review the diff yourself before applying.\n", harness.size());
+    // "why not VERIFIED" has to name the check that did not run, not merely
+    // withhold the word. The harness-lock work rewrote this sentence and the
+    // phrase `anti-tamper` fell out of it, so the screen stopped naming which
+    // half of the proof was missing while repair_session_test.sh went on
+    // asserting that it did — the suite was red on exactly this line.
+    printf("  HELD, UNVERIFIED: the same check re-ran GREEN in the isolated copy, but 0 test files were discovered to\n"
+           "  hash-lock, so the anti-tamper check never ran. The %zu harness file(s) that decide which tests run are\n"
+           "  byte-identical with none added, so the check that ran is the check that was chosen. What is missing is the\n"
+           "  other half: nothing here rules out a proposal that rewrote the assertions themselves. Review the diff\n"
+           "  yourself before applying.\n", harness.size());
   else
     printf("  VERIFIED: the same check re-ran GREEN in the isolated copy, all %zu hash-locked test file(s) are untouched,\n"
            "  and the %zu harness file(s) that decide which tests run are byte-identical with none added.\n",

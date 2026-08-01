@@ -300,7 +300,16 @@ inline bool rule_refuses(const string& pattern, const rbtext::Parsed& p, const s
 // skip this and re-implement half of it are how exec came to be a bypass.
 struct Verdict { bool refused = false; string id, why, detail; };
 
-inline Verdict judge_command(const string& guard, const string& cmd, const string& cwd) {
+// `parsedOut`, when given, hands back the ONE parse both layers were judged on.
+// It exists because the gate needs that parse's own diagnostics (a line it could
+// not read, a limit it reached) for the ledger, and used to get them by
+// re-implementing this function inline — which is exactly the caller the
+// paragraph above warns about, sitting in the binary the paragraph was written
+// for. native/gate_bench.sh holds the two together from now on: it replays the
+// precision fixture through the shipped gate binary and through this call, and
+// refuses to print a timing unless all 34 verdicts agree.
+inline Verdict judge_command(const string& guard, const string& cmd, const string& cwd,
+                             rbtext::Parsed* parsedOut = nullptr) {
   Verdict v;
   if (cmd.empty()) return v;
   const std::vector<string> disabled = parse_disabled(guard);
@@ -308,6 +317,7 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
   // the surface walk is O(len) not O(len × rules), and — the reason this header
   // exists — a second walk is a second answer to the same question.
   const rbtext::Parsed parsed = rbtext::parse(cmd);
+  if (parsedOut) *parsedOut = parsed;
   // resolved once, and the SAME cwd both layers judge against: a rule that is
   // about a path cannot be given a different starting directory than the law
   // underneath it without the two disagreeing again.
