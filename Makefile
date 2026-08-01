@@ -29,7 +29,7 @@ native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h nati
 native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-trace: native/trace.cpp native/cli_help.h
+native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-serve: native/serve.cpp native/cli_help.h

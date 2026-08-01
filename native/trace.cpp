@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "cli_help.h"
+#include "jsonl.h"
 
 using std::string;
 using std::vector;
@@ -52,17 +53,30 @@ static string newest_jsonl(const string& dir){
   closedir(d); return best;
 }
 
-// ---------- minimal json field readers over one line ----------
+// ---------- json field readers over one line (jsonl.h) ----------
+// These matched the literal bytes `"ev":"`. SPEC §2 fixes the ledger as
+// single-line JSON and fixes no byte layout, so a spool from a stock serializer
+// (`"ev": "RUN_START"`) yielded an empty ev on line 428, every line was skipped
+// by `if(ev.empty()) continue;`, and this renderer printed `(0 runs)` over a
+// perfectly good stream. Same defect as audit's false TAMPER verdict, quieter.
 static long long ll_field(const string& line,const char* key){
-  size_t p=line.find(key); if(p==string::npos) return 0;
-  return atoll(line.c_str()+p+strlen(key));
+  return (long long)rbjson::get_num(line,key);
 }
-static string str_field(const string& line,const char* key){  // key ends at the opening quote, e.g. "ev":"
-  size_t p=line.find(key); if(p==string::npos) return ""; p+=strlen(key);
+static string str_field(const string& line,const char* key){  // top-level only
+  return rbjson::get_str(line,key);
+}
+// The two reads that are genuinely NOT top level: `why` lives inside
+// fails[{check,why}] and the session goal inside steps[0]. Scanned at any depth,
+// whitespace-tolerant, so a stock serializer reads the same as rabadon's own.
+static string nested_str(const string& line,const char* key,bool inArray=false){
+  const string pat=string("\"")+key+"\"";
+  size_t p=line.find(pat); if(p==string::npos) return "";
+  p=rbjson::skip_ws(line,p+pat.size());
+  if(p>=line.size()||line[p]!=':') return "";
+  p=rbjson::skip_ws(line,p+1);
+  if(inArray){ if(p>=line.size()||line[p]!='[') return ""; p=rbjson::skip_ws(line,p+1); }
   string out;
-  for(size_t i=p;i<line.size();i++){ char c=line[i];
-    if(c=='\\'&&i+1<line.size()){ char n=line[++i]; out+=(n=='n')?'\n':(n=='t')?'\t':n; }
-    else if(c=='"') break; else out+=c; }
+  if(rbjson::scan_string(line,p,&out)==string::npos) return "";
   return out;
 }
 
@@ -425,37 +439,37 @@ int main(int argc,char** argv){
     size_t le=body.find('\n',ls); if(le==string::npos) le=body.size();
     string line=body.substr(ls,le-ls); ls=le+1;
     if(line.empty()) continue;
-    string ev=str_field(line,"\"ev\":\""); if(ev.empty()) continue;
-    string run=str_field(line,"\"run\":\""); if(run.empty()) continue;
+    string ev=str_field(line,"ev"); if(ev.empty()) continue;
+    string run=str_field(line,"run"); if(run.empty()) continue;
     Run& R=find_run(run);
-    Ev e; e.ev=ev; e.ts=ll_field(line,"\"ts\":");
-    e.step=str_field(line,"\"step\":\"");
-    if(ev=="CHECK_FAIL") e.why=str_field(line,"\"why\":\"");
-    if(ev=="STOP"){ e.reason=str_field(line,"\"reason\":\""); e.detail=str_field(line,"\"detail\":\""); }
-    if(ev=="RUN_DONE") e.verdict=str_field(line,"\"verdict\":\"");
+    Ev e; e.ev=ev; e.ts=ll_field(line,"ts");
+    e.step=str_field(line,"step");
+    if(ev=="CHECK_FAIL") e.why=nested_str(line,"why");   // inside fails[{check,why}]
+    if(ev=="STOP"){ e.reason=str_field(line,"reason"); e.detail=str_field(line,"detail"); }
+    if(ev=="RUN_DONE") e.verdict=str_field(line,"verdict");
     if(ev=="REPAIR_OK"||ev=="REPAIR_FAIL"||ev=="STEP_TRY"){
-      e.tokens=ll_field(line,"\"tokens\":"); e.usd_e6=ll_field(line,"\"usd_e6\":");
-      e.dur_ms=ll_field(line,"\"dur_ms\":"); e.model=str_field(line,"\"model\":\"");
+      e.tokens=ll_field(line,"tokens"); e.usd_e6=ll_field(line,"usd_e6");
+      e.dur_ms=ll_field(line,"dur_ms"); e.model=str_field(line,"model");
       // A gate-side REPAIR_OK can mean "a rule was installed" or "a test run was
       // observed" — neither of which repaired anything. The loop's real repairs
       // carry no marker. Counting them together would let the report claim
       // repairs that never happened, which is the one number a buyer will
       // check by hand.
-      e.repairKind=str_field(line,"\"repair_kind\":\"");
+      e.repairKind=str_field(line,"repair_kind");
     }
-    if(ev=="STEP_TRY"||ev=="STEP_OK"){ e.tier=(int)ll_field(line,"\"tier\":"); e.tierName=str_field(line,"\"tier_name\":\""); }
-    if(ev=="ESCALATE"){ e.from=str_field(line,"\"from\":\""); e.to=str_field(line,"\"to\":\""); }
+    if(ev=="STEP_TRY"||ev=="STEP_OK"){ e.tier=(int)ll_field(line,"tier"); e.tierName=str_field(line,"tier_name"); }
+    if(ev=="ESCALATE"){ e.from=str_field(line,"from"); e.to=str_field(line,"to"); }
     if(ev=="RUN_START"){
-      R.arm=str_field(line,"\"arm\":\"");
-      R.tiers=str_field(line,"\"tiers\":\"");
+      R.arm=str_field(line,"arm");
+      R.tiers=str_field(line,"tiers");
       // "steps": either an int (loop) or an array (session). goal is optional.
-      size_t sp=line.find("\"steps\":");
-      if(sp!=string::npos){ char nx=line[sp+8]; if(nx>='0'&&nx<='9') R.declaredSteps=(int)ll_field(line,"\"steps\":"); }
-      R.goal=str_field(line,"\"goal\":\"");
-      if(R.goal.empty()){ string g=str_field(line,"\"steps\":[\""); if(g.rfind("goal:",0)==0) R.goal=g.substr(5); }
+      size_t sp=rbjson::find_field(line,"steps");
+      if(sp!=string::npos){ char nx=line[sp]; if(nx>='0'&&nx<='9') R.declaredSteps=(int)ll_field(line,"steps"); }
+      R.goal=str_field(line,"goal");
+      if(R.goal.empty()){ string g=nested_str(line,"steps",true); if(g.rfind("goal:",0)==0) R.goal=g.substr(5); }
       if(!R.goal.empty()){ size_t z=R.goal.find_first_not_of(" "); if(z!=string::npos) R.goal=R.goal.substr(z); }
     }
-    if(R.pipe.empty()) R.pipe=str_field(line,"\"pipe\":\"");
+    if(R.pipe.empty()) R.pipe=str_field(line,"pipe");
     if(R.firstTs==0||e.ts<R.firstTs) R.firstTs=e.ts;
     if(e.ts>R.lastTs) R.lastTs=e.ts;
     R.evs.push_back(std::move(e));
