@@ -14,13 +14,21 @@
 // Flow (propose-and-hold — rabadon NEVER silently edits the user's tree):
 //   1. find the project's strongest deterministic check: --cmd flag, else the
 //      net's last RED verdict (.rabadon/net.json), else rabadon-truth --json;
-//   2. run it in the real repo. GREEN -> nothing to repair, exit 0;
+//   2. run it in the real repo. GREEN, CONFIRMED BY A SECOND RUN -> nothing to
+//      repair, exit 0. Green then red -> FLAKY, exit 4: one sample of a
+//      nondeterministic check is not a verdict, and "nothing to repair" on a
+//      lucky green drops a break that is still in the tree;
 //   3. copy the repo twice into an isolated tmp dir: `base` (pristine) and
 //      `work`; hash-lock every test file (sha256.h);
 //   4. proposer: `claude -p` bounded by a wall clock, cwd = the WORK COPY,
 //      RABADON_OFF=1 — it may edit the copy, it cannot touch the user's tree;
 //   5. ARBITER: re-run the SAME check in the work copy.
-//        red                     -> REPAIR_FAIL, fail closed;
+//        red                     -> re-sampled, never graded on one run;
+//        red twice               -> REPAIR_FAIL, fail closed;
+//        red then green          -> FLAKY: the patch is HELD (a repair thrown
+//                                   away by a coin flip is a repair the user
+//                                   paid a proposer call for and did not get),
+//                                   but it is never called VERIFIED;
 //        green but a test file's
 //        hash changed            -> REPAIR_FAIL (test-tamper: a fix that
 //                                   weakens the check is a fake fix);

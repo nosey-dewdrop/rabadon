@@ -180,11 +180,25 @@ Flags: `--cmd "<check>"` (the deterministic check to run; otherwise inferred
 from the test suite or the net's last red verdict) · `--timeout <sec>`
 (proposer wall clock, default 240).
 
-Exit: `0` held a verified patch, or the check was already green · `2`
-REPAIR_FAIL (still red, test-tampered, or a zero-diff flake) · `3` no runnable
-check, no proposer, or **the check resolves outside the isolated copy**.
+Exit: `0` held a patch, or the check was already green · `2` REPAIR_FAIL (still
+red, test-tampered, or a zero-diff flake) · `3` no runnable check, no proposer,
+or **the check resolves outside the isolated copy** · `4` FLAKY — the same check
+answered differently on two runs of the same tree, so this run graded nothing.
 
-That last one is what `pip install -e .` does: the editable install writes an
+**One run of a check is not a verdict.** Both decisions that can throw work away
+are sampled twice. On the way in, a green entry run is confirmed before repair
+goes home: green then red exits `4` instead of reporting nothing to repair — a
+check that flakes green would otherwise drop a break still sitting in your tree.
+On the way out, a red arbiter run is re-sampled before it may reject the
+proposal: red twice is REPAIR_FAIL as before, but red then green is **held and
+labelled `FLAKY`**, because a suite that flakes red once (expressjs/express
+flaked red on 3 of 6 pristine runs) would otherwise destroy a correct,
+source-only fix you already paid a proposer call for. A flaky hold is never
+called `VERIFIED`, and the ledger carries its own reason (`flaky check: arbiter
+samples disagree`) — never `check still red after proposal`, which would be a
+false sentence written into a hash-chained record.
+
+Exit `3` is what `pip install -e .` does: the editable install writes an
 absolute path into a `.pth` in `site-packages`, the copy inherits it, and the
 copy's interpreter imports **your** tree instead. repair refuses before it
 copies anything, names the file, and records nothing — grading a proposal
