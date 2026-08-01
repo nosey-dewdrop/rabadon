@@ -183,6 +183,27 @@ rec(bool(hint) and "export" not in hint[0],
     if hint and "export" not in hint[0] else
     "the `did you mean` line is just the command list again")
 
+# ---- the rejected word is data, never pattern and never code ----
+# The suggestion matcher puts the user's word inside a `case` pattern
+# (`case "$v" in "$typed"*`), which is the shape that turns a typo into a glob if
+# the quotes are ever dropped. `*` would then match every verb and the correction
+# would silently become the whole list; the substitution form is the sharper one.
+for word, forbidden, why in (
+        ("*", "did you mean:", "a glob matched every verb instead of being taken literally"),
+        ("ex$(id)", "uid=", "the shell EXECUTED the rejected word")):
+    pw = subprocess.run([CLI, word], stdin=subprocess.DEVNULL, capture_output=True,
+                        timeout=30, env=env, cwd=ROOT)
+    txt = pw.stdout.decode("utf-8", "replace") + pw.stderr.decode("utf-8", "replace")
+    # positive first: the word came back verbatim, so the absence below is about
+    # how it was handled and not about the probe having missed the message.
+    rec('"%s"' % word in txt,
+        "`rabadon '%s'` is echoed back verbatim" % word if '"%s"' % word in txt
+        else "`rabadon '%s'` did not quote the word back; the check below is vacuous" % word)
+    rec(forbidden not in txt,
+        "`rabadon '%s'` treats it as data, not %s"
+        % (word, "a pattern" if word == "*" else "code")
+        if forbidden not in txt else "`rabadon '%s'`: %s" % (word, why))
+
 # ---- nothing that used to route now falls into the unknown branch ----
 # Before this change `*)` delegated to bin/rabadon.mjs, so every verb that file
 # implements reached it. `*)` no longer delegates, which turns a missing arm into
