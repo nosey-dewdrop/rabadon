@@ -21,7 +21,11 @@
 //     drill rules here (drill.h, shared with rabadon-stats) have to be the same
 //     four the local number uses: this is the surface strangers read;
 //   - attributes: rabadon.ev, rabadon.rule, rabadon.detail, and the GenAI
-//     conventions gen_ai.system / gen_ai.usage.* where token counts exist.
+//     conventions gen_ai.system / gen_ai.request.model / gen_ai.usage.* where
+//     token counts exist. Those counts are read under THE KEYS THE SHIPPED
+//     BINARIES WRITE — see the token block below; this reader used to name
+//     keys nothing in the repo emits, and shipped 0 gen_ai attributes over a
+//     ledger of 1366 token-bearing events.
 //
 //   rabadon export --otlp [--days N]   -> OTLP/JSON on stdout
 //   POST it:  rabadon export --otlp | curl -s localhost:4318/v1/traces \
@@ -108,8 +112,12 @@ static string jesc(const string& s) {
 static string nanos(double ms) { char b[32]; snprintf(b, sizeof b, "%.0f", ms * 1e6); return b; }
 static string attr_str(const string& k, const string& v) { return "{\"key\":\"" + jesc(k) + "\",\"value\":{\"stringValue\":\"" + jesc(v) + "\"}}"; }
 static string attr_int(const string& k, long long v) { return "{\"key\":\"" + k + "\",\"value\":{\"intValue\":\"" + std::to_string(v) + "\"}}"; }
+// Money is booked in micro-dollars (integer, exact). It leaves as both: the
+// integer, and a USD double for a viewer that wants to sum it. %.6f is lossless
+// for a micro-dollar count — the double is a rendering, never the record.
+static string attr_dbl(const string& k, double v) { char b[40]; snprintf(b, sizeof b, "%.6f", v); return "{\"key\":\"" + k + "\",\"value\":{\"doubleValue\":" + b + "}}"; }
 
-struct Ev { double ts, seq; string pipe, run, ev, rule, detail; long long tin = 0, tout = 0; bool known = false; string extra; };
+struct Ev { double ts, seq; string pipe, run, ev, rule, detail, model; long long tin = 0, tout = 0, usd_e6 = 0; bool known = false; string extra; };
 
 // The ten `ev` values SPEC §2 fixes. This is NOT a filter — every event ships.
 // It only decides SHAPING: a known verb keeps the mapping this exporter has
@@ -213,7 +221,39 @@ int main(int argc, char** argv) {
       Ev e; e.ts = ts; e.seq = get_num(line, "seq");
       e.pipe = get_field(line, "pipe"); e.run = get_field(line, "run"); e.ev = get_field(line, "ev");
       e.rule = get_field(line, "rule"); e.detail = get_field(line, "detail");
-      e.tin = (long long)get_num(line, "tokensIn"); e.tout = (long long)get_num(line, "tokensOut");
+      // Token accounting, read under the keys PRODUCERS WRITE.
+      //
+      // This line used to read "tokensIn"/"tokensOut" and nothing else. Those
+      // two names are real — but they live in .rabadon/state.json, the gate's
+      // private session record, and no emitter has ever put them on a spool
+      // line. What the shipped binaries write:
+      //
+      //   loop.cpp:217  "tokens":<in+out+cache>, "in":<n>, "out":<n>,
+      //                 "usd_e6":<n>, "dur_ms":<n>, "model":"<id>"
+      //   gate.cpp:1499 "tokens":<n> alone, on the Stop ledger STEP_OK, and
+      //                 that value is the session's cumulative tokensOut
+      //                 (the input count exists only inside the prose of the
+      //                 same event's "step" string, so it cannot be exported).
+      //
+      // Measured on this machine before the fix: 1366 spool lines carry a
+      // "tokens" key, 0 carry "tokensIn". Every span that left the machine had
+      // exactly two attributes, rabadon.ev and rabadon.pipe, while README and
+      // --help both advertised GenAI semconv token attributes. The suite was
+      // green because export_test.sh hand-wrote its fixture in the READER's key
+      // names — SPEC Part II §2's "a verifier whose true predicate is 'these
+      // bytes came from me'", one layer up.
+      //
+      // Precedence: the explicit split wins; the state.json names are still
+      // accepted for a third-party producer that mirrors them; the bare
+      // "tokens" is taken as output ONLY when neither split is present, which
+      // is exactly the gate's shape and exactly what its value means.
+      e.tin = (long long)get_num(line, "in");
+      e.tout = (long long)get_num(line, "out");
+      if (e.tin <= 0) e.tin = (long long)get_num(line, "tokensIn");
+      if (e.tout <= 0) e.tout = (long long)get_num(line, "tokensOut");
+      if (e.tin <= 0 && e.tout <= 0) e.tout = (long long)get_num(line, "tokens");
+      e.usd_e6 = (long long)get_num(line, "usd_e6");
+      e.model = get_field(line, "model");
       RbDrillEv c;
       c.has_pipe = rbjson::has_str(line, "pipe");
       c.pipe = e.pipe; c.ts = ts;
@@ -268,10 +308,21 @@ int main(int argc, char** argv) {
     if (!e.rule.empty()) attrs += "," + attr_str("rabadon.rule", e.rule);
     if (!e.detail.empty()) attrs += "," + attr_str("rabadon.detail", e.detail);
     attrs += "," + attr_str("rabadon.pipe", e.pipe);
-    if (e.tin > 0 || e.tout > 0) {
+    if (e.tin > 0 || e.tout > 0 || e.usd_e6 > 0) {
       attrs += "," + attr_str("gen_ai.system", "anthropic");
+      if (!e.model.empty()) attrs += "," + attr_str("gen_ai.request.model", e.model);
       if (e.tin > 0) attrs += "," + attr_int("gen_ai.usage.input_tokens", e.tin);
       if (e.tout > 0) attrs += "," + attr_int("gen_ai.usage.output_tokens", e.tout);
+      // Cost stays in rabadon's own namespace. OpenTelemetry's GenAI
+      // conventions define token counts and expect a backend to derive money
+      // from them; there is no gen_ai.usage.cost, so inventing one would be
+      // squatting a namespace rabadon does not own. The one number the product
+      // model actually sells still has to leave the machine — it leaves named
+      // honestly, exact integer first.
+      if (e.usd_e6 > 0) {
+        attrs += "," + attr_int("rabadon.usd_e6", e.usd_e6);
+        attrs += "," + attr_dbl("rabadon.cost_usd", (double)e.usd_e6 / 1e6);
+      }
     }
     if (!e.extra.empty()) attrs += "," + e.extra;
     // point-in-time event: start == end (trace viewers render a marker)

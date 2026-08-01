@@ -276,7 +276,8 @@ GATE_CWD="$TMP/proj"; mkdir -p "$GATE_CWD"
 GATE_TS="$TMP/transcript.jsonl"
 printf '{"type":"assistant","message":{"usage":{"input_tokens":1200,"output_tokens":345}}}\n' > "$GATE_TS"
 printf '{"hook_event_name":"Stop","cwd":"%s","session_id":"sess-export-arm10","transcript_path":"%s"}' \
-  "$GATE_CWD" "$GATE_TS" | env -u RABADON_NOW RABADON_DIR="$GATE_DIR" ./native/rabadon-gate >/dev/null 2>&1
+  "$GATE_CWD" "$GATE_TS" \
+  | env -u RABADON_NOW -u RABADON_OFF RABADON_DIR="$GATE_DIR" ./native/rabadon-gate >/dev/null 2>&1
 export GATE_SPOOL_DIR="$GATE_DIR/spool"
 
 python3 - <<'PY' && pass "the gate really emitted a token event, and NOT in the reader's key names" || fail "no gate-emitted token line — the arm below would prove nothing"
