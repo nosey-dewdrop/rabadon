@@ -294,6 +294,19 @@ blocks_any_head "--all inside eval"             "eval \"git push --all --force o
 blocks_any_head "--all behind a git alias"      "git -c alias.x='push --all --force' x origin"
 blocks_any_head "--all with a global option"    "git -C $ON_FEAT push --all --force origin"
 blocks_any_head "--all after &&"                "npm test && git push --all --force origin"
+# THIS LINE USED TO BE IN THE ALLOW LIST BELOW, and it was wrong. A lease token
+# beside the force switched the whole law off, so `--force-if-includes` turned
+# the refusal on the line directly above into a pass. Measured, not reasoned:
+# real pushes into a bare repo, `main` on the remote carrying a commit this
+# clone has never fetched, pushing from `feat` --
+#   git push --all --force-if-includes --force origin
+#     -> + 3fb409d...1d0d74c main -> main (forced update)
+# and the remote no longer had the other clone's commit. `--force-if-includes`
+# is inert without a lease (git refuses `--force-if-includes` alone with "fetch
+# first"), so what this line really is, is `--all --force` -- the case refused
+# three lines up. native/lease_force_test.sh holds the general rule.
+blocks_any_head "--all with force-if-includes and a force" \
+                                                "git push --all --force-if-includes --force origin"
 
 echo
 echo "== e2e: the user rule layer sees these too (its regex cannot) =="
@@ -305,7 +318,11 @@ echo
 echo "== e2e: the legitimate twin of every case above still runs =="
 allows_any_head "--all without --force"         "git push --all origin"
 allows_any_head "--all with a lease"            "git push --all --force-with-lease origin"
-allows_any_head "--all with force-if-includes"  "git push --all --force-if-includes --force origin"
+# the honest twin of the case now refused above: with no --force anywhere, an
+# --all push writes nothing by force, and --force-if-includes on its own is the
+# no-op git documents. Both of these still go.
+allows_any_head "--all with force-if-includes"  "git push --all --force-if-includes origin"
+allows_any_head "force-if-includes on its own"  "git push --force-if-includes origin"
 allows_any_head "tags only, no branch written"  "git push --tags --force origin"
 allows_any_head "tags only, short force"        "git push --tags -f origin"
 allows_any_head "config refspec to a topic"     "git -c remote.origin.push=refs/heads/x:refs/heads/topic push --force origin"

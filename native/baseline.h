@@ -9,8 +9,9 @@
 //
 //   baseline-force-push     force-push to a shared branch (main/master/trunk/
 //                           develop). --force, -f, and the +refspec form are
-//                           each recognized. --force-with-lease is legitimate
-//                           and passes.
+//                           each recognized. --force-with-lease ALONE is
+//                           legitimate and passes; beside an explicit force it
+//                           is not an excuse, because git overrides it.
 //   baseline-branch-delete  a push that REMOVES a shared branch from the
 //                           remote: the empty-source refspec (`origin :main`),
 //                           `--delete`, and `-d`. Its own id, not a clause of
@@ -347,8 +348,40 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
       vector<string> operands;
       for (size_t i = sub + 1; i < t.size(); i++) {
         const string& s = t[i].text;
+        // A LEASE IS NOT AN EXCUSE, IT IS ONLY A SENTENCE. This used to set a
+        // boolean that switched the whole law off, so `--force-with-lease
+        // --force origin main` and `--force-if-includes --force origin main`
+        // both walked past the compiled floor while the same push MINUS the
+        // word that is supposed to make it safer was refused.
+        //
+        // The tempting reading is that git resolves the two last-one-wins and
+        // the bug is the ORDER. It does not. Measured against git 2.39.5 with
+        // real pushes into a bare repo and a genuinely STALE lease (a second
+        // clone pushed a commit the first has never fetched):
+        //
+        //   --force-with-lease              ! [rejected] (stale info)
+        //   --force-if-includes             ! [rejected] (fetch first)
+        //   --force-with-lease --force      + main -> main (forced update)
+        //   --force --force-with-lease      + main -> main (forced update)
+        //   -f --force-with-lease           + main -> main (forced update)
+        //   --force-if-includes --force     + main -> main (forced update)
+        //   --force-with-lease origin +main + main -> main (forced update)
+        //
+        // The remote lost the other clone's commit on every one of the last
+        // five. `--force` sets a transport flag and the lease populates a
+        // compare-and-swap entry; a forced ref update is never asked to clear
+        // the CAS, so the force wins from EITHER side of the line. A law built
+        // on the position of the last force-ish token would have refused the
+        // first spelling and gone on allowing the second — the one measured
+        // above destroying a commit.
+        //
+        // So the walk no longer asks where the lease sits. It records only that
+        // one was written, and that fact is spent on the refusal's wording:
+        // telling someone who wrote a lease to "use --force-with-lease" is
+        // advice they already followed. The two spellings alone still pass,
+        // because with no explicit force this law never fires.
         if (s.compare(0, 18, "--force-with-lease") == 0 ||
-            s.compare(0, 20, "--force-if-includes") == 0) { lease = true; continue; }
+            s.compare(0, 19, "--force-if-includes") == 0) { lease = true; continue; }
         if (s == "--force" || s == "-f") { force = true; continue; }
         // git-push(1): "--delete — All listed refs are deleted from the remote
         // repository. This is the same as prefixing all refs with a colon."
@@ -424,10 +457,12 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
         }
       }
 
-      // A lease is a promise about what ONE ref currently points at. A mirror
-      // deletes refs the lease never named, so the lease excuses --force and
-      // does not excuse --mirror.
-      if (!noForce && force && (!lease || mirror)) {
+      // `force` is set only by an UNCONDITIONAL force: --force, -f, --mirror,
+      // or a leading + on the refspec. A lease written beside any of them is
+      // overridden by git (measured above, in both orders and on the +refspec),
+      // so it is not consulted here — the question this law asks is whether the
+      // line carries a force, not whether it also carries an apology for one.
+      if (!noForce && force) {
         // with no refspec git pushes the current branch, so HEAD is the target
         // — unless the line asked for the whole refspace, in which case HEAD is
         // not the target and the repo is.
@@ -513,10 +548,16 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
             // when the branch was not the word the line carried, say both: the
             // operator asked about HEAD and needs to be told which branch that is
             const string wrote = (r == raw) ? string() : " (written as " + raw + ")";
+            // Someone who WROTE a lease and is refused anyway must not be told
+            // to use one. The remedy for that line is the opposite word: take
+            // the --force off and the lease they already wrote does its job.
+            const string advice =
+                lease ? " — the --force cancels the lease (git forces the update from either "
+                        "side of the line), so drop the --force and the lease stands"
+                      : " — use --force-with-lease, or push to your own branch";
             hit = {"baseline-force-push",
                    "a force-push to a shared branch rewrites history other people already have",
-                   "force-push to shared branch '" + r + "'" + wrote + viaCfg +
-                       " — use --force-with-lease, or push to your own branch"};
+                   "force-push to shared branch '" + r + "'" + wrote + viaCfg + advice};
           }
           return true;
         }

@@ -140,6 +140,25 @@ test: all
 # :feature/x would refuse it. it also holds the two laws apart: silencing
 # baseline-force-push must not silence baseline-branch-delete.
 	./native/push_delete_test.sh
+# the suites above ask WHICH WORDS the line carries. this one asks what happens
+# when it carries two that disagree: `git push --force-with-lease --force origin
+# main` and `git push --force-if-includes --force origin main` both exited 0 on
+# the fresh-install path, while the same push MINUS the word that is supposed to
+# make it safer exited 2. the law kept two booleans and spent the lease as an
+# excuse for the force, so a lease written anywhere on the line switched the law
+# off. the tempting reading is that git resolves the pair last-one-wins and the
+# bug is the ORDER -- section 1 measures that instead of arguing it, with real
+# pushes into a bare repo it mktemps and a genuinely STALE lease, and the
+# reading is false: `--force --force-with-lease` destroys the other clone's
+# commit too, so a fix built on the position of the last force-ish token would
+# have closed one spelling and left its mirror image open. `--force` beats a
+# lease from either side, so the lease is no longer consulted at all -- it is
+# spent on the WORDING instead, because telling someone who wrote a lease to
+# "use --force-with-lease" is advice they already followed. the twins are what
+# the removal has to pay: the lease alone and --force-if-includes alone are each
+# refused BY GIT (measured, same section), so both still pass, and so does every
+# one of these spellings on a branch that is nobody else's.
+	./native/lease_force_test.sh
 # baseline_test.sh judges the delete law's targets as PATHS. this one judges
 # them as PATTERNS: a wildcard or a brace is rewritten by the shell before rm
 # sees it, and the rule used to read only the text before the first `*`. it runs
