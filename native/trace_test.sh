@@ -698,6 +698,40 @@ fi
 
 rm -rf "$ABOX"
 
+# ---- K: the fail-open sibling must never stand in for its day ledger --------
+# jsonls() sorts newest first with the path breaking ties, and
+# "<day>.unchained.jsonl" > "<day>.jsonl", so two files touched in the same
+# second (ordinary) put the sibling first and the no-run-id branch renders
+# all.front() -- the sibling -- while the day's events stay invisible.
+KBOX=$(mktemp -d); mkdir -p "$KBOX/spool"
+KDAY=$(date -u +%Y-%m-%d)
+python3 - "$KBOX/spool/$KDAY.jsonl" "$KBOX/spool/$KDAY.unchained.jsonl" <<'PYK'
+import sys, time
+day, sib = sys.argv[1], sys.argv[2]
+ts = int(time.time() * 1000)
+rows = []
+rows.append('{"v":1,"seq":1,"ts":%d,"run":"k-real","pipe":"demo:do","ev":"RUN_START","prev":"genesis"}' % ts)
+rows.append('{"v":1,"seq":2,"ts":%d,"run":"k-real","pipe":"demo:do","ev":"STEP_START","step":"s1"}' % ts)
+rows.append('{"v":1,"seq":3,"ts":%d,"run":"k-real","pipe":"demo:do","ev":"STEP_TRY","step":"s1","tier":1,"tier_name":"haiku","model":"claude-haiku","tokens":10,"usd_e6":1000,"dur_ms":10}' % ts)
+rows.append('{"v":1,"seq":4,"ts":%d,"run":"k-real","pipe":"demo:do","ev":"RUN_DONE","ok":true}' % ts)
+open(day, "w").write("\n".join(rows) + "\n")
+open(sib, "w").write('{"v":1,"seq":9,"ts":%d,"run":"k-orphan","pipe":"demo:do","ev":"STEP_TRY","step":"s9","tier":1,"tier_name":"haiku","model":"claude-haiku","tokens":1,"usd_e6":1,"dur_ms":1}\n' % ts)
+PYK
+# same mtime is the case that used to lose; force it so the tie-break decides
+touch -t 202608011200 "$KBOX/spool/$KDAY.jsonl" "$KBOX/spool/$KDAY.unchained.jsonl"
+KOUT=$(RABADON_DIR="$KBOX" ./native/rabadon-trace --no-color 2>&1)
+if printf '%s' "$KOUT" | grep -q "k-real"; then
+  pass "(K) the day ledger renders even when the sibling wins the mtime tie"
+else
+  fail "(K) the sibling was rendered instead of the day ledger: $(printf '%s' "$KOUT" | head -3)"
+fi
+if printf '%s' "$KOUT" | grep -q "k-orphan"; then
+  fail "(K2) the sibling was concatenated into the day render"
+else
+  pass "(K2) the sibling is not rendered as a ledger of its own"
+fi
+rm -rf "$KBOX"
+
 rm -rf "$BOX" "$REPO" "$WBOX" "$SAVED"
 if [ $PYRC -ne 0 ]; then bad=$((bad+1)); fi
 if [ $PY2RC -ne 0 ]; then bad=$((bad+1)); fi

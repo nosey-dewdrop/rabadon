@@ -170,6 +170,16 @@ static vector<std::pair<long long,string> > jsonls(const string& dir){
   DIR* d=opendir(dir.c_str()); if(!d) return v;
   while(struct dirent* e=readdir(d)){
     string n=e->d_name; if(!ends_with(n,".jsonl")) continue;
+    // The fail-open sibling is a FRAGMENT of its day file, never a ledger of
+    // its own, and it must not stand in for one. The tie-break below is path
+    // descending and "2026-08-01.unchained.jsonl" > "2026-08-01.jsonl", so with
+    // two files touched in the same second (ordinary) the sibling won and the
+    // `chosen.push_back(all.front().second)` branch rendered it INSTEAD of the
+    // day. Measured: 17 events invisible behind a 1-line sibling, printing
+    // "(1 run) ... verdict: ?" at exit 0. ledger_loss() already opens this file
+    // by name to count what it holds, so skipping it here loses nothing and
+    // turns a silent substitution into a reported loss.
+    if(ends_with(n,".unchained.jsonl")) continue;
     string full=dir+"/"+n; struct stat st;
     if(stat(full.c_str(),&st)==0) v.push_back(std::make_pair((long long)st.st_mtime, full));
   }
