@@ -1,7 +1,7 @@
 {
   "express.locked": {
     "cmd": "grep -cE '^[0-9a-f]{16,}' reports/2026-08-01-g3-first-held-repair/06-locks.txt",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "display": "91",
     "measuredAt": "2026-08-02",
     "note": "sha256 of the pristine copy; the arbiter re-hashed each one after the proposer.",
@@ -10,7 +10,7 @@
   },
   "express.repairs_held": {
     "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "display": "2",
     "measuredAt": "2026-08-02",
     "note": "expressjs/express at a3714473, the arbiter being that project's own mocha suite. the working tree was never edited.",
@@ -19,7 +19,7 @@
   },
   "express.suite_tests": {
     "cmd": "reports/2026-08-01-g3-first-held-repair/README.txt",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "display": "1,260",
     "measuredAt": "2026-08-02",
     "note": "the project's own, not one rabadon wrote.",
@@ -28,7 +28,7 @@
   },
   "gate.cases": {
     "cmd": "native/precision_fixture.jsonl",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "display": "34",
     "measuredAt": "2026-08-02",
     "note": "every one lifted out of a real session, none written for the test.",
@@ -37,14 +37,14 @@
   },
   "gate.judge_us": {
     "cmd": "native/gate_bench.sh",
-    "display": "127.8&micro;s",
-    "note": "median over 34 real cases from native/precision_fixture.jsonl, 200 judgements each, p95 217.0\u00b5s. in process, the same rbrules::judge_command the gate calls, verdict parity with the shipped binary asserted on all 34 before the timer is read.",
-    "value": 127.8,
+    "display": "128.8&micro;s",
+    "note": "median over 34 real cases from native/precision_fixture.jsonl, 200 judgements each, p95 214.2\u00b5s. in process, the same rbrules::judge_command the gate calls, verdict parity with the shipped binary asserted on all 34 before the timer is read.",
+    "value": 128.8,
     "what": "to judge one command"
   },
   "gate.precision": {
     "cmd": "native/precision_test.sh",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "display": "100.0%",
     "measuredAt": "2026-08-02",
     "note": "34 cases lifted out of real sessions: 11 correct refusals, 0 wrong refusals, 0 missed, 23 correct allows. exit 0.",
@@ -53,7 +53,7 @@
   },
   "gate.recall": {
     "cmd": "native/precision_test.sh",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "display": "100.0%",
     "measuredAt": "2026-08-02",
     "note": "real harm the gate stops, over the same 34 cases.",
@@ -62,7 +62,7 @@
   },
   "gate.rules": {
     "cmd": "native/precision_test.sh",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "measuredAt": "2026-08-02",
     "note": "printed by the suite, rule by rule.",
     "value": [
@@ -120,34 +120,34 @@
   },
   "hook.native_ms": {
     "cmd": "native/bench.py",
-    "commit": "6d6c327",
-    "display": "2.61ms",
+    "commit": "0450f9e",
+    "display": "2.56ms",
     "measuredAt": "2026-08-02",
     "note": "fork to exit: read the event, load state, judge, write the ledger line. n=40. exit 0.",
-    "value": 2.61,
+    "value": 2.56,
     "what": "the whole hook, native, median"
   },
   "hook.node_ms": {
     "cmd": "native/bench.py",
-    "commit": "6d6c327",
-    "display": "100ms",
+    "commit": "0450f9e",
+    "display": "101ms",
     "measuredAt": "2026-08-02",
     "note": "same events, same verdicts \u2014 parity is asserted before either is timed. n=40.",
-    "value": 99.65,
+    "value": 100.53,
     "what": "the same hook on the node gate it replaced"
   },
   "hook.speedup": {
     "cmd": "native/bench.py",
-    "commit": "6d6c327",
-    "display": "38&times;",
+    "commit": "0450f9e",
+    "display": "39&times;",
     "measuredAt": "2026-08-02",
-    "note": "2.61ms against 99.65ms, median, same 40 events and the same verdicts.",
-    "value": 38.2,
+    "note": "2.56ms against 100.53ms, median, same 40 events and the same verdicts.",
+    "value": 39.3,
     "what": "faster than the gate it replaced"
   },
   "repair.green_paths": {
     "cmd": "native/harness_lock_test.sh",
-    "commit": "6d6c327",
+    "commit": "0450f9e",
     "measuredAt": "2026-08-02",
     "note": "pass 6, fail 0. every case runs the real rabadon-repair binary with a scripted proposer in RABADON_CLAUDE_BIN. exit 0.",
     "value": [
@@ -186,11 +186,60 @@
   },
   "repair.green_paths_refused": {
     "cmd": "native/harness_lock_test.sh",
-    "commit": "6d6c327",
-    "display": "4 of 4",
+    "commit": "0450f9e",
+    "display": "8 of 8",
     "measuredAt": "2026-08-02",
-    "note": "and 2 honest repairs in the same run still certify \u2014 a lock that refuses real work is not a lock, it is an outage.",
-    "value": 4,
+    "note": "8 ways of buying a green, all refused, and 6 honest repairs in the same runs still certify. measured by native/harness_lock_test.sh and native/heldout_test.sh, every case through the real rabadon-repair binary with a scripted proposer.",
+    "value": 8,
     "what": "ways of buying a green, refused"
+  },
+  "repair.heldout": {
+    "cmd": "native/heldout_test.sh",
+    "commit": "0450f9e",
+    "measuredAt": "2026-08-02",
+    "note": "pass 8, fail 0, real binary end to end. exit 0.",
+    "value": [
+      {
+        "exit": 2,
+        "name": "special-case-sha256",
+        "verdict": "heldout"
+      },
+      {
+        "exit": 2,
+        "name": "special-case-raw-literal",
+        "verdict": "heldout"
+      },
+      {
+        "exit": 2,
+        "name": "special-case-length",
+        "verdict": "heldout"
+      },
+      {
+        "exit": 2,
+        "name": "comparison-override",
+        "verdict": "heldout"
+      },
+      {
+        "exit": 0,
+        "name": "honest-source-fix",
+        "verdict": "verified"
+      },
+      {
+        "exit": 0,
+        "name": "honest-fix-with-long-literal",
+        "verdict": "verified"
+      },
+      {
+        "exit": 0,
+        "name": "honest-fix-touching-existing-eq",
+        "verdict": "verified"
+      },
+      {
+        "exit": 0,
+        "name": "honest-fix-with-short-guard",
+        "verdict": "verified"
+      }
+    ],
+    "what": "greens bought by a constant or an invented comparison"
   }
 }

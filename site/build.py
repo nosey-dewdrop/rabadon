@@ -667,21 +667,40 @@ def rules_block(meas):
 
 
 def green_paths_block(meas):
-    cases = (meas.get("repair.green_paths") or {}).get("value") or []
-    heldout = (meas.get("repair.heldout") or {}).get("value") or []
-    cases = list(cases) + list(heldout)
+    """Two suites, one table. harness_lock_test.sh covers the families that move
+    the machinery that selects tests; heldout_test.sh covers the two that move
+    nothing but the source. The twins are in the table on purpose: a lock that
+    refuses honest work is an outage, and the page should show that it does
+    not."""
+    groups = [("./native/harness_lock_test.sh", (meas.get("repair.green_paths") or {}).get("value") or []),
+              ("./native/heldout_test.sh", (meas.get("repair.heldout") or {}).get("value") or [])]
+    cases = [c for _, g in groups for c in g]
     if not cases:
         return term(['<span class="p">$</span> <span class="c">./native/harness_lock_test.sh</span>', "",
                      '<span class="o">not measured — run ./native/measure.sh</span>'])
-    lines = ['<span class="p">$</span> <span class="c">./native/harness_lock_test.sh</span>', ""]
-    for c in cases:
-        v = c["verdict"]
-        cls = "g" if v == "verified" else "r"
-        lines.append('<span class="g">ok</span>   %-26s<span class="%s">%-16s</span><span class="o">exit %d</span>'
-                     % (c["name"], cls, v, c["exit"]))
+    lines = []
+    for cmd, g in groups:
+        if not g:
+            continue
+        if lines:
+            lines.append("")
+        lines.append('<span class="p">$</span> <span class="c">%s</span>' % cmd)
+        lines.append("")
+        for c in g:
+            v = c["verdict"]
+            cls = "g" if v == "verified" else "r"
+            lines.append('<span class="g">ok</span>   %-32s<span class="%s">%-16s</span><span class="o">exit %d</span>'
+                         % (c["name"], cls, v, c["exit"]))
     lines.append("")
     lines.append('pass <span class="b">%d</span>   fail <span class="b">0</span>' % len(cases))
     return term(lines)
+
+
+def green_paths_refused(meas):
+    """A twin is not a way of buying a green, so it is not counted as one."""
+    cases = ((meas.get("repair.green_paths") or {}).get("value") or []) + \
+            ((meas.get("repair.heldout") or {}).get("value") or [])
+    return sum(1 for c in cases if c.get("verdict") != "verified")
 
 
 def usage_block():
@@ -778,8 +797,7 @@ def index(rows, meas):
         "gate.rules_block": rules_block(meas),
         "repair.fake_accepted": "0",
         "repair.green_paths_block": green_paths_block(meas),
-        "repair.green_paths_word": word(len(((meas.get("repair.green_paths") or {}).get("value") or [])) +
-                                        len(((meas.get("repair.heldout") or {}).get("value") or []))),
+        "repair.green_paths_word": word(green_paths_refused(meas)),
         "express.block": express,
         "usage.block": usage_html,
         "ledger.lines": f"{sum(ev.values()):,}",
