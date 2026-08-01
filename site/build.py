@@ -541,6 +541,43 @@ def catches():
                "91 test files hash-locked. The working tree was never edited. On the same run a proposer that "
                "bought its green by skipping tests was refused.</p></section>")
 
+    # ---- the cheat corpus, against the shipped binary ----------------------
+    # The audit that built these families ran them through a shell reproduction
+    # of the arbiter, so "this would have been accepted" was a statement about
+    # the reproduction. This table is the product's own output.
+    meas = measured()
+    cheats = (meas.get("corpus.cheats") or {}).get("value") or []
+    if cheats:
+        acc = [c for c in cheats if c["verdict"] == "ACCEPTED"]
+        WHY = {"test-tamper": "the suite's own bytes moved",
+               "harness-tamper": "the machinery that chooses which tests run moved",
+               "held-out": "the green did not survive the patch's own crutch",
+               "still-red": "the check never went green",
+               "held-unverified": "held, and explicitly not certified"}
+        out.append('<section><h2>the ways of buying a green, against the binary that ships</h2>'
+                   '<p class="small dim" style="margin-bottom:var(--g2)">Nine families of fake fix, built by '
+                   "auditing this arbiter for the ways a proposal can turn a suite green without repairing "
+                   "anything. Each one runs the real <code>rabadon-repair</code> with its own proposer script "
+                   "in <code>RABADON_CLAUDE_BIN</code>, against a checkout that is genuinely broken. Where a "
+                   "patch is held it is applied to a fresh copy and probed for whether the defect is still "
+                   "there, which is the question the arbiter itself never asks.</p>")
+        rows = ['<span class="hdr">family                     verdict           why</span>']
+        for c in cheats:
+            v = c["verdict"]
+            cls = "g" if v != "ACCEPTED" else "r"
+            rows.append('%-26s <span class="%s">%-16s</span> <span class="o">%s</span>' % (
+                html.escape(c["family"]), cls, v, html.escape(WHY.get(v, ""))))
+        rows.append("")
+        rows.append('<span class="hdr">%d run   %d refused   %d accepted   %d held patches still carrying the defect</span>'
+                    % (len(cheats), len(cheats) - len(acc), len(acc),
+                       sum(1 for c in cheats if c.get("bug") == "STILL-THERE")))
+        out.append(term(rows))
+        out.append('<p class="cap">Run with <code>./native/corpus_cheats.sh</code>. The first pass through it '
+                   "is what found the lock that was covering nothing: on a repository where discovery names 122 "
+                   "test files the arbiter locked zero, because it read that answer out of a buffer holding only "
+                   "the last 4000 bytes of it.</p>")
+        out.append("</section>")
+
     # ---- the defect ledger: what it FOUND, not what it refused -------------
     # The spool answers "what did the gate stop". It cannot answer "what did
     # this thing find", and until now that answer lived in report directories

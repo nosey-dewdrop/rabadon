@@ -102,5 +102,58 @@ if [ -n "$GATE" ] && [ -x "$GATE" ]; then
     || fail "the installed gate did not refuse a force-push"
 fi
 
+# 6) THE PREBUILT CLAIM, tested where it is actually made: a machine with no
+# compiler. The package ships a postinstall that builds from source with
+# clang++/g++ when no prebuilt platform package matches, which means every pass
+# above is ambiguous — the binaries could have been compiled during install on a
+# developer machine that has a toolchain. The README promises a prebuilt binary,
+# and the person that promise is for does not have a compiler.
+#
+# So: a second clean prefix, installed with a PATH whose FIRST entry holds shims
+# named cc, gcc, g++, clang, clang++, c++ and make. Each shim writes its own name
+# to a log and exits 127. If anything tries to compile, the log says which tool
+# and the install fails loudly instead of quietly succeeding for the wrong
+# reason. An empty log is the proof, and `rabadon --version` printing a version
+# is what it is proof OF.
+mkdir -p "$TMP/nocc" "$TMP/prefix2"
+: > "$TMP/nocc.log"
+for t in cc gcc g++ clang clang++ c++ make cmake ld; do
+  printf '#!/bin/sh\necho "%s $*" >> "%s"\necho "no compiler on this machine" >&2\nexit 127\n' \
+    "$t" "$TMP/nocc.log" > "$TMP/nocc/$t"
+  chmod +x "$TMP/nocc/$t"
+done
+
+if PATH="$TMP/nocc:$PATH" npm i -g --prefix "$TMP/prefix2" \
+     "$TMP"/rabadon-"$OS"-"$CPU"-*.tgz "$TMP"/rabadon-[0-9]*.tgz >"$TMP/install2.log" 2>&1; then
+  pass "npm i -g succeeds with every compiler on PATH replaced by a shim that refuses"
+else
+  fail "the install needs a compiler — the prebuilt claim does not hold"
+  sed 's/^/    | /' "$TMP/install2.log" | tail -12
+fi
+
+if [ ! -s "$TMP/nocc.log" ]; then
+  pass "nothing tried to compile: the shim log is empty"
+else
+  fail "the install reached for a compiler"; sed 's/^/    | /' "$TMP/nocc.log" | head -6
+fi
+
+RB2="$TMP/prefix2/bin/rabadon"
+VER=$(PATH="$TMP/nocc:$PATH" "$RB2" --version 2>&1)
+VRC=$?
+PKGV=$(python3 -c 'import json;print(json.load(open("package.json"))["version"])')
+if [ $VRC -eq 0 ] && printf '%s' "$VER" | grep -q "$PKGV"; then
+  pass "rabadon --version on a compiler-free install prints $PKGV: $(printf '%s' "$VER" | head -1)"
+else
+  fail "rabadon --version exit $VRC on the compiler-free install: $(printf '%s' "$VER" | head -2 | tr '\n' ' ')"
+fi
+
+# and the binary it runs has to be a real one, not a shim or a shell fallback
+BIN2=$(PATH="$TMP/nocc:$PATH" "$RB2" --version 2>&1 | sed -n 's/^  core: //p' | head -1)
+if [ -n "$BIN2" ] && [ -x "$BIN2" ] && file "$BIN2" 2>/dev/null | grep -qi "executable"; then
+  pass "the gate it found is a real executable shipped in the tarball: $(basename "$BIN2")"
+else
+  fail "could not confirm a prebuilt gate binary on the compiler-free install"
+fi
+
 echo "npm install: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

@@ -511,6 +511,21 @@ int main(int argc, char** argv) {
         fprintf(stderr, "rabadon repair: could not read a testFiles list out of rabadon-truth's answer"
                         " (%zu bytes). Nothing will be hash-locked, and this is a read failure, not a repo"
                         " without tests.\n", t.tail.size());
+      // discovery has bounds and they are allowed to bite; what they are not
+      // allowed to do is bite quietly. If truth turned around early, the lock
+      // below covers less than the suite and the operator has to be told which
+      // bound did it, because "all N test files are untouched" reads as "the
+      // whole suite is untouched" and would not be true.
+      {
+        size_t c = t.tail.find("\"discoveryCapped\":[");
+        if (c != string::npos) {
+          size_t e2 = t.tail.find(']', c);
+          const string body = t.tail.substr(c + 19, e2 == string::npos ? 0 : e2 - c - 19);
+          if (body.find('"') != string::npos)
+            fprintf(stderr, "rabadon repair: rabadon-truth stopped short while looking for tests (%s)."
+                            " The hash lock will cover less than this repo's suite.\n", body.c_str());
+        }
+      }
       if (k != string::npos) {
         size_t i = k + 13;
         while (i < t.tail.size() && t.tail[i] != ']') {

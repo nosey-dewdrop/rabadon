@@ -81,8 +81,37 @@ struct Scan {
   vector<string> codeDirs;
   vector<string> testFiles;
   vector<std::regex> guardTestRx;   // guard.json testPaths — the project's own law
+  // Three bounds used to stop this walk without a word, and every one of them
+  // came out of a real repo. A cap nobody is told about is how repair's lock
+  // list stopped at 32 and a foreign repo went through as VERIFIED. They are
+  // still bounds — this runs inside a hook — but they announce themselves now,
+  // and `discoveryCapped` rides in the JSON so repair can say it out loud too.
+  bool cappedDepth = false, cappedBudget = false, cappedList = false;
+  // Files whose whole name is `test` or `spec`. Held back rather than locked,
+  // because ONE of them is not a convention and locking it is an outage: jinja
+  // has src/jinja2/tests.py, which is source (the `is defined` tests the
+  // template language exposes), and examples/basic/test.py, which is an
+  // example. date-fns has 253 of them, one beside each function, and that IS
+  // the convention. So they are promoted only when the repo repeats itself.
+  vector<string> stemCandidates;
   int total() const { return js + ts + py + cpp + go + rs + swift + java; }
+  string capped() const {
+    string out;
+    if (cappedDepth)  out += out.empty() ? "depth"  : ",depth";
+    if (cappedBudget) out += out.empty() ? "budget" : ",budget";
+    if (cappedList)   out += out.empty() ? "limit"  : ",limit";
+    return out;
+  }
 };
+
+// How deep the walk goes, how many entries it may touch, and how many test
+// files it may name. The first was 4 and colinhacks/zod keeps its suite at
+// packages/zod/src/v4/classic/tests, six down, so 170 test files were on disk
+// and 2 were discovered. The list cap was 512 and the budget 20000; both are
+// higher now and all three say so when they bite.
+static const int kMaxDepth = 12;
+static const int kMaxEntries = 200000;
+static const size_t kMaxTestFiles = 4096;
 
 // guard.json's testPaths are authored per-project (LLM or hand); when they
 // exist they beat any heuristic — express keeps its suite in test/*.js, which
@@ -113,9 +142,10 @@ static void load_guard_test_rx(const string& dir, Scan& s) {
 }
 
 static void scan_into(const string& dir, const string& rel, Scan& s, int depth, int& budget) {
-  if (depth > 4 || budget <= 0) return;
+  if (depth > kMaxDepth) { s.cappedDepth = true; return; }
+  if (budget <= 0) { s.cappedBudget = true; return; }
   for (const string& n : list_dir(dir)) {
-    if (budget-- <= 0) return;
+    if (budget-- <= 0) { s.cappedBudget = true; return; }
     const string full = dir + "/" + n;
     const string r = rel.empty() ? n : rel + "/" + n;
     if (is_dir(full)) {
@@ -142,15 +172,33 @@ static void scan_into(const string& dir, const string& rel, Scan& s, int depth, 
       s.codeDirs.push_back(top);
     // a test file is one the arbiter must later LOCK, so a fix cannot be faked
     // by weakening the check that caught it
+    // The BASENAME with its extension removed, because date-fns/date-fns names
+    // every one of its 253 test files `test.ts` and puts it beside the function
+    // it tests (src/addDays/test.ts). No pattern here saw a single one of them:
+    // the name matches nothing and the path matches nothing. Comparing the whole
+    // stem rather than searching for the word is what keeps `contest.ts` and a
+    // directory called `latest` out of the lock, and a source file read as a
+    // test is a source file a fix may not touch.
+    const string stem = e.empty() ? n : n.substr(0, n.size() - e.size());
     bool looksTest =
         n.rfind("test_", 0) == 0 || n.find("_test.") != string::npos ||
         n.find(".test.") != string::npos || n.find(".spec.") != string::npos ||
         r.rfind("test/", 0) == 0 || r.find("/test/") != string::npos ||
-        r.find("tests/") != string::npos || r.find("__tests__/") != string::npos;
+        r.rfind("tests/", 0) == 0 || r.find("/tests/") != string::npos ||
+        r.find("__tests__/") != string::npos || r.find("__test__/") != string::npos;
+    // `tests` is deliberately not here. A module called tests.py is ordinarily
+    // source, and jinja's is: locking it would refuse a fix to the language's
+    // own test functions as if it were tampering with a suite.
+    if (!looksTest && (stem == "test" || stem == "spec")) {
+      s.stemCandidates.push_back(r);
+      continue;
+    }
     if (!looksTest)
       for (const auto& rx : s.guardTestRx)
         if (std::regex_search(r, rx)) { looksTest = true; break; }
-    if (looksTest && s.testFiles.size() < 512) s.testFiles.push_back(r);
+    if (!looksTest) continue;
+    if (s.testFiles.size() >= kMaxTestFiles) { s.cappedList = true; continue; }
+    s.testFiles.push_back(r);
   }
 }
 
@@ -295,8 +343,25 @@ int main(int argc, char** argv) {
 
   Scan s;
   load_guard_test_rx(dir, s);
-  int budget = 20000;             // bounded walk: a huge repo must not stall a hook
+  int budget = kMaxEntries;       // bounded walk: a huge repo must not stall a hook
   scan_into(dir, "", s, 0, budget);
+  // A file called exactly `test.ts` is only a test file if the repo does it on
+  // purpose. Three of them, in three different directories, is a convention;
+  // one is a stray. date-fns has 253 in 253 directories and every one of them
+  // was invisible; jinja has one, and locking it would have been an outage.
+  {
+    vector<string> dirsSeen;
+    for (const string& c : s.stemCandidates) {
+      size_t k = c.rfind('/');
+      const string d = k == string::npos ? string(".") : c.substr(0, k);
+      if (std::find(dirsSeen.begin(), dirsSeen.end(), d) == dirsSeen.end()) dirsSeen.push_back(d);
+    }
+    if (s.stemCandidates.size() >= 3 && dirsSeen.size() >= 3)
+      for (const string& c : s.stemCandidates) {
+        if (s.testFiles.size() >= kMaxTestFiles) { s.cappedList = true; break; }
+        s.testFiles.push_back(c);
+      }
+  }
   Truth t = detect(dir, s);
 
   if (asJson) {
@@ -306,14 +371,24 @@ int main(int argc, char** argv) {
       dirs += "\"" + json_escape(s.codeDirs[i]) + "\"";
     }
     string tests;
-    for (size_t i = 0; i < s.testFiles.size() && i < 512; i++) {
+    for (size_t i = 0; i < s.testFiles.size(); i++) {
       if (i) tests += ",";
       tests += "\"" + json_escape(s.testFiles[i]) + "\"";
     }
+    string cap;
+    { const string c = s.capped();
+      size_t i = 0;
+      while (i < c.size()) {
+        size_t j = c.find(',', i);
+        if (j == string::npos) j = c.size();
+        if (!cap.empty()) cap += ",";
+        cap += "\"" + c.substr(i, j - i) + "\"";
+        i = j + 1;
+      } }
     printf("{\"level\":%d,\"kind\":\"%s\",\"run\":\"%s\",\"why\":\"%s\","
-           "\"codeFiles\":%d,\"codeDirs\":[%s],\"testFiles\":[%s]}\n",
+           "\"codeFiles\":%d,\"codeDirs\":[%s],\"testFiles\":[%s],\"discoveryCapped\":[%s]}\n",
            t.level, t.kind.c_str(), json_escape(t.run).c_str(), json_escape(t.why).c_str(),
-           s.total(), dirs.c_str(), tests.c_str());
+           s.total(), dirs.c_str(), tests.c_str(), cap.c_str());
   } else {
     const char* label = t.level == 1 ? "SUITE  (strong: real behaviour)"
                       : t.level == 2 ? "BUILD  (medium: it still compiles)"

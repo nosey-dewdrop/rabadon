@@ -462,6 +462,17 @@ test: all
 # is the one that costs: on a 161-file suite a proposal that neutered the failing
 # test was HELD instead of rejected.
 	./native/lock_coverage_test.sh
+# and one question further back: the lock covers what discovery found, so what
+# was discovery missing. Three silent bounds. The walk stopped at depth 4, and
+# zod keeps its suite six directories down, so 170 test files were on disk and 2
+# were discovered. The name patterns never matched a file called exactly
+# `test.ts`, which is how date-fns names all 253 of its. The list stopped at 512
+# and the walk at 20000 entries, neither with a word. Every widening here has a
+# twin, and the twin that shaped the rule came from a real repo: jinja has one
+# examples/basic/test.py and a src/jinja2/tests.py that is SOURCE, and locking
+# either would refuse an honest fix. So a bare `test` stem counts only when the
+# repo repeats it in three directories, which is a convention rather than a stray.
+	./native/discovery_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh
 	./native/gate_promise_test.sh

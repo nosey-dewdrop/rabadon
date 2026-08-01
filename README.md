@@ -22,7 +22,7 @@ claude                    # work normally — the session is supervised
 rabadon usage             # the ledger: what was caught, backed by timestamped events
 ```
 
-macOS + Linux, Node ≥ 18. The core is ~5k lines of dependency-free C++; prebuilt binaries ship per platform, and if none matches, the postinstall builds from source with `clang++`/`g++` (`rabadon doctor` diagnoses either way). Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
+macOS + Linux, Node ≥ 18. The core is ~14k lines of dependency-free C++; prebuilt binaries ship per platform, and if none matches, the postinstall builds from source with `clang++`/`g++` (`rabadon doctor` diagnoses either way). Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
 
 ## A real catch, verbatim
 

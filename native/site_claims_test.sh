@@ -170,6 +170,29 @@ if [ $rc -eq 0 ]; then ok "the overview and the pages it summarises agree"
 else bad "the overview disagrees with the page built from the same source"; fi
 echo
 
+# ---------------------------------------------------------------------------
+# 4. the README's own numbers
+# ---------------------------------------------------------------------------
+# "The core is ~5k lines of dependency-free C++" sat in the README while the
+# real figure was over fourteen thousand. It understated the work by nearly
+# three times, in its own disfavour, which is the direction that proves nobody
+# was checking rather than that somebody was exaggerating. A number a person
+# maintains drifts either way, so this one is recomputed instead.
+echo "4. the README counts its own lines"
+LINES=$(find native \( -name '*.cpp' -o -name '*.h' \) | xargs wc -l | tail -1 | awk '{print $1}')
+CLAIM=$(grep -oE 'The core is ~[0-9]+k lines' README.md | grep -oE '[0-9]+' | head -1)
+if [ -z "$CLAIM" ]; then
+  bad "README no longer states a core size in the form 'The core is ~Nk lines'"
+else
+  LO=$(( LINES * 9 / 10000 )); HI=$(( LINES * 11 / 10000 ))
+  if [ "$CLAIM" -ge "$LO" ] && [ "$CLAIM" -le "$HI" ]; then
+    ok "README says ~${CLAIM}k, native/ measures $LINES lines"
+  else
+    bad "README says ~${CLAIM}k, native/ measures $LINES lines (allowed ${LO}k to ${HI}k)"
+  fi
+fi
+echo
+
 echo "  pass $pass   fail $fail"
 [ "$fail" -eq 0 ] && echo "  site claims: GREEN" || echo "  site claims: RED"
 exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)

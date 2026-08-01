@@ -85,6 +85,21 @@ verb_suggestions() {
 VERB="${1:-status}"   # resolved once: the branches below read VERB, never a bare $1
 case "$VERB" in
   toggle)          G="$(nbin gate)" || exit 1; shift; exec "$G" --toggle "$@" ;;
+  # `rabadon --version` answered: unknown command "--version". Every binary
+  # underneath answers it and the one command a user actually types did not,
+  # and that is the first thing anybody runs after an install to find out
+  # whether the install worked. Found by installing the tarball into a prefix
+  # with every compiler on PATH replaced by a shim that refuses, and trying it
+  # (native/npm_install_test.sh, section 6). The answer is asked of the BINARY
+  # rather than kept as a string here, so this script cannot report a version
+  # the installed core does not have.
+  version|--version|-V)  #unlisted: standard, and listed in the help screen below
+    G="$(nbin gate)" || exit 1
+    V="$("$G" --version 2>/dev/null)"
+    case "$V" in
+      *[0-9].[0-9]*) printf 'rabadon %s\n  core: %s\n' "${V##* }" "$G" ;;
+      *) echo "rabadon: the installed core did not answer --version" >&2; exit 1 ;;
+    esac ;;
   help|--help|-h)  #unlisted: named in the last line of the unknown-verb message, in prose
     cat <<'HELP'
 rabadon — a deterministic gate for coding agents. It refuses a bad action
@@ -96,6 +111,7 @@ usage: rabadon <command> [args]
 supervision
   on | off | toggle   turn enforcement on or off (machine-wide)
   status              print the current mode and the file it was read from
+  version             the version of the installed native core, and where it is
   budget [cap] [dir]  write the spend ceiling the gate halts a run at
   drill               feed one synthetic dangerous command through the REAL gate
   doctor              check the install: binaries, hooks, sandbox backend
