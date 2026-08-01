@@ -268,6 +268,26 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
                                               "--max-chars|--eof|--arg-file|--delimiter|"; return true; }
   // measured executing the argv behind them, section 0 of wrapper_exec_test.sh
   if (name_is(base, "caffeinate")) { w.shortVal = "tw"; return true; }   // -t timeout, -w pid
+  // arch(1) is in /usr/bin on every mac and execs the program named after its
+  // options, so `arch -arm64 git push --force origin main` returned 0 while the
+  // same line without its first word returned 2 -- and so did `arch -arm64 rm
+  // -rf ~/Documents`, `arch -arm64 git push origin :main` and `arch -arm64 git
+  // reset --hard origin/main`. One word in front, all four compiled laws
+  // unasked.
+  //
+  // It is also the one wrapper here whose single-dash words are NOT a cluster,
+  // which is why shortVal stays EMPTY and all three value-taking options are
+  // matched WHOLE. A `-name` is an ARCHITECTURE (arm64, arm64e, x86_64,
+  // x86_64h, i386, 32, 64) and there is no attached-value form to allow for:
+  // measured rather than read off arch(1), `arch -eFOO=bar /bin/echo` answers
+  // "Unknown architecture: eFOO=bar". Spelling d and e as clustering letters
+  // instead would hand the hole straight back under another name -- the last
+  // letter of `-arm64e` is the `e` of `-e`, the cluster branch would take the
+  // next word as its value, and the word it ate would be the command.
+  // native/arch_wrapper_test.sh measures every fact in this paragraph on the
+  // machine running the suite, and holds the twins: bare `arch` prints the
+  // machine and must still be allowed.
+  if (name_is(base, "arch"))       { w.longVal = "|-arch|-d|-e|"; return true; }
   // sandbox-exec's four options all take a SEPARATE value and it clusters none
   // of them, so the profile — which is parenthesised text and arrives as one
   // quoted word — is skipped whole and the command behind it is reached.

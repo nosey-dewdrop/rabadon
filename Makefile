@@ -226,6 +226,27 @@ test: all
 # puts a bare number between the wrapper and the command, and only the entry
 # that declares -t knows to eat it.
 	./native/wrapper_exec_test.sh
+# the same table, one name further, and this one shows that adding a NAME is
+# only half of an entry: the entry also says what the name EATS, and getting
+# that wrong hands the hole back under a different spelling. arch(1) sits in
+# /usr/bin on every mac and execs the program after its options, so `arch -arm64
+# git push --force origin main` exited 0 while the same line minus its first
+# word exited 2 -- and so did the branch delete, the hard reset and `arch -arm64
+# rm -rf ~/Documents`: one word in front, four compiled laws unasked. arch is
+# also the one wrapper on the list whose single-dash words are not a cluster --
+# a `-name` is an ARCHITECTURE -- and section 0 measures that on the machine
+# running the suite instead of quoting the manual: `arch -eFOO=bar /bin/echo`
+# answers "Unknown architecture: eFOO=bar", so there is no attached-value form,
+# and `arch -arm64e /bin/echo` runs, so the trailing e of that name is not the
+# -e option. Spelled as clustering letters, d and e would be found at the end of
+# `-arm64e`, the skip would take the next word as their value, and the word it
+# ate would be the command. So the three options that take a value are matched
+# WHOLE (`-arch arm64`, `-d name`, `-e name=value`) and the cluster reader is
+# off for this wrapper. the twins are what the longer skip has to pay: bare
+# `arch` prints the machine and must stay allowed, and a build, a status, a
+# plain push, a lease push, a private branch, a private branch delete and a
+# scratch delete all still run under it.
+	./native/arch_wrapper_test.sh
 # and the wrapper that eats a FILE before it eats the command. `script -q
 # /dev/null <cmd>` is a session recorder, not a logger wrapped around a shell it
 # cannot reach: script(1) runs the argv itself, so the whole line reached the
