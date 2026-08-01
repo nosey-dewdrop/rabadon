@@ -363,6 +363,22 @@ static bool harness_file(const string& name, const string& relDir) {
       name == "setup.cfg" || name == "pyproject.toml" || name == "conftest.py" ||
       name == "phpunit.xml" || name == "phpunit.xml.dist" || name == "Cargo.toml")
     return true;
+  // The JVM decides what runs from the build file, not from a runner flag:
+  // surefire's <excludes> and gradle's `test { filter { ... } }` each remove a
+  // failing class without touching one byte of it. go.work drops a whole module,
+  // and every test inside it, out of the build.
+  //
+  // NOT VERIFIED END TO END, and said here rather than in a release note. The
+  // pytest and node families below were each proved by running the real binary
+  // against a real suite that really went green for the cheat. These were not:
+  // maven on this machine cannot resolve surefire offline, and there is no go
+  // toolchain on it at all. The entries are here because the mechanism is the
+  // same one the proved families use, which is an argument, not a measurement.
+  if (name == "pom.xml" || name == "build.gradle" || name == "build.gradle.kts" ||
+      name == "settings.gradle" || name == "settings.gradle.kts" ||
+      name == "gradle.properties" || name == "junit-platform.properties" ||
+      name == "go.work")
+    return true;
   return harness_prefix(name, ".mocharc") ||
          harness_prefix(name, "jest.config") || harness_prefix(name, "jest.setup") ||
          harness_prefix(name, "vitest.config") || harness_prefix(name, "vite.config") ||
@@ -606,7 +622,7 @@ int main(int argc, char** argv) {
     "A deterministic check in this repository is RED. Fix the CODE so the check passes.\n"
     "Laws:\n"
     "- NEVER edit, weaken, skip or delete a test file. A fix that touches a test is rejected automatically (the test files are hash-locked).\n"
-    "- NEVER edit, add or delete a test-harness file either: package.json, pytest.ini, tox.ini, setup.cfg, pyproject.toml, conftest.py, Cargo.toml, phpunit.xml, the root Makefile, or any jest/vitest/vite/mocha/karma/playwright/cypress/ava config or setup file. Those are hash-locked the same way, and ADDING one counts as touching it.\n"
+    "- NEVER edit, add or delete a test-harness file either: package.json, pytest.ini, tox.ini, setup.cfg, pyproject.toml, conftest.py, Cargo.toml, phpunit.xml, pom.xml, build.gradle, settings.gradle, gradle.properties, junit-platform.properties, go.work, the root Makefile, or any jest/vitest/vite/mocha/karma/playwright/cypress/ava config or setup file. Those are hash-locked the same way, and ADDING one counts as touching it.\n"
     "- Only edit files inside the current working directory.\n"
     "- Do not run the check yourself; the arbiter re-runs it after you.\n"
     "check command: " + cmd + "\n"
