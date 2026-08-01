@@ -154,6 +154,19 @@ repair was accepted or the fake fix refused, and what the repair cost. Reads the
 spool only — nothing here calls a model, and every number printed is already in
 the ledger.
 
+A refusal is a run too. `rabadon-gate` and `rabadon exec` write one run per
+refusal, and it holds exactly two events — the failed check and the STOP — with
+no step ever announced, because the refusal returns before the step starts. That
+run renders as its caught step: the tool that was stopped, the rule id that
+fired, what the rule said, `CAUGHT 1`, and `verdict: BLOCKED`. Nothing was
+proposed and nothing was priced, so no repair, no cost and no model is printed —
+the header names the surface the refusal came through instead.
+
+A WATCH verdict is not a catch and is never counted as one. `rabadon off` records
+what the arbiter WOULD have stopped and lets the command run; that renders as
+`WOULD BLOCK`, on its own line, against `CAUGHT 0` — the same split `rabadon
+usage` keeps between `refused` and `wouldRefuse`.
+
 `[run]` is a run id, not a file. A bare word is taken as a run whenever it is
 not a path that exists; a path (a `.jsonl`, or a directory whose newest day file
 wins) is taken as the ledger to read. `--run <id>` is the same thing spelled

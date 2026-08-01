@@ -97,6 +97,7 @@ test: all
 	./native/truth_test.sh
 	./native/net_test.sh
 	./native/stats_test.sh
+	./native/trace_test.sh
 	./native/lens_test.sh
 	./native/regression_demo.sh
 
