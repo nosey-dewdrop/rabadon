@@ -174,6 +174,9 @@ import os, subprocess, sys, tempfile, time
 report, names = sys.argv[1], sys.argv[2:]
 root = os.getcwd()
 MAX = 10 * 1024
+BOGUS = "--rabadon-no-such-flag"
+# the two hook binaries: exit 0 is the only safe refusal (see below)
+HOOKS = {"gate", "drift"}
 out = []
 def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
 
@@ -222,6 +225,47 @@ for name in names:
         rec(len(blob) <= MAX,
             label + (" stays under 10KB (%d bytes)" % len(blob) if len(blob) <= MAX
                      else " printed %d bytes — that is the ledger, not a help screen" % len(blob)))
+
+    # ---- and a flag nobody has ever defined ----
+    # The dangerous half is not the refusal, it is the SWALLOW: an unknown flag
+    # taken as a path or ignored, after which the binary prints real output that
+    # looks like the flag was honoured. `rabadon-lens --help` printed a live
+    # report headed "source: --help"; `rabadon-net -h` went looking for a repo
+    # named "-h"; `rabadon-stats --projekt foo` would have printed the whole
+    # machine under a heading read as one project's.
+    #
+    # Two assertions, and NEITHER is sufficient alone — measured, not assumed.
+    # Rebuilding lens from the pre-fix source and running this: it PASSED "names
+    # the offending word back", because it echoed the flag as its own header,
+    # `source: --rabadon-no-such-flag`. The naming assertion is what stops
+    # silence from passing; the stdout assertion is what catches the swallow.
+    # Together they caught it (4 FAILs); either one alone would have let it by.
+    box = make_box()
+    env = dict(os.environ, RABADON_DIR=box, RABADON_NOTIFY="0", HOME=box)
+    label = "`rabadon-%s %s`" % (name, BOGUS)
+    try:
+        p = subprocess.run([path, BOGUS], stdin=subprocess.DEVNULL,
+                           capture_output=True, timeout=10, env=env, cwd=box)
+    except subprocess.TimeoutExpired:
+        rec(False, label + " HUNG for 10s on an undefined flag")
+        continue
+    named = BOGUS.encode() in (p.stdout + p.stderr)
+    rec(named, label + (" names the offending word back" if named
+                        else " never says which word it did not understand"))
+    rec(not p.stdout,
+        label + (" printed no report on stdout" if not p.stdout
+                 else " swallowed the flag and printed %d bytes of real output" % len(p.stdout)))
+    if name in HOOKS:
+        # gate is a PreToolUse hook and drift a Stop hook: Claude Code reads a
+        # non-zero exit as BLOCK. If these refused a typo, one bad character in
+        # a settings.json hook line would wedge every tool call on the machine.
+        rec(p.returncode == 0,
+            label + (" fails OPEN, exit 0 — correct, a hook's non-zero exit means BLOCK"
+                     if p.returncode == 0 else " exited %d; a hook must fail OPEN" % p.returncode))
+    else:
+        rec(p.returncode != 0,
+            label + (" exits %d" % p.returncode if p.returncode != 0
+                     else " exited 0 as if an undefined flag were fine"))
 
 open(report, "w").write("\n".join(out) + "\n")
 PY

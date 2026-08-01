@@ -762,6 +762,24 @@ int main(int argc, char** argv) {
   // enforces everything was the one that answered nothing.
   rb_help(argc, argv, kHelp);
 
+  // A flag this gate does not know is NAMED, then IGNORED.
+  //   named   — swallowing it is how a mistyped `--stauts` fell through to hook
+  //             mode, read an empty stdin, failed open and printed zero bytes.
+  //             Exit 0 and no output is exactly what a healthy hook looks like.
+  //   ignored — this binary IS a PreToolUse hook, where a non-zero exit means
+  //             BLOCK. Refusing here would let one typo in a settings.json hook
+  //             line wedge every tool call on the machine. Fail OPEN, always.
+  if (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
+    static const char* kKnownFlags[] = {"--version", "--lint", "--statusline",
+                                        "--on", "--off", "--toggle", "--status", "--silent"};
+    bool recognised = false;
+    for (const char* k : kKnownFlags) if (strcmp(argv[1], k) == 0) recognised = true;
+    if (!recognised) {
+      fprintf(stderr, "rabadon-gate: unknown option \"%s\" — run `rabadon-gate --help`\n", argv[1]);
+      return 0;
+    }
+  }
+
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate " RABADON_VERSION "\n"); return 0; }
 

@@ -159,6 +159,9 @@ int main(int argc,char** argv){
   // `rabadon-loop --help` used to hit the arity check and exit 2 with a usage
   // line that named no flag, no environment variable and no example.
   rb_help(argc, argv, kHelp);
+  // this binary takes two paths and no options, so any flag is a typo. naming
+  // it beats the old bare usage line, which never said WHICH word was wrong.
+  for(int i=1;i<argc;i++) if(rb_is_flag(argv[i])) rb_unknown_flag("rabadon-loop", argv[i]);
 
   if(argc<3){ fprintf(stderr,"usage: rabadon-loop <dir> <plan.json>\n  run `rabadon-loop --help`\n"); return 2; }
   string dir=argv[1]; string plan=read_file(argv[2]);

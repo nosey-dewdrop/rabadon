@@ -129,6 +129,8 @@ int main(int argc, char** argv) {
   // `rabadon-verify --help` used to hit the arity check and exit 2 — the same
   // code as a malformed contract, so help was indistinguishable from a refusal.
   rb_help(argc, argv, kHelp);
+  // two paths, no options: any flag is a typo, and the arbiter says which word.
+  for (int i = 1; i < argc; i++) if (rb_is_flag(argv[i])) rb_unknown_flag("rabadon-verify", argv[i]);
 
   if (argc < 3) { fprintf(stderr, "usage: rabadon-verify <dir> <contract.json>\n  run `rabadon-verify --help`\n"); return 2; }
   string dir = argv[1];
