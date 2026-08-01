@@ -13,13 +13,17 @@
 //                           and passes.
 //   baseline-rm-rf-outside  recursive rm whose target resolves OUTSIDE the
 //                           project tree AND outside the system temp area. The
-//                           target is resolved, not matched: `..`, `~`, a
-//                           symlink and a glob's directory part all land where
-//                           they really land. (Five hand-written guards in five
-//                           wild repos all baked the machine's path into a
-//                           regex, and all five failed open on `..` — which is
+//                           target is resolved, not matched: `..`, `~` and a
+//                           symlink all land where they really land, and a
+//                           wildcard or a brace is expanded the way a shell
+//                           expands it BEFORE it is judged — judging the text
+//                           before the first `*` judged a prefix, and a prefix
+//                           is where an escape hides. (Five hand-written guards
+//                           in five wild repos all baked the machine's path into
+//                           a regex, and all five failed open on `..` — which is
 //                           why this is code, not a pattern.) The temp carve-out
-//                           and its limits are documented at in_temp_area().
+//                           is documented at in_temp_area(), the pattern rule
+//                           and its one remaining limit at pattern_forms().
 //   baseline-hard-reset     `git reset --hard` onto a shared branch.
 //
 // Any of them can be silenced by id in guard.json's disabled[].
@@ -216,9 +220,11 @@ inline bool inside(const string& root, const string& path) {
 // so a recursive delete there is not the thing this law is for. What stays
 // dangerous, and is tested from both sides:
 //   - the temp ROOT itself. `rm -rf /tmp` removes the directory every other
-//     process is holding a path into, and it is also what a half-expanded path
-//     looks like. A glob names the entries UNDER a directory, so
-//     `rm -rf /tmp/scratch-*` is judged as its children and passes.
+//     process is holding a path into. A pattern names entries UNDER a
+//     directory, so `rm -rf /tmp/scratch-*` lands one level down and passes —
+//     but it is the EXPANSION that says so, not the text: `rm -rf /tmp/*/..`
+//     is spelled like a pattern and lands on the root, and is refused
+//     (pattern_forms).
 //   - anything under $HOME, even when $HOME is itself under a temp dir. Test
 //     harnesses point HOME at a mktemp dir, and work lives in a home directory
 //     wherever the home directory happens to be.
