@@ -259,7 +259,32 @@ Apply a held patch yourself: `patch -p1 < .rabadon/repair-<ts>.patch`.
 Emit the ledger as OpenTelemetry OTLP/JSON traces on stdout: one trace per
 session, refusals as ERROR spans, GenAI semantic-convention token attributes
 where token counts exist. Drop it into Jaeger, Grafana Tempo, Honeycomb, or
-Langfuse's OTLP endpoint. Drills are excluded here by the same four rules
+Langfuse's OTLP endpoint.
+
+Attributes on a priced event:
+
+| attribute | from | note |
+|---|---|---|
+| `gen_ai.system` | — | `anthropic` |
+| `gen_ai.request.model` | `model` | the tier that actually ran |
+| `gen_ai.usage.input_tokens` | `in`, else `tokensIn` | |
+| `gen_ai.usage.output_tokens` | `out`, else `tokensOut`, else `tokens` | the gate's Stop ledger writes `tokens` alone and its value *is* the session's cumulative output count — cumulative, so a backend must not sum it across spans |
+| `rabadon.usd_e6` | `usd_e6` | micro-dollars, integer, the record |
+| `rabadon.cost_usd` | `usd_e6` | USD double, a rendering of the same number |
+
+Cost stays in rabadon's namespace on purpose: OpenTelemetry's GenAI conventions
+define token counts and expect a backend to derive money from them, so there is
+no `gen_ai.usage.cost` to fill and rabadon does not squat one.
+
+Those key names are the ones `rabadon-gate` and `rabadon-loop` actually append
+to the spool. Until 1 Aug 2026 the exporter read `tokensIn`/`tokensOut` — real
+names, but they live in `.rabadon/state.json` and never on a spool line — so on
+a ledger of 1366 token-bearing events, **zero** spans carried a `gen_ai.*`
+attribute while this page advertised them. The suite was green because the
+fixture was hand-written in the reader's key names. `native/export_test.sh`
+arms 10 and 11 now build their fixtures by *running* the gate and the loop.
+
+Drills are excluded here by the same four rules
 `rabadon usage` uses (the emit tag, a `fleet-`/`doctor-`/`drill-` session id,
 rabadon's own bench and demo pipes, and events inside a drill's 2-minute
 window), one shared predicate, so the refusal count you export is the refusal

@@ -80,7 +80,7 @@ Plus your own laws, authored into `.rabadon/guard.json` (deny rules, protected p
 
 **Real repair — `rabadon repair`.** When a deterministic check goes red, `claude -p` proposes a fix **in an isolated copy** of the repo; the same check re-runs; a fix that turns it green *and* leaves every hash-locked test file untouched produces a **held patch** (`.rabadon/repair-<ts>.patch`) — reviewed and applied by you, never silently. A fix that games the check (weakens a test) is rejected. The arbiter is the project's own test suite, not an LLM judging itself — the un-gameable kernel.
 
-**Speaks OpenTelemetry — `rabadon export`.** `rabadon export --otlp` emits the ledger as OTLP/JSON traces (one trace per session, refusals as ERROR spans, GenAI-semconv token attributes) so any backend — Jaeger, Grafana Tempo, Langfuse — renders a rabadon session. Observation is a solved, standardized problem; rabadon exports to the standard instead of reinventing a dashboard.
+**Speaks OpenTelemetry — `rabadon export`.** `rabadon export --otlp` emits the ledger as OTLP/JSON traces (one trace per session, refusals as ERROR spans, GenAI-semconv `gen_ai.usage.*` / `gen_ai.request.model`, and the run's cost) so any backend — Jaeger, Grafana Tempo, Langfuse — renders a rabadon session. Observation is a solved, standardized problem; rabadon exports to the standard instead of reinventing a dashboard. The token attributes are read under the keys the shipped binaries write, and the test that proves it builds its fixture by running those binaries — a claim about a producer that a hand-typed fixture checks is a claim about the test.
 
 ## Where it sits
 
