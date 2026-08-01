@@ -330,20 +330,20 @@ for f in sorted(os.listdir(n)):
         print('native/rabadon-'+f[:-4])
 PY
 )"
-if (cd "$ROOT" && make -q $TARGETS >/dev/null 2>&1); then
+if (cd "$ROOT" && unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $TARGETS >/dev/null 2>&1); then
   # the arm restores version.h's original mtime afterwards. without that it
   # leaves the tree needing a rebuild, and the NEXT run of this test skips
   # the arm for a reason it caused itself -- a check that disables itself
   # after one pass is the same shape of hole this whole file is about.
   cp -p "$ROOT/native/version.h" "$TMP/version.h.stamp"
   touch "$ROOT/native/version.h"
-  if (cd "$ROOT" && make -q $TARGETS >/dev/null 2>&1); then
+  if (cd "$ROOT" && unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $TARGETS >/dev/null 2>&1); then
     bad "make answers 'up to date' after version.h changed — a bump would ship the old string"
   else
     ok "make rebuilds $(printf '%s' "$TARGETS" | wc -w | tr -d ' ') binaries when version.h changes (was: 'up to date')"
   fi
   touch -r "$TMP/version.h.stamp" "$ROOT/native/version.h"
-  (cd "$ROOT" && make -q $TARGETS >/dev/null 2>&1) \
+  (cd "$ROOT" && unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $TARGETS >/dev/null 2>&1) \
     && ok "the arm left the tree exactly as it found it (version.h mtime restored)" \
     || bad "the make arm left the tree needing a rebuild"
 else
