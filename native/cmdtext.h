@@ -1412,15 +1412,102 @@ inline void lift_functions(vector<Seg>& segs, vector<string>* limits) {
 // This walk lived in baseline.h and moved here when the alias table above had
 // to be read off the same options — "which word is the subcommand" is a
 // question about READING the line, and this file is where the line is read.
+//
+// The leading options that eat a SEPARATE word are written once, here, because
+// two walks read them: the one below, which asks where the subcommand starts,
+// and git_repo_knobs(), which asks which repo the line points git at. Two copies
+// of this list would be two answers to the same question, and the second one
+// would be found by whoever gets bitten.
+inline bool git_global_takes_value(const string& s) {
+  return s == "-C" || s == "-c" || s == "--git-dir" || s == "--work-tree";
+}
+
 inline bool git_subcommand(const vector<Word>& t, size_t gi, size_t& subIdx) {
   size_t i = gi + 1;
   while (i < t.size()) {
     const string& s = t[i].text;
     if (s.empty() || s[0] != '-') { subIdx = i; return true; }
-    const bool takesValue = (s == "-C" || s == "-c" || s == "--git-dir" || s == "--work-tree");
-    i += takesValue ? 2 : 1;
+    i += git_global_takes_value(s) ? 2 : 1;
   }
   return false;
+}
+
+// a value this parser writes its own marker into (inside quotes the whitespace
+// becomes DATA_WS), spoken back as the string a shell would hand to git
+inline string plain_value(const string& in) {
+  string v = in;
+  for (size_t i = 0; i < v.size(); i++) if (v[i] == DATA_WS) v[i] = ' ';
+  return v;
+}
+
+// ---------- the globals that point git at ANOTHER repo ----------------------
+// THE HOLE THIS CLOSES.
+//
+//   git -C ../other push --force origin
+//   git --git-dir=../other/.git --work-tree=../other push --force origin
+//   GIT_DIR=../other/.git git push --force origin
+//
+// The walk above already stepped over `-C` and `--git-dir` exactly as git does,
+// which is how these got through: it stepped over them to find `push`, and the
+// VALUE it stepped over was never handed to the law that has to resolve which
+// branch an unnamed push writes. That law read `<cwd's worktree>/.git/HEAD` —
+// the repo the shell is standing in, which is precisely the repo these three
+// options exist to stop being the one git uses. Sitting on a scratch branch,
+// all three force-updated main in a repo next door and the gate said nothing.
+//
+// Every fact below was measured against git 2.39.5 with `--dry-run --porcelain`
+// and each is a case in native/other_repo_test.sh, not a reading of the manual:
+//   -C <dir>              runs as if git started in <dir>; repeats CHAIN, each
+//                         relative to the one before.
+//   -C<dir>               REJECTED by git ("unknown option: -C../other"), so
+//                         there is no attached form to read.
+//   --git-dir=<d>         and `--git-dir <d>`: both accepted. A push needs no
+//                         work tree, so `--work-tree` is read for nothing here.
+//   -C .. --git-dir=x     the git dir is relative to the -C'd directory, and it
+//   --git-dir=x -C ..     is relative to it in EITHER order — the -C moves git
+//                         before the path options are interpreted.
+//   GIT_DIR=<d> git ...   the environment says the same thing as --git-dir, and
+//                         --git-dir WINS when the line writes both.
+//   git -C ''             a no-op, measured; not an error and not a repo.
+//
+// This returns the words. Where they LAND is pathres.h's question, asked of the
+// one resolver both layers use.
+inline bool git_repo_knobs(const vector<Word>& t, size_t gi, size_t sub,
+                           vector<string>& chdirs, string& gitDir) {
+  bool any = false;
+  // `GIT_DIR=../other/.git git push ...` — the assignment prefix is part of THIS
+  // command, so it is read off the same word list. Only the prefix: an `export`
+  // in an earlier segment sets it for a shell this text does not describe, and
+  // that is a named limit, not a silent one.
+  for (size_t i = 0; i < gi && i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (!is_assignment(s)) continue;
+    const size_t eq = s.find('=');
+    if (eq != 7 || s.compare(0, 7, "GIT_DIR") != 0) continue;
+    gitDir = plain_value(s.substr(eq + 1));
+    any = true;
+  }
+  static const string GD = "--git-dir=";
+  for (size_t i = gi + 1; i < sub && i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s == "-C") {
+      if (i + 1 < sub) { chdirs.push_back(plain_value(t[i + 1].text)); any = true; }
+      i++;
+      continue;
+    }
+    if (s == "--git-dir") {
+      if (i + 1 < sub) { gitDir = plain_value(t[i + 1].text); any = true; }
+      i++;
+      continue;
+    }
+    if (s.size() > GD.size() && s.compare(0, GD.size(), GD) == 0) {
+      gitDir = plain_value(s.substr(GD.size()));
+      any = true;
+      continue;
+    }
+    if (git_global_takes_value(s)) i++;      // -c and --work-tree, and their values
+  }
+  return any;
 }
 
 // `alias.x=push --force` — the config pair `-c` carries, name folded the way
@@ -1455,17 +1542,43 @@ inline bool git_alias_pair(const string& tok, string& name, string& body) {
 //                                               case-SENSITIVE, so this is a
 //                                               config for a different remote
 // A key with no dot at all names no section and is not a key.
+//
+// The fold is its OWN function because the same key is now built from two
+// different surfaces: a `-c` pair on this line, and a `[section "sub"]` header
+// in a config FILE (gitcfg.h, which git reads before it ever looks at the
+// line). Two spellings of the fold would be two answers to "is this key
+// remote.origin.push", which is the class of bug this parser exists to end.
+inline string config_key(string sec, const string& sub, string var) {
+  for (size_t i = 0; i < sec.size(); i++) sec[i] = lower_c(sec[i]);
+  for (size_t i = 0; i < var.size(); i++) var[i] = lower_c(var[i]);
+  return sub.empty() ? sec + "." + var : sec + "." + sub + "." + var;
+}
+
+// `a.b.c` -> section a, subsection b, variable c, split at the FIRST and LAST
+// dot so a subsection may itself contain them.
+inline bool split_config_key(const string& raw, string& sec, string& sub, string& var) {
+  const size_t first = raw.find('.'), last = raw.rfind('.');
+  if (first == string::npos) return false;
+  sec = raw.substr(0, first);
+  var = raw.substr(last + 1);
+  sub = (first == last) ? string() : raw.substr(first + 1, last - first - 1);
+  return true;
+}
+
+// the dotted spelling of a key, folded — what a caller asking "what is bound to
+// remote.origin.push" compares against.
+inline string fold_config_key(const string& raw) {
+  string sec, sub, var;
+  if (!split_config_key(raw, sec, sub, var)) return raw;
+  return config_key(sec, sub, var);
+}
+
 inline bool git_config_pair(const string& tok, string& key, string& value) {
   const size_t eq = tok.find('=');
   if (eq == string::npos) return false;
-  const string raw = tok.substr(0, eq);
-  const size_t first = raw.find('.'), last = raw.rfind('.');
-  if (first == string::npos) return false;
-  string sec = raw.substr(0, first), var = raw.substr(last + 1);
-  const string sub = (first == last) ? string() : raw.substr(first + 1, last - first - 1);
-  for (size_t i = 0; i < sec.size(); i++) sec[i] = lower_c(sec[i]);
-  for (size_t i = 0; i < var.size(); i++) var[i] = lower_c(var[i]);
-  key = sub.empty() ? sec + "." + var : sec + "." + sub + "." + var;
+  string sec, sub, var;
+  if (!split_config_key(tok.substr(0, eq), sec, sub, var)) return false;
+  key = config_key(sec, sub, var);
   value = tok.substr(eq + 1);
   // inside quotes this parser writes its own marker where the whitespace was,
   // so the value read off a SURFACE and the value read off argv are one string

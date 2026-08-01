@@ -32,14 +32,16 @@
 //     resolves to (/private/tmp on macOS), /var/tmp, and the /var/folders tree
 //     mktemp writes into. Disposable means MY scratch, never THE scratch.
 //
-// NOTHING HERE TOUCHES THE DISK except realpath() and stat(). It computes where
-// a command WOULD land; running it is somebody else's job, and in rabadon it is
+// NOTHING HERE TOUCHES THE DISK except realpath(), stat(), and the one line a
+// `.git` FILE holds when it is a link to a real git dir. It computes where a
+// command WOULD land; running it is somebody else's job, and in rabadon it is
 // nobody's.
 #pragma once
 
 #include <climits>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <sys/stat.h>
@@ -544,6 +546,90 @@ inline Delete delete_of(const vector<rbtext::Word>& t) {
   return d;
 }
 
+
+// ---------- which repo a git command line really operates on ----------
+// The push law's fallback — "a push that names no refspec writes the current
+// branch" — has to read HEAD, and it read it in `project_root(cwd) + "/.git"`:
+// the repo the SHELL is standing in. `-C`, `--git-dir` and $GIT_DIR are exactly
+// the knobs that make git operate on a DIFFERENT one, so from a scratch branch
+// all three force-updated main next door while the law was reading `scratch`.
+// This is the one place that answers "where does the HEAD git will read live",
+// and both the branch fallback and the refspace walk ask it.
+//
+// `.git` is not always a directory. `git worktree add` and a submodule write a
+// FILE holding `gitdir: <path>` and git follows it (measured in
+// native/other_repo_test.sh), and a BARE repo has no `.git` at all — it IS the
+// git dir, with HEAD sitting directly inside. All three shapes are one
+// question, asked once.
+inline string gitdir_link(const string& file, const string& relTo) {
+  std::ifstream f(file.c_str());
+  if (!f) return "";
+  string line;
+  if (!std::getline(f, line)) return "";
+  static const string pre = "gitdir: ";
+  if (line.size() <= pre.size() || line.compare(0, pre.size(), pre) != 0) return "";
+  string p = line.substr(pre.size());
+  while (!p.empty() && (p.back() == '\n' || p.back() == '\r' || p.back() == ' ')) p.pop_back();
+  if (p.empty()) return "";
+  return resolve_real(lexical_abs(p, relTo));
+}
+
+// the git dir OF a directory, or "" if that directory is not the top of a repo
+inline string git_dir_at(const string& dir) {
+  if (dir.empty()) return "";
+  struct stat st;
+  const string dot = dir + "/.git";
+  if (stat(dot.c_str(), &st) == 0) {
+    if (S_ISDIR(st.st_mode)) return dot;
+    return gitdir_link(dot, dir);
+  }
+  // a bare repo: HEAD and refs live here, and there is no worktree above them
+  if (stat((dir + "/HEAD").c_str(), &st) == 0 && S_ISREG(st.st_mode) &&
+      stat((dir + "/refs").c_str(), &st) == 0)
+    return dir;
+  return "";
+}
+
+// the git dir the LINE points at: the -C chain, then --git-dir/$GIT_DIR
+// relative to where that chain landed, then git's own upward discovery from
+// there. Empty when the repo cannot be named from this text — an unresolved
+// `$` in the path, or a directory that is not there. That answer is a named
+// limit and not a guess: git itself refuses to run when `-C` cannot chdir
+// ("fatal: cannot change to '../nope'"), so there is no branch to protect, and
+// falling back to the shell's own repo would be answering about a repo this
+// command never touches, which is the bug this exists to end.
+inline string git_dir_for(const string& cwd, const vector<string>& chdirs,
+                          const string& gitDirOpt) {
+  string base = cwd;
+  for (size_t i = 0; i < chdirs.size(); i++) {
+    const string c = expand_known_vars(chdirs[i]);
+    if (c.empty()) continue;                       // `git -C ''` is a measured no-op
+    if (has_unresolved(c)) return "";
+    base = resolve_real(lexical_abs(c, base));
+    struct stat st;
+    // git chdirs, so a `-C` at a directory that is not there is not a repo one
+    // level up — it is the whole command failing before it opens anything
+    if (base.empty() || stat(base.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) return "";
+  }
+  if (!gitDirOpt.empty()) {
+    const string g = expand_known_vars(gitDirOpt);
+    if (has_unresolved(g)) return "";
+    const string abs = resolve_real(lexical_abs(g, base));
+    struct stat st;
+    if (abs.empty() || stat(abs.c_str(), &st) != 0) return "";
+    if (S_ISDIR(st.st_mode)) return abs;
+    return gitdir_link(abs, abs.substr(0, abs.rfind('/')));  // --git-dir at a link file
+  }
+  string p = base;
+  while (!p.empty()) {
+    const string g = git_dir_at(p);
+    if (!g.empty()) return g;
+    const size_t s = p.rfind('/');
+    if (s == string::npos || s == 0) break;
+    p = p.substr(0, s);
+  }
+  return "";
+}
 
 // ---------- where each command in a line really runs ----------
 // The parser flattened `sh -lc '...'`, `eval`, `$( )`, subshells and xargs into

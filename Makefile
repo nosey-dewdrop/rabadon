@@ -11,16 +11,15 @@ all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon
 # the words "to judge one command" actually name. It is in `all` because the
 # site names it as a source, and a source that is not built is a source nobody
 # can run.
-native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native/cmdtext.h native/pathres.h
+native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native/cmdtext.h native/gitcfg.h native/pathres.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
-
 
 # native/version.h is a prerequisite of every rule whose source includes it,
 # and make does not read #include lines. it was listed nowhere, so a version
 # bump answered `make` with "up to date" and shipped a binary announcing the
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/pathres.h native/cli_help.h native/version.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h
@@ -34,7 +33,7 @@ native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/j
 # to the rule engine answered `make` with "up to date" and left exec enforcing
 # the previous version of the law while the gate enforced the new one — the
 # divergence rules.h exists to prevent, reintroduced by the build.
-native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h native/cmdtext.h native/pathres.h native/chain.h native/jsonl.h native/sha256.h native/cli_help.h
+native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h native/cmdtext.h native/gitcfg.h native/pathres.h native/chain.h native/jsonl.h native/sha256.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native/jsonl.h
@@ -127,6 +126,32 @@ test: all
 # branch at all. every must-block case is judged twice, once from main and once
 # from a feature branch, because the bug was that the two disagreed.
 	./native/push_refspec_test.sh
+# the same two config keys, one SOURCE further out, and that source is the one
+# the law had written down that it would not look at: "NAMED LIMIT: the same two
+# keys can also be set in .git/config, ~/.gitconfig or /etc/gitconfig, and none
+# of those are in this command line." the reason given -- that reading only the
+# repo's file would report the other two as absent -- argues for reading all
+# three, not for reading none, and reading none cost the law to two ordinary
+# commands one turn apart: `git config remote.origin.push
+# refs/heads/scratch:refs/heads/main` and then `git push --force origin`. neither
+# line contains the word main or a refspec, so a project's deny regex misses
+# both, and the compiled law read .git/HEAD, saw `scratch` and allowed the
+# second one -- measured at exit 0 before this suite, in both the
+# remote.origin.push and the push.default=matching spelling. gitcfg.h now reads
+# every file git reads, in git's order, WITHOUT running git: the shim on PATH in
+# this file is asserted never called, because a gate that shells out to a binary
+# named by PATH in order to decide whether to allow that binary is not a gate.
+# every fact it rests on is measured against a real git with --dry-run and
+# written at the top of the file, including the four that keep it from
+# over-blocking -- the deprecated [remote.ORIGIN] section form lower-cases the
+# subsection while `-c remote.ORIGIN.push` does not, push.default is
+# single-valued so a repo `simple` beats a global `matching`,
+# .git/config.worktree is ignored without extensions.worktreeConfig, and
+# remote.pushDefault decides WHICH remote's refspec this push uses. one thing is
+# knowingly over-refused and it is named in both files: an includeIf is followed
+# without evaluating its condition, because deciding gitdir:/onbranch: needs a
+# wildmatch and this repo will not grow a second glob engine for one predicate.
+	./native/push_config_file_test.sh
 # and the spelling that is not a force-push at all. a refspec with an EMPTY
 # SOURCE side removes the destination ref -- `git push origin :main` -- and it
 # starts with ':' where the law read only '+', so `force` stayed false and the
@@ -350,6 +375,49 @@ test: all
 # measured against real git — it creates refs/heads/HEAD on the remote, so a fix
 # that read the word HEAD anywhere in a refspec would refuse a harmless push.
 	./native/head_ref_test.sh
+# the suite above asks what a word MEANS. this one asks how much of a name has
+# to be written down before the law recognizes it: `heads/main` IS
+# refs/heads/main, because git resolves a partially qualified ref through the
+# refs/ search order and `refs/<refname>` is tried before anything else. The
+# name reader already handled the fully spelled prefix and stopped one level
+# short of the spelling git also accepts, then handed `heads` to a test for a
+# REMOTE, which no remote is called — so it answered "no branch here" and six
+# spellings walked out through that answer on the fresh-install path:
+# `origin :heads/main`, `--delete`, `-d`, `--force origin heads/main`,
+# `main:heads/main`, and `git reset --hard heads/main`, which asks the same
+# function the same question. Against the four rules a bare init writes the hole
+# splits in half: the force spellings are caught by that regex's \bmain\b and
+# every delete spelling is missed, because it hunts for --force|-f and a
+# deletion carries neither. Section 1 measures every fact against a real git
+# with --dry-run against a bare remote it made itself, INCLUDING the two that
+# keep the fix from over-blocking: `tags/` is a different namespace with the
+# same last word (`:tags/main` deletes nothing, `main:tags/main` creates
+# refs/heads/tags/main), and `refs/heads/origin/main` is a branch of its own
+# that git reports as [new branch] — it was being refused as `main` before this,
+# so closing the hole also closed a false refusal that was already shipped.
+	./native/partial_ref_test.sh
+# head_ref_test.sh asks which BRANCH a word means. this one asks which REPO the
+# question is even about. the fallback under all of it — "a push that names no
+# refspec writes the current branch" — read HEAD in one place, the worktree
+# above the shell's cwd, and `-C`, `--git-dir` and $GIT_DIR are precisely the
+# words that make git operate on a different repo. so from a scratch branch,
+# `git -C ../other push --force origin`, the --git-dir/--work-tree spelling and
+# the GIT_DIR= environment spelling all exited 0 while rewriting main next door,
+# through BOTH layers: the compiled law resolved the branch in the wrong repo,
+# and a deny regex needs the literal word main, which none of those lines
+# carries. the parser had the value all along — it stepped over those options to
+# find `push` and threw what they said away. `cd ../other && git push --force
+# origin` is the same bug one word over and closes with the same resolver.
+# section 0 measures every fact against a real git with --dry-run --porcelain:
+# the forced update next door, that -C chains, that -C has NO attached form (git
+# rejects `-C<dir>`), that a -C is applied before --git-dir in either order,
+# that an empty -C is a no-op and a missing one is fatal, and that a linked
+# worktree keeps HEAD behind a `.git` FILE. the twins are the half that pays for
+# the fix: reading the wrong repo also CUT work, so sitting on main, force-
+# pushing her own branch in the repo next door was refused — that now runs, and
+# so do a read, a lease, a plain push and a delete in the other repo, while a
+# branch written down on the line is still refused from anywhere.
+	./native/other_repo_test.sh
 # the suites above ask which word is the command inside one program's syntax.
 # this one asks it across a program BOUNDARY: `xcrun git push --force origin
 # main` exited 0 while the same line without its first word exited 2. xcrun

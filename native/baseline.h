@@ -84,6 +84,7 @@
 #include <unistd.h>
 
 #include "cmdtext.h"
+#include "gitcfg.h"
 #include "pathres.h"
 
 namespace rbbase {
@@ -121,9 +122,56 @@ using rbpath::temp_roots;
 // ---------- shared branches ----------
 // The branch a ref operand names, with every spelling git allows around it
 // stripped: `src:dst` answers on the DESTINATION (the side that gets written or
-// removed), a leading `+` is the force marker, `refs/heads/x` is `x` written
-// out, and `origin/x` is `x` on a remote. "" when the operand names no branch
-// at all — a tag, a nested path, some other remote's namespace.
+// removed), a leading `+` is the force marker, `refs/heads/x` and `heads/x` are
+// both `x` written out, and `origin/x` is `x` on a remote. "" when the operand
+// names no branch at all — a tag, a nested path, some other remote's namespace.
+//
+// THERE ARE TWO SPELLINGS OF THE HEADS NAMESPACE AND THIS KNEW ONE. git
+// resolves a partially qualified ref through the refs/ search order
+// (gitrevisions(7): `$GIT_DIR/<refname>`, then `refs/<refname>`, then
+// refs/tags, refs/heads, refs/remotes), and rule two turns `heads/main` into
+// refs/heads/main before anything else is tried. This function handled the
+// fully spelled prefix and stopped exactly one level short of the spelling git
+// also accepts, so what was left fell into the remote test below, which read
+// `heads` as a remote nobody has and answered "" — no branch here, nothing to
+// judge. Six spellings left through that "": the delete refspec, --delete, -d,
+// --force, a destination written after a colon, and `git reset --hard`, which
+// asks this same function the same question.
+//
+//   git push --dry-run --porcelain origin :heads/main
+//     -> -  :refs/heads/main  [deleted]
+//   git push --force --dry-run --porcelain origin heads/main
+//     -> +  refs/heads/main:refs/heads/main  6b108ad...5cba7d4 (forced update)
+//   git rev-parse --symbolic-full-name heads/main   -> refs/heads/main
+//
+// ONLY THAT ONE PREFIX, AND THE LIMIT WAS MEASURED, NOT REASONED ABOUT.
+// `tags/main` is refs/TAGS/main and carries the same last word:
+//   git push --dry-run --porcelain origin :tags/main
+//     -> error: unable to delete 'tags/main': remote ref does not exist
+//   git push --force --dry-run --porcelain origin main:tags/main
+//     -> *  refs/heads/main:refs/heads/tags/main  [new branch]
+// Neither line touches the branch, so a fix that read the LAST path component
+// would have bought the six blocks above with two false refusals. `heads/` and
+// `refs/heads/` name the branch namespace; no other prefix does.
+//
+// AND ONCE THE NAMESPACE IS WRITTEN DOWN, NO REMOTE IS HUNTED FOR IN WHAT
+// FOLLOWS IT. The remote test used to run after the `refs/heads/` strip as
+// well, so a branch literally NAMED `origin/main` had its own name eaten and
+// was judged as `main` — a false refusal that was already shipped, because git
+// reports that push as a branch CREATION and creating a branch rewrites
+// nobody's history:
+//   git push --force --dry-run --porcelain origin refs/heads/origin/main
+//     -> *  refs/heads/origin/main:refs/heads/origin/main  [new branch]
+// The remote test is for the bare `origin/x` spelling, which is the only one
+// that has not already said which namespace it is in.
+//
+// NAMED LIMIT: a repo holding BOTH refs/heads/main and a branch actually called
+// `heads/main` (refs/heads/heads/main) is read here as main — which is what git
+// does too while refs/heads/main exists, since search order rule two beats rule
+// four. If refs/heads/main were then deleted git would fall through to the
+// literal branch, and this would still say main: a refusal of a push that
+// rewrites nothing. It errs in that direction on purpose.
+// native/partial_ref_test.sh holds every line above from both directions.
 //
 // It is one function because two callers need two different things out of the
 // same answer: shared_branch() needs the yes/no, and a refusal has to PRINT the
@@ -134,7 +182,10 @@ inline string dest_name(const string& refIn) {
   const size_t colon = r.rfind(':');            // src:dst — the destination decides
   if (colon != string::npos) r = r.substr(colon + 1);
   while (!r.empty() && r[0] == '+') r = r.substr(1);
-  if (r.compare(0, 11, "refs/heads/") == 0) r = r.substr(11);
+  // the heads namespace, in both spellings git accepts for it. Written down, so
+  // what follows is the branch name verbatim and no remote is looked for in it.
+  if (r.compare(0, 11, "refs/heads/") == 0) return r.substr(11);
+  if (r.compare(0, 6, "heads/") == 0) return r.substr(6);
   const size_t slash = r.find('/');
   if (slash != string::npos) {
     const string remote = r.substr(0, slash);
@@ -178,18 +229,24 @@ inline bool shared_branch(const string& refIn) {
 // ordinary line in git into a refusal on every shared branch. The hard-reset
 // law below keeps reading names, on purpose. native/head_ref_test.sh holds all
 // three of these from both directions.
-inline string current_branch(const string& root);
+//
+// AND THE REPO IT RESOLVES IN IS NOT ALWAYS THE ONE THE SHELL IS IN. This used
+// to take the project root and read `<root>/.git/HEAD`; it takes the git dir
+// rbpath::git_dir_for() resolved off the same command line, because `-C`,
+// `--git-dir` and $GIT_DIR are the words that make git operate somewhere else.
+inline string current_branch(const string& gitDir);
 
-inline string push_dest_ref(const string& refIn, const string& root) {
+inline string push_dest_ref(const string& refIn, const string& gitDir) {
   if (refIn.find(':') != string::npos) return refIn;   // the destination is written down
   string r = refIn;
   while (!r.empty() && r[0] == '+') r = r.substr(1);   // the force refspec form
   if (r != "HEAD" && r != "@") return refIn;
-  return current_branch(root);   // "" on a detached HEAD: it is on no branch
+  return current_branch(gitDir);   // "" on a detached HEAD: it is on no branch
 }
 
-inline string current_branch(const string& root) {
-  std::ifstream f(root + "/.git/HEAD");
+inline string current_branch(const string& gitDir) {
+  if (gitDir.empty()) return "";       // no repo could be named from this line
+  std::ifstream f(gitDir + "/HEAD");
   if (!f) return "";
   string h;
   std::getline(f, h);
@@ -198,6 +255,36 @@ inline string current_branch(const string& root) {
   string b = h.substr(pre.size());
   while (!b.empty() && (b.back() == '\n' || b.back() == '\r' || b.back() == ' ')) b.pop_back();
   return b;
+}
+
+// ---------- which remote a push with no operand goes to ----------------------
+// `git push --force` names no remote, and the law used to answer that with the
+// word `origin`. git answers it with a ladder, measured (git 2.39.5, --dry-run
+// --porcelain, no remote operand, each rung beating the one below it):
+//   branch.<cur>.pushRemote   ->  remote.pushDefault  ->  branch.<cur>.remote
+// and with none of them set, origin.
+//
+// It decides WHICH remote.<name>.push is this push's refspec, so guessing it is
+// wrong in both directions: `remote.backup.push=<x>:<main>` under
+// remote.pushDefault=backup was a force-push of main the law read as origin's
+// empty config, and reading origin's refspec for a push that goes to backup
+// would be a refusal real git never earns.
+inline string current_branch(const string& gitDir);
+
+inline string push_remote(const vector<rbtext::Word>& t, size_t ci, size_t sub,
+                          const string& gitDir) {
+  const string cur = current_branch(gitDir);
+  rbgitcfg::Value v;
+  if (!cur.empty() &&
+      rbgitcfg::last_value(t, ci, sub, gitDir, "branch." + cur + ".pushRemote", v) &&
+      !v.text.empty())
+    return v.text;
+  if (rbgitcfg::last_value(t, ci, sub, gitDir, "remote.pushDefault", v) && !v.text.empty())
+    return v.text;
+  if (!cur.empty() && rbgitcfg::last_value(t, ci, sub, gitDir, "branch." + cur + ".remote", v) &&
+      !v.text.empty())
+    return v.text;
+  return "origin";
 }
 
 // ---------- the refspace, for the pushes that do not name a branch ----------
@@ -237,10 +324,11 @@ inline void refs_under(const string& dir, const string& prefix, vector<string>& 
   closedir(d);
 }
 
-inline void refspace_branches(const string& root, bool mirror, vector<string>& out) {
-  refs_under(root + "/.git/refs/heads", "", out, 0);
-  if (mirror) refs_under(root + "/.git/refs/remotes", "", out, 0);
-  std::ifstream f(root + "/.git/packed-refs");
+inline void refspace_branches(const string& gitDir, bool mirror, vector<string>& out) {
+  if (gitDir.empty()) return;          // the same repo the branch fallback reads
+  refs_under(gitDir + "/refs/heads", "", out, 0);
+  if (mirror) refs_under(gitDir + "/refs/remotes", "", out, 0);
+  std::ifstream f(gitDir + "/packed-refs");
   if (!f) return;
   string line;
   while (std::getline(f, line) && out.size() < 4096) {
@@ -340,6 +428,31 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
       const bool noForce = disabled_has(disabled, "baseline-force-push");
       const bool noDelete = disabled_has(disabled, "baseline-branch-delete");
       if (noForce && noDelete) return false;
+
+      // ---- WHICH REPO this line pushes from ---------------------------------
+      // Not `root`. `git -C ../other push --force origin`,
+      // `git --git-dir=../other/.git ... push --force origin` and
+      // `GIT_DIR=../other/.git git push --force origin` all operate on a repo
+      // the shell is not standing in, so every question below that has to be
+      // answered by READING a repo — which branch is checked out, which
+      // branches exist — is answered in the one git will use. The parser reads
+      // the words (it already stepped over them to find `push`); pathres.h
+      // resolves where they land; nothing here has a second idea of either.
+      //
+      // The `cd` sibling is the same bug and closes with the same line:
+      // `cd ../other && git push --force origin` was judged against the repo
+      // the line STARTED in, because the root was resolved once per command
+      // line while the cwd is tracked per segment. This resolves from the
+      // segment's own cwd.
+      vector<string> chdirs;
+      string gitDirOpt;
+      const bool elsewhere = rbtext::git_repo_knobs(t, ci, sub, chdirs, gitDirOpt);
+      const string gdir = rbpath::git_dir_for(cwd, chdirs, gitDirOpt);
+      // named in the refusal only when the LINE pointed git somewhere else: an
+      // operator who is told 'main' about a repo she is not in has to be told
+      // which repo that is.
+      const string inRepo = (elsewhere && !gdir.empty()) ? " in the repo at " + gdir : string();
+
       bool force = false, lease = false, mirror = false, all = false, del = false;
       // `--tags` is the one option that REPLACES the default refspec with
       // something that is not a branch, and `matching` is the one config value
@@ -488,30 +601,61 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
         // update)`. Neither consulted HEAD. With no remote operand the default
         // remote is origin, measured the same way.
         //
-        // NAMED LIMIT: the same two keys can also be set in .git/config,
-        // ~/.gitconfig or /etc/gitconfig, and none of those are in this command
-        // line. This law judges what the LINE says. Reading only the repo's file
-        // would report the other two as absent, which is a worse answer than a
-        // named limit.
-        string viaCfg;
+        // AND THE SAME TWO KEYS OUT OF THE FILES, WHICH IS WHERE THE LIMIT USED
+        // TO BE. This law used to stop at the command line and say so:
+        //
+        //   NAMED LIMIT: the same two keys can also be set in .git/config,
+        //   ~/.gitconfig or /etc/gitconfig, and none of those are in this
+        //   command line. Reading only the repo's file would report the other
+        //   two as absent, which is a worse answer than a named limit.
+        //
+        // That reason argues for reading all three. It does not argue for
+        // reading none, and reading none cost the whole law to two ordinary
+        // commands one turn apart:
+        //
+        //   git config remote.origin.push refs/heads/scratch:refs/heads/main
+        //   git push --force origin
+        //
+        // Neither line contains `main` or a refspec, so a project's deny regex
+        // misses both, and the compiled law read .git/HEAD, saw `scratch` and
+        // allowed the second one. Measured against this gate before the fix:
+        // exit 0, and exit 0 for the `push.default matching` spelling too.
+        // gitcfg.h reads every file git reads, in git's order, and appends the
+        // `-c` pairs of THIS line last — which is also the order the values
+        // accumulate in, measured: a refspec in ~/.gitconfig and one in
+        // .git/config are BOTH pushed, so a reader that let the nearer file win
+        // would read half the command.
+        string viaCfg, matchOrigin, cfgKey;
+        vector<string> refOrigin;             // parallel to refs while they come from config
         if (refs.empty() && !mirror && !all) {
-          const string remote = operands.empty() ? string("origin") : operands[0];
-          rbtext::git_config_values(t, ci, sub, "remote." + remote + ".push", refs);
-          if (!refs.empty())
-            viaCfg = " (remote." + remote + ".push on this command line names it)";
+          cfgKey = "remote." + (operands.empty() ? push_remote(t, ci, sub, gdir) : operands[0]) +
+                   ".push";
+          vector<rbgitcfg::Value> cfg;
+          rbgitcfg::values(t, ci, sub, gdir, cfgKey, cfg);
+          for (size_t k = 0; k < cfg.size(); k++) {
+            refs.push_back(cfg[k].text);
+            refOrigin.push_back(cfg[k].origin);
+          }
           if (refs.empty()) {
-            vector<string> pd;
-            rbtext::git_config_values(t, ci, sub, "push.default", pd);
             // `matching` means every branch that exists on both sides, so the
             // target is the refspace and not HEAD. Every other value
             // (simple, current, upstream, nothing) resolves to the current
             // branch, which the fallback below already answers correctly.
-            if (!pd.empty() && pd.back() == "matching") { all = true; matching = true; }
+            // push.default is SINGLE-valued and the last definition wins, so
+            // this asks for the last one and not for any one: measured,
+            // global=matching under repo=simple is not matching.
+            rbgitcfg::Value pd;
+            if (rbgitcfg::last_value(t, ci, sub, gdir, "push.default", pd) &&
+                pd.text == "matching") {
+              all = true;
+              matching = true;
+              matchOrigin = pd.origin;
+            }
           }
         }
 
         if (refs.empty() && (mirror || all)) {
-          refspace_branches(root, mirror, refs);
+          refspace_branches(gdir, mirror, refs);
           // A mirror onto a remote makes that remote identical to this
           // refspace. An empty or unreadable one is not the harmless case: it
           // is the case where every branch the remote has gets removed.
@@ -519,31 +663,39 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
             hit = {"baseline-force-push",
                    "a mirror push makes the remote identical to this repo's refs, force-updating "
                    "what is here and removing what is only there",
-                   "git push --mirror from a repo whose refs cannot be read or hold no branch — "
-                   "it would empty the remote; name the branch you mean, or silence "
-                   "baseline-force-push by id"};
+                   "git push --mirror from a repo whose refs cannot be read or hold no branch" +
+                       inRepo +
+                       " — it would empty the remote; name the branch you mean, or silence "
+                       "baseline-force-push by id"};
             return true;
           }
         }
         // and only now HEAD — unless the line replaced the default refspec with
         // tags, in which case this push writes no branch at all.
         if (refs.empty() && !tags) {
-          const string b = current_branch(root);
+          const string b = current_branch(gdir);
           if (!b.empty()) refs.push_back(b);
         }
-        for (const string& raw : refs) {
+        for (size_t k = 0; k < refs.size(); k++) {
+          const string& raw = refs[k];
           // `HEAD` and `@` name no branch; they ask the repo which one it is on.
           // Every other spelling reaches the name comparison untouched.
-          const string r = push_dest_ref(raw, root);
+          const string r = push_dest_ref(raw, gdir);
           if (r.empty()) continue;
           if (!shared_branch(r)) continue;
+          // an operator told 'main' about a line that says neither `main` nor a
+          // refspec cannot act on that sentence. It has to name the key AND the
+          // file the value was read out of.
+          if (k < refOrigin.size()) viaCfg = " (" + cfgKey + " " + refOrigin[k] + " names it)";
           if (mirror || all) {
-            const string flag = mirror ? "--mirror"
-                                       : (matching ? "-c push.default=matching" : "--all --force");
+            const string flag =
+                mirror ? "--mirror"
+                       : (matching ? "with push.default=matching (" + matchOrigin + ")"
+                                   : "--all --force");
             hit = {"baseline-force-push",
                    "a force-push to a shared branch rewrites history other people already have",
-                   "git push " + flag + " writes every branch, and '" + r + "' is one of them — "
-                   "name the branch you mean, or push to your own branch"};
+                   "git push " + flag + " writes every branch, and '" + r + "' is one of them" +
+                       inRepo + " — name the branch you mean, or push to your own branch"};
           } else {
             // when the branch was not the word the line carried, say both: the
             // operator asked about HEAD and needs to be told which branch that is
@@ -557,7 +709,7 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
                       : " — use --force-with-lease, or push to your own branch";
             hit = {"baseline-force-push",
                    "a force-push to a shared branch rewrites history other people already have",
-                   "force-push to shared branch '" + r + "'" + wrote + viaCfg + advice};
+                   "force-push to shared branch '" + r + "'" + wrote + inRepo + viaCfg + advice};
           }
           return true;
         }

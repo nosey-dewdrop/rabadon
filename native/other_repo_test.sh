@@ -307,8 +307,11 @@ case "$D" in
   *main*) pass "the message names the branch that repo is on" ;;
   *) fail "the message never names the branch: $(printf '%s' "$D" | head -3 | tr '\n' ' ')" ;;
 esac
+# the path the gate prints is resolved (a mktemp root under /var is a symlink to
+# /private/var on macOS), so the comparison is against the resolved one
+OTHER_REAL="$(cd "$OTHER" && pwd -P)"
 case "$D" in
-  *"$OTHER"*) pass "the message names the repo the branch was read in" ;;
+  *"$OTHER_REAL/.git"*) pass "the message names the repo the branch was read in" ;;
   *) fail "the message never names the other repo: $(printf '%s' "$D" | head -3 | tr '\n' ' ')" ;;
 esac
 
