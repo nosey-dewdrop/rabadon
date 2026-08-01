@@ -44,7 +44,19 @@
 //   - an operand that only a shell can resolve ($VAR, $(cmd), backticks) is not
 //     guessed at — it passes. A false refusal costs more than a missed
 //     obfuscation here, and `rabadon exec` is the answer for adversarial input.
+//     What the SAME LINE assigns from a literal is not in that class and is
+//     resolved before it gets here (cmdtext.h, apply_env).
 //   - `cd` is followed across segments only when its argument is a literal path.
+//
+// THE READING OF THE COMMAND IS NOT DONE HERE. This file used to carry its own
+// tokenizer, and it was the smaller of the two rabadon shipped: it compared the
+// command name byte for byte, compared `-c` byte for byte so `sh -lc` was not a
+// shell, had never heard of eval, `$( )` or a line continuation, and skipped a
+// wrapper list that did not include xargs. Twelve spellings of a refused
+// force-push walked past these three laws while the plain form was refused, and
+// every one of them was a difference between the two parsers rather than a new
+// kind of danger. There is one parser now (cmdtext.h) and this file is only the
+// three laws. native/parser_unify_test.sh fails if the second one comes back.
 
 #pragma once
 
@@ -57,104 +69,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "cmdtext.h"
+
 namespace rbbase {
 
 using std::string;
 using std::vector;
 
 struct Hit { string id, why, detail; };
-
-struct Tok { string text; bool quoted = false; };
-
-// ---------- shell shape: quote-aware segments of tokens ----------
-inline vector<vector<Tok>> segments(const string& cmd) {
-  vector<vector<Tok>> segs;
-  segs.push_back({});
-  Tok cur; bool has = false;
-  auto endTok = [&]() { if (has) { segs.back().push_back(cur); cur = Tok(); has = false; } };
-  auto endSeg = [&]() { endTok(); if (!segs.back().empty()) segs.push_back({}); };
-  for (size_t i = 0; i < cmd.size(); i++) {
-    const char c = cmd[i];
-    if (c == '\\' && i + 1 < cmd.size()) { cur.text += cmd[++i]; has = true; continue; }
-    if (c == '\'') {
-      size_t j = cmd.find('\'', i + 1);
-      if (j == string::npos) j = cmd.size();
-      cur.text += cmd.substr(i + 1, j - i - 1); cur.quoted = true; has = true; i = j;
-      continue;
-    }
-    if (c == '"') {
-      size_t j = i + 1;
-      while (j < cmd.size() && cmd[j] != '"') {
-        if (cmd[j] == '\\' && j + 1 < cmd.size()) { cur.text += cmd[j + 1]; j += 2; }
-        else cur.text += cmd[j++];
-      }
-      cur.quoted = true; has = true; i = j;
-      continue;
-    }
-    if (c == '&' || c == '|' || c == ';' || c == '\n') {
-      if ((c == '&' || c == '|') && i + 1 < cmd.size() && cmd[i + 1] == c) i++;
-      endSeg(); continue;
-    }
-    if (c == ' ' || c == '\t' || c == '\r') { endTok(); continue; }
-    cur.text += c; has = true;
-  }
-  endSeg();
-  if (!segs.empty() && segs.back().empty()) segs.pop_back();
-  return segs;
-}
-
-// the same split, as raw text slices — user rules are regexes and must be
-// judged against the command as it was written, one segment at a time.
-inline vector<string> raw_segments(const string& cmd) {
-  vector<string> out;
-  size_t start = 0;
-  for (size_t i = 0; i < cmd.size(); i++) {
-    const char c = cmd[i];
-    if (c == '\\' && i + 1 < cmd.size()) { i++; continue; }
-    if (c == '\'') { size_t j = cmd.find('\'', i + 1); i = (j == string::npos) ? cmd.size() : j; continue; }
-    if (c == '"') {
-      size_t j = i + 1;
-      while (j < cmd.size() && cmd[j] != '"') j += (cmd[j] == '\\' && j + 1 < cmd.size()) ? 2 : 1;
-      i = j;
-      continue;
-    }
-    if (c == '&' || c == '|' || c == ';' || c == '\n') {
-      out.push_back(cmd.substr(start, i - start));
-      if ((c == '&' || c == '|') && i + 1 < cmd.size() && cmd[i + 1] == c) i++;
-      start = i + 1;
-    }
-  }
-  out.push_back(cmd.substr(start));
-  vector<string> kept;
-  for (string s : out) {
-    size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == string::npos) continue;
-    size_t b = s.find_last_not_of(" \t\r\n");
-    kept.push_back(s.substr(a, b - a + 1));
-  }
-  return kept;
-}
-
-inline string base_name(const string& s) {
-  const size_t p = s.rfind('/');
-  return p == string::npos ? s : s.substr(p + 1);
-}
-
-// index of the actual command word: skip FOO=bar assignments and wrappers
-inline size_t cmd_index(const vector<Tok>& t) {
-  size_t i = 0;
-  while (i < t.size()) {
-    const string& s = t[i].text;
-    const size_t eq = s.find('=');
-    const bool assign = eq != string::npos && eq > 0 && s.find('/') == string::npos &&
-                        (isalpha((unsigned char)s[0]) || s[0] == '_');
-    const string b = base_name(s);
-    if (assign || b == "sudo" || b == "doas" || b == "env" || b == "command" ||
-        b == "nohup" || b == "time" || b == "exec") { i++; continue; }
-    break;
-  }
-  return i;
-}
 
 // ---------- paths: resolve, do not match ----------
 inline string lexical_abs(const string& raw, const string& cwd) {
@@ -498,7 +420,7 @@ inline string current_branch(const string& root) {
 // `git --exec-path=/x push --force` slipped through a hand-listed set (31.07).
 // The rule is structural: after `git`, skip every token that starts with '-',
 // consuming a value only for the options that genuinely take a separate one.
-inline bool git_subcommand(const vector<Tok>& t, size_t gi, size_t& subIdx) {
+inline bool git_subcommand(const vector<rbtext::Word>& t, size_t gi, size_t& subIdx) {
   size_t i = gi + 1;
   while (i < t.size()) {
     const string& s = t[i].text;
@@ -511,18 +433,29 @@ inline bool git_subcommand(const vector<Tok>& t, size_t gi, size_t& subIdx) {
 
 // the same walk, as a string rewrite, so USER regexes written as `git\s+push`
 // still see a command an agent wrote as `git -C /path push`.
+//
+// Only the segments of the text as HANDED IN are rewritten. A caller passes one
+// executable surface at a time and the parser may lift a subshell body out of
+// it; that body is its own surface and the caller rewrites it on its own turn,
+// so splicing it in here would hand the same command to a rule twice.
 inline string strip_git_globals(const string& cmd) {
-  const vector<vector<Tok>> segs = segments(cmd);
+  const rbtext::Parsed p = rbtext::parse(cmd);
+  if (p.degraded) return cmd;
   string out;
-  for (const auto& t : segs) {
+  for (size_t s = 0; s < p.segs.size(); s++) {
+    if (p.segs[s].group != 0) continue;
+    const vector<rbtext::Word>& t = p.segs[s].words;
+    if (t.empty()) continue;
     if (!out.empty()) out += " ; ";
-    const size_t ci = cmd_index(t);
+    const size_t ci = rbtext::command_index(t);
     size_t sub = 0;
-    const bool isGit = ci < t.size() && base_name(t[ci].text) == "git" &&
+    const bool isGit = ci < t.size() && rbtext::name_is(rbtext::base_of(t[ci].text), "git") &&
                        git_subcommand(t, ci, sub);
+    bool firstWord = true;
     for (size_t i = 0; i < t.size(); i++) {
       if (isGit && i > ci && i < sub) continue;      // the globals, dropped
-      if (i) out += " ";
+      if (!firstWord) out += " ";
+      firstWord = false;
       out += t[i].text;
     }
   }
@@ -535,38 +468,49 @@ inline bool disabled_has(const vector<string>& disabled, const string& id) {
   return false;
 }
 
-inline bool check_segment(const vector<Tok>& t, const string& cwd, const string& root,
-                          const vector<string>& disabled, Hit& hit, int depth);
+// Every command the line runs, in order, each judged where it really runs.
+//
+// The parser already flattened `sh -lc '...'`, `eval "..."`, `$( )`, a subshell
+// and an xargs wrapper into segments, so this walk has no idea those spellings
+// exist — which is the point: a spelling it has never heard of cannot be a
+// spelling it gets wrong. What it does still track is the working directory,
+// and directories do not flatten: a `cd` inside `sh -c '...'` moves that shell
+// and not its caller. Each segment carries the context it runs in, and a
+// context takes its starting directory from the one that created it.
+inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, const string& root,
+                          const vector<string>& disabled, Hit& hit);
 
-inline bool check_tokens(const vector<vector<Tok>>& segs, const string& cwd0, const string& root,
-                         const vector<string>& disabled, Hit& hit, int depth) {
-  string cwd = cwd0;
-  for (const auto& t : segs) {
-    if (check_segment(t, cwd, root, disabled, hit, depth)) return true;
+inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const string& root,
+                         const vector<string>& disabled, Hit& hit) {
+  const size_t n = p.groups > 0 ? (size_t)p.groups : 1;
+  vector<string> groupCwd(n, cwd0);
+  vector<char> seen(n, 0);
+  seen[0] = 1;
+  for (size_t s = 0; s < p.segs.size(); s++) {
+    const rbtext::Seg& sg = p.segs[s];
+    const size_t g = (size_t)sg.group < n ? (size_t)sg.group : 0;
+    const size_t par = (size_t)sg.parent < n ? (size_t)sg.parent : 0;
+    if (!seen[g]) { groupCwd[g] = groupCwd[par]; seen[g] = 1; }
+    if (check_segment(sg.words, groupCwd[g], root, disabled, hit)) return true;
     // follow a literal `cd` so a later segment is judged where it really runs
-    const size_t ci = cmd_index(t);
-    if (ci < t.size() && base_name(t[ci].text) == "cd" && ci + 1 < t.size()) {
-      const string next = lexical_abs(t[ci + 1].text, cwd);
-      if (!next.empty() && t[ci + 1].text.find('$') == string::npos) cwd = next;
+    const size_t ci = rbtext::command_index(sg.words);
+    if (ci < sg.words.size() && rbtext::name_is(rbtext::base_of(sg.words[ci].text), "cd") &&
+        ci + 1 < sg.words.size()) {
+      const string& arg = sg.words[ci + 1].text;
+      const string next = lexical_abs(arg, groupCwd[g]);
+      if (!next.empty() && arg.find('$') == string::npos) groupCwd[g] = next;
     }
   }
   return false;
 }
 
-inline bool check_segment(const vector<Tok>& t, const string& cwd, const string& root,
-                          const vector<string>& disabled, Hit& hit, int depth) {
-  const size_t ci = cmd_index(t);
+inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, const string& root,
+                          const vector<string>& disabled, Hit& hit) {
+  const size_t ci = rbtext::command_index(t);
   if (ci >= t.size()) return false;
-  const string name = base_name(t[ci].text);
+  const string name = rbtext::base_of(t[ci].text);
 
-  // `sh -c "<command>"` is a command, not an argument
-  if ((name == "sh" || name == "bash" || name == "zsh" || name == "dash") && depth < 2) {
-    for (size_t i = ci + 1; i < t.size(); i++)
-      if (t[i].text == "-c" && i + 1 < t.size())
-        return check_tokens(segments(t[i + 1].text), cwd, root, disabled, hit, depth + 1);
-  }
-
-  if (name == "git") {
+  if (rbtext::name_is(name, "git")) {
     size_t sub = 0;
     if (!git_subcommand(t, ci, sub)) return false;
     const string subcmd = t[sub].text;
@@ -619,7 +563,7 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
     return false;
   }
 
-  if (name == "rm" && !disabled_has(disabled, "baseline-rm-rf-outside")) {
+  if (rbtext::name_is(name, "rm") && !disabled_has(disabled, "baseline-rm-rf-outside")) {
     bool recursive = false, endOfFlags = false;
     vector<string> targets;
     for (size_t i = ci + 1; i < t.size(); i++) {
@@ -677,16 +621,41 @@ inline bool check_segment(const vector<Tok>& t, const string& cwd, const string&
 }
 
 // The entry point: true = one of the three laws refuses this command.
+//
+// The overload taking a Parsed is what a caller that has ALREADY parsed the
+// line should use — rules.h runs the user's deny rules over the same segments
+// and would otherwise pay for the walk twice.
+inline bool check_parsed(const rbtext::Parsed& p, const string& cwd,
+                         const vector<string>& disabled, Hit& hit) {
+  // Resolving the project root walks up the tree with a stat() at every level,
+  // and the overwhelmingly common command is neither git nor rm. The test is
+  // the laws' OWN precondition read off the parsed command — not a substring
+  // scan of the line, which is how `echo "no git here"` used to pay for it and
+  // how `GIT push` used to escape it.
+  bool relevant = false;
+  for (size_t s = 0; s < p.segs.size() && !relevant; s++) {
+    const size_t ci = rbtext::command_index(p.segs[s].words);
+    if (ci >= p.segs[s].words.size()) continue;
+    const string b = rbtext::base_of(p.segs[s].words[ci].text);
+    relevant = rbtext::name_is(b, "git") || rbtext::name_is(b, "rm");
+  }
+  if (!relevant) return false;
+  const string root = project_root(cwd);
+  const string realCwd = resolve_real(lexical_abs(cwd, "/"));
+  return check_parsed(p, realCwd, root, disabled, hit);
+}
+
 inline bool check(const string& command, const string& cwd, const vector<string>& disabled, Hit& hit) {
   if (command.empty()) return false;
   // the gate runs on every tool call and its latency is a published number, so
   // the overwhelmingly common command — one that is neither git nor rm — costs
   // two substring scans and nothing else. this is a superset: any command the
-  // laws could refuse must contain one of these.
-  if (command.find("git") == string::npos && command.find("rm") == string::npos) return false;
-  const string root = project_root(cwd);
-  const string realCwd = resolve_real(lexical_abs(cwd, "/"));
-  return check_tokens(segments(command), realCwd, root, disabled, hit, 0);
+  // laws could refuse must contain one of these. The scan asks the same
+  // question the name comparison does, so on a file system that resolves GIT
+  // and git to one binary it is the case-insensitive scan; otherwise the
+  // pre-filter would drop the line before the law ever saw it.
+  if (!rbtext::mentions(command, "git") && !rbtext::mentions(command, "rm")) return false;
+  return check_parsed(rbtext::parse(command), cwd, disabled, hit);
 }
 
 }  // namespace rbbase

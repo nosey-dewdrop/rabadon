@@ -284,7 +284,17 @@ src_absent  "no second quote scanner"     "$HERE/baseline.h" "find('\\\\''"
 src_absent  "no second escape copy"       "$HERE/baseline.h" 'cmd\[++i\]'
 src_absent  "no second segment splitter"  "$HERE/baseline.h" "c == '&' || c == '|'"
 src_absent  "no byte-compare on git"      "$HERE/baseline.h" '== "git"'
-src_absent  "no byte-compare on -c"       "$HERE/baseline.h" '== "-c"'
+# NOT `== "-c"`. baseline.h legitimately compares git's OWN -c (the config
+# option in `git -c user.name=x push`), which is a different flag on a different
+# program, and asserting against it would be asserting against the git option
+# walk rather than against a second parser. The invariant that was actually
+# broken is narrower: baseline.h decided which words a SHELL would run, and
+# `t[i].text == "-c"` was how it decided. That decision belongs to the parser.
+# If a shell name is back in this file, so is the second parser.
+src_absent  "no shell of its own (bash)"  "$HERE/baseline.h" '"bash"'
+src_absent  "no shell of its own (sh)"    "$HERE/baseline.h" '"sh"'
+src_absent  "no shell of its own (zsh)"   "$HERE/baseline.h" '"zsh"'
+src_absent  "no eval of its own"          "$HERE/baseline.h" '"eval"'
 
 # ---------------------------------------------------------------------------
 # judging is not running

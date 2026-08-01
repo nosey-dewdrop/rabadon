@@ -205,13 +205,20 @@ inline bool rx_test_any(const string& pattern, const std::vector<string>& texts)
 // failing toward more refusals is the safe direction. The caller is expected to
 // record that it happened (gate.cpp emits PARSE_DEGRADED); a silent fallback
 // would hide the one case where the new matcher is not the one deciding.
+inline std::vector<string> texts_of(const rbtext::Parsed& p, const string& cmd) {
+  if (p.degraded) return rbtext::raw_segments(cmd);
+  std::vector<string> texts;
+  for (size_t i = 0; i < p.segs.size(); i++)
+    if (!p.segs[i].surface.empty()) texts.push_back(p.segs[i].surface);
+  return texts;
+}
+
 inline std::vector<string> match_texts(const string& cmd, bool* degraded = nullptr,
                                        string* why = nullptr) {
-  const rbtext::Surfaces s = rbtext::exec_surfaces(cmd);
-  if (degraded) *degraded = s.degraded;
-  if (why) *why = s.why;
-  if (s.degraded) return rbbase::raw_segments(cmd);
-  return s.texts;
+  const rbtext::Parsed p = rbtext::parse(cmd);
+  if (degraded) *degraded = p.degraded;
+  if (why) *why = p.why;
+  return texts_of(p, cmd);
 }
 
 inline bool rx_test_cmd(const string& pattern, const string& cmd) {
@@ -229,10 +236,12 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
   Verdict v;
   if (cmd.empty()) return v;
   const std::vector<string> disabled = parse_disabled(guard);
+  // parsed ONCE for every rule AND for both layers: the gate has a 2.3ms budget,
+  // the surface walk is O(len) not O(len × rules), and — the reason this header
+  // exists — a second walk is a second answer to the same question.
+  const rbtext::Parsed parsed = rbtext::parse(cmd);
   if (!guard.empty()) {
-    // parsed ONCE for every rule: the gate has a 2.3ms budget and the surface
-    // walk is O(len), not O(len × rules)
-    const std::vector<string> texts = match_texts(cmd);
+    const std::vector<string> texts = texts_of(parsed, cmd);
     for (const auto& r : parse_rules(guard, "bash", "deny", disabled)) {
       if (rx_test_any(r.pattern, texts)) {
         v.refused = true; v.id = r.id; v.why = r.why;
@@ -242,7 +251,7 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
     }
   }
   rbbase::Hit bh;
-  if (rbbase::check(cmd, cwd, disabled, bh)) {
+  if (rbbase::check_parsed(parsed, cwd, disabled, bh)) {
     v.refused = true; v.id = bh.id; v.why = bh.why; v.detail = bh.detail;
   }
   return v;
