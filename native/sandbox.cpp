@@ -232,6 +232,11 @@ static void emit_refusal(const string& dir, const string& id, const string& why,
   const string spool = rdir + "/spool/" + string(day) + ".jsonl";
   const string run = "ex-" + std::to_string(nowms % 100000000) + "-" + std::to_string(getpid());
 
+  // The ":exec" on the pipe is the SURFACE the refusal came through, not a
+  // project of its own — rabadon-export keys one trace per pipe and needs it.
+  // The ledger is what must fold it: stats.cpp project_of() cuts at the last
+  // colon, so an exec refusal lands on the same row as the repo's hook
+  // refusals. Do not answer a split row by dropping this suffix here.
   auto emit = [&](int seq, const string& ev, const string& extra) {
     char buf[64]; snprintf(buf, sizeof buf, "%d", seq);
     string body = "{\"v\":1,\"seq\":" + string(buf) + ",\"ts\":" + std::to_string(nowms) +
