@@ -252,5 +252,67 @@ a = {x["key"]: x["value"].get("stringValue") for x in u["attributes"]}
 assert a.get("rabadon.note") == "no ev field at all", a
 PY
 
+# 10. the fixture is BUILT BY THE PRODUCER, not typed by the reader.
+#
+#     Arm 5 above asserts gen_ai.usage.* is present — and it passed for months
+#     over a spool line no rabadon binary has ever written. The fixture at the
+#     top of this file says "tokensIn"/"tokensOut" because that is what
+#     export.cpp read; those two keys live in .rabadon/state.json and never in
+#     a spool line. What `rabadon-gate` actually appends on Stop is
+#     `"tokens":<out>` (gate.cpp), and `rabadon-loop` appends
+#     `"tokens","in","out","usd_e6","model"` (loop.cpp). On this machine the
+#     ledger held 1366 lines with a `"tokens"` key and 0 with a `"tokensIn"`
+#     key, so every span that ever left carried rabadon.ev and rabadon.pipe
+#     and nothing else — the advertised GenAI mapping was true of the test and
+#     false of the product.
+#
+#     This is the same failure SPEC Part II §2 names: "a verifier whose true
+#     predicate is 'these bytes came from me'". The cure is that the fixture
+#     here is GENERATED — the gate writes the spool, the export reads it, and
+#     nobody in between gets to choose the key names.
+[ -x ./native/rabadon-gate ] || { echo "export_test: build first (make native/rabadon-gate)"; exit 1; }
+GATE_DIR="$TMP/rd-gate"; mkdir -p "$GATE_DIR"; : > "$GATE_DIR/enabled"
+GATE_CWD="$TMP/proj"; mkdir -p "$GATE_CWD"
+GATE_TS="$TMP/transcript.jsonl"
+printf '{"type":"assistant","message":{"usage":{"input_tokens":1200,"output_tokens":345}}}\n' > "$GATE_TS"
+printf '{"hook_event_name":"Stop","cwd":"%s","session_id":"sess-export-arm10","transcript_path":"%s"}' \
+  "$GATE_CWD" "$GATE_TS" | env -u RABADON_NOW RABADON_DIR="$GATE_DIR" ./native/rabadon-gate >/dev/null 2>&1
+export GATE_SPOOL_DIR="$GATE_DIR/spool"
+
+python3 - <<'PY' && pass "the gate really emitted a token event, and NOT in the reader's key names" || fail "no gate-emitted token line — the arm below would prove nothing"
+import glob, json, os
+lines = []
+for p in glob.glob(os.path.join(os.environ["GATE_SPOOL_DIR"], "*.jsonl")):
+    lines += [json.loads(l) for l in open(p) if l.strip()]
+# POSITIVE first: the producer wrote a machine-readable token count.
+toks = [e for e in lines if isinstance(e.get("tokens"), int) and e["tokens"] > 0]
+assert toks, ("rabadon-gate wrote no token-bearing event", lines)
+assert toks[0]["tokens"] == 345, ("gate's token field is not the measured count", toks[0])
+# and only now the negative it exists to justify: the key export.cpp used to
+# read is not a key any producer writes.
+assert not any("tokensIn" in e or "tokensOut" in e for e in lines), \
+    ("a producer now writes tokensIn/tokensOut — re-read this arm", lines)
+PY
+
+export GATE_OUT="$TMP/out-gate.json"
+env -u RABADON_NOW RABADON_DIR="$GATE_DIR" "$EXPORT" --otlp --days 7 > "$GATE_OUT"
+python3 - <<'PY' && pass "a REAL gate-emitted token event round-trips to gen_ai.usage.*" || fail "the shipped binary's tokens never reach the standard attributes"
+import json, os
+sp = json.load(open(os.environ["GATE_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+assert sp, "the gate's own events exported as zero spans"
+def attrs(s): return {a["key"]: list(a["value"].values())[0] for a in s["attributes"]}
+step = [s for s in sp if s["name"] == "STEP_OK"]
+assert len(step) == 1, [s["name"] for s in sp]
+a = attrs(step[0])
+# gate.cpp emits "tokens" = the session's cumulative OUTPUT count.
+assert a.get("gen_ai.usage.output_tokens") == "345", a
+assert a.get("gen_ai.system") == "anthropic", a
+# RUN_DONE carries "tokens":0 — a zero is not a measurement, it must not
+# manufacture an empty usage block.
+done = [s for s in sp if s["name"] == "RUN_DONE"]
+assert done, [s["name"] for s in sp]
+assert not any(k.startswith("gen_ai.usage") for k in attrs(done[0])), attrs(done[0])
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
