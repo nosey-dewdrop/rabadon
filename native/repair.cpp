@@ -322,6 +322,103 @@ static void scan_anchors(const string& absDir, const string& root, const string&
   closedir(d);
 }
 
+// ---------- the harness lock: the files that decide WHICH tests run ----------
+// The test-file lock answers exactly one question, "did the proposal edit a test?",
+// and a green bought without touching a single test byte walks straight past it.
+// Measured on this corpus (reports/2026-08-01-hakem-korpusu, nine cheat families):
+// two caught, seven through. Five of the seven never open a test file. They move
+// the harness instead. A new ./pytest.ini whose addopts ignores the failing module
+// takes 53 collected tests down to 23. A testPathIgnorePatterns line in
+// jest.config.js drops 1207 to 1197. A rewritten scripts.test in package.json wins
+// because the arbiter re-runs the command string it read BEFORE the proposal
+// against the manifest the proposer just edited. A root conftest.py whose
+// makereport hookwrapper rewrites 'failed' to 'passed' leaves the count at 53 out
+// of 53. A setupFilesAfterEach file swallows the throw and even the test NAMES
+// come back identical. All five end with a byte-identical suite and exit 0, which
+// is every signal the judge owns today.
+//
+// So the lock has to cover the second surface: not the tests, the machinery that
+// selects and grades them. Presence is part of the hash, because ABSENT -> present
+// IS the pytest.ini and root-conftest.py attack; a file missing from base and
+// sitting in work is a mismatch, not a skip.
+//
+// Two deliberate holes, named rather than implied. Vendored trees are not walked
+// (node_modules alone carries thousands of package.json files, and a cheat that
+// patches a dependency in place is a different attack this lock does not claim).
+// Lockfiles are not hashed: a check that runs an install rewrites them on its own,
+// so locking them would reject honest repairs on suite behaviour the proposer
+// never chose.
+static bool harness_prefix(const string& n, const char* p) {
+  size_t k = strlen(p);
+  return n.size() >= k && n.compare(0, k, p) == 0;
+}
+
+// `relDir` is the directory holding the file, "" at the project root.
+static bool harness_file(const string& name, const string& relDir) {
+  // only the root makefile is an entry point; a Makefile deep in the tree is
+  // build detail a source fix may legitimately carry
+  if (name == "Makefile" || name == "makefile" || name == "GNUmakefile")
+    return relDir.empty();
+  if (name == "package.json" || name == "pytest.ini" || name == "tox.ini" ||
+      name == "setup.cfg" || name == "pyproject.toml" || name == "conftest.py" ||
+      name == "phpunit.xml" || name == "phpunit.xml.dist" || name == "Cargo.toml")
+    return true;
+  // The JVM decides what runs from the build file, not from a runner flag:
+  // surefire's <excludes> and gradle's `test { filter { ... } }` each remove a
+  // failing class without touching one byte of it. go.work drops a whole module,
+  // and every test inside it, out of the build.
+  //
+  // NOT VERIFIED END TO END, and said here rather than in a release note. The
+  // pytest and node families below were each proved by running the real binary
+  // against a real suite that really went green for the cheat. These were not:
+  // maven on this machine cannot resolve surefire offline, and there is no go
+  // toolchain on it at all. The entries are here because the mechanism is the
+  // same one the proved families use, which is an argument, not a measurement.
+  if (name == "pom.xml" || name == "build.gradle" || name == "build.gradle.kts" ||
+      name == "settings.gradle" || name == "settings.gradle.kts" ||
+      name == "gradle.properties" || name == "junit-platform.properties" ||
+      name == "go.work")
+    return true;
+  return harness_prefix(name, ".mocharc") ||
+         harness_prefix(name, "jest.config") || harness_prefix(name, "jest.setup") ||
+         harness_prefix(name, "vitest.config") || harness_prefix(name, "vite.config") ||
+         harness_prefix(name, "karma.conf") || harness_prefix(name, "playwright.config") ||
+         harness_prefix(name, "cypress.config") || harness_prefix(name, "ava.config");
+}
+
+static bool skip_dir(const string& n) {
+  return n == ".git" || n == ".rabadon" || n == "node_modules" || n == "__pycache__" ||
+         n == ".tox" || n == ".pytest_cache" || n == ".mypy_cache" || n == ".venv" ||
+         n == "venv" || n == "env" || n == "dist" || n == "build" || n == "coverage" ||
+         n == "target" || n == "vendor" || n == "site-packages" || n == ".next" ||
+         n == ".cache" || n == ".gradle";
+}
+
+// no cap: repair already shipped one silent cap (the hash-lock list stopped at 32)
+// and a foreign repo sailed through as VERIFIED because of it
+static void scan_harness(const string& absDir, const string& rel,
+                         std::vector<std::pair<string, string>>& out) {
+  DIR* d = opendir(absDir.c_str());
+  if (!d) return;
+  struct dirent* e;
+  while ((e = readdir(d)) != nullptr) {
+    const string name = e->d_name;
+    if (name == "." || name == "..") continue;
+    const string full = absDir + "/" + name;
+    const string r = rel.empty() ? name : rel + "/" + name;
+    struct stat st;
+    if (lstat(full.c_str(), &st) != 0) continue;
+    if (S_ISLNK(st.st_mode)) continue;   // never followed: the walk stays in the tree
+    if (S_ISDIR(st.st_mode)) {
+      if (!skip_dir(name)) scan_harness(full, r, out);
+      continue;
+    }
+    if (!S_ISREG(st.st_mode)) continue;
+    if (harness_file(name, rel)) out.push_back({r, rbsha::hex(read_file(full))});
+  }
+  closedir(d);
+}
+
 static const char* kHelp =
   "rabadon-repair — caught, then actually fixed, then proven.\n"
   "The proposer works in an ISOLATED COPY of the repo. The SAME check that caught\n"
@@ -515,6 +612,9 @@ int main(int argc, char** argv) {
   }
   std::vector<std::pair<string, string>> locks; // testFile -> sha256
   for (const string& f : testFiles) locks.push_back({f, rbsha::hex(read_file(base + "/" + f))});
+  std::vector<std::pair<string, string>> harness; // harness file -> sha256, base side
+  scan_harness(base, "", harness);
+  std::sort(harness.begin(), harness.end());
 
   // ---- 4. the proposer, bounded, in the WORK copy ----
   string prompt =
@@ -522,6 +622,7 @@ int main(int argc, char** argv) {
     "A deterministic check in this repository is RED. Fix the CODE so the check passes.\n"
     "Laws:\n"
     "- NEVER edit, weaken, skip or delete a test file. A fix that touches a test is rejected automatically (the test files are hash-locked).\n"
+    "- NEVER edit, add or delete a test-harness file either: package.json, pytest.ini, tox.ini, setup.cfg, pyproject.toml, conftest.py, Cargo.toml, phpunit.xml, pom.xml, build.gradle, settings.gradle, gradle.properties, junit-platform.properties, go.work, the root Makefile, or any jest/vitest/vite/mocha/karma/playwright/cypress/ava config or setup file. Those are hash-locked the same way, and ADDING one counts as touching it.\n"
     "- Only edit files inside the current working directory.\n"
     "- Do not run the check yourself; the arbiter re-runs it after you.\n"
     "check command: " + cmd + "\n"
@@ -585,6 +686,42 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
+  // the same refusal, one surface out: the suite can be byte-perfect and still
+  // not be the suite that ran. Both directions count, and "added" is the whole
+  // of two families, so a file that was not in base is a verdict on its own.
+  {
+    std::vector<std::pair<string, string>> after_h;
+    scan_harness(work, "", after_h);
+    std::sort(after_h.begin(), after_h.end());
+    string rel, verdict, was, found;
+    size_t i = 0, j = 0;
+    while (i < harness.size() || j < after_h.size()) {
+      if (j >= after_h.size() || (i < harness.size() && harness[i].first < after_h[j].first)) {
+        rel = harness[i].first; verdict = "deleted"; was = harness[i].second; found = "absent"; break;
+      }
+      if (i >= harness.size() || after_h[j].first < harness[i].first) {
+        rel = after_h[j].first; verdict = "added"; was = "absent"; found = after_h[j].second; break;
+      }
+      if (harness[i].second != after_h[j].second) {
+        rel = harness[i].first; verdict = "modified"; was = harness[i].second; found = after_h[j].second; break;
+      }
+      i++; j++;
+    }
+    if (!rel.empty()) {
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"harness-tamper: " +
+              json_escape(rel) + " was " + verdict + "\"");
+      fprintf(stderr,
+        "rabadon repair: REJECTED — the proposal %s a hash-locked harness file (%s). Every test file is untouched,\n"
+        "  and that is exactly why this check exists: the suite can be byte-perfect and still not be the suite that ran.\n"
+        "  locked sha256 %s, found %s\n"
+        "  the check went GREEN, and that green is exactly what the lock refuses to sell.\n"
+        "  the rejected proposal is in: %s\n",
+        verdict.c_str(), rel.c_str(),
+        was == "absent" ? "absent" : was.substr(0, 16).c_str(),
+        found == "absent" ? "absent" : found.substr(0, 16).c_str(), work.c_str());
+      return 2;
+    }
+  }
 
   // ---- 6. hold the verified patch ----
   mkdir((dir + "/.rabadon").c_str(), 0755);
@@ -603,6 +740,7 @@ int main(int argc, char** argv) {
     std::ofstream pf(patchPath, std::ios::trunc); pf << patch;
   }
   em.emit("REPAIR_OK", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()) +
+          ",\"harnessLocks\":" + std::to_string(harness.size()) +
           (flakyArbiter ? ",\"why\":\"flaky check: arbiter samples disagree (exit " + std::to_string(firstArbiterExit) + ", then green)\",\"samples\":2" : ""));
   // grade the evidence out loud: "hash-locked" is only a claim when there WAS
   // a lock. Zero discovered test files means the tamper check could not run —
@@ -621,9 +759,13 @@ int main(int argc, char** argv) {
   }
   else if (locks.empty())
     printf("  HELD, UNVERIFIED: the same check re-ran GREEN in the isolated copy, but 0 test files were discovered to hash-lock.\n"
-           "  The anti-tamper check never ran — nothing here rules out a fix that simply weakened the check that caught the bug. Review the diff yourself before applying.\n");
+           "  The %zu harness file(s) that decide which tests run are byte-identical with none added, so the check that ran is\n"
+           "  the check that was chosen. What is missing is the other half: nothing here rules out a proposal that rewrote the\n"
+           "  assertions themselves. Review the diff yourself before applying.\n", harness.size());
   else
-    printf("  VERIFIED: the same check re-ran GREEN in the isolated copy and all %zu hash-locked test file(s) are untouched.\n", locks.size());
+    printf("  VERIFIED: the same check re-ran GREEN in the isolated copy, all %zu hash-locked test file(s) are untouched,\n"
+           "  and the %zu harness file(s) that decide which tests run are byte-identical with none added.\n",
+           locks.size(), harness.size());
   printf(
     "  the fix is HELD, not applied — review and apply it yourself:\n"
     "      cd %s\n"

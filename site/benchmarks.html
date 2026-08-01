@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rabadon — benchmarks</title>
+<meta name="description" content="Measured numbers for rabadon, each with the command that produced it.">
+<meta name="author" content="Damla Su Bilge">
+<link rel="canonical" href="https://rabadon.noseydewdrop.com/benchmarks">
+<meta property="og:type" content="website">
+<meta property="og:title" content="rabadon — benchmarks">
+<meta property="og:description" content="Measured numbers for rabadon, each with the command that produced it.">
+<meta property="og:url" content="https://rabadon.noseydewdrop.com/benchmarks">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="stars" aria-hidden="true"></div>
+<div class="wrap">
+<header class="site">
+  <span class="mark"><i>[</i>&#124;<i>]</i> rabadon</span>
+  <nav><a href="/">overview</a><a href="/catches">catches</a><a href="/benchmarks" class="here">benchmarks</a><a href="/patch-notes">patch notes</a><a href="/pull-requests">pull requests</a><a href="https://github.com/nosey-dewdrop/rabadon">github</a></nav>
+</header>
+<div class="intro">
+<h1>measured, with the command that measured it.</h1>
+<p class="lede small dim">A number with no run behind it is a slogan. Every row here was produced on one machine by the command named beside it, and the ones that could not be measured cleanly say so rather than being rounded into shape.</p>
+<div class="proof">
+<div><span class="n g">100.0%</span><span class="t">gate precision, recall 100.0%</span></div>
+<div><span class="n b">42.0&micro;s</span><span class="t">to judge one command</span></div>
+<div><span class="n y">12</span><span class="t">real suites it was run against</span></div>
+<div><span class="n p">31,316</span><span class="t">tests in those suites</span></div>
+</div></div>
+<section><h2>the gate</h2>
+<div class="bench"><div class="head"><span>what</span><span style="text-align:right">now</span><span>before, and what moved it</span><span>where it is measured</span></div>
+<div class="row"><span class="s">judge one command</span><span class="n">42.0&micro;s</span><span class="d">54.0&micro;s before the command was parsed once instead of twice</span><span class="w">native/gate_bench.sh</span></div>
+<div class="row"><span class="s">gate precision</span><span class="n">100.0%</span><span class="d">55.0% before one resolver answered the path question for both layers</span><span class="w">native/precision_test.sh</span></div>
+<div class="row"><span class="s">gate recall</span><span class="n">100.0%</span><span class="d">unchanged, and the floor the precision work was not allowed to move</span><span class="w">native/precision_test.sh</span></div>
+<div class="row"><span class="s">cases in the fixture</span><span class="n">34</span><span class="d">every one lifted out of a real session, none written for the test</span><span class="w">native/precision_fixture.jsonl</span></div>
+<div class="row"><span class="s">ways of buying a green, refused</span><span class="n">6 of 6</span><span class="d">3 of 6 before the harness itself was locked</span><span class="w">native/harness_lock_test.sh</span></div>
+</div></section>
+<section><h2>the suites it was run against</h2><p class="small dim" style="margin-bottom:var(--g2)">Twelve open-source projects, each pinned to a commit, each installed and taken green before anything was measured. Flake is the share of clean runs that came back red with no patch applied at all, which is the number that decides whether a red run may be treated as a verdict. Locked is how many test files the judge hashes before a proposer is allowed to touch the tree.</p><div class="bench wide"><div class="head"><span>project</span><span style="text-align:right">tests</span><span style="text-align:right">green</span><span style="text-align:right">flake</span><span style="text-align:right">locked</span><span>language</span></div>
+<div class="row"><span class="s">expressjs/express</span><span class="n">1,260</span><span class="n">1.85s</span><span class="n y">3/10</span><span class="n">91</span><span class="d">node</span></div>
+<div class="row"><span class="s">lodash/lodash</span><span class="n">7,158</span><span class="n">19.24s</span><span class="n g">0/10</span><span class="n">6</span><span class="d">node</span></div>
+<div class="row"><span class="s">tj/commander.js</span><span class="n">1,373</span><span class="n">5.06s</span><span class="n g">0/10</span><span class="n">123</span><span class="d">node</span></div>
+<div class="row"><span class="s">colinhacks/zod</span><span class="n">3,811</span><span class="n">45.00s</span><span class="n y">2/10</span><span class="n">2</span><span class="d">node</span></div>
+<div class="row"><span class="s">date-fns/date-fns</span><span class="n">3,167</span><span class="n">8.43s</span><span class="n y">1/10</span><span class="n">16</span><span class="d">node</span></div>
+<div class="row"><span class="s">ajv-validator/ajv</span><span class="n">7,962</span><span class="n">23.97s</span><span class="n y">2/11</span><span class="n">75</span><span class="d">node</span></div>
+<div class="row"><span class="s">koajs/koa</span><span class="n">440</span><span class="n">5.90s</span><span class="n g">0/11</span><span class="n">73</span><span class="d">node</span></div>
+<div class="row"><span class="s">pallets/click</span><span class="n">1,965</span><span class="n">17.93s</span><span class="n g">0/10</span><span class="n">46</span><span class="d">python</span></div>
+<div class="row"><span class="s">pallets/jinja</span><span class="n">911</span><span class="n">6.67s</span><span class="n g">0/10</span><span class="n">26</span><span class="d">python</span></div>
+<div class="row"><span class="s">pallets/markupsafe</span><span class="n">80</span><span class="n">0.96s</span><span class="n g">0/10</span><span class="n">7</span><span class="d">python</span></div>
+<div class="row"><span class="s">arrow-py/arrow</span><span class="n">1,902</span><span class="n">7.44s</span><span class="n g">0/10</span><span class="n">10</span><span class="d">python</span></div>
+<div class="row"><span class="s">yaml/pyyaml</span><span class="n">1,287</span><span class="n">3.66s</span><span class="n g">0/10</span><span class="n">25</span><span class="d">python</span></div>
+</div>
+<p class="cap">Eight of the twelve produced no red run at all on a clean tree. 4 did, and those four are the reason the arbiter re-samples a red before it is allowed to become a verdict: on a suite that flakes, a single red throws away a correct fix somebody already paid for.</p>
+</section>
+<section><h2>what has not been measured</h2><p class="small dim">A quiet machine. Every run on this page shared its box with other work, so the wall-clock columns are contaminated and the pass or fail results are not. A second node version, to see whether the express flake follows the runtime. The date decay in date-fns, whose red rate climbs with the calendar. And the real test-file count in six of the twelve repositories, which leaves the question of how much of each suite the lock actually covers open in those six.</p></section>
+<footer>
+  <span>built by <a href="https://www.noseydewdrop.com/">Damla Su Bilge</a></span>
+  <span><a href="https://github.com/nosey-dewdrop/rabadon">github.com/nosey-dewdrop/rabadon</a></span>
+  <span class="sp">generated by <code>site/build.py</code></span>
+</footer>
+</div>
+<script src="/effects.js"></script>
+</body>
+</html>
