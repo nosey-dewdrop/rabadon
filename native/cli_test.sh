@@ -325,12 +325,21 @@ def run_rows(run, pipe, ms):
     ]
 
 def make_box():
-    """today's day file with two runs in it."""
+    """TWO day files: today's with two runs, and a two-day-old one with a third.
+
+    The old file is what the --run defect was made of. trace read the newest
+    day file and nothing else, so a run id sitting one file back answered
+    "(no matching run)" — for a run that is demonstrably in the ledger."""
     box = tempfile.mkdtemp(prefix="rabadon-trace-arg.")
     os.makedirs(box + "/spool", exist_ok=True)
     ms = int(time.time() * 1000)
     rows = run_rows("alpha-r1", "probe:alpha", ms) + run_rows("beta-r1", "probe:beta", ms + 100)
     open("%s/spool/%s.jsonl" % (box, time.strftime("%Y-%m-%d")), "w").write("\n".join(rows) + "\n")
+
+    two_days = time.time() - 2 * 86400
+    old = "%s/spool/%s.jsonl" % (box, time.strftime("%Y-%m-%d", time.localtime(two_days)))
+    open(old, "w").write("\n".join(run_rows("old-r1", "probe:old", int(two_days * 1000))) + "\n")
+    os.utime(old, (two_days, two_days))   # the file's own age is the window key
     return box
 
 def trace(box, *args):
@@ -372,6 +381,34 @@ rec("alpha-r1" not in so and "beta-r1" not in so,
     "`rabadon-trace no-such-run-anywhere` does not fall back to the default spool"
     if "alpha-r1" not in so and "beta-r1" not in so else
     "an unknown word still printed the default spool (%d bytes) as if it had been honoured" % len(so))
+
+# ---- the window: a run id addresses the SPOOL, not the newest day file ----
+# NEGATIVE baseline first, and it is the load-bearing one: the older run must
+# NOT be reachable from the newest day file. That is what makes "found it"
+# below mean the window was walked, rather than the fallback having quietly
+# printed everything again.
+rc, so, se = trace(box)
+rec("old-r1" not in so,
+    "the newest day file does not contain the older run — the window claim is not free"
+    if "old-r1" not in so else
+    "the probe's two day files collapsed into one; the window assertions would be vacuous")
+
+for form, args in (("`rabadon-trace old-r1`", ("old-r1",)),
+                   ("`rabadon-trace --run old-r1`", ("--run", "old-r1"))):
+    rc, so, se = trace(box, *args)
+    good = rc == 0 and "old-r1" in so
+    rec(good, form + " finds a run written to an earlier day file"
+        if good else
+        form + " could not reach yesterday's file (rc=%d, %d bytes) — it read one day only" % (rc, len(so)))
+
+# ...and the window is a real bound, not "read everything". One day back cannot
+# see a two-day-old file. Without this, "found it" would also be passed by a
+# binary that ignores --days and reads the entire spool every time.
+rc, so, se = trace(box, "--run", "old-r1", "--days", "1")
+rec("old-r1" not in so,
+    "`--days 1` does not reach a two-day-old file — the window is a bound, not decoration"
+    if "old-r1" not in so else
+    "--days was ignored: a two-day-old run answered inside a one-day window")
 
 open(report, "w").write("\n".join(out) + "\n")
 PY

@@ -26,6 +26,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <ctime>
+#include <utility>
 #include "cli_help.h"
 #include "jsonl.h"
 #include "drill.h"
@@ -53,16 +55,31 @@ static string read_file(const string& p){
 }
 static bool ends_with(const string& s,const char* suf){ size_t n=strlen(suf); return s.size()>=n && s.compare(s.size()-n,n,suf)==0; }
 
-// newest .jsonl inside a directory (by mtime), "" if none
-static string newest_jsonl(const string& dir){
-  DIR* d=opendir(dir.c_str()); if(!d) return "";
-  string best; long long bestT=-1;
+// every .jsonl inside a directory, newest mtime first ({} if none).
+//
+// trace used to look at exactly ONE of these, the newest, and that is the whole
+// of the `--run` defect: an id that is genuinely in the ledger answered "(no
+// matching run)" at exit 0 because it had been written the day before.
+// Measured on the live spool: run ms92w639-mdr-1 has 12 events in
+// 2026-07-31.jsonl (counted with python3 — BSD grep -c prints nothing at all on
+// these files) while the resolver was reading 2026-08-01.jsonl. usage, export
+// and audit all take a --days window over the directory; the surface whose one
+// job is "render THIS run" is the one that needed it most.
+static vector<std::pair<long long,string> > jsonls(const string& dir){
+  vector<std::pair<long long,string> > v;
+  DIR* d=opendir(dir.c_str()); if(!d) return v;
   while(struct dirent* e=readdir(d)){
     string n=e->d_name; if(!ends_with(n,".jsonl")) continue;
     string full=dir+"/"+n; struct stat st;
-    if(stat(full.c_str(),&st)==0 && (long long)st.st_mtime>bestT){ bestT=st.st_mtime; best=full; }
+    if(stat(full.c_str(),&st)==0) v.push_back(std::make_pair((long long)st.st_mtime, full));
   }
-  closedir(d); return best;
+  closedir(d);
+  // newest first; the path breaks ties so the order is stable (two day files
+  // touched in the same second is ordinary on a busy night).
+  std::sort(v.begin(), v.end(), [](const std::pair<long long,string>& a,
+                                   const std::pair<long long,string>& b){
+    return a.first!=b.first ? a.first>b.first : a.second>b.second; });
+  return v;
 }
 
 // ---------- json field readers over one line (jsonl.h) ----------
@@ -441,17 +458,23 @@ static const char* kHelp =
   "what was repaired, what the repair cost, and which fake fixes were refused.\n"
   "Nothing here calls a model; every number printed already exists in the spool.\n"
   "\n"
-  "usage: rabadon-trace [spool.jsonl | dir] [--run <id>] [--last] [--no-color]\n"
+  "usage: rabadon-trace [run] [spool.jsonl | dir] [--run <id>] [--days N]\n"
+  "                      [--last] [--no-color]\n"
   "\n"
+  "  [run]                a run id. same as --run: the documented short form,\n"
+  "                       taken as a run whenever the word is not a real path.\n"
   "  [spool.jsonl | dir]  a ledger file, or a directory whose newest *.jsonl wins.\n"
   "                       omitted: $RABADON_DIR/spool, else ~/.rabadon/spool.\n"
-  "  --run <id>           render only the run with this id.\n"
+  "  --run <id>           render only the run with this id. searched across the\n"
+  "                       whole --days window, not just the newest day file.\n"
+  "  --days N             how far back to look for that run (default 7).\n"
   "  --last               render only the most recent run.\n"
   "  --no-color / --color force ANSI off/on (default: on when stdout is a tty).\n"
   "  -h, --help           this screen.\n"
   "\n"
   "example:\n"
-  "  rabadon-trace --last --no-color\n";
+  "  rabadon-trace --last --no-color\n"
+  "  rabadon-trace ms92w639-mdr-1        # one run, wherever in the window it is\n";
 
 int main(int argc,char** argv){
   // FIRST statement: `rabadon-trace --help` used to fall through to the source
@@ -460,9 +483,11 @@ int main(int argc,char** argv){
   rb_help(argc, argv, kHelp);
 
   string source, wantRun; bool onlyLast=false, color=isatty(fileno(stdout));
+  double days=7;   // how far back a run id is looked for, same verb as usage/export/audit
   for(int i=1;i<argc;i++){
     string a=argv[i];
     if(a=="--run"&&i+1<argc){ wantRun=argv[++i]; }
+    else if(a=="--days"&&i+1<argc){ double v=strtod(argv[++i],NULL); if(v>0) days=v; }
     else if(a=="--last"){ onlyLast=true; }
     else if(a=="--no-color"){ color=false; }
     else if(a=="--color"){ color=true; }
@@ -490,22 +515,55 @@ int main(int argc,char** argv){
       }
     }
   }
-  // resolve source file
+  // ---- resolve which ledger bytes to read --------------------------------
+  // Without a run filter this is what it always was: the newest day file, whole.
+  // WITH one, a single file is the wrong unit — a run id addresses the spool,
+  // not a day. The candidate directories are tried in the old order (explicit
+  // arg, $RABADON_DIR/spool, ~/.rabadon/spool) and the first one holding any
+  // .jsonl wins, so the no-filter path is byte-identical to before.
   string file; struct stat st;
+  vector<string> cands;
   if(!source.empty() && stat(source.c_str(),&st)==0){
-    if(S_ISREG(st.st_mode)) file=source; else file=newest_jsonl(source);
+    if(S_ISREG(st.st_mode)) file=source; else cands.push_back(source);
   }
-  if(file.empty()){
-    const char* rd=getenv("RABADON_DIR");
-    if(rd&&rd[0]) file=newest_jsonl(string(rd)+"/spool");
-  }
-  if(file.empty()){
-    const char* home=getenv("HOME");
-    if(home&&home[0]) file=newest_jsonl(string(home)+"/.rabadon/spool");
-  }
-  if(file.empty()){ fprintf(stderr,"rabadon-trace: no spool found (pass a .jsonl or a dir)\n"); return 1; }
+  { const char* rd=getenv("RABADON_DIR");  if(rd&&rd[0])     cands.push_back(string(rd)+"/spool"); }
+  { const char* home=getenv("HOME");       if(home&&home[0]) cands.push_back(string(home)+"/.rabadon/spool"); }
 
-  const string body=read_file(file);
+  vector<string> chosen; string dirUsed;
+  if(!file.empty()) chosen.push_back(file);
+  else {
+    for(size_t ci=0; ci<cands.size() && dirUsed.empty(); ci++){
+      vector<std::pair<long long,string> > all=jsonls(cands[ci]);
+      if(all.empty()) continue;
+      dirUsed=cands[ci];
+      if(wantRun.empty()){ chosen.push_back(all.front().second); continue; }
+      // A run id: walk the window newest-first and keep the files whose raw
+      // bytes carry the id, then render oldest-first so a run that crossed
+      // midnight reads in order. Reading the window costs one pass over a few
+      // MB and buys the difference between "(no matching run)" and the run.
+      const long long cutoff=(long long)::time(NULL) - (long long)(days*86400.0);
+      for(size_t i=0;i<all.size();i++){
+        if(all[i].first<cutoff) continue;
+        string b=read_file(all[i].second);
+        if(b.find(wantRun)!=string::npos) chosen.push_back(all[i].second);
+      }
+      std::reverse(chosen.begin(), chosen.end());
+    }
+  }
+  if(chosen.empty() && dirUsed.empty()){
+    fprintf(stderr,"rabadon-trace: no spool found (pass a .jsonl or a dir)\n"); return 1;
+  }
+
+  string body;
+  for(size_t i=0;i<chosen.size();i++){
+    string b=read_file(chosen[i]);
+    if(!b.empty() && b[b.size()-1]!='\n') b+='\n';   // a truncated tail must not weld two lines
+    body+=b;
+  }
+  // what the header names. One file is the ordinary case and prints as it
+  // always did; more than one only happens when a single run spans day files.
+  string label = chosen.empty() ? dirUsed : chosen[0];
+  if(chosen.size()>1){ char sb[64]; snprintf(sb,sizeof sb," (+%zu more)",chosen.size()-1); label+=sb; }
   // group events by run, first-seen order
   vector<Run> runs; vector<string> order;
   auto find_run=[&](const string& id)->Run&{
@@ -586,7 +644,7 @@ int main(int argc,char** argv){
   const Pal& C = color?COLOR:PLAIN;
   string out;
   char hdr[256];
-  snprintf(hdr,sizeof hdr,"%s%s  (%zu run%s)%s\n\n",C.dim,file.c_str(),runs.size(),runs.size()==1?"":"s",C.rst);
+  snprintf(hdr,sizeof hdr,"%s%s  (%zu run%s)%s\n\n",C.dim,label.c_str(),runs.size(),runs.size()==1?"":"s",C.rst);
   out+=hdr;
 
   size_t shown=0; ArmTotal control, routedArm;
