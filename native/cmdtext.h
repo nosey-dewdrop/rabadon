@@ -1139,6 +1139,13 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
       for (size_t r = 0; r < local[i].redirs.size(); r++)
         if (local[i].redirs[r].op == "<<" && *bcur < bodies->size())
           local[i].heredocs.push_back((*bodies)[(*bcur)++]);
+  // AFTER the heredoc bodies are handed out and not before: that hand-off is
+  // positional, it counts `<<` operators in the order the scanner produced
+  // them, and this pass moves segments. A definition is taken out of the run
+  // list here and its body is put back at every call, so everything below —
+  // the directory walk, the pipe chain, the file a line writes and then runs —
+  // sees a function call as the commands it actually runs.
+  lift_functions(local, &out.limits);
 
   vector<std::pair<string, string> > wrote;  // path -> what this line put in it
   Produced piped;                            // what the command before handed over

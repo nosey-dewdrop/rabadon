@@ -120,6 +120,17 @@ test: all
 # twin: the same keyword carrying ordinary work, and the same words as prose in a
 # commit message, an echo and a heredoc.
 	./native/reserved_word_test.sh
+# and the same question one moment later in the shell's life: a name the line
+# itself binds. `gitx() { git push --force origin main; }; gitx` reached the laws
+# as a command called `gitx()`, a command called `}` and a bare word — no `git`
+# anywhere — while the SAME program written with newlines was refused, because a
+# newline put the body in its own segment and `git` landed in command position by
+# accident. a definition runs nothing and a call runs the body, so the body is
+# lifted out of the run list and put back at the call. both directions: the four
+# spellings a shell accepts, and the twins that must still run — a helper without
+# --force, a helper deleting its own build output, and a body that is defined and
+# never called.
+	./native/shell_function_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
 	./native/repair_session_test.sh
