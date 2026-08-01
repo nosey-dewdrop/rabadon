@@ -36,23 +36,24 @@ export const SPOOL_DIR = path.join(RABADON_DIR, 'spool');
 // audit` will call an honest file tampered.
 //
 // Why a second implementation instead of calling the first one: chain.h holds
-// flock(2) on the day file for the whole read-head -> append -> rewrite-head
-// sequence, and Node has no flock — not in `fs`, and macOS ships no flock(1) to
-// shell out to. A JS writer in the SAME file could therefore interleave with
-// gate/repair/loop, and an interleave does not merely lose an event: the next
-// chained line's prev stops matching, which audit reports as a BREAK. A false
-// accusation of tampering is worse than the bug this replaced.
+// flock(2) across the whole read-head -> append -> rewrite-head sequence, and
+// Node has no flock — not in `fs`, and macOS ships no flock(1) to shell out to.
 //
-// So the JS bus owns its own day file, `<day>.js.jsonl`, chained by the same
-// rules and committed by the same `<day>.js.jsonl.head` sidecar. One writer per
-// chained file — which is what chain.h's rule actually protects. audit walks
-// every *.jsonl in the spool, so the file is verified, not merely tolerated,
-// and core/store.mjs reads every *.jsonl too, so replay still sees the events.
+// It writes the SAME `<day>.jsonl` the C++ writers do, because the readers of
+// this ledger look up exactly one name: ui/server.mjs — the `rabadon watch`
+// cockpit — tails `<day>.jsonl`, and hooks/gate.mjs, the hook `rabadon init`
+// installs, reads it back to build handoff.md. A private second day file would
+// leave both of them dark, and the gate's whole job is to be seen.
 //
-// Mutual exclusion between concurrent NODE writers is a lock file taken with
-// O_EXCL, the one atomic primitive both ends of that race share. If it cannot
-// be taken, we do exactly what chain.h does when flock fails: record the line in
-// `<day>.unchained.jsonl`, outside the chain and outside the chained file, so
+// What makes sharing the file safe is that the mutex is shared: an O_EXCL
+// `<day>.jsonl.lock` sentinel, the one atomic primitive C++ and Node both have.
+// chain.h takes it too (it holds flock INSIDE it), with the same two constants
+// below. Change one, change both. Without it, the two implementations read the
+// same head, append the same prev, and the second line's prev stops matching —
+// audit convicting an honest ledger of a BREAK.
+//
+// If the lock cannot be taken, we do exactly what chain.h does: record the line
+// in `<day>.unchained.jsonl`, outside the chain and outside the chained file, so
 // the day's proof is never damaged by our own fail-open.
 
 const LOCK_STALE_MS = 5000;   // a lock older than this belonged to a killed writer
@@ -151,10 +152,10 @@ function safeStringify(full, frame, prev) {
   return JSON.stringify(stripped);
 }
 
-/** The day file this process's events chain into. Its own, by writer: chain.h
- * holds a flock over `<day>.jsonl` that no Node process can join. */
+/** The day file this process's events chain into — the one every reader tails,
+ * shared with gate/repair/loop under the `<day>.jsonl.lock` sentinel. */
 export const jsSpoolPath = (day = new Date().toISOString().slice(0, 10)) =>
-  path.join(SPOOL_DIR, `${day}.js.jsonl`);
+  path.join(SPOOL_DIR, `${day}.jsonl`);
 
 /** Event vocabulary. Fixed and small on purpose — the watch UI renders these. */
 export const EV = Object.freeze({
