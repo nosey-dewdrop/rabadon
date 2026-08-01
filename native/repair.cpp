@@ -527,19 +527,44 @@ int main(int argc, char** argv) {
   }
 
   // ---- 5. the arbiter: same check, work copy ----
+  // The verdict that DESTROYS a proposal is the expensive one, so it is the one
+  // that may not rest on a single sample. expressjs/express — the G3 target —
+  // flaked red on 3 of 6 pristine runs (reports/2026-08-01-g3-first-held-repair/09).
+  // On a suite like that a single red throws away a correct, source-only fix the
+  // user already paid a proposer call for, and writes "check still red after
+  // proposal" onto the hash-chained ledger as fact. The chain proves that line was
+  // never edited afterwards; it cannot make it true.
   RunResult after = run_shell(cmd, work, checkTimeout);
+  bool flakyArbiter = false;
+  const int firstArbiterExit = after.exit_code;
   if (after.exit_code != 0) {
-    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"check still red after proposal\",\"exit\":" +
-            std::to_string(after.exit_code));
-    fprintf(stderr, "rabadon repair: the proposed fix did NOT turn the check green (exit %d) — REPAIR_FAIL (fail closed, your tree untouched)\n", after.exit_code);
-    // A rejection with no output is an unactionable rejection: the operator cannot
-    // tell a wrong fix from a flaky suite, and the next question is always "red HOW?".
-    // The arbiter already holds the answer, so it says it. The work copy is kept on
-    // this path (it is the only remaining record of what the proposer did) and named
-    // out loud, because a temp dir that leaks silently is a leak, not evidence.
-    print_tail("the arbiter's re-run", after.tail);
-    fprintf(stderr, "  the proposal is in: %s\n", work.c_str());
-    return 2;
+    printf("  the arbiter's check came back RED (exit %d) — re-sampling it before that becomes a verdict…\n",
+           after.exit_code);
+    fflush(stdout);
+    RunResult retry = run_shell(cmd, work, checkTimeout);
+    if (retry.exit_code != 0) {
+      // Both samples agree. NOW it is a verdict: the proposal did not fix it.
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"check still red after proposal\",\"exit\":" +
+              std::to_string(firstArbiterExit) + ",\"exit2\":" + std::to_string(retry.exit_code) + ",\"samples\":2");
+      fprintf(stderr, "rabadon repair: the proposed fix did NOT turn the check green (exit %d, re-sampled: exit %d) — REPAIR_FAIL (fail closed, your tree untouched)\n",
+              firstArbiterExit, retry.exit_code);
+      // A rejection with no output is an unactionable rejection: the operator cannot
+      // tell a wrong fix from a flaky suite, and the next question is always "red HOW?".
+      // The arbiter already holds the answer, so it says it. The work copy is kept on
+      // this path (it is the only remaining record of what the proposer did) and named
+      // out loud, because a temp dir that leaks silently is a leak, not evidence.
+      print_tail("the arbiter's re-run (sample 2 of 2, both red)", retry.tail);
+      fprintf(stderr, "  the proposal is in: %s\n", work.c_str());
+      return 2;
+    }
+    // The samples disagree: same proposal, same copy, one run apart, two answers.
+    // The check is nondeterministic, so this run cannot certify anything — but a
+    // green run is still positive evidence the proposer could not have bought by
+    // touching the source alone, and the patch is HELD, never applied, so keeping
+    // it costs the user a review and destroying it costs them the repair. It is
+    // kept, and it is labelled FLAKY everywhere: screen, headline and ledger.
+    flakyArbiter = true;
+    after = retry;
   }
   for (auto& lk : locks) {
     if (rbsha::hex(read_file(work + "/" + lk.first)) != lk.second) {
@@ -569,11 +594,24 @@ int main(int argc, char** argv) {
     }
     std::ofstream pf(patchPath, std::ios::trunc); pf << patch;
   }
-  em.emit("REPAIR_OK", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()));
+  em.emit("REPAIR_OK", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()) +
+          (flakyArbiter ? ",\"why\":\"flaky check: arbiter samples disagree (exit " + std::to_string(firstArbiterExit) + ", then green)\",\"samples\":2" : ""));
   // grade the evidence out loud: "hash-locked" is only a claim when there WAS
   // a lock. Zero discovered test files means the tamper check could not run —
-  // say so, never imply a protection that did not happen.
-  if (locks.empty())
+  // say so, never imply a protection that did not happen. A run the arbiter could
+  // not grade twice the same way earns neither word: not VERIFIED, and not the
+  // quiet UNVERIFIED either, because the reason is the check, not the locks.
+  if (flakyArbiter) {
+    printf("  HELD, FLAKY CHECK: the arbiter ran this same proposal twice and the check answered differently"
+           " — exit %d, then GREEN.\n"
+           "  Neither run is a verdict, so nothing here is certified. The patch is kept rather than thrown away:\n"
+           "  a repair discarded by a coin flip is a repair you paid a proposer call for and did not get.%s\n",
+           firstArbiterExit,
+           locks.empty() ? " On top of that, 0 test files were\n  discovered to hash-lock, so the anti-tamper check never ran either." : "");
+    if (!locks.empty())
+      printf("  All %zu hash-locked test file(s) are untouched — that half of the proof did run.\n", locks.size());
+  }
+  else if (locks.empty())
     printf("  HELD, UNVERIFIED: the same check re-ran GREEN in the isolated copy, but 0 test files were discovered to hash-lock.\n"
            "  The anti-tamper check never ran — nothing here rules out a fix that simply weakened the check that caught the bug. Review the diff yourself before applying.\n");
   else

@@ -29,10 +29,20 @@
 #      entry run must not end the session with "nothing to repair" while the
 #      break is still in the tree. Green is confirmed by a second sample;
 #      disagreement is FLAKY with its own reason and its own exit code (4).
+#   9. ONE SAMPLE IS NOT A VERDICT, arbiter side — the expensive direction: a
+#      suite that flakes RED once must not destroy a correct source-only fix the
+#      user already paid a proposer call for, and must never write "check still
+#      red after proposal" onto the hash-chained ledger about a fix that went
+#      green. Red is re-sampled; red twice is still REPAIR_FAIL (case 4 pins
+#      that half), red-then-green is HELD and labelled FLAKY, and the word
+#      VERIFIED is not spent on it (case 7a pins that the word still appears
+#      when it IS earned).
 #
 # Mutation-checked, both directions (this is why 7a exists):
 #   locks==0 branch left saying VERIFIED  -> 15 passed, 2 failed
 #   locks>0 branch made to drop VERIFIED  -> 15 passed, 2 failed (7a + case 2)
+#   arbiter re-sample deleted (grade sample 1) -> 23 passed, 5 failed
+#   entry re-sample deleted (grade sample 1)   -> 25 passed, 3 failed
 set -u
 cd "$(dirname "$0")/.."
 REPAIR=./native/rabadon-repair
@@ -233,6 +243,42 @@ else pass "entry flake: the run never claims 'nothing to repair'"; fi
 if grep -q '"why":"flaky check: entry samples disagree' "$L8/spool/"*.jsonl 2>/dev/null; then
   pass "entry flake: the ledger carries its OWN reason (entry samples disagree)"
 else fail "entry flake left no flaky reason on the ledger"; fi
+
+# 9) THE ARBITER SAMPLE IS NOT A VERDICT EITHER — the expensive direction.
+# Same proposal, one run apart, two answers. The old arbiter graded the first,
+# wrote "check still red after proposal" into the hash-chained ledger as fact and
+# threw away a correct source-only fix the user had already paid a proposer call
+# for. Entry run red (the bug is real), arbiter run #2 red by flake, re-sample #3
+# green -> the patch is HELD and the run is labelled FLAKY, never "still red".
+P8="$TMP/p8"; mkflaky "$P8" arbiter
+OUT=$(RABADON_DIR="$L8" RABADON_CLAUDE_BIN="$(mkfake honest)" "$REPAIR" "$P8" --cmd ./check.sh 2>&1); RC=$?
+if [ $RC -eq 0 ] && has_word FLAKY "$OUT"; then
+  pass "arbiter flake (red then green): the fix is kept, exit 0, labelled FLAKY"
+else fail "arbiter flake rc=$RC (want 0)"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+PATCH8=$(ls "$P8/.rabadon/"repair-*.patch 2>/dev/null | head -1)
+if [ -n "$PATCH8" ] && grep -q 'return a + b' "$PATCH8"; then
+  pass "arbiter flake: the correct source-only fix is HELD, not discarded"
+else fail "arbiter flake: no held patch (the paid-for repair was thrown away)"; fi
+grep -q 'return a - b' "$P8/calc.py" && pass "arbiter flake: the user's tree is still UNTOUCHED" || fail "user tree was modified!"
+# the two false sentences, each paired with the positive that already proves the
+# same words are still printed when they are TRUE: case 4 (deterministic red ->
+# "did NOT turn the check green") and case 7a (deterministic green + locks ->
+# "VERIFIED"). Neither may be spent on a run the arbiter could not grade.
+if printf '%s' "$OUT" | grep -q "did NOT turn the check green"; then
+  fail "arbiter flake still says the fix did NOT turn the check green — it did"
+else pass "arbiter flake: never says 'did NOT turn the check green'"; fi
+if has_word VERIFIED "$OUT"; then
+  fail "arbiter flake claims VERIFIED — a coin flip verified nothing"
+else pass "arbiter flake: the word VERIFIED is not spent on an ungradeable run"; fi
+if grep -q '"why":"flaky check: arbiter samples disagree' "$L8/spool/"*.jsonl 2>/dev/null; then
+  pass "arbiter flake: the ledger says FLAKY, in its own words"
+else fail "arbiter flake left no flaky reason on the ledger"; fi
+if grep -q '"why":"check still red after proposal"' "$L8/spool/"*.jsonl 2>/dev/null; then
+  fail "the ledger recorded 'check still red after proposal' for a fix that went green"
+else pass "the false sentence never reached the hash-chained ledger"; fi
+# and the flaky events chain like every other event
+OUT=$(RABADON_DIR="$L8" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "INTACT"; then pass "audit: the flaky events are chained too, verdict INTACT"; else fail "audit(L8) rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 
 echo "repair session: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
