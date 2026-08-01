@@ -64,6 +64,7 @@ test: all
 	./native/baseline_test.sh
 	./native/bypass_test.sh
 	./native/npm_install_test.sh
+	./native/doctor_test.sh
 	./native/repair_session_test.sh
 	./native/repair_isolation_test.sh
 	./native/sandbox_test.sh
