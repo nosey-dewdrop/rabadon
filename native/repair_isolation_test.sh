@@ -48,9 +48,11 @@
 #   7. green repo with an anchor: still "nothing to repair". The gate must not
 #      fire before there is something to isolate.
 #
-# Mutation-checked, both directions:
-#   scan removed entirely            -> 6 passed, 6 failed (cases 2-6)
-#   scan made to fire unconditionally -> 4 passed, 8 failed (cases 1, 7)
+# Mutation-checked, both directions, measured not assumed:
+#   scan deleted (`if (false)`)         -> 5 passed, 7 failed (cases 2-6)
+#   scan made to fire unconditionally   -> 8 passed, 4 failed (case 1, and the
+#     ledger count in case 3, which drops to 0 STARTs because the clean project
+#     never got to attempt anything either)
 set -u
 cd "$(dirname "$0")/.."
 REPAIR=./native/rabadon-repair
