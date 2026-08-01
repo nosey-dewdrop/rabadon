@@ -32,6 +32,8 @@
 // prev = sha256 of the previous line, flock + .head sidecar). `rabadon audit`
 // is the referee that the two writers never drift.
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -40,6 +42,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <dirent.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <signal.h>
@@ -178,6 +181,139 @@ static string shell_quote(const string& s) {
   return out + "'";
 }
 
+// ---------- isolation anchors: content that survives the copy still pointing home ----------
+// Every verdict this binary prints rests on one assumption: the check that runs
+// in the copy READS the copy. A file holding an absolute path back into the
+// original tree breaks that assumption without a word. `pip install -e .` writes
+// exactly such a path into a .pth in site-packages; the venv is copied with
+// everything else, and the copy's interpreter imports the user's tree. Measured
+// here before this code existed: the proposer fixed the work copy, the work
+// copy imported the ORIGINAL, and repair said "the proposed fix did NOT turn the
+// check green" — safe, blind, and the reason was false. The other polarity is
+// worse: the same anchor lets the check go green on code the patch never carried.
+//
+// So this is a precondition, not a repair outcome: exit 3, like "no runnable
+// check", and nothing reaches the ledger. Two tiers, in this order, because they
+// differ in how certain they are:
+//   AUTOMATIC — a runtime follows these with no help from the check command:
+//     *.pth / __editable__* / *.egg-link inside a site-packages (dist-packages)
+//     directory, pyvenv.cfg keys other than the informational `command =`, and
+//     any symlink whose target is absolute and lands inside the tree (`npm link`).
+//   INVOKED — a bin/ (or Scripts/) shim whose shebang names the original
+//     interpreter. Every venv that ships pip has three of these, so firing on
+//     them unconditionally would refuse nearly every python project; this tier
+//     counts only when the check command itself names the file.
+// The two decoys that must NEVER fire on their own are load-bearing, not
+// hypothetical: pyvenv.cfg records `command = ... /original/.venv` in every venv
+// ever created, and pip's console scripts always carry an absolute shebang.
+// And there is no cap on how many entries are walked — repair already shipped
+// one silent cap (the hash-lock list stopped at 32) and a foreign repo sailed
+// through as VERIFIED because of it.
+struct Anchor { string rel, why; };
+
+// `root` used as a path, not as the prefix of a longer sibling name:
+// /w/proj matches "/w/proj/src" and a bare "/w/proj", never "/w/project".
+static bool refs_path(const string& hay, const string& root) {
+  size_t p = 0;
+  while ((p = hay.find(root, p)) != string::npos) {
+    size_t e = p + root.size();
+    char c = e < hay.size() ? hay[e] : '\0';
+    if (!(isalnum((unsigned char)c) || c == '-' || c == '_' || c == '.')) return true;
+    p = e;
+  }
+  return false;
+}
+
+static string read_head(const string& p, size_t n) {
+  std::ifstream f(p, std::ios::binary);
+  if (!f) return string();
+  string buf(n, '\0');
+  f.read(&buf[0], (std::streamsize)n);
+  buf.resize((size_t)f.gcount());
+  return buf;
+}
+
+// pyvenv.cfg's `command =` line is a receipt of how the venv was made, not a
+// path anything resolves through. It names the original directory in every
+// copied venv, so reading it as an anchor would refuse every python project.
+static bool pyvenv_anchor(const string& body, const string& root, string* key_out) {
+  std::istringstream is(body);
+  string ln;
+  while (std::getline(is, ln)) {
+    size_t eq = ln.find('=');
+    if (eq == string::npos) continue;
+    string key = ln.substr(0, eq);
+    while (!key.empty() && isspace((unsigned char)key.back())) key.pop_back();
+    while (!key.empty() && isspace((unsigned char)key.front())) key.erase(key.begin());
+    if (key == "command") continue;
+    if (refs_path(ln, root)) { *key_out = key; return true; }
+  }
+  return false;
+}
+
+static bool ends_with(const string& s, const char* suf) {
+  size_t n = strlen(suf);
+  return s.size() > n && s.compare(s.size() - n, n, suf) == 0;
+}
+
+static void scan_anchors(const string& absDir, const string& root, const string& rel,
+                         bool inSitePackages, const string& cmd,
+                         std::vector<Anchor>& automatic, std::vector<Anchor>& invoked) {
+  DIR* d = opendir(absDir.c_str());
+  if (!d) return;
+  string pdir = absDir.substr(absDir.rfind('/') + 1);
+  struct dirent* e;
+  while ((e = readdir(d)) != nullptr) {
+    const string name = e->d_name;
+    if (name == "." || name == "..") continue;
+    if (name == ".git" || name == ".rabadon" || name == ".hg" || name == ".svn") continue;
+    const string full = absDir + "/" + name;
+    const string r = rel.empty() ? name : rel + "/" + name;
+    struct stat st;
+    if (lstat(full.c_str(), &st) != 0) continue;
+    if (S_ISLNK(st.st_mode)) {
+      char tgt[4096];
+      ssize_t n = readlink(full.c_str(), tgt, sizeof tgt - 1);
+      if (n > 0) {
+        tgt[n] = '\0';
+        const string t = tgt;
+        // absolute targets OUTSIDE the tree (a venv's system interpreter) are
+        // shared infrastructure and copy fine; only a link back INTO the tree
+        // turns the copy into a window onto the original.
+        if (t[0] == '/' && refs_path(t, root)) automatic.push_back({r, "symlink -> " + t});
+      }
+      continue;  // never followed: the walk stays inside the tree
+    }
+    if (S_ISDIR(st.st_mode)) {
+      scan_anchors(full, root, r,
+                   inSitePackages || name == "site-packages" || name == "dist-packages",
+                   cmd, automatic, invoked);
+      continue;
+    }
+    if (!S_ISREG(st.st_mode)) continue;
+    if (inSitePackages &&
+        (ends_with(name, ".pth") || ends_with(name, ".egg-link") ||
+         name.compare(0, 12, "__editable__") == 0)) {
+      // a .pth is only honoured inside site-packages; anywhere else it is inert
+      if (refs_path(read_head(full, 1 << 16), root))
+        automatic.push_back({r, "import path config pointing into the original tree (editable install?)"});
+      continue;
+    }
+    if (name == "pyvenv.cfg") {
+      string key;
+      if (pyvenv_anchor(read_head(full, 8192), root, &key))
+        automatic.push_back({r, "`" + key + " =` points into the original tree"});
+      continue;
+    }
+    if (pdir == "bin" || pdir == "sbin" || pdir == "Scripts" || pdir == ".bin") {
+      if (cmd.find(r) == string::npos) continue;  // the check never names it
+      if (refs_path(read_head(full, 8192), root))
+        invoked.push_back({r, "your check runs this, and it points into the original tree"});
+    }
+  }
+  closedir(d);
+}
+
 static const char* kHelp =
   "rabadon-repair — caught, then actually fixed, then proven.\n"
   "The proposer works in an ISOLATED COPY of the repo. The SAME check that caught\n"
@@ -299,8 +435,38 @@ int main(int argc, char** argv) {
     printf("  the check is GREEN — nothing to repair.\n");
     return 0;
   }
-  printf("  RED (exit %d)%s — caught. proposing a fix in an isolated copy…\n",
+  printf("  RED (exit %d)%s — caught.\n",
          before.exit_code, before.timed_out ? " [timed out]" : "");
+
+  // ---- 2b. is the isolation real? measured BEFORE the copy, the proposer and
+  // the ledger, because none of those three mean anything if it is not. ----
+  {
+    std::vector<Anchor> automatic, invoked;
+    scan_anchors(dir, dir, "", false, cmd, automatic, invoked);
+    auto byPath = [](const Anchor& a, const Anchor& b) { return a.rel < b.rel; };
+    std::sort(automatic.begin(), automatic.end(), byPath);
+    std::sort(invoked.begin(), invoked.end(), byPath);
+    std::vector<Anchor> found = automatic;
+    found.insert(found.end(), invoked.begin(), invoked.end());
+    if (!found.empty()) {
+      fprintf(stderr, "rabadon repair: your check resolves outside the isolated copy — nothing was attempted.\n");
+      const size_t kShow = 6;
+      for (size_t i = 0; i < found.size() && i < kShow; i++)
+        fprintf(stderr, "  %s — %s\n", found[i].rel.c_str(), found[i].why.c_str());
+      if (found.size() > kShow)
+        fprintf(stderr, "  … and %zu more\n", found.size() - kShow);
+      fprintf(stderr,
+        "  repair copies this repo to /tmp and re-runs your check THERE. Those paths still point into\n"
+        "  %s, so the copy would grade YOUR tree: red would blame the proposal for a bug it never saw,\n"
+        "  and green would be bought with code the held patch does not contain. Neither is a verdict.\n"
+        "  make the check self-contained inside a copied tree, then run repair again, e.g.\n"
+        "      rabadon repair --cmd \"PYTHONPATH=src python3 -m pytest\"\n"
+        "      rabadon repair --cmd \"python3 -m venv .venv-rb && .venv-rb/bin/pip install -q -e . && .venv-rb/bin/python -m pytest\"\n",
+        dir.c_str());
+      return 3;
+    }
+  }
+  printf("  proposing a fix in an isolated copy…\n");
 
   em.emit("REPAIR_START", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\"");
 
