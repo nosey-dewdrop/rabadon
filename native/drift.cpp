@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "cli_help.h"
+#include "version.h" // one version string, lockstep with package.json
 
 using std::string;
 using std::vector;
@@ -219,7 +220,9 @@ int main(int argc, char** argv) {
   bool quietOnTrack = false;
   for (int i = 1; i < argc; i++) {
     string a = argv[i];
-    if (a == "--version") { printf("rabadon-drift 0.1.0\n"); return 0; }
+    // version.h, never a literal: this line said 0.1.0 while every manifest
+    // in the repo said 0.2.0.
+    if (a == "--version") { printf("rabadon-drift " RABADON_VERSION "\n"); return 0; }
     else if (a == "--quiet-ok") quietOnTrack = true;
     // An unknown flag is NAMED but never fatal. This binary runs as a Stop hook,
     // where a non-zero exit means BLOCK — refusing here would let one typo in a

@@ -29,6 +29,7 @@
 #include <string>
 #include <sys/stat.h>
 #include "cli_help.h"
+#include "version.h" // one version string, lockstep with package.json
 #include <unistd.h>
 
 using std::string;
@@ -104,7 +105,9 @@ int main(int argc, char** argv) {
   // "didn't understand \"--help\"".
   rb_help(argc, argv, kHelp);
 
-  if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-budget 0.1.0\n"); return 0; }
+  // the version comes from version.h, never from a literal here: this line
+  // said 0.1.0 while every manifest in the repo said 0.2.0.
+  if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-budget " RABADON_VERSION "\n"); return 0; }
   // a cap is a number or `off`, never a flag
   if (argc > 1 && rb_is_flag(argv[1])) rb_unknown_flag("rabadon-budget", argv[1]);
 
