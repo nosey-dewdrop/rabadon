@@ -208,6 +208,19 @@ test: all
 # line is refusing work no iteration performs. section 1 runs a real bash with
 # stub git and rm to show the body does reach the destructive argv.
 	./native/loop_body_test.sh
+# and the wrapper that eats a FILE before it eats the command. `script -q
+# /dev/null <cmd>` is a session recorder, not a logger wrapped around a shell it
+# cannot reach: script(1) runs the argv itself, so the whole line reached the
+# laws as a command named `script` and the three compiled laws were never asked.
+# section 1 measures the premise instead of quoting it -- a real script(1) under
+# a pty (it will not start without a terminal) with a fake git and a fake rm
+# first on PATH, and the same section measures the half that keeps the fix
+# honest: `script git push --force origin main` runs NOTHING, because `git` is
+# the typescript FILE and `push` is a command that does not exist. Eating
+# exactly one operand is what tells those two lines apart, and every must-block
+# spelling has its must-not-block twin -- recording an ordinary push, a test
+# run, an interactive session, and the same words as prose.
+	./native/script_wrapper_test.sh
 # every suite above asks which WORD is the command. this one asks what a word
 # MEANS: `HEAD` and `@` are not branch names, they are the ref the repo
 # resolves, and the force-push law compared them against main/master/trunk/

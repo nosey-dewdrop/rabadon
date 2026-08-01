@@ -267,6 +267,22 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   // cluster would skip one word too few and name the SDK as the command. The
   // attached form is not listed because xcrun rejects it and runs nothing.
   if (name_is(base, "xcrun"))   { w.longVal = "|--sdk|-sdk|--toolchain|-toolchain|"; return true; }
+  // `script -q /dev/null git push --force origin main`. A session recorder is
+  // not a logger wrapped AROUND a shell it cannot reach: script(1) runs the
+  // argv itself -- `script [-aeFkqr] [-t time] [file [command ...]]`. Measured
+  // under a pty (it refuses to start without a terminal) with a fake git first
+  // on PATH, in section 1 of script_wrapper_test.sh: the destructive argv
+  // arrives unchanged.
+  //
+  // The typescript FILE is why a name-only entry would have repeated the
+  // `timeout 5 git ...` mistake, and why the operand count earns its keep in
+  // the other direction too: `script git push --force origin main` runs NOTHING
+  // -- `git` is the file it records INTO, `push` is the command, and there is no
+  // command by that name. Same measurement: the fake git is never called and a
+  // file named `git` is left behind. Eating exactly one operand is what tells
+  // those two lines apart.
+  if (name_is(base, "script"))  { w.shortVal = "t";                // -t <flush interval>
+                                  w.operands = 1; return true; }   // the typescript file
   return false;
 }
 
