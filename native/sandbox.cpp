@@ -172,10 +172,41 @@ static string seatbelt_profile(const string& dir, const vector<string>& prefixes
 //
 // So the shell wrapper is unwrapped. `sh -c X`, `bash -c X`, `zsh -c X` are
 // running X, and X is judged as the command it is.
+// An argv element is ONE word, and joining argv with spaces threw that away.
+// `rabadon exec -- git -c 'alias.x=push --force' x origin main` handed the rule
+// engine the text `git -c alias.x=push --force x origin main`, where the value
+// of `-c` is `alias.x=push` and the `--force` beside it reads as one of git's
+// own leading options — so the alias bound `x` to a plain push and exec ran the
+// force-push the hook refuses. Everything downstream judges TEXT, so the text
+// has to say what argv said.
+//
+// Only an element that NEEDS quoting gets it: for ordinary argv the joined
+// string is byte for byte what it was before, so no rule a project already
+// wrote changes meaning. The parser drops quotes when it builds both the argv
+// and the surface, so a quoted element does not change what a deny regex sees
+// either — it only stops one word from becoming two.
+static string quote_arg(const string& a) {
+  bool bare = !a.empty();
+  for (size_t i = 0; i < a.size() && bare; i++) {
+    const char c = a[i];
+    bare = isalnum((unsigned char)c) || c == '.' || c == '_' || c == '-' || c == '=' ||
+           c == '/' || c == ':' || c == '+' || c == '@' || c == ',' || c == '%' ||
+           c == '^' || c == '~' || c == '*' || c == '?';
+  }
+  if (bare) return a;
+  string out = "'";
+  for (size_t i = 0; i < a.size(); i++) {
+    if (a[i] == '\'') out += "'\\''";   // close, escape the literal quote, reopen
+    else out += a[i];
+  }
+  out += "'";
+  return out;
+}
+
 static vector<string> judge_targets(const vector<string>& cmd) {
   vector<string> out;
   string joined;
-  for (size_t i = 0; i < cmd.size(); i++) { if (i) joined += " "; joined += cmd[i]; }
+  for (size_t i = 0; i < cmd.size(); i++) { if (i) joined += " "; joined += quote_arg(cmd[i]); }
   if (!joined.empty()) out.push_back(joined);
 
   for (size_t i = 0; i + 2 < cmd.size() + 1 && i < cmd.size(); i++) {

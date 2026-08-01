@@ -237,6 +237,54 @@ allows "the alias in a commit msg"   "$REPO" "git commit -m \"git -c alias.x='pu
 allows "the alias in an echo"        "$REPO" "echo \"git -c alias.x='push --force' x origin main\""
 
 echo
+echo "== exec: the OTHER caller of the rule engine, and it is handed argv =="
+# `rabadon exec` is sold as the harder version of the hook, so a command the
+# hook refuses may not run here. It receives argv rather than a line and joined
+# it with plain spaces, which turned the single argument `alias.x=push --force`
+# back into two words: the alias then bound `x` to a bare push and the `--force`
+# beside it read as one of git's own leading options. The stub git first on PATH
+# is the whole proof — exit 2 is the rule engine refusing, 111 is the stub
+# reporting that it was really invoked.
+#
+# It runs on a SECOND stub with its OWN log, because unlike every other section
+# in this file exec is supposed to run the commands it allows. The first log
+# stays empty and keeps meaning what it means: judging is not running.
+EXEC="$HERE/rabadon-sandbox"
+XSHIM="$ROOT/xshim"; mkdir -p "$XSHIM"
+XLOG="$ROOT/xran.log"; : > "$XLOG"
+cat > "$XSHIM/git" <<SH
+#!/bin/sh
+printf 'git %s\n' "\$*" >> "$XLOG"
+exit 111
+SH
+chmod +x "$XSHIM/git"
+xrun() { # xrun <alias-body> [operands]
+  ( cd "$REPO" && PATH="$XSHIM:/usr/bin:/bin" "$EXEC" -- "$XSHIM/git" -c "alias.x=$1" x $2 >/dev/null 2>&1 )
+  echo $?
+}
+xblocks() { local got; got="$(xrun "$2" "${3-}")"
+  if [ "$got" = "2" ]; then pass "$1"; else bad "$1: exec returned $got (111 = the stub really ran it)"; fi; }
+xallows() { local got; got="$(xrun "$2" "${3-}")"
+  if [ "$got" = "2" ]; then bad "$1: exec refused, and refusing it cuts real work"; else pass "$1"; fi; }
+if [ -x "$EXEC" ]; then
+  xblocks "exec: alias force-push"    "push --force" "origin main"
+  xblocks "exec: alias hard reset"    "reset --hard" "origin/main"
+  xblocks "exec: bang alias"          "!git push --force origin main"
+  xallows "exec: alias of a read"     "status --short"
+  xallows "exec: alias with lease"    "push --force-with-lease" "origin main"
+  xallows "exec: force to own branch" "push --force" "origin feature/mine"
+  # the log is the claim: what exec refused never reached git, what it allowed did
+  if grep -q -- "alias.x=push --force x origin main" "$XLOG"; then
+    bad "exec: the refused force-push reached git anyway"; sed 's/^/         /' "$XLOG"
+  else pass "exec: the refused commands never reached git"; fi
+  if grep -q -- "alias.x=status --short" "$XLOG"; then
+    pass "exec: the allowed alias did reach git (the stub is really on PATH)"
+  else bad "exec: nothing reached git at all, so the refusals prove nothing"; fi
+else
+  bad "exec: $EXEC not built"
+fi
+
+echo
 echo "== e2e: the plain spellings did not stop working =="
 blocks "plain force-push"            "$REPO" "git push --force origin main"
 blocks "plain hard reset"            "$REPO" "git reset --hard origin/main"
