@@ -326,5 +326,77 @@ else fail "(h) migrated spool: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'
 OUT=$("$AUDIT" --days 2); RC=$?
 if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT"; then pass "the restored spool verifies INTACT again (exit 0)"; else fail "post-restore: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 
+# ---------------------------------------------------------------------------
+# i) THE FOURTH WRITER IS THE SHIPPED PUBLIC API. chain.h opens with "the ledger
+#    has ONE writer" and names three binaries (gate, repair, loop). The npm
+#    package exports a fourth: package.json "exports" -> index.mjs, i.e.
+#    `import { pipeline } from 'rabadon'` — the API the README and SPEC document.
+#    core/bus.mjs used to appendFileSync straight into the CHAINED day file with
+#    no prev, no lock and no .head. So a stranger doing exactly what the docs say
+#    turned a clean ledger into one audit reports in the vocabulary of tampering,
+#    and that day file can never be cleaned again: prev cannot be retro-fitted
+#    without rewriting the file, which is the thing audit exists to detect.
+#    This repo's own ledger already carries 1007 such lines in 2026-07-31.jsonl.
+#
+#    Node cannot take the flock(2) that chain.h holds (no fs binding, no flock(1)
+#    on macOS), so the JS bus can never be a safe co-writer of the SAME file —
+#    racing the C++ writers would forge a BREAK, a false accusation. It chains
+#    its own day file with the identical protocol instead. Both halves are
+#    asserted below: INTACT/exit 0, AND the events are still all there.
+JSDIR="$TMP/jsapi"; mkdir -p "$JSDIR/spool"; touch "$JSDIR/enabled"
+JSPROJ="$TMP/jsproj"; mkdir -p "$JSPROJ/.rabadon"
+cp "$PROJ/.rabadon/guard.json" "$JSPROJ/.rabadon/guard.json"
+printf '{"hook_event_name":"PreToolUse","session_id":"s-js","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$JSPROJ" \
+  | RABADON_DIR="$JSDIR" "$GATE" >/dev/null 2>&1
+
+# baseline: a fresh install with one gated action is INTACT. if this arm ever
+# fails, the arm below proves nothing — it would be measuring a broken baseline.
+OUT=$(RABADON_DIR="$JSDIR" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT"; then
+  pass "(i) baseline: fresh install + one gated action -> INTACT (exit 0)"
+else fail "(i) baseline is not INTACT: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+RABADON_DIR="$JSDIR" node -e \
+  "import('./index.mjs').then(m=>m.pipeline('js-api').step('a',async()=>'ok').bound({maxSteps:2}).run('x'))" \
+  >/dev/null 2>&1
+OUT=$(RABADON_DIR="$JSDIR" "$AUDIT" --days 2); RC=$?
+if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT" && ! printf '%s' "$OUT" | grep -q "verdict: PARTIAL"; then
+  pass "(i) one run of the documented public JS API leaves the ledger INTACT (exit 0)"
+else fail "(i) the public JS API damaged the ledger: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
+
+# POSITIVE HALF. "INTACT" alone is also satisfied by a bus that stopped emitting,
+# or by writing somewhere audit never looks. Assert the run's four events are
+# still on disk, still readable through the store, and carry prev — chained, not
+# hidden. python3, not grep -P: BSD grep has no -P and exits 2, which a shell
+# reads as "no match" and a negative assertion reads as success.
+JSCOUNT=$(RABADON_DIR="$JSDIR" node -e \
+  "import('./core/store.mjs').then(m=>console.log(m.readEvents({days:2}).events.filter(e=>e.pipe==='js-api').length))" 2>/dev/null)
+[ "${JSCOUNT:-0}" -ge 4 ] && pass "(i) the same run's $JSCOUNT JS events are still readable through the store (replay sees them)" \
+  || fail "(i) the JS events vanished: store found '${JSCOUNT:-0}', expected >= 4"
+
+CHAINED_OK=$(RABADON_DIR="$JSDIR" python3 - "$JSDIR/spool" <<'PY'
+import glob, hashlib, json, os, sys
+spool = sys.argv[1]
+found = unchained = 0
+for f in sorted(glob.glob(os.path.join(spool, '*.jsonl'))):
+    lines = [l for l in open(f).read().split('\n') if l]
+    mine = [l for l in lines if json.loads(l).get('pipe') == 'js-api']
+    if not mine: continue
+    found += len(mine)
+    unchained += sum(1 for l in mine if not json.loads(l).get('prev'))
+    head = f + '.head'
+    if not os.path.exists(head): print('NO-HEAD'); sys.exit(0)
+    h, c = open(head).read().split()
+    if h != hashlib.sha256(lines[-1].encode()).hexdigest(): print('HEAD-HASH'); sys.exit(0)
+    if int(c) != sum(1 for l in lines if json.loads(l).get('prev')): print('HEAD-COUNT'); sys.exit(0)
+print('OK' if found >= 4 and unchained == 0 else 'UNCHAINED=%d/%d' % (unchained, found))
+PY
+)
+[ "$CHAINED_OK" = "OK" ] && pass "(i) every JS event carries prev and its .head sidecar commits the right hash + count" \
+  || fail "(i) JS events are not chained the way chain.h chains: $CHAINED_OK"
+
+# the negative above ("no unchained line") can only be trusted while a positive
+# arm proves lines with that pipe exist at all — hence found >= 4 inside it.
+
 echo "audit: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
