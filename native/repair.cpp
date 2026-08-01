@@ -130,8 +130,19 @@ struct Emitter {
 // ---------- bounded shell run: /bin/sh -c, wall-clock cap, output tail ----------
 struct RunResult { int exit_code = -1; bool timed_out = false; string tail; };
 
+// `maxTail` is how much of the child's output is kept. The default exists
+// because most callers want the last lines of a failing run to print, and 0
+// means keep all of it. That default was silently deciding how much protection
+// this binary offers: repair parses rabadon-truth's JSON out of the SAME buffer,
+// and truth's JSON crosses 4000 bytes somewhere around 110 discovered test
+// files. Over that line the front of the JSON, `"testFiles":[` included, was cut
+// away, the parse found nothing, and the run hash-locked ZERO tests. Measured on
+// the corpus's commander checkout: truth discovers 122 files in 4503 bytes and
+// repair locked 0 of them, while express fit in 2382 bytes and locked all 91.
+// The bigger the suite, the less of it was protected, which is backwards.
 static RunResult run_shell(const string& cmd, const string& cwd, int timeoutSec,
-                           const std::vector<string>& extraEnv = {}) {
+                           const std::vector<string>& extraEnv = {},
+                           size_t maxTail = 4000) {
   RunResult r;
   int pfd[2];
   if (pipe(pfd) != 0) return r;
@@ -169,7 +180,7 @@ static RunResult run_shell(const string& cmd, const string& cwd, int timeoutSec,
   { char buf[4096]; ssize_t n; while ((n = read(pfd[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n); }
   close(pfd[0]);
   r.exit_code = r.timed_out ? 124 : (WIFEXITED(status) ? WEXITSTATUS(status) : 128);
-  if (out.size() > 4000) out = out.substr(out.size() - 4000);
+  if (maxTail && out.size() > maxTail) out = out.substr(out.size() - maxTail);
   r.tail = out;
   return r;
 }
@@ -490,10 +501,16 @@ int main(int argc, char** argv) {
   // ---- 1. the check ----
   std::vector<string> testFiles;
   {
-    RunResult t = run_shell(shell_quote(selfDir + "/rabadon-truth") + " " + shell_quote(dir) + " --json", "", 60);
+    // maxTail 0: this output is DATA, not a log tail. See run_shell.
+    RunResult t = run_shell(shell_quote(selfDir + "/rabadon-truth") + " " + shell_quote(dir) + " --json",
+                            "", 60, {}, 0);
     if (t.exit_code == 0) {
       // testFiles array: crude but sufficient extraction from truth's compact JSON
       size_t k = t.tail.find("\"testFiles\":[");
+      if (k == string::npos)
+        fprintf(stderr, "rabadon repair: could not read a testFiles list out of rabadon-truth's answer"
+                        " (%zu bytes). Nothing will be hash-locked, and this is a read failure, not a repo"
+                        " without tests.\n", t.tail.size());
       if (k != string::npos) {
         size_t i = k + 13;
         while (i < t.tail.size() && t.tail[i] != ']') {

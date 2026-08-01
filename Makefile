@@ -452,6 +452,16 @@ test: all
 # honest fix carrying a long string constant, and an honest fix to a comparison
 # method the codebase already had.
 	./native/heldout_test.sh
+# and the question underneath both locks: does the lock cover the suite it says
+# it covers. It did not, and the gap grew with the size of the suite. repair
+# parses rabadon-truth's JSON out of the same buffer that keeps a failing run's
+# last 4000 bytes, so past roughly 110 discovered test files the front of the
+# JSON was cut away and the parse found nothing -- zero locks, quietly. Measured
+# on the corpus's commander checkout: 122 files discovered in 4503 bytes, 0
+# locked, while express fit in 2382 bytes and locked all 91. The third case here
+# is the one that costs: on a 161-file suite a proposal that neutered the failing
+# test was HELD instead of rejected.
+	./native/lock_coverage_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh
 	./native/gate_promise_test.sh
