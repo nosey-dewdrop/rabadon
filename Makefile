@@ -21,7 +21,7 @@ native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/c
 native/rabadon-sandbox: native/sandbox.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-export: native/export.cpp native/cli_help.h
+native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-trace: native/trace.cpp native/cli_help.h
@@ -42,7 +42,7 @@ native/rabadon-lens: native/lens.cpp native/usage.h native/cli_help.h
 native/rabadon-budget: native/budget.cpp native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-stats: native/stats.cpp native/cli_help.h
+native/rabadon-stats: native/stats.cpp native/cli_help.h native/drill.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-drift: native/drift.cpp native/cli_help.h native/version.h

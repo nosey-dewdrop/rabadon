@@ -42,6 +42,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "cli_help.h"
+#include "drill.h"
 
 using std::string;
 using std::u16string;
@@ -350,33 +351,8 @@ struct Event {
   bool marker_hit = false;
 };
 
-// /(fleet|doctor|drill)-\d+/ over the raw line — drill- joins the marker set
-// so `rabadon drill` sessions are excluded belt-and-suspenders (they are also
-// emit-tagged drill:true).
-static bool drill_marker(const string& line) {
-  static const char* words[3] = {"fleet-", "doctor-", "drill-"};
-  for (const char* w : words) {
-    size_t wl = strlen(w), from = 0, k;
-    while ((k = line.find(w, from)) != string::npos) {
-      if (k + wl < line.size() && line[k + wl] >= '0' && line[k + wl] <= '9') return true;
-      from = k + 1;
-    }
-  }
-  return false;
-}
-
-static bool self_pipe(const string& p) {
-  static const char* names[4] = {"vibecoded-demo", "do-test", "llm-repair-live", "bus-test"};
-  for (const char* n : names) {
-    size_t nl = strlen(n);
-    if (p.size() == nl && p.compare(0, nl, n) == 0) return true;
-    if (p.size() > nl && p.compare(0, nl, n) == 0 && p[nl] == ':') return true;
-  }
-  // rabadon's own latency benchmark fires thousands of synthetic denies —
-  // self-test traffic, never a user's catch (ledger honesty)
-  if (p.rfind("rabadon-bench", 0) == 0) return true;
-  return p.rfind("tmp.", 0) == 0;
-}
+// The four drill rules live in drill.h — one implementation, so the number
+// printed here and the spans rabadon-export ships agree on what a drill is.
 
 static string project_of(bool has_pipe, const string& pipe) {
   string p = (has_pipe && !pipe.empty()) ? pipe : "?";
@@ -553,9 +529,7 @@ int main(int argc, char** argv) {
       e.ts = ts->num();
       if (!(e.ts >= cutoff)) continue;
       if (const JV* sq = root.get("seq")) if (sq->t == JV::NUM) e.seq = sq->num();
-      if (const JV* dr = root.get("drill")) {
-        e.drill_emit = (dr->t == JV::BOOL && dr->b) || (dr->t == JV::NUM && dr->num() != 0) || (dr->t == JV::STR && !dr->s.empty());
-      }
+      e.drill_emit = rb_drill_tag(line);
       if (const JV* pp = root.get("pipe")) if (pp->t == JV::STR) { e.has_pipe = true; e.pipe = u16_to_utf8(json_body_to_u16(pp->s)); }
       if (const JV* ev = root.get("ev")) if (ev->t == JV::STR) e.ev = u16_to_utf8(json_body_to_u16(ev->s));
       if (const JV* rn = root.get("run")) if (rn->t == JV::STR) e.run = u16_to_utf8(json_body_to_u16(rn->s));
@@ -593,7 +567,7 @@ int main(int argc, char** argv) {
         if (const JV* lk = root.get("locks")) if (lk->t == JV::NUM) e.locks = (long long)lk->num();
       }
       e.drill = e.drill_emit;
-      e.marker_hit = !e.drill_emit && drill_marker(line);
+      e.marker_hit = !e.drill_emit && rb_drill_marker(line);
       events.push_back(std::move(e));
     }
   }
@@ -603,21 +577,14 @@ int main(int argc, char** argv) {
     return a.seq < b.seq;
   });
 
-  // ---- markDrills ----
-  struct Marker { bool has_pipe; string pipe; double ts; };
-  std::vector<Marker> markers;
-  for (Event& e : events) {
-    if (e.drill) continue;
-    if (e.marker_hit) { e.drill = true; markers.push_back({e.has_pipe, e.pipe, e.ts}); }
-  }
-  for (Event& e : events) {
-    if (e.drill) continue;
-    const string p = e.has_pipe ? e.pipe : "";
-    if (self_pipe(p)) { e.drill = true; continue; }
-    for (const Marker& m : markers) {
-      bool same = (m.has_pipe == e.has_pipe) && (!m.has_pipe || m.pipe == e.pipe);
-      if (same && std::fabs(e.ts - m.ts) < 120000.0) { e.drill = true; break; }
-    }
+  // ---- markDrills ---- rules 1-4, from drill.h, the same code rabadon-export
+  // runs so the local number and the exported spans cannot disagree.
+  {
+    std::vector<RbDrillEv> dv;
+    dv.reserve(events.size());
+    for (const Event& e : events) dv.push_back({e.has_pipe, e.pipe, e.ts, e.drill_emit, e.marker_hit});
+    std::vector<char> marked = rb_mark_drills(dv);
+    for (size_t i = 0; i < events.size(); i++) events[i].drill = marked[i] != 0;
   }
 
   // ---- rule id resolution: run -> (check, why) from CHECK_FAILs ----
