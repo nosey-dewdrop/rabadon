@@ -44,7 +44,7 @@ rabadon doctor
 rabadon doctor — /usr/local/lib/node_modules/rabadon
 
   ok   native core built (6 binaries)
-  ok   version 0.2.0 (binary matches package.json)
+  ok   version <x.y.z> (binary matches package.json)
   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
   ok   claude CLI present (guard authoring + repair proposer available)
   ok   ledger: 0 day-file(s), 0.0 MB (retention: 30 days, pruned on session start)

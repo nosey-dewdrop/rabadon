@@ -140,7 +140,31 @@ for f in includers:
     elif 'native/version.h' not in prereqs:
         P(f'Makefile: {target} includes version.h but does not list it as a prerequisite — a version bump will not rebuild it')
 
-# 7. what the built binaries actually say when a stranger asks. a binary that
+# 7. the docs a stranger reads carry no version literal at all. prepare-release
+#    sets package.json, version.h, the platform packages and the pins; it does
+#    not touch prose, so a number typed into a doc can only ever go stale. the
+#    doctor sample in quickstart.md said 0.2.0 and would have kept saying it.
+#    this is a NEGATIVE claim, so it is worthless without proof that the sweep
+#    can see a literal when there is one: the counted bytes below, and the
+#    mutated-doc arm in the driver.
+SEMVER = re.compile(r'(?<![\w.])v?\d+\.\d+\.\d+(?![\w.])')
+docs = [os.path.join(root, f) for f in ('README.md', 'SPEC.md')]
+dd = os.path.join(root, 'docs')
+if os.path.isdir(dd):
+    docs += [os.path.join(dd, f) for f in sorted(os.listdir(dd)) if f.endswith('.md')]
+docs = [d for d in docs if os.path.isfile(d)]
+doc_bytes = 0
+for d in docs:
+    t = open(d, encoding='utf8', errors='replace').read()
+    doc_bytes += len(t)
+    for i, line in enumerate(t.splitlines(), 1):
+        for s in SEMVER.finditer(line):
+            P(f'{os.path.relpath(d, root)}:{i}: a version typed into prose ({s.group(0)}) — '
+              f'nothing bumps it, so it can only go stale: {line.strip()[:70]}')
+if doc_bytes < 10000:
+    P(f'the docs sweep read only {doc_bytes} bytes across {len(docs)} file(s) — it is not reading the docs')
+
+# 8. what the built binaries actually say when a stranger asks. a binary that
 #    refuses --version (exit != 0) makes no version claim and is not judged;
 #    a binary that answers must answer with this version.
 if bindir:
@@ -184,6 +208,8 @@ fixture() {
     [ -f "$p/package.json" ] || continue
     mkdir -p "$d/npm/$n"; cp "$p/package.json" "$d/npm/$n/"
   done
+  cp "$ROOT/README.md" "$ROOT/SPEC.md" "$d/"
+  mkdir -p "$d/docs"; cp "$ROOT"/docs/*.md "$d/docs/"
 }
 # assert a mutated copy is REFUSED, and refused for the stated reason.
 must_fail() {  # $1 = fixture dir, $2 = what was mutated, $3 = grep needle
@@ -261,6 +287,16 @@ G="$TMP/g"; fixture "$G"
 printf '\n// reintroduced by hand\n// printf("rabadon-budget 9.9.9\\n");\n' >> "$G/native/budget.cpp"
 must_fail "$G" "a hardcoded version banner in a source" "hardcoded version banner"
 
+# --- Ha: a version typed back into the docs --------------------------------
+HA="$TMP/ha"; fixture "$HA"
+printf '\nInstall the current release, 0.1.9, and run it.\n' >> "$HA/docs/quickstart.md"
+must_fail "$HA" "a version typed into the docs" "typed into prose"
+
+# --- Hb: the docs sweep must be reading real files, not an empty list -------
+HB="$TMP/hb"; fixture "$HB"
+rm -f "$HB/README.md" "$HB/SPEC.md" "$HB"/docs/*.md
+must_fail "$HB" "removing the docs the sweep reads" "it is not reading the docs"
+
 # --- H: a built binary announces a version nobody else says ----------------
 H="$TMP/h"; fixture "$H"
 mkdir -p "$TMP/fakebin"
@@ -294,9 +330,9 @@ for f in sorted(os.listdir(n)):
         print('native/rabadon-'+f[:-4])
 PY
 )"
-if make -q $TARGETS >/dev/null 2>&1; then
+if (cd "$ROOT" && make -q $TARGETS >/dev/null 2>&1); then
   touch "$ROOT/native/version.h"
-  if make -q $TARGETS >/dev/null 2>&1; then
+  if (cd "$ROOT" && make -q $TARGETS >/dev/null 2>&1); then
     bad "make answers 'up to date' after version.h changed — a bump would ship the old string"
   else
     ok "make rebuilds $(printf '%s' "$TARGETS" | wc -w | tr -d ' ') binaries when version.h changes (was: 'up to date')"
