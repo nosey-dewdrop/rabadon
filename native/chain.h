@@ -47,6 +47,7 @@
 
 #pragma once
 
+#include <cerrno>
 #include <cstdlib>
 #include <fstream>
 #include <string>
@@ -93,6 +94,11 @@ inline bool acquire_lock(const string& lockPath) {
   for (;;) {
     int fd = ::open(lockPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd >= 0) { close(fd); return true; }
+    // EEXIST is the only refusal that means "someone is holding it". Anything
+    // else (unwritable spool, no such directory) will refuse identically for the
+    // whole wait, and this sits in the gate's hot path on every tool call — so
+    // it fails open immediately instead of stalling the agent for LOCK_WAIT_MS.
+    if (errno != EEXIST) return false;
     struct stat st;
     const bool stale = ::stat(lockPath.c_str(), &st) == 0 &&
                        lock_now_ms() - (long long)st.st_mtime * 1000 > LOCK_STALE_MS;

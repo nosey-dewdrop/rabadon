@@ -446,6 +446,23 @@ AFTER2=$(lines_in "$LKFILE")
 [ "$AFTER2" -gt "$AFTER" ] && pass "(j) a lock left by a killed writer is stolen, not obeyed forever" \
   || fail "(j) the stale lock blocked the chain forever (still $AFTER line(s))"
 
+# EEXIST is the only refusal that means "held". An unwritable spool refuses the
+# same way for the whole wait, and this lock sits in the gate's hot path on every
+# single tool call: 5 invocations x 2 events x LOCK_WAIT_MS would be ~2.5s of an
+# agent hanging on a dead directory. Fail open at once instead. The margin here
+# is ~100x, so this measures the spin and not the machine.
+RODIR="$TMP/ro"; mkdir -p "$RODIR/spool"; touch "$RODIR/enabled"
+chmod 555 "$RODIR/spool"
+T0=$(python3 -c 'import time;print(time.time())')
+for _ in 1 2 3 4 5; do
+  printf '{"hook_event_name":"PreToolUse","session_id":"s-ro","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$LKPROJ" \
+    | RABADON_DIR="$RODIR" "$GATE" >/dev/null 2>&1 || true
+done
+ELAPSED=$(python3 -c "import time;print(int((time.time()-$T0)*1000))")
+chmod 755 "$RODIR/spool"
+[ "$ELAPSED" -lt 1000 ] && pass "(j) an unwritable spool fails open at once, it does not spin the wait (${ELAPSED}ms for 5 gate runs)" \
+  || fail "(j) the gate stalled on a dead spool dir: ${ELAPSED}ms for 5 runs"
+
 # ---------------------------------------------------------------------------
 # k) BOTH WRITERS, ONE FILE, ONE VERDICT. The readers of this ledger look up
 #    exactly one name: ui/server.mjs (the `rabadon watch` cockpit) tails
