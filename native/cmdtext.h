@@ -229,6 +229,21 @@ inline bool is_assignment(const string& s) {
 // own operand is skipped, and `env -i git ...` reads `-i`. So each wrapper
 // declares what it eats: which short flags take a separate value, which long
 // flags do, and how many plain operands come before the command.
+//
+// A name that is not in the table is read as the command itself, so the table's
+// membership test is the whole gate. `caffeinate git push --force origin main`
+// exited 0 while the same line without the first word exited 2, and `caffeinate
+// rm -rf /` exited 0 too: read as the command name, `caffeinate` is neither git
+// nor rm, the segment is marked irrelevant, and none of the three compiled laws
+// is asked. That name is not exotic — it is how a long job is kept alive on a
+// mac, so it sits in front of exactly the commands slow enough to be worth
+// protecting.
+//
+// The test for adding a name is NOT "is it a famous wrapper". It is: does a
+// shell reach the dangerous argv through it, watched running, with a fake git
+// and a fake rm recording what they were handed. Every name added below the
+// original list was measured doing that on the machine the precision fixture
+// came from; the ones that were not measured are not here.
 struct WrapSpec { string shortVal; string longVal; int operands; };
 
 inline bool wrapper_of(const string& base, WrapSpec& w) {
@@ -251,6 +266,12 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   if (name_is(base, "xargs"))   { w.shortVal = "IiLnPsEadD";
                                   w.longVal = "|--replace|--max-lines|--max-args|--max-procs|"
                                               "--max-chars|--eof|--arg-file|--delimiter|"; return true; }
+  // measured executing the argv behind them, section 0 of wrapper_exec_test.sh
+  if (name_is(base, "caffeinate")) { w.shortVal = "tw"; return true; }   // -t timeout, -w pid
+  // sandbox-exec's four options all take a SEPARATE value and it clusters none
+  // of them, so the profile — which is parenthesised text and arrives as one
+  // quoted word — is skipped whole and the command behind it is reached.
+  if (name_is(base, "sandbox-exec")) { w.shortVal = "fnpD"; return true; }  // -f/-n/-p profile, -D key=value
   // xcrun finds a tool in the active developer directory and EXECS it, which is
   // the wrapper shape exactly, and the name it was handed is the command. It was
   // not in this table, so `xcrun` was read as the command name -- neither git nor

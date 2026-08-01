@@ -208,6 +208,24 @@ test: all
 # line is refusing work no iteration performs. section 1 runs a real bash with
 # stub git and rm to show the body does reach the destructive argv.
 	./native/loop_body_test.sh
+# the same question with the shell's own syntax out of the way: the word in
+# command position is a WRAPPER, and the wrapper table did not have its name. a
+# name the table does not know is read as the command itself, so `caffeinate git
+# push --force origin main` exited 0 while the same line minus its first word
+# exited 2, and `caffeinate rm -rf /` exited 0 too — one extra word in front and
+# all three compiled laws went unasked. that word is not exotic: it is how a mac
+# keeps a LONG job alive, so it sits in front of exactly the commands slow
+# enough to be worth protecting. membership is not fame — a real bash with stub
+# git and rm watches each name execute the argv behind it, and only the names
+# measured doing it were added — this suite holds the two it measured,
+# caffeinate and sandbox-exec. the twins are what a longer skip table has to
+# pay: the same wrappers carry a fetch, a status, a lease push and a delete of
+# the project's own build output, and the name in a commit message, an echo, a
+# grep pattern and a heredoc body is text, not a program. the last pair is what
+# the table ENTRY buys over reading any unknown word as a wrapper: `-t 3600`
+# puts a bare number between the wrapper and the command, and only the entry
+# that declares -t knows to eat it.
+	./native/wrapper_exec_test.sh
 # and the wrapper that eats a FILE before it eats the command. `script -q
 # /dev/null <cmd>` is a session recorder, not a logger wrapped around a shell it
 # cannot reach: script(1) runs the argv itself, so the whole line reached the
