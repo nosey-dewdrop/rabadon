@@ -189,6 +189,23 @@ test: all
 # flags: -qu, a lease push, -oci.skip, `git commit -mfix` and `git log -12` all
 # still run.
 	./native/short_cluster_test.sh
+# the same question with the other kind of dash. parse-options also resolves a
+# LONG option from any unambiguous prefix of its name, and the laws compared
+# whole strings: `git push --del origin main`, `git push --mir origin`,
+# `git reset --har main` and `git push --al --force origin` all exited 0 on the
+# fresh-install path while the spelled-out four exited 2, and a project's own
+# `--delete|--mirror` regex missed them from the same side. the fix is the pass
+# 7b argument finished: the parser normalises the option to its full name before
+# any law reads it, using git's own resolution — an exact name first, then the
+# one option carrying the prefix, and NOTHING when two share it. section 0
+# measures that premise instead of quoting it: --dele/--del/--de all report
+# `[deleted]` against a bare repo it mktemps, --m alone is --mirror, reset --h
+# alone is --hard, and --d/--a/--f/--fo all answer 129 "ambiguous option". the
+# twins are what the expansion has to pay: --dr is a dry run, --po is porcelain,
+# reset --mi is a mixed reset, --force-w is still a lease, `--tag --force`
+# writes tags and NO branch (measured) and stays allowed, and every shortened
+# spelling gets the SAME verdict as the full name it stands for.
+	./native/long_option_prefix_test.sh
 	./native/bypass_test.sh
 # bypass_test.sh asks whether the LAWS see the command. this one asks whether the
 # PARSER hands them one at all: `FOO=bar <cmd>` was judged and `FOO=/x <cmd>` was

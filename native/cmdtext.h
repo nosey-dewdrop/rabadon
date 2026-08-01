@@ -1630,6 +1630,122 @@ inline void split_git_short_clusters(vector<Word>& t) {
   t.swap(next);
 }
 
+// ---------- pass 7c: an unambiguous PREFIX of a long option IS that option ---
+// THE HOLE THIS CLOSES.
+//
+//   git push --del origin main        git push --mir origin
+//   git reset --har main              git push --al --force origin
+//
+// parse-options resolves a long option from any UNAMBIGUOUS PREFIX of its name,
+// and the laws compared whole strings: `s == "--delete"`, `s == "--mirror"`,
+// `s == "--all"`, `t[i].text == "--hard"`. So every shortened spelling fell
+// into "starts with a dash, skip" and the flag stayed false — a branch deletion,
+// a mirror push and a hard reset, each refused when spelled out and allowed
+// three characters shorter. A project's own `(--delete|--mirror)\b` misses them
+// from the same side, so both layers were open at once.
+//
+// It is the SAME argument pass 7b already won one word over. The comment there
+// says a short cluster must not be re-read by the laws because the parser has
+// already split it; the other half of that sentence is this pass. Which option
+// a word names is a question about READING the line, and this file is where the
+// line is read.
+//
+// Measured against git 2.39.5, and every line is a check in
+// native/long_option_prefix_test.sh rather than a reading of the manual:
+//   push --dele/--del/--de  -> `- :refs/heads/main [deleted]`, three more
+//                              spellings of the deletion refused as --delete.
+//   push --d                -> exit 129, "ambiguous option: d (could be
+//                              --delete or --dry-run)". git refuses it.
+//   push --mirr/--mir/--mi/--m -> the mirror refspec. --mirror is push's only
+//                              m, so the prefix goes down to one letter.
+//   push --al               -> every branch; --a is ambiguous with --atomic.
+//   reset --har/--ha/--h    -> `HEAD is now at ...`. --hard is reset's only h,
+//                              and `--h` is not the `-h` that prints usage.
+//   push --force            -> the forced update, though --force-with-lease and
+//                              --force-if-includes both begin with it: an EXACT
+//                              name beats its own extensions. --forc/--for/
+//                              --fo/--f are all ambiguous and refused.
+//   push --tag --force      -> `* refs/tags/v1 [new tag]` and NO branch, byte
+//                              for byte what --tags does. The rule runs
+//                              DOWNWARD too: that line writes no branch and the
+//                              law must keep allowing it.
+//   push --rec=check        -> exit 129, ambiguous with --receive-pack. The
+//                              `=value` form resolves on the NAME half, so the
+//                              name is split off before it is looked up.
+//
+// SO THE RESOLUTION IS GIT'S, NOT A GUESS: an exact name first, then the one
+// option carrying this prefix, and NOTHING when two options share it. That last
+// clause is why the tables below are each a subcommand's option list IN FULL
+// and not the four interesting words. A missing option is a prefix this pass
+// would call unambiguous while git calls it ambiguous — `--d` read as --delete
+// because nobody wrote down --dry-run — and that is a refusal of a line git
+// itself refuses to run.
+//
+// AND IT IS SCOPED TO THE SUBCOMMANDS WHOSE OPTIONS A LAW READS. `push` and
+// `reset` are the two; every other subcommand's words are returned untouched,
+// because a table for all of them is the hand-kept set this parser exists to
+// avoid and no law would read it. When git grows an option this list does not
+// have, the error is in the safe direction: a prefix git now calls ambiguous
+// stays unexpanded here and git refuses the command itself.
+//
+// THE ONE LIMIT, named and not hidden: this reads a word by its spelling, not
+// by its position, so a long option written as the VALUE of another option is
+// expanded too — `git push -o --del origin main` hands `--del` to --push-option
+// and this reads it as --delete. It opens no new class: the same line spelled
+// `-o --delete` is refused by the law today, for the same reason, and the value
+// of a push option is not a place ordinary work writes an option name.
+inline const char* const* git_long_option_table(const string& sub) {
+  // `git push -h` and `git reset -h` on git 2.39.5, in full and in order.
+  static const char* const push[] = {
+      "--all", "--atomic", "--delete", "--dry-run", "--exec", "--follow-tags",
+      "--force", "--force-if-includes", "--force-with-lease", "--ipv4", "--ipv6",
+      "--mirror", "--no-verify", "--porcelain", "--progress", "--prune",
+      "--push-option", "--quiet", "--receive-pack", "--recurse-submodules",
+      "--repo", "--set-upstream", "--signed", "--tags", "--thin", "--verbose", NULL};
+  static const char* const reset[] = {
+      "--hard", "--intent-to-add", "--keep", "--merge", "--mixed", "--no-refresh",
+      "--patch", "--pathspec-file-nul", "--pathspec-from-file", "--quiet",
+      "--recurse-submodules", "--soft", NULL};
+  if (sub == "push") return push;
+  if (sub == "reset") return reset;
+  return NULL;
+}
+
+// The full option this token names, or "" when git would not resolve it to
+// exactly one. An `=value` tail rides along untouched: git splits the same way.
+inline string git_long_option(const char* const* table, const string& tok) {
+  if (tok.size() < 3 || tok[0] != '-' || tok[1] != '-') return "";
+  const size_t eq = tok.find('=');
+  const string name = (eq == string::npos) ? tok : tok.substr(0, eq);
+  const string tail = (eq == string::npos) ? string() : tok.substr(eq);
+  if (name.size() < 3) return "";                  // `--` is the end of options
+  const char* hit = NULL;
+  int hits = 0;
+  for (int i = 0; table[i]; i++) {
+    const string opt = table[i];
+    if (opt == name) return opt + tail;            // exact beats its extensions
+    if (opt.size() > name.size() && opt.compare(0, name.size(), name) == 0) {
+      hit = table[i];
+      hits++;
+    }
+  }
+  return hits == 1 ? string(hit) + tail : string();
+}
+
+inline void expand_git_long_options(vector<Word>& t) {
+  const size_t ci = command_index(t);
+  if (ci >= t.size() || !name_is(base_of(t[ci].text), "git")) return;
+  size_t sub = 0;
+  if (!git_subcommand(t, ci, sub)) return;
+  const char* const* table = git_long_option_table(t[sub].text);
+  if (!table) return;
+  for (size_t i = sub + 1; i < t.size(); i++) {
+    if (!t[i].quoted && t[i].text == "--") return;  // after it, git reads operands
+    const string full = git_long_option(table, t[i].text);
+    if (!full.empty()) t[i].text = full;
+  }
+}
+
 // ---------- the whole answer ----------
 inline void emit(const string& text, int group, int parent, Parsed& out, int depth,
                  vector<Binding> env,
@@ -1674,6 +1790,10 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
     // alias is resolved first because `-c alias.x='push -fu'` puts the cluster
     // on the line only after the body is spliced in.
     split_git_short_clusters(sg.words);
+    // and the long options that same body may have written short: `--del` is
+    // --delete, and the laws below compare whole names. Same reason, same
+    // ordering — an alias body carries `push --del` just as readily.
+    expand_git_long_options(sg.words);
     const vector<string> nested = sg.nested;
     vector<string> scripts = shell_scripts(sg.words);
     if (!aliasShell.empty()) scripts.push_back(aliasShell);
