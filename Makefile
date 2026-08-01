@@ -29,7 +29,12 @@ native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h nati
 native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h
+# trace is the THIRD reader of the spool, next to stats and export, and it is
+# the one that gets screenshotted. drill.h was listed on the other two only, so
+# the build could not have told anyone that trace applies none of the exclusion
+# rules: a tightened rule in drill.h answered `make` with "up to date" and left
+# the prettiest surface counting rabadon's own self-tests as catches.
+native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/drill.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-serve: native/serve.cpp native/cli_help.h
