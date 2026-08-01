@@ -151,6 +151,17 @@ ON_FEAT="$ROOT/on-feat"; mkrepo "$ON_FEAT" feat
 MAIN_HEAD="$("$REALGIT" -C "$ON_MAIN" rev-parse HEAD)"
 FEAT_HEAD="$("$REALGIT" -C "$ON_FEAT" rev-parse HEAD)"
 
+# A LINKED WORKTREE, where the repo's config is not where the repo is. Its .git
+# is a FILE pointing at .git/worktrees/<name>, and that directory holds only the
+# worktree's own config — the shared one is reached through the `commondir`
+# pointer beside it. A reader that stopped at <gitdir>/config would find nothing
+# here and fall straight back to HEAD, which is the bug this file is about, one
+# directory over. The branch checked out here is `linked`, so the fallback
+# ALLOWS and only the config can refuse.
+WT="$ROOT/linked"
+WT_OK=1
+"$REALGIT" -C "$ON_MAIN" worktree add -q -b linked "$WT" >/dev/null 2>&1 || WT_OK=0
+
 export HOME="$ROOT/home"
 mkdir -p "$HOME/Documents"
 echo "do not lose me" > "$HOME/Documents/canary.txt"
@@ -451,6 +462,26 @@ GOT="$(judge "$ON_FEAT" "git push --force origin")"
 [ "$GOT" != "2" ] \
   && pass "repo=simple beats global=matching, on feat — the LAST value decides, not any value" \
   || bad "repo=simple beats global=matching: refused on feat, so a global value overrode the repo's"
+
+echo
+echo "== e2e: a linked worktree, whose config is not where its .git is =="
+if [ "$WT_OK" = "0" ]; then
+  bad "the linked worktree could not be created, so the commondir path is unproven"
+else
+  put repo "[remote \"origin\"]\n\tpush = $R2M\n"
+  GOT="$(judge "$WT" "git push --force origin")"
+  [ "$GOT" = "2" ] && pass "the shared config decides a push judged from a worktree" \
+    || bad "worktree: allowed (exit $GOT) — <gitdir>/config is not where the shared file is"
+  MSG="$(why "$WT" "git push --force origin")"
+  case "$MSG" in
+    *"shared branch 'main'"*) pass "and it still names the branch, from the worktree" ;;
+    *) bad "worktree refusal does not name the branch: $MSG" ;;
+  esac
+  put none
+  GOT="$(judge "$WT" "git push --force origin")"
+  [ "$GOT" != "2" ] && pass "with no config, the worktree's own branch is hers to force" \
+    || bad "worktree: refused with no config, and refusing it cuts real work"
+fi
 
 echo
 echo "== e2e: an empty or absent file is not a value =="
