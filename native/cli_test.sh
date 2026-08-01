@@ -410,6 +410,34 @@ rec("old-r1" not in so,
     if "old-r1" not in so else
     "--days was ignored: a two-day-old run answered inside a one-day window")
 
+# ---- asking for a run that is not there is a FAILED question ----
+# "(no matching run)" printed on stdout at exit 0. A caller that pipes trace
+# into anything read success plus an empty report, which is the same bytes as a
+# run that genuinely had nothing in it. Three assertions, and the exit code is
+# the only one with teeth: the naming assertion alone is passed by a binary that
+# echoes the word into a header, which is precisely how the swallowed flag
+# survived its own check (see section 5).
+for form, args in (("`rabadon-trace no-such-run-anywhere`", ("no-such-run-anywhere",)),
+                   ("`rabadon-trace --run no-such-run-anywhere`", ("--run", "no-such-run-anywhere"))):
+    rc, so, se = trace(box, *args)
+    rec(rc != 0, form + " exits %d" % rc if rc != 0
+        else form + " exited 0 as if an absent run were an answer")
+    rec("no-such-run-anywhere" in se,
+        form + " names the run it could not find" if "no-such-run-anywhere" in se
+        else form + " never says which run it could not find")
+    rec(not so.strip(),
+        form + " writes nothing to stdout" if not so.strip()
+        else form + " still put %d bytes on stdout for a run that does not exist" % len(so))
+
+# and the positive that keeps all six honest: a run that IS there still exits 0
+# with a report on stdout. Without it, a binary that failed on everything would
+# score a clean sweep above.
+rc, so, se = trace(box, "old-r1")
+rec(rc == 0 and so.strip(),
+    "a run that IS in the window still exits 0 with a report on stdout"
+    if rc == 0 and so.strip() else
+    "the failure path swallowed the success path too (rc=%d, %d bytes)" % (rc, len(so)))
+
 open(report, "w").write("\n".join(out) + "\n")
 PY
 while IFS=$'\t' read -r VERDICT MSG; do

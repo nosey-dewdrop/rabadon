@@ -691,7 +691,6 @@ int main(int argc,char** argv){
     if(control.usd_e6==0 && routedArm.usd_e6==0){
       snprintf(b,sizeof b,"    %sNOT MEASURED: no model bill on this run (scripted proposer) — NO money claim is made%s\n\n",C.dim,C.rst);
       out+=b;
-      if(shown==0) out+="  (no matching run)\n";
       fwrite(out.data(),1,out.size(),stdout);
       return 0;
     }
@@ -701,7 +700,21 @@ int main(int argc,char** argv){
                       C.bold,C.rst, "olculen net", C.red, ("-"+string(fmt_usd(-d))).c_str(), C.rst, C.red,C.rst);
     out+=b; out+="\n";
   }
-  if(shown==0) out+="  (no matching run)\n";
+  // Nothing rendered is a FAILED question, and it used to print "(no matching
+  // run)" on stdout at exit 0 — the third silence in this file. A caller that
+  // pipes trace anywhere read success and an empty report, which is
+  // indistinguishable from a run that simply had nothing in it. Diagnostics go
+  // to stderr, stdout stays empty, and the exit code says no.
+  if(shown==0){
+    if(!wantRun.empty())
+      fprintf(stderr,"rabadon-trace: no matching run — \"%s\" is not in %s within the last %g day%s"
+                     " (widen with --days N, or `rabadon-trace --last` for the newest)\n",
+              wantRun.c_str(), (dirUsed.empty()?label:dirUsed).c_str(), days, days==1?"":"s");
+    else
+      fprintf(stderr,"rabadon-trace: no matching run — %s holds no run events\n",
+              label.empty()?"the spool":label.c_str());
+    return 1;
+  }
   fwrite(out.data(),1,out.size(),stdout);
   return 0;
 }
