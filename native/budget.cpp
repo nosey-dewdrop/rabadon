@@ -28,6 +28,7 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include "cli_help.h"
 #include <unistd.h>
 
 using std::string;
@@ -77,8 +78,35 @@ static double field(const string& j, const string& key) {
   return atof(j.c_str() + colon + 1);
 }
 
+static const char* kHelp =
+  "rabadon-budget — write the deterministic ceiling for a project.\n"
+  "This binary only WRITES the cap; rabadon-gate enforces it, measuring the\n"
+  "session's real cumulative usage on every tool call and halting the run BEFORE\n"
+  "it burns past the number. rabadon does not show the cost, it stops at it.\n"
+  "\n"
+  "usage: rabadon-budget [<cap>] [dir]\n"
+  "\n"
+  "  (no argument)   show the cap in effect for this directory.\n"
+  "  200k            token cap. also 200000, 2m, \"500 tokens\".\n"
+  "  5usd            dollar cap. also 5$.\n"
+  "  off             clear the cap. also clear, none.\n"
+  "  [dir]           target a project other than the cwd.\n"
+  "  --version       print the version.\n"
+  "  -h, --help      this screen.\n"
+  "\n"
+  "The cap lands in <dir>/.rabadon/budget.json as {\"tokens\":N} or {\"usd\":X}.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-budget 200k ~/src/myrepo\n";
+
 int main(int argc, char** argv) {
+  // `rabadon-budget --help` used to reach the spec parser and exit 1 with
+  // "didn't understand \"--help\"".
+  rb_help(argc, argv, kHelp);
+
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-budget 0.1.0\n"); return 0; }
+  // a cap is a number or `off`, never a flag
+  if (argc > 1 && rb_is_flag(argv[1])) rb_unknown_flag("rabadon-budget", argv[1]);
 
   char cwdbuf[4096];
   string cwd = getcwd(cwdbuf, sizeof cwdbuf) ? cwdbuf : ".";

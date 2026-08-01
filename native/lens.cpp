@@ -28,6 +28,7 @@
 #include <pwd.h>
 
 #include "usage.h"
+#include "cli_help.h"
 
 using std::string;
 using std::vector;

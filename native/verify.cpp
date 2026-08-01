@@ -31,6 +31,7 @@
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
+#include "cli_help.h"
 
 using std::string;
 using std::vector;
@@ -102,8 +103,34 @@ static vector<string> split_objects(const string& arr) {
   return out;
 }
 
+static const char* kHelp =
+  "rabadon-verify — the contract kernel. The arbiter that decides pass/fail.\n"
+  "Reads a contract from its OWN file and never hands it to the proposer, so a\n"
+  "repair cannot edit its judge. Fail-CLOSED by construction: an empty contract\n"
+  "fails, an unknown check type fails, a missing baseline fails.\n"
+  "\n"
+  "usage: rabadon-verify <dir> <contract.json>\n"
+  "\n"
+  "  <dir>            the project the checks run in.\n"
+  "  <contract.json>  a JSON array, or {\"contract\":[ ... ]}. check types:\n"
+  "      {\"type\":\"differential\",\"run\":\"<cmd>\",\"expect\":\"<exact stdout>\"}\n"
+  "      {\"type\":\"forbidden\",\"path\":\"<file>\",\"sha\":\"<sha256>\"}\n"
+  "      {\"type\":\"cmd\",\"run\":\"<cmd>\",\"passPattern\":\"<marker>\"}\n"
+  "      {\"type\":\"fileExists\",\"path\":\"<file>\"}\n"
+  "      {\"type\":\"fileContains\",\"path\":\"<file>\",\"pattern\":\"<text>\"}\n"
+  "  -h, --help       this screen.\n"
+  "\n"
+  "exit: 0 every check passed · 1 a check failed · 2 malformed, fail-closed.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-verify ~/src/myrepo ~/src/myrepo/.rabadon/contract.json\n";
+
 int main(int argc, char** argv) {
-  if (argc < 3) { fprintf(stderr, "usage: rabadon-verify <dir> <contract.json>\n"); return 2; }
+  // `rabadon-verify --help` used to hit the arity check and exit 2 — the same
+  // code as a malformed contract, so help was indistinguishable from a refusal.
+  rb_help(argc, argv, kHelp);
+
+  if (argc < 3) { fprintf(stderr, "usage: rabadon-verify <dir> <contract.json>\n  run `rabadon-verify --help`\n"); return 2; }
   string dir = argv[1];
   string craw = read_file(argv[2]);
   if (craw.empty()) { printf("contract is empty or unreadable (fail-closed)\n"); return 2; }

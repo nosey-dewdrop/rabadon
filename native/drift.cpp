@@ -30,6 +30,7 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "cli_help.h"
 
 using std::string;
 using std::vector;

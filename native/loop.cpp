@@ -51,6 +51,7 @@
 #include <ctime>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "cli_help.h"
 #include "chain.h"   // the ledger's one writer: chained line + .head sidecar
 
 using std::string;
@@ -131,8 +132,35 @@ struct Emitter {
   }
 };
 
+static const char* kHelp =
+  "rabadon-loop — run a plan under the arbiter.\n"
+  "Every step is checked by rabadon-verify before the next one starts. A failed\n"
+  "check triggers a bounded repair, and the repair must pass the SAME check to be\n"
+  "kept — so a fix that only neuters the test is refused and the run stops.\n"
+  "An empty or unreadable plan fails CLOSED.\n"
+  "\n"
+  "usage: rabadon-loop <dir> <plan.json>\n"
+  "\n"
+  "  <dir>        the project the steps execute in.\n"
+  "  <plan.json>  {\"steps\":[{\"id\",\"kind\",\"do\",\"contract\":[...]}],\"accept\":[...]}\n"
+  "               rabadon-do writes one to <dir>/.rabadon/do-plan.json.\n"
+  "  -h, --help   this screen.\n"
+  "\n"
+  "environment:\n"
+  "  RABADON_TIERS       cheap-model-first routing, e.g. \"haiku,opus\".\n"
+  "  RABADON_PROPOSER    the coding-agent command called for a repair.\n"
+  "  RABADON_MAX_REPAIRS repair attempts per step (default 1).\n"
+  "  RABADON_DIR         where the run is spooled (default ~/.rabadon).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-loop ~/src/myrepo ~/src/myrepo/.rabadon/do-plan.json\n";
+
 int main(int argc,char** argv){
-  if(argc<3){ fprintf(stderr,"usage: rabadon-loop <dir> <plan.json>\n"); return 2; }
+  // `rabadon-loop --help` used to hit the arity check and exit 2 with a usage
+  // line that named no flag, no environment variable and no example.
+  rb_help(argc, argv, kHelp);
+
+  if(argc<3){ fprintf(stderr,"usage: rabadon-loop <dir> <plan.json>\n  run `rabadon-loop --help`\n"); return 2; }
   string dir=argv[1]; string plan=read_file(argv[2]);
   if(plan.empty()){ fprintf(stderr,"rabadon-loop: empty plan (fail-closed)\n"); return 2; }
 

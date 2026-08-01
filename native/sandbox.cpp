@@ -38,6 +38,7 @@
 
 #include "chain.h" // the ledger's one writer — a refusal here is evidence too
 #include "rules.h" // the SAME deny rules the gate enforces, not a smaller set
+#include "cli_help.h"
 
 using std::string;
 using std::vector;
@@ -243,7 +244,28 @@ static void emit_refusal(const string& dir, const string& id, const string& why,
                   "\",\"sid\":\"exec\",\"detail\":\"" + json_escape(detail) + "\"");
 }
 
+static const char* kHelp =
+  "rabadon-sandbox — run a command under the kernel's own confinement.\n"
+  "macOS Seatbelt (sandbox-exec) or Linux bubblewrap (bwrap). The profile is\n"
+  "compiled here and printable, so what is allowed can be read before it runs.\n"
+  "\n"
+  "usage:\n"
+  "  rabadon-sandbox [--dir D] [--deny-net] -- <cmd...>   run <cmd> confined\n"
+  "  rabadon-sandbox --print [--dir D] [--deny-net]       print the compiled profile\n"
+  "  rabadon-sandbox --check                              is a backend available?\n"
+  "\n"
+  "  --dir D      the only directory the command may write (default: cwd).\n"
+  "  --deny-net   no outbound network from inside the sandbox.\n"
+  "  --           everything after this is the command, untouched. rabadon reads\n"
+  "               no flags past it, so `-- pytest --help` runs pytest's help.\n"
+  "  -h, --help   this screen.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-sandbox --dir ~/src/myrepo --deny-net -- npm test\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kHelp);
+
   string dir = ".";
   bool denyNet = false, doPrint = false, doCheck = false;
   vector<string> cmd;
@@ -254,13 +276,10 @@ int main(int argc, char** argv) {
     else if (a == "--print") doPrint = true;
     else if (a == "--check") doCheck = true;
     else if (a == "--") { for (int j = i + 1; j < argc; j++) cmd.push_back(argv[j]); break; }
-    else if (a == "--help") {
-      printf("usage:\n"
-             "  rabadon-sandbox [--dir D] [--deny-net] -- <cmd...>   run <cmd> in the kernel sandbox\n"
-             "  rabadon-sandbox --print [--dir D] [--deny-net]        print the compiled profile\n"
-             "  rabadon-sandbox --check                               is a backend available?\n");
-      return 0;
-    }
+    // anything else is refused here, BEFORE the `--`: a flag rabadon does not
+    // know must never be mistaken for part of the sandboxed command. `-h` used
+    // to fall through and exit 2 with "nothing to run".
+    else rb_unknown_flag("rabadon-sandbox", a.c_str());
   }
 
   // backend detection: installed, AND able to start

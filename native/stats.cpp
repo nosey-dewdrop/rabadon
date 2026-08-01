@@ -41,6 +41,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "cli_help.h"
 
 using std::string;
 using std::u16string;

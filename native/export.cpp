@@ -35,6 +35,7 @@
 #include <pwd.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "cli_help.h"
 
 using std::string;
 using std::vector;
@@ -112,15 +113,38 @@ static string attr_int(const string& k, long long v) { return "{\"key\":\"" + k 
 
 struct Ev { double ts, seq; string pipe, run, ev, rule, detail; long long tin = 0, tout = 0; };
 
+static const char* kHelp =
+  "rabadon-export — the ledger in OTLP/JSON on stdout, GenAI semantic conventions.\n"
+  "Reads the local spool and emits spans any OpenTelemetry collector accepts, so\n"
+  "rabadon runs land next to the rest of your traces. Drills never leave the\n"
+  "machine: any event marked drill is dropped before it is written.\n"
+  "\n"
+  "usage: rabadon-export --otlp [--days N]\n"
+  "\n"
+  "  --otlp      emit OTLP/JSON. required — it is the only format today.\n"
+  "  --days N    how far back to read (default 7).\n"
+  "  -h, --help  this screen.\n"
+  "\n"
+  "environment:\n"
+  "  RABADON_DIR   where the spool lives (default ~/.rabadon).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-export --otlp --days 1 | curl -s -X POST -H 'content-type: application/json' \\\n"
+  "      --data-binary @- http://localhost:4318/v1/traces\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kHelp);
+
   double days = 7;
   bool otlp = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--days") == 0 && i + 1 < argc) { double v = strtod(argv[++i], nullptr); if (v > 0) days = v; }
     else if (strcmp(argv[i], "--otlp") == 0) otlp = true;
-    else if (strcmp(argv[i], "--help") == 0) { printf("usage: rabadon-export --otlp [--days N]   OTLP/JSON traces (GenAI semconv) on stdout\n"); return 0; }
+    // an unrecognised word used to be ignored, so `-h` fell through to the
+    // format check and came back "pass --otlp" with exit 2.
+    else rb_unknown_flag("rabadon-export", argv[i]);
   }
-  if (!otlp) { fprintf(stderr, "rabadon export: pass --otlp (the only format today)\n"); return 2; }
+  if (!otlp) { fprintf(stderr, "rabadon export: pass --otlp (the only format today)\n  run `rabadon-export --help`\n"); return 2; }
 
   string rdir;
   const char* rd = getenv("RABADON_DIR");

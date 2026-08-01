@@ -42,6 +42,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include "cli_help.h"
 
 using std::string;
 

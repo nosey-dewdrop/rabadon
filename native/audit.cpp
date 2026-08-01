@@ -45,6 +45,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "sha256.h"
+#include "cli_help.h"
 
 using std::string;
 

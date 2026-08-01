@@ -34,6 +34,7 @@
 #include <regex>
 #include <dirent.h>
 #include <sys/stat.h>
+#include "cli_help.h"
 
 using std::string;
 using std::vector;
@@ -257,13 +258,37 @@ static string json_escape(const string& s) {
   return o;
 }
 
+static const char* kHelp =
+  "rabadon-truth — what does THIS repo already know how to check?\n"
+  "Walks the project and reports the strongest thing that can be RUN and can come\n"
+  "back red. Nothing here calls a model; the rung is discovered from real files.\n"
+  "\n"
+  "  level 3 SUITE   the project's own test suite   (can fail for behaviour)\n"
+  "  level 2 BUILD   compile / typecheck            (can fail for meaning)\n"
+  "  level 1 SYNTAX  parse every source file        (can fail for form)\n"
+  "  level 0 NONE    nothing runnable was found     (said out loud, never faked)\n"
+  "\n"
+  "usage: rabadon-truth [dir] [--json]\n"
+  "\n"
+  "  [dir]       the project to inspect (default: the current directory).\n"
+  "  --json      machine-readable: level, kind, run, why, codeDirs, testFiles.\n"
+  "  -h, --help  this screen.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-truth ~/src/myrepo --json\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kHelp);
+
   string dir = ".";
   bool asJson = false;
   for (int i = 1; i < argc; i++) {
     string a = argv[i];
     if (a == "--json") asJson = true;
-    else if (a == "--help") { printf("usage: rabadon-truth [dir] [--json]\n"); return 0; }
+    // an unknown flag used to become the DIRECTORY: `rabadon-truth -h` scanned a
+    // repo named "-h", found nothing runnable, and reported level 0 NONE as if
+    // that were a fact about your project.
+    else if (rb_is_flag(a.c_str())) rb_unknown_flag("rabadon-truth", a.c_str());
     else dir = a;
   }
   while (dir.size() > 1 && dir.back() == '/') dir.pop_back();

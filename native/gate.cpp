@@ -39,6 +39,7 @@
 #include "rules.h"    // guard.json rule parsing + matching — shared with `rabadon exec`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
+#include "cli_help.h"
 
 using std::string;
 

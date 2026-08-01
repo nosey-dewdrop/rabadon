@@ -49,6 +49,7 @@
 #include <unistd.h>
 #include "sha256.h"
 #include "chain.h"   // the ledger's one writer: chained line + .head sidecar
+#include "cli_help.h"
 
 using std::string;
 
@@ -177,7 +178,29 @@ static string shell_quote(const string& s) {
   return out + "'";
 }
 
+static const char* kHelp =
+  "rabadon-repair — caught, then actually fixed, then proven.\n"
+  "The proposer works in an ISOLATED COPY of the repo. The SAME check that caught\n"
+  "the break re-runs there, and the patch is held only if the check goes green\n"
+  "with every test file byte-identical (hash-locked). A fix that buys green by\n"
+  "editing or skipping a test is refused, and the refusal is recorded.\n"
+  "\n"
+  "usage: rabadon-repair [dir] [--cmd \"<check command>\"] [--timeout <sec>]\n"
+  "\n"
+  "  [dir]              the project to repair (default: the current directory).\n"
+  "  --cmd \"<command>\"  the check to run. omitted: rabadon-truth discovers the\n"
+  "                     strongest runnable check this repo already has.\n"
+  "  --timeout <sec>    proposer budget in seconds (default 240).\n"
+  "  -h, --help         this screen.\n"
+  "\n"
+  "exit: 0 a patch was held · non-zero nothing was held (the tree is untouched).\n"
+  "\n"
+  "example:\n"
+  "  rabadon-repair ~/src/express --cmd \"npx mocha --reporter dot\"\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kHelp);
+
   string dir = ".";
   string cmd;
   int proposerTimeout = 240, checkTimeout = 600;
@@ -185,12 +208,10 @@ int main(int argc, char** argv) {
     string a = argv[i];
     if (a == "--cmd" && i + 1 < argc) cmd = argv[++i];
     else if (a == "--timeout" && i + 1 < argc) proposerTimeout = atoi(argv[++i]);
-    else if (a == "--help") {
-      printf("usage: rabadon-repair [dir] [--cmd \"<check command>\"] [--timeout <sec>]\n"
-             "caught -> claude -p proposes in an ISOLATED COPY -> the same check re-runs -> green+untouched tests = a held patch.\n");
-      return 0;
-    }
-    else if (a[0] != '-') dir = a;
+    // `-h` used to reach the check discovery and exit 3, "no runnable check
+    // found" — a verdict about your repo, printed in answer to a help request.
+    else if (rb_is_flag(a.c_str())) rb_unknown_flag("rabadon-repair", a.c_str());
+    else dir = a;
   }
   {
     char rp[4096];
