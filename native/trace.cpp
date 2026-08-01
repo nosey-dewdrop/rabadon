@@ -36,6 +36,7 @@
 #include "cli_help.h"
 #include "jsonl.h"
 #include "drill.h"
+#include "chain.h"   // read_head / count_chained_lines — the ledger's own loss evidence
 
 using std::string;
 using std::vector;
@@ -59,6 +60,100 @@ static string read_file(const string& p){
   fclose(f); return out;
 }
 static bool ends_with(const string& s,const char* suf){ size_t n=strlen(suf); return s.size()>=n && s.compare(s.size()-n,n,suf)==0; }
+
+// ---------- did the ledger these totals are folded from lose a line? --------
+//
+// A run's state splits in two, and only one half survives a missing event.
+// `arm`, `tiers`, `verdict` are CONVERGENT: one value per run that the newest
+// event overwrites, so a lost line leaves a stale value the next line for that
+// run repairs, and a run that lost its RUN_DONE prints "?" — wrong, but
+// visibly wrong and bounded. The A/B money at the bottom of this file is
+// ACCUMULATIVE: control.usd_e6 and routedArm.usd_e6 are folded with += over
+// STEP_TRY/REPAIR_* events, so ONE missing line is a permanent offset that no
+// later event ever corrects, and it is INVISIBLE — the sum still prints, just
+// smaller, and smaller on the routed side reads as a bigger saving.
+//
+// This ledger loses lines by design. chain.h fails OPEN: an emitter that cannot
+// take the day file's cross-language lock records its line in a sibling
+// `<day>.unchained.jsonl` rather than appending unchained into the chained
+// file. Nothing is destroyed — but the day file this renderer reads is short by
+// exactly those lines. Measured on the two-arm fixture in trace_test.sh: moving
+// ONE escalated STEP_TRY ($1.00, routed side) into that sibling moved the
+// printed claim from "$0.6000 kept (30%)" to "$1.6000 kept (80%)" at exit 0.
+// That is the number README says ends up in a screenshot, wrong by 2.7x, in
+// rabadon's own favour, with nothing on screen to say so.
+//
+// The second source is the one audit.cpp convicts: the `.head` sidecar commits
+// how many chained lines the file has, so a line removed and the chain
+// re-stitched around the hole leaves a file shorter than its own commitment.
+// The two are SUMMED because the accumulator cannot tell them apart — both
+// arrive as a smaller number and neither announces itself.
+//
+// read_head and count_chained_lines come from chain.h rather than a copy: the
+// sidecar format has one definition and audit.cpp is already the other reader
+// of it. A third private copy is how the two halves drift apart.
+struct LedgerLoss {
+  long long unlocked = 0;   // lines an emitter could not chain (fail-open sibling)
+  long long removed  = 0;   // lines the sidecar commits that the file no longer holds
+  long long total() const { return unlocked + removed; }
+  string note;              // what to print, already summed
+};
+
+static long long nonempty_lines(const string& path){
+  const string body = read_file(path);
+  long long n = 0;
+  size_t ls = 0;
+  while(ls < body.size()){
+    size_t le = body.find('\n', ls);
+    if(le == string::npos) le = body.size();
+    if(le > ls) n++;
+    ls = le + 1;
+  }
+  return n;
+}
+
+// A sibling counts even when this same render READ it. Reading the bytes is not
+// the same as folding them into the sums, and on the `--run` path it demonstrably
+// is not: candidate files are collected newest-first and then reversed, so the
+// older sibling is concatenated BEFORE the day file, its STEP_TRY reaches
+// render_routed ahead of the STEP_START that opens the node, `cur` is null, and
+// the line is dropped on arrival. Measured on the same two-arm fixture with both
+// files inside the window: `--run` printed the identical wrong "$1.6000 kept
+// (80%)". An exemption for "we read it too" would have made this whole check
+// pass its own tests and miss the path a real operator uses.
+//
+// It would also be wrong if the fold were fixed: chain.h put those lines outside
+// the chain, audit.cpp reports them as unprovable, and a claim about money is not
+// the place to start trusting unprovable lines.
+static LedgerLoss ledger_loss(const vector<string>& files){
+  LedgerLoss L;
+  for(size_t i=0;i<files.size();i++){
+    const string& f = files[i];
+    if(!ends_with(f,".jsonl")) continue;
+    if(ends_with(f,".unchained.jsonl")){ L.unlocked += nonempty_lines(f); continue; }
+    // ...and the sibling this render did NOT read, which is the ordinary case:
+    // the default resolver takes one day file and never looks beside it.
+    const string side = f.substr(0, f.size()-6) + ".unchained.jsonl";
+    bool alsoRead = false;
+    for(size_t j=0;j<files.size();j++) if(files[j]==side) alsoRead = true;   // counted above
+    if(!alsoRead) L.unlocked += nonempty_lines(side);
+    string prev; long long committed = -1;
+    rbchain::read_head(f + ".head", prev, committed);
+    if(committed >= 0){
+      const long long have = rbchain::count_chained_lines(f);
+      if(committed > have) L.removed += committed - have;
+    }
+  }
+  if(L.unlocked > 0)
+    L.note = std::to_string(L.unlocked) + " line(s) recorded outside the chain "
+             "(an emitter could not take the day file's lock)";
+  if(L.removed > 0){
+    if(!L.note.empty()) L.note += " + ";
+    L.note += std::to_string(L.removed) + " line(s) the .head sidecar commits "
+              "but the file no longer holds";
+  }
+  return L;
+}
 
 // every .jsonl inside a directory, newest mtime first ({} if none).
 //
@@ -911,6 +1006,26 @@ int main(int argc,char** argv){
     // be a claim about a run that never priced anything.
     if(control.usd_e6==0 && routedArm.usd_e6==0){
       snprintf(b,sizeof b,"    %sNOT MEASURED: no model bill on this run (scripted proposer) — NO money claim is made%s\n\n",C.dim,C.rst);
+      out+=b;
+      fwrite(out.data(),1,out.size(),stdout);
+      return 0;
+    }
+    // ...and the same refusal for the other way this claim goes wrong. "no
+    // model bill" above is the case where the accumulator was never fed; this
+    // is the case where it was fed and then quietly short-changed. A saving is
+    // a DIFFERENCE of two running sums, so a line missing from either side
+    // moves it and nothing later moves it back. The ledger can say whether that
+    // happened, so it is asked before the number is claimed, not after a buyer
+    // asks. Refuse, name both sources, and send the caller to the referee that
+    // reconciles against the absolute count — never print the smaller number
+    // and hope.
+    const LedgerLoss loss = ledger_loss(chosen);
+    if(loss.total() > 0){
+      snprintf(b,sizeof b,
+        "    %sNOT RECONCILED: %s. These two sums are folded with += over that ledger, so a\n"
+        "    missing line is a permanent offset, not a stale value — NO saving is claimed.\n"
+        "    `rabadon audit` names what is missing; reconcile the ledger, then run this again.%s\n\n",
+        C.amb, loss.note.c_str(), C.rst);
       out+=b;
       fwrite(out.data(),1,out.size(),stdout);
       return 0;

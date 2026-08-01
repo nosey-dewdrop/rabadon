@@ -549,6 +549,155 @@ sys.exit(1 if bad else 0)
 PY
 PY2RC=$?
 
+# ---------------------------------------------------------------------------
+# arm J: the A/B saving is an ACCUMULATIVE total, and it may not be claimed
+#        over a ledger that is known to have lost a line.
+#
+# Every other number on this screen is convergent — one value per run that the
+# newest event overwrites, so a lost line leaves a stale value that the next
+# line for that run repairs, and a run missing its RUN_DONE prints "?" where a
+# reader can see it. The saving is not: it is a DIFFERENCE of two sums folded
+# with +=, so one missing line is a permanent offset nothing later corrects,
+# and it is invisible — the sum still prints, only smaller.
+#
+# The loss is not hypothetical. chain.h fails OPEN on purpose: an emitter that
+# cannot take the day file's cross-language lock writes its line to a sibling
+# `<day>.unchained.jsonl` instead of appending unchained into a chained file.
+# The fixture below is a two-arm A/B whose honest answer is "$0.6000 kept
+# (30%)". Move ONE escalated STEP_TRY — $1.00, on the routed side — into that
+# sibling, exactly as chain.h would, and the claim used to read "$1.6000 kept
+# (80%)" at exit 0: 2.7x, in rabadon's own favour, on the surface README says
+# ends up in a screenshot.
+#
+# Second source, same accumulator: the `.head` sidecar commits how many chained
+# lines the file has, so a line lifted out and the chain re-stitched leaves a
+# file shorter than its own commitment — the attack audit.cpp exists to convict.
+# Both arrive as a smaller number and neither announces itself, so they are
+# summed and the claim is refused until the ledger is reconciled.
+echo "trace: the A/B saving is refused over a ledger that lost a line"
+
+ABOX=$(mktemp -d /tmp/rabadon-accum-box.XXXXXX)
+mkdir -p "$ABOX/spool"
+ADAY=$(date -u +%Y-%m-%d)
+python3 - "$ABOX/spool/$ADAY.jsonl" <<'PY3'
+import sys, time
+path = sys.argv[1]
+now = int(time.time() * 1000)
+def L(seq, run, ev):
+    return '{"v":1,"seq":%d,"ts":%d,"run":"%s","pipe":"demo:do",%s}\n' % (seq, now + seq, run, ev)
+rows = [
+  L(1,"ab-control",'"ev":"RUN_START","arm":"control","tiers":"sonnet","steps":2'),
+  L(2,"ab-control",'"ev":"STEP_START","step":"s1"'),
+  L(3,"ab-control",'"ev":"STEP_TRY","step":"s1","tier":2,"tier_name":"sonnet","model":"claude-sonnet","tokens":100000,"usd_e6":1000000,"dur_ms":100'),
+  L(4,"ab-control",'"ev":"STEP_OK","step":"s1","tier":2,"tier_name":"sonnet"'),
+  L(5,"ab-control",'"ev":"STEP_START","step":"s2"'),
+  L(6,"ab-control",'"ev":"STEP_TRY","step":"s2","tier":2,"tier_name":"sonnet","model":"claude-sonnet","tokens":100000,"usd_e6":1000000,"dur_ms":100'),
+  L(7,"ab-control",'"ev":"STEP_OK","step":"s2","tier":2,"tier_name":"sonnet"'),
+  L(8,"ab-control",'"ev":"RUN_DONE","verdict":"PASS"'),
+  L(9,"ab-routed",'"ev":"RUN_START","arm":"routed","tiers":"haiku,sonnet","steps":2'),
+  L(10,"ab-routed",'"ev":"STEP_START","step":"s1"'),
+  L(11,"ab-routed",'"ev":"STEP_TRY","step":"s1","tier":1,"tier_name":"haiku","model":"claude-haiku","tokens":100000,"usd_e6":200000,"dur_ms":50'),
+  L(12,"ab-routed",'"ev":"STEP_OK","step":"s1","tier":1,"tier_name":"haiku"'),
+  L(13,"ab-routed",'"ev":"STEP_START","step":"s2"'),
+  L(14,"ab-routed",'"ev":"STEP_TRY","step":"s2","tier":1,"tier_name":"haiku","model":"claude-haiku","tokens":100000,"usd_e6":200000,"dur_ms":50'),
+  L(15,"ab-routed",'"ev":"ESCALATE","step":"s2","from":"haiku","to":"sonnet"'),
+  L(16,"ab-routed",'"ev":"STEP_TRY","step":"s2","tier":2,"tier_name":"sonnet","model":"claude-sonnet","tokens":100000,"usd_e6":1000000,"dur_ms":100'),
+  L(17,"ab-routed",'"ev":"STEP_OK","step":"s2","tier":2,"tier_name":"sonnet"'),
+  L(18,"ab-routed",'"ev":"RUN_DONE","verdict":"PASS"'),
+]
+open(path, "w").write("".join(rows))
+PY3
+
+# --- J1 POSITIVE CONTROL: intact ledger, the claim IS made, and it is 30% ----
+# Without this the two refusals below would also pass on a binary that simply
+# never prints a saving.
+AOUT=$(RABADON_DIR="$ABOX" ./native/rabadon-trace --no-color 2>&1)
+if printf '%s' "$AOUT" | grep -q '\$0.6000 kept (30%)'; then
+  pass "(J1) over the intact ledger the saving is claimed, and it is \$0.6000 kept (30%)"
+else
+  fail "(J1) the intact fixture does not print the honest saving: $(printf '%s' "$AOUT" | grep -i 'delta\|kept')"
+fi
+if printf '%s' "$AOUT" | grep -q "NOT RECONCILED"; then
+  fail "(J1) an intact ledger was called unreconciled — the guard fires on a clean file"
+else
+  pass "(J1) ...and nothing on an intact ledger is called unreconciled"
+fi
+
+# --- J2: one event down chain.h's fail-open path -> no claim ----------------
+python3 - "$ABOX/spool/$ADAY.jsonl" <<'PY3'
+import sys
+day = sys.argv[1]
+keep, moved = [], []
+for l in open(day).read().splitlines(True):
+    (moved if '"seq":16' in l else keep).append(l)
+open(day, "w").write("".join(keep))
+# chain.h's exact fail-open shape: no prev, an "unlocked" marker, the sibling.
+open(day.replace(".jsonl", ".unchained.jsonl"), "w").write(
+    "".join(l.replace("}\n", ',"unlocked":true}\n') for l in moved))
+PY3
+touch "$ABOX/spool/$ADAY.jsonl"
+AOUT2=$(RABADON_DIR="$ABOX" ./native/rabadon-trace "$ABOX/spool/$ADAY.jsonl" --no-color 2>&1)
+if printf '%s' "$AOUT2" | grep -q "NOT RECONCILED"; then
+  pass "(J2) one line in the .unchained sibling and the saving is refused, not recomputed"
+else
+  fail "(J2) a short ledger still claimed a saving: $(printf '%s' "$AOUT2" | grep -i 'delta\|kept')"
+fi
+# the NEGATIVE that gives J2 its teeth: the wrong number must be absent, and
+# 80% is the specific wrong number this ledger produces.
+if printf '%s' "$AOUT2" | grep -q "kept"; then
+  fail "(J2) the word kept survives the refusal: $(printf '%s' "$AOUT2" | grep kept)"
+else
+  pass "(J2) ...and the words \"kept\" and the 80% claim are nowhere on screen"
+fi
+# the two arm rows still print — the refusal is about the DIFFERENCE, and
+# hiding the evidence would be its own kind of lie.
+if printf '%s' "$AOUT2" | grep -q "MEASURED A/B"; then
+  pass "(J2) ...while the two arms themselves still render, marked, not hidden"
+else
+  fail "(J2) the refusal swallowed the whole A/B block"
+fi
+
+# --- J2b: the `--run` path reads BOTH files and is still short -------------
+# The first cut of the guard exempted a sibling that this same render had read,
+# on the reasoning that its lines were then inside the sums. They are not:
+# candidates are collected newest-first and reversed, so the older sibling is
+# concatenated FIRST, its STEP_TRY reaches render_routed before the STEP_START
+# that opens the node, and it is dropped on arrival. With the exemption in, the
+# whole suite above passed and `--run` — the path the docs teach — still printed
+# "$1.6000 kept (80%)". So the sibling counts whether it was read or not.
+touch "$ABOX/spool/$ADAY.unchained.jsonl"; sleep 1; touch "$ABOX/spool/$ADAY.jsonl"
+AOUT2B=$(RABADON_DIR="$ABOX" ./native/rabadon-trace --run ab- --no-color 2>&1)
+if printf '%s' "$AOUT2B" | grep -q "NOT RECONCILED" && ! printf '%s' "$AOUT2B" | grep -q "kept"; then
+  pass "(J2b) --run reads the sibling too and STILL refuses — reading bytes is not folding them"
+else
+  fail "(J2b) --run claimed a saving over a ledger that fell open: $(printf '%s' "$AOUT2B" | grep -i 'kept\|RECONCIL')"
+fi
+
+# --- J3: the sidecar's absolute count is the other loss source --------------
+# Restore the sibling's line, then commit a count HIGHER than the file holds:
+# a line lifted out and the chain re-stitched. The sums look complete; the
+# absolute number written under the same lock says they are not.
+rm -f "$ABOX/spool/$ADAY.unchained.jsonl"
+python3 - "$ABOX/spool/$ADAY.jsonl" <<'PY3'
+import sys
+day = sys.argv[1]
+rows = open(day).read().splitlines(True)
+rows.append('{"v":1,"seq":16,"ts":%s,"run":"ab-routed","pipe":"demo:do","ev":"STEP_TRY","step":"s2","tier":2,"tier_name":"sonnet","model":"claude-sonnet","tokens":100000,"usd_e6":1000000,"dur_ms":100,"prev":"genesis"}\n'
+            % rows[0].split('"ts":')[1].split(',')[0])
+rows.sort(key=lambda l: int(l.split('"seq":')[1].split(',')[0]))
+open(day, "w").write("".join(rows))
+PY3
+# 1 chained line in the file (the one carrying prev), the sidecar swears 4.
+printf '%s 4\n' "$(printf '0%.0s' $(seq 64))" > "$ABOX/spool/$ADAY.jsonl.head"
+AOUT3=$(RABADON_DIR="$ABOX" ./native/rabadon-trace "$ABOX/spool/$ADAY.jsonl" --no-color 2>&1)
+if printf '%s' "$AOUT3" | grep -q "sidecar commits"; then
+  pass "(J3) a sidecar committing more lines than the file holds also refuses the claim"
+else
+  fail "(J3) the .head line count is not consulted before the money claim: $(printf '%s' "$AOUT3" | grep -i 'delta\|kept\|RECONCIL')"
+fi
+
+rm -rf "$ABOX"
+
 rm -rf "$BOX" "$REPO" "$WBOX" "$SAVED"
 if [ $PYRC -ne 0 ]; then bad=$((bad+1)); fi
 if [ $PY2RC -ne 0 ]; then bad=$((bad+1)); fi

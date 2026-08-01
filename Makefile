@@ -34,7 +34,10 @@ native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native
 # the build could not have told anyone that trace applies none of the exclusion
 # rules: a tightened rule in drill.h answered `make` with "up to date" and left
 # the prettiest surface counting rabadon's own self-tests as catches.
-native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/drill.h
+# chain.h/sha256.h are here for the same reason: trace reads the ledger's loss
+# evidence (the .head line count, the .unchained sibling) through chain.h's own
+# reader, so a change to the sidecar format has to rebuild this binary too.
+native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/drill.h native/chain.h native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-serve: native/serve.cpp native/cli_help.h
