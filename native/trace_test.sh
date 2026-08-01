@@ -347,6 +347,14 @@ cat > "$SAVED/bin/cheat.sh" <<'EOF'
 cat >/dev/null
 printf 'print("ok")\n' > test_calc.py           # neuter the test instead
 EOF
+# refused on the first attempt, proven on the second: the run is caught, keeps
+# its repair budget, and FINISHES. rejected>0 AND repaired>0 at the same time.
+cat > "$SAVED/bin/twotry.sh" <<'EOF'
+#!/bin/bash
+cat >/dev/null
+if [ -e .attempted ]; then printf 'def add(a, b):\n    return a + b  # fixed\n' > calc.py
+else touch .attempted; fi                       # attempt 1 changes nothing
+EOF
 chmod +x "$SAVED/bin"/*.sh
 
 # <name> <honest|cheat|none> <declared steps>.  `none` is the zero-repair run:
@@ -369,13 +377,18 @@ steps = [{"id": "fix-add", "kind": "llm" if prop == "none" else "cmd", "do": "tr
 for k in range(2, n + 1):               # steps AFTER the catch, so a range exists
     steps.append({"id": "step-%d" % k, "kind": "cmd", "do": "true",
                   "contract": [{"type": "fileExists", "path": "calc.py"}]})
-json.dump({"steps": steps, "accept": []}, open(d + "/plan.json", "w"))
+# acceptance is the run's own definition of done, and the loop is fail-closed
+# when it is absent: with an empty accept[] even the repaired arms would end
+# CHECK_FAILED, which is not the run these arms claim to be about.
+json.dump({"steps": steps,
+           "accept": [{"type": "testsuite", "run": "python3 -B test_calc.py"}]},
+          open(d + "/plan.json", "w"))
 PY
   if [ "$prop" = none ]; then
     RABADON_DIR="$box" RABADON_MAX_REPAIRS=0 RABADON_PROPOSER=true \
       "$ROOT/native/rabadon-loop" "$d" "$d/plan.json" >/dev/null 2>&1
   else
-    RABADON_DIR="$box" RABADON_MAX_REPAIRS=1 RABADON_PROPOSER="$SAVED/bin/$prop.sh" \
+    RABADON_DIR="$box" RABADON_MAX_REPAIRS="${4:-1}" RABADON_PROPOSER="$SAVED/bin/$prop.sh" \
       "$ROOT/native/rabadon-loop" "$d" "$d/plan.json" >/dev/null 2>&1
   fi
 }
@@ -385,6 +398,7 @@ saved_scenario last-rejected  cheat  1
 saved_scenario later-repaired honest 3    # catch on step 1 of 3: a range DOES exist
 saved_scenario later-rejected cheat  3
 saved_scenario no-repair      none   1    # a catch with zero REPAIR_* in the ledger
+saved_scenario both           twotry 3 2  # refused once, then repaired, and it FINISHED
 
 python3 - "$ROOT" "$SAVED" <<'PY'
 import json, os, re, subprocess, sys
@@ -415,32 +429,38 @@ def saved_line(so):
 # The ledger has to hold the shape each arm claims to be about, or every
 # assertion under it is vacuous: a run with no REPAIR_OK cannot test the
 # repaired branch, and "no fake fix is printed" is free if nothing was caught.
-SHAPE = {"last-repaired":  ("REPAIR_OK",   1),
-         "last-rejected":  ("REPAIR_FAIL", 1),
-         "later-repaired": ("REPAIR_OK",   3),
-         "later-rejected": ("REPAIR_FAIL", 3),
-         "no-repair":      (None,          1)}
+SHAPE = {"last-repaired":  (["REPAIR_OK"],                1, 1),
+         "last-rejected":  (["REPAIR_FAIL"],              1, 0),
+         "later-repaired": (["REPAIR_OK"],                3, 3),
+         "later-rejected": (["REPAIR_FAIL"],              3, 0),
+         "no-repair":      ([],                           1, 0),
+         "both":           (["REPAIR_FAIL", "REPAIR_OK"], 3, 3)}
 out = {}
-for name, (want, declared) in SHAPE.items():
+for name, (want, declared, finished) in SHAPE.items():
     evs, so = render(name)
     out[name] = so
     kinds = [e["ev"] for e in evs]
     n = max([e.get("steps", 0) for e in evs if e["ev"] == "RUN_START"] or [0])
     repairs = [k for k in kinds if k.startswith("REPAIR_") and k != "REPAIR_START"]
-    if want is None:
+    # STEP_OK is what makes the negatives below non-vacuous: "no step is claimed
+    # to have never run" is worth nothing unless the ledger shows steps running.
+    done = kinds.count("STEP_OK")
+    if not want:
         if not repairs and "CHECK_FAIL" in kinds and n == declared:
             pas("%s: the loop wrote a catch and ZERO REPAIR_OK/REPAIR_FAIL (%s)" % (name, ",".join(kinds)))
         else:
             bad_("%s: wanted a catch with no repair event, got %r (steps=%d)" % (name, kinds, n))
-    elif repairs == [want] and "CHECK_FAIL" in kinds and n == declared:
-        pas("%s: the real loop wrote CHECK_FAIL + %s over a %d-step plan" % (name, want, declared))
+    elif repairs == want and "CHECK_FAIL" in kinds and n == declared and done == finished:
+        pas("%s: the real loop wrote CHECK_FAIL + %s over a %d-step plan, %d step(s) OK"
+            % (name, "+".join(want), declared, done))
     else:
-        bad_("%s: wanted CHECK_FAIL + %s over %d steps, got %r (steps=%d)"
-             % (name, want, declared, kinds, n))
+        bad_("%s: wanted CHECK_FAIL + %s over %d steps with %d STEP_OK, got %r (steps=%d, ok=%d)"
+             % (name, "+".join(want), declared, finished, kinds, n, done))
 
 # ---- the headline each arm hangs on (positive first, K2) --------------------
 for name, want in (("last-repaired", "REPAIRED 1"), ("later-repaired", "REPAIRED 1"),
                    ("last-rejected", "FAKE FIX REJECTED 1"), ("later-rejected", "FAKE FIX REJECTED 1"),
+                   ("both", "REPAIRED 1"), ("both", "FAKE FIX REJECTED 1"),
                    ("no-repair", "REPAIRED 0")):
     if want in out[name]:
         pas("%s: the footer counts %s" % (name, want))
@@ -457,12 +477,31 @@ for name in ("last-rejected", "later-rejected"):
         bad_("%s: a real REPAIR_FAIL is not rendered: %r" % (name, out[name]))
 
 # ---- the range: forward when later steps exist, absent when they do not -----
-for name in ("later-repaired", "later-rejected"):
+for name in ("later-repaired", "later-rejected", "both"):
     if "steps 2–3" in out[name]:
         pas("%s: the saved: line names the steps that really follow the catch (steps 2–3)" % name)
     else:
         bad_("%s: the run has steps 2 and 3 after the catch, the line does not say so: %r"
              % (name, saved_line(out[name])))
+
+# ---- a refused repair is not a STOP when a later attempt was accepted -------
+# `both` was caught, had one fix REFUSED, took a proven one, and finished all
+# three steps. The line branched on `rejected` first, so it printed "STOP, steps
+# 2–3 NEVER ran on a blind base" over three STEP_OKs. The positive that holds
+# this negative up is the line right below it: on the run that really did stop,
+# the words are still there.
+if "NEVER ran" not in out["both"] and "STOP" not in saved_line(out["both"]):
+    pas("both: a refused attempt followed by a proven repair is not reported as a STOP")
+else:
+    bad_("both: the run finished 3 steps and the line still claims a STOP: %r" % saved_line(out["both"]))
+if "NEVER ran" in saved_line(out["later-rejected"]):
+    pas("later-rejected: the run that really stopped still says its steps NEVER ran")
+else:
+    bad_("later-rejected: a fail-closed run lost the words NEVER ran: %r" % saved_line(out["later-rejected"]))
+if "a fake fix REFUSED, then a repair PROVEN" in out["both"]:
+    pas("both: the line reports both halves — the refusal and the repair that passed")
+else:
+    bad_("both: the refused attempt is missing from the line: %r" % saved_line(out["both"]))
 for name in ("last-repaired", "last-rejected"):
     if re.search(r"\bstep 1 of 1\b", saved_line(out[name])):
         pas("%s: with nothing after the catch the line says step 1 of 1, not a range" % name)

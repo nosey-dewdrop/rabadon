@@ -608,33 +608,60 @@ static void render_run(const Run& r, const Pal& C, string& out){
         C.bold,C.rst, C.dim,C.rst);
     }
     else {
-      // The steps AFTER the catch — the only ones this sentence is entitled to
-      // talk about. It used to print firstCaught+1..N with nothing asserting
-      // that anything follows the catch at all, so a run whose catch IS its last
-      // step read "steps 2–1": a range that counts backwards. And the repaired
-      // arm ended in a literal "the bug never reached step 10" over a one-step
-      // plan. Two step numbers on the screen README says ends up in a
-      // screenshot, neither of them in the spool.
-      int after = N - firstCaught;
-      char rest[64]="";
-      if(after==1)     snprintf(rest,sizeof rest,"step %d", N);
-      else if(after>1) snprintf(rest,sizeof rest,"steps %d–%d", firstCaught+1, N);
+      // Every number below is measured off the nodes, not assumed from the
+      // catch. The line used to print firstCaught+1..N with nothing asking
+      // whether a step follows the catch at all, so a run whose catch IS its
+      // last step read "steps 2–1", a range that counts backwards, and the
+      // repaired arm ended in a literal "the bug never reached step 10" over a
+      // one-step plan. Step numbers on the screen README says ends up in a
+      // screenshot, none of them in the spool.
+      //
+      //   started    steps this run actually opened (a fail-closed run stops
+      //              short of the plan, so this is NOT N)
+      //   ranAfter   steps that started after the catch — what a repair let run
+      //   neverRan   declared steps that never started — what a STOP prevented
+      //
+      // Those two are different quantities and the sentence used to compute
+      // both from firstCaught, which is why a run that was caught, refused a
+      // fake fix, then took a proven repair and finished all three steps still
+      // printed "steps 2–3 NEVER ran on a blind base" over three STEP_OKs.
+      int started  = (int)nodes.size();
+      int ranAfter = started - firstCaught;
+      int neverRan = N - started;
+      auto span=[&](int lo,int hi)->string{
+        char b[64];
+        if(lo==hi) snprintf(b,sizeof b,"step %d",lo); else snprintf(b,sizeof b,"steps %d–%d",lo,hi);
+        return string(b);
+      };
 
-      if(rejected && after>0)
-        snprintf(f,sizeof f,"  %ssaved:%s caught at step %d → STOP, %s NEVER ran on a blind base · the spend stayed in your pocket   %s◀── a passive tracer has no such line%s\n",
-          C.bold,C.rst, firstCaught, rest, C.dim,C.rst);
-      else if(rejected)
-        // Nothing followed it, so no downstream step was saved and claiming one
-        // would be the same fabrication in a new sentence. What did happen is
-        // that the repair was refused and the run ended fail-closed.
-        snprintf(f,sizeof f,"  %ssaved:%s caught at step %d of %d → the repair was REFUSED and the run ends fail-closed — nothing unproven was let through   %s◀── a passive tracer has no such line%s\n",
-          C.bold,C.rst, firstCaught, N, C.dim,C.rst);
-      else if(after>0)
-        snprintf(f,sizeof f,"  %ssaved:%s caught and repaired at step %d → %s ran on a CLEAN base (the bug never reached step %d) · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
-          C.bold,C.rst, firstCaught, rest, N, fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
-      else
-        snprintf(f,sizeof f,"  %ssaved:%s caught and repaired at step %d of %d — the last step, so no later step ran on the bug · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
-          C.bold,C.rst, firstCaught, N, fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
+      if(!repaired){
+        // Fail-closed: no repair was ever accepted, so the run died where it
+        // stopped and the steps it saved are the ones that never started.
+        if(neverRan>0)
+          snprintf(f,sizeof f,"  %ssaved:%s caught at step %d → STOP, %s NEVER ran on a blind base · the spend stayed in your pocket   %s◀── a passive tracer has no such line%s\n",
+            C.bold,C.rst, firstCaught, span(started+1,N).c_str(), C.dim,C.rst);
+        else
+          // Nothing was left to prevent, and claiming a saved step here would be
+          // the same fabrication in a new sentence. What happened is that the
+          // repair was refused and the run ended fail-closed.
+          snprintf(f,sizeof f,"  %ssaved:%s caught at step %d of %d → the repair was REFUSED and the run ends fail-closed — nothing unproven was let through   %s◀── a passive tracer has no such line%s\n",
+            C.bold,C.rst, firstCaught, N, C.dim,C.rst);
+      }
+      else {
+        // A repair was accepted, so the run went on. `rejected` here means the
+        // arbiter refused an earlier attempt on the way — it is part of the
+        // story, not a STOP.
+        string at = "step "+std::to_string(firstCaught);
+        if(ranAfter<=0) at += " of "+std::to_string(N);
+        string lead = rejected
+          ? ("caught at "+at+" → a fake fix REFUSED, then a repair PROVEN")
+          : ("caught and repaired at "+at);
+        if(ranAfter>0) lead += " → "+span(firstCaught+1,started)+" ran on a CLEAN base";
+        else           lead += " — the last step to run, so no later step ran on the bug";
+        if(ranAfter>1) lead += " (the bug never reached step "+std::to_string(started)+")";
+        snprintf(f,sizeof f,"  %ssaved:%s %s · repair cost %s, %s tok   %s◀── a passive tracer has no such line%s\n",
+          C.bold,C.rst, lead.c_str(), fmt_usd(usd).c_str(), commafy(tok).c_str(), C.dim,C.rst);
+      }
     }
     out+=f;
   }
