@@ -100,11 +100,23 @@ test: all
 	./native/trace_test.sh
 	./native/lens_test.sh
 	./native/regression_demo.sh
+# LAST ON PURPOSE, AND RED ON PURPOSE. Every suite above proves the gate does
+# what it was told. This one asks the question none of them ask: was being told
+# that the right call? It replays real refusals out of the watch-mode ledger and
+# measures how many of them would have cut work that was never dangerous. It
+# fails today at 33.3% against a 90% floor. The floor lives in exactly one place
+# (native/precision_test.sh) and moving it down is the one edit that makes the
+# file worthless. `make precision` runs it alone.
+	./native/precision_test.sh
+
+# the same suite without the rest of the build, for working on the number
+precision: native/rabadon-gate
+	./native/precision_test.sh
 
 clean:
 	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
-.PHONY: all bench clean
+.PHONY: all bench clean precision
 
 native/rabadon-verify: native/verify.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
