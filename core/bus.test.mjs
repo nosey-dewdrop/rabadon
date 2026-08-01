@@ -123,9 +123,11 @@ test('every event the bus spools is chained, and the sidecar commits it', () => 
   assert.equal(mine.length, 4, 'all four events are on disk — chaining is not allowed to mean dropping');
   assert.ok(mine.every((e) => typeof e.prev === 'string' && e.prev.length > 0), 'every one carries prev');
 
-  // and nothing was smuggled into the file the C++ writers flock
-  const native = path.join(tmp, 'spool', new Date().toISOString().slice(0, 10) + '.jsonl');
-  assert.equal(fs.existsSync(native), false, 'the bus must not write into the flock-held chained day file');
+  // and it is the day file the readers tail, not a private one beside it:
+  // ui/server.mjs and hooks/gate.mjs both look up exactly this name.
+  const day = path.join(tmp, 'spool', new Date().toISOString().slice(0, 10) + '.jsonl');
+  assert.equal(file, day, 'the bus writes the shared chained day file, not a second one');
+  assert.ok(fs.existsSync(day), 'and it exists under that name');
 });
 
 test('concurrent node writers do not break the chain', async () => {
@@ -139,11 +141,11 @@ test('concurrent node writers do not break the chain', async () => {
   })));
 
   const day = new Date().toISOString().slice(0, 10);
-  const file = path.join(dir, 'spool', `${day}.js.jsonl`);
+  const file = path.join(dir, 'spool', `${day}.jsonl`);
   assert.equal(verifyChain(file), null, `4 processes x 6 events must leave one valid chain: ${verifyChain(file)}`);
   const n = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).length;
   assert.equal(n, 24, `all 24 events must be chained, not failed open (got ${n})`);
-  assert.equal(fs.existsSync(path.join(dir, 'spool', `${day}.js.unchained.jsonl`)), false,
+  assert.equal(fs.existsSync(path.join(dir, 'spool', `${day}.unchained.jsonl`)), false,
     'nothing should have failed open: the lock is uncontended for microseconds at a time');
 });
 
