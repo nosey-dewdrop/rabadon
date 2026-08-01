@@ -48,6 +48,8 @@
 #include <string>
 #include <fcntl.h>
 #include <sys/file.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 #include "sha256.h"
 #include "jsonl.h"
@@ -55,6 +57,46 @@
 namespace rbchain {
 
 using std::string;
+
+// --- the cross-language mutex ---------------------------------------------
+// flock(2) below guards the native writers against each other, and it is the
+// stronger lock: the kernel releases it when the holder dies. It cannot be the
+// whole story, because core/bus.mjs writes this same file and cannot take it —
+// Node has no flock binding, and macOS ships no flock(1) to shell out to.
+//
+// The one atomic primitive both languages share is an O_EXCL create. So the
+// chained file's mutex is the sentinel `<path>.lock`, and EVERY writer in both
+// languages takes it before read_head. core/bus.mjs is the other half of this
+// protocol and carries the same two constants; change one, change both.
+//
+// Without it the two implementations read the same head, append lines carrying
+// the same prev, and the second one's prev stops matching — audit convicting an
+// honest ledger of a BREAK. A false accusation is worse than the bug it reports.
+static const long long LOCK_STALE_MS = 5000;   // older than this: a killed holder
+static const long long LOCK_WAIT_MS  = 250;    // fight this long, then fail open
+
+inline long long lock_now_ms() {
+  struct timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+// A lock FILE is not released by the kernel when its holder is killed, the way
+// flock is. Without the stale reap below, one SIGKILL would push every later
+// event of that day permanently out of the chain — the fail-open made forever.
+inline bool acquire_lock(const string& lockPath) {
+  const long long deadline = lock_now_ms() + LOCK_WAIT_MS;
+  for (;;) {
+    int fd = ::open(lockPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+    if (fd >= 0) { close(fd); return true; }
+    struct stat st;
+    const bool stale = ::stat(lockPath.c_str(), &st) == 0 &&
+                       lock_now_ms() - (long long)st.st_mtime * 1000 > LOCK_STALE_MS;
+    if (stale && ::unlink(lockPath.c_str()) == 0) continue;  // steal it once, then retry
+    if (lock_now_ms() >= deadline) return false;
+    usleep(2000);
+  }
+}
 
 // number of chained lines already in the file. Only ever called once per day
 // file, to migrate a pre-0.4 sidecar that carries no count.
@@ -107,22 +149,27 @@ inline void read_head(const string& headPath, string& prev, long long& count) {
 // Returns the exact line written (newline included) so a caller can also fan it
 // out to a socket.
 inline string append(const string& spoolPath, const string& bodyOpen) {
-  int fd = ::open(spoolPath.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
-  if (fd >= 0 && flock(fd, LOCK_EX) == 0) {
-    const string headPath = spoolPath + ".head";
-    string prev; long long count;
-    read_head(headPath, prev, count);
-    if (count < 0) count = (prev == "genesis") ? 0 : count_chained_lines(spoolPath);
-    const string chained = bodyOpen + ",\"prev\":\"" + prev + "\"}";
-    const string line = chained + "\n";
-    ssize_t w = write(fd, line.c_str(), line.size()); (void)w;
-    { std::ofstream hf(headPath, std::ios::trunc);
-      if (hf) hf << rbsha::hex(chained) << " " << (count + 1) << "\n"; }
-    flock(fd, LOCK_UN);
-    close(fd);
-    return line;
+  const string lockPath = spoolPath + ".lock";
+  if (acquire_lock(lockPath)) {
+    int fd = ::open(spoolPath.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd >= 0 && flock(fd, LOCK_EX) == 0) {
+      const string headPath = spoolPath + ".head";
+      string prev; long long count;
+      read_head(headPath, prev, count);
+      if (count < 0) count = (prev == "genesis") ? 0 : count_chained_lines(spoolPath);
+      const string chained = bodyOpen + ",\"prev\":\"" + prev + "\"}";
+      const string line = chained + "\n";
+      ssize_t w = write(fd, line.c_str(), line.size()); (void)w;
+      { std::ofstream hf(headPath, std::ios::trunc);
+        if (hf) hf << rbsha::hex(chained) << " " << (count + 1) << "\n"; }
+      flock(fd, LOCK_UN);
+      close(fd);
+      ::unlink(lockPath.c_str());
+      return line;
+    }
+    if (fd >= 0) close(fd);
+    ::unlink(lockPath.c_str());
   }
-  if (fd >= 0) close(fd);
   // could not take the lock: record it, but outside the chain and outside the
   // chained file, so the day's proof is not damaged by our own fail-open.
   const string line = bodyOpen + ",\"unlocked\":true}\n";
