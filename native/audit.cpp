@@ -45,6 +45,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "sha256.h"
+#include "jsonl.h"
 #include "cli_help.h"
 
 using std::string;
@@ -66,27 +67,22 @@ static string read_file(const string& p) {
   return ss.str();
 }
 
-// extract a top-level "key":"value" string field from a compact JSON line
+// A top-level string / number field of one ledger line, read AS JSON (jsonl.h).
+//
+// These used to match the literal bytes `"key":"`. SPEC §2 fixes the ledger as
+// "single-line JSON" and fixes no byte layout, so a producer using a stock
+// serializer writes `"prev": "..."` — one space — and the match found nothing.
+// This referee then answered `NOT ONE line carries prev — the chain was
+// stripped out` / `TAMPER-EVIDENT BREAK` over a chain whose every prev really
+// was the SHA-256 of the previous line. An intact ledger accused of being
+// edited is the worst verdict a tamper-evidence tool can return, so the reader
+// parses the object instead of fingerprinting whoever printed it.
 static string get_field(const string& line, const string& key) {
-  string pat = "\"" + key + "\":\"";
-  size_t k = line.find(pat);
-  if (k == string::npos) return "";
-  size_t a = k + pat.size(), i = a;
-  string out;
-  while (i < line.size()) {
-    char c = line[i];
-    if (c == '\\' && i + 1 < line.size()) { out += c; out += line[i + 1]; i += 2; continue; }
-    if (c == '"') return out;
-    out += c; i++;
-  }
-  return "";
+  return rbjson::get_str(line, key);
 }
 
 static double get_num(const string& line, const string& key) {
-  string pat = "\"" + key + "\":";
-  size_t k = line.find(pat);
-  if (k == string::npos) return 0;
-  return strtod(line.c_str() + k + pat.size(), nullptr);
+  return rbjson::get_num(line, key);
 }
 
 static string local_stamp(double ms) {

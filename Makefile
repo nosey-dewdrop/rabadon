@@ -12,7 +12,7 @@ all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon
 native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h native/rules.h native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-audit: native/audit.cpp native/sha256.h native/cli_help.h
+native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/cli_help.h
