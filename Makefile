@@ -187,6 +187,24 @@ test: all
 # twin: the same keyword carrying ordinary work, and the same words as prose in a
 # commit message, an echo and a heredoc.
 	./native/reserved_word_test.sh
+# the same question with the shell's syntax already out of the way, asked of a
+# word the parser had no table entry for. the wrapper skip is a TABLE OF NAMES,
+# and a name that is not in it is read as the command itself, so `caffeinate -i
+# rm -rf ~/work/proj2` exited 0 while the same line without its first word
+# exited 2 — one word in front and BOTH compiled laws went unasked, because both
+# hang off that word. a table can only ever hold the wrappers someone has already
+# been bitten by, so the parser stops needing the name: an unknown word, then
+# option-looking words, then a word this parser ALREADY acts on (git, a delete,
+# a shell, another wrapper) is a wrapper, and the command is that word. section 0
+# proves the premise instead of telling it — a three-line wrapper this file
+# creates under a name no table anywhere has, watched execing a fake git and a
+# fake rm. the must-allow list is the longer one, and it caught the false refusal
+# the rule bought on its first run: `grep rm -r ~/notes` is a search whose
+# PATTERN is the word rm, so a command whose operand is TEXT is never read as a
+# wrapper. the limit is asserted and not described: an unlisted wrapper whose
+# option eats a SEPARATE value is still missed, and the answer to that one is its
+# name in the table with what it eats.
+	./native/unknown_wrapper_test.sh
 # and the same question one moment later in the shell's life: a name the line
 # itself binds. `gitx() { git push --force origin main; }; gitx` reached the laws
 # as a command called `gitx()`, a command called `}` and a bare word — no `git`

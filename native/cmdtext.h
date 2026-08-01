@@ -327,6 +327,106 @@ inline bool wrapper_of(const string& base, WrapSpec& w) {
   return false;
 }
 
+// ---------- a name the table does not have is still a wrapper ----------------
+// The table above can only ever hold the wrappers someone has already been
+// bitten by, and reading an unknown first word as THE command is what turns the
+// gate off behind the next one. Measured on the shipped binary:
+//
+//   rm -rf $H/work/proj2                        -> exit 2
+//   caffeinate -i rm -rf $H/work/proj2          -> exit 0
+//   git push --force origin main                -> exit 2
+//   caffeinate -i git push --force origin main  -> exit 0
+//
+// One missing name turns off BOTH compiled laws at once, because both of them
+// hang off the same word: base_of() reported `caffeinate`, that is neither git
+// nor rm, and baseline.h's relevance test marked the whole segment irrelevant.
+// Anything that execs its argv does this — a three-line runner in a repo's own
+// bin/ does it — so the next missing name is always one line away.
+//
+// So the parser stops needing the name for the common shape. An unknown word,
+// followed by option-LOOKING words, followed by a word this parser ALREADY acts
+// on, is read as a wrapper, and the command is that word.
+//
+// WHAT KEEPS THIS FROM REFUSING TEXT. The word behind it has to be one the
+// layers above judge — git, a delete, a shell, or another wrapper — so
+// `npx wrangler deploy` and `node tools/serve.mjs` are read exactly as before.
+// And a command whose operand is TEXT is never a wrapper (operands_are_text
+// below), so `echo rm -rf ~/Documents` is a sentence and `grep rm -r ~/notes`
+// is a search. That second one is not hypothetical: it is the false refusal
+// this rule bought on its first run, caught by its own must-allow twin.
+//
+// Reading a word as the command is also not the same as refusing it: in
+// `which git` the command word becomes `git`, and the push law then asks its
+// own question — is this a push? — and does not fire.
+//
+// THE LIMIT, NAMED RATHER THAN LEFT TO BE DISCOVERED: option-looking words are
+// all this skips. A wrapper whose option takes a SEPARATE value, or that eats a
+// plain operand of its own, still hides what is behind it unless its NAME is in
+// the table with what it eats — which is exactly what `timeout`'s operands=1 and
+// `script`'s typescript file are there for. `rbwrap --jobs 4 rm -rf ~/Documents`
+// stops at `4` and is allowed; native/unknown_wrapper_test.sh says so out loud.
+inline bool is_shell(const string& name);   // defined with pass 3, below
+
+// the delete family, kept HERE and read by pathres.h from here: which names are
+// a delete is one question, and the walk that finds the command word and the
+// walk that reads its targets must not answer it twice.
+inline bool is_delete_command(const string& base) {
+  return name_is(base, "rm") || name_is(base, "rmdir") || name_is(base, "unlink") ||
+         name_is(base, "shred") || name_is(base, "trash");
+}
+
+// a word the layers above this parser act on, rather than carry as data
+inline bool acted_on_command(const string& base) {
+  if (name_is(base, "git")) return true;      // the push and reset laws
+  if (is_delete_command(base)) return true;   // the recursive-delete law
+  if (is_shell(base)) return true;            // its -c string is a program of its own
+  WrapSpec w;
+  return wrapper_of(base, w);                 // wrappers chain: `rbwrap sudo rm -rf ~`
+}
+
+// Commands whose operand is TEXT and never a program. `echo`, `printf` and
+// `cat` carry their output in their operands — produced_stdout() below already
+// reads them exactly that way — and the grep family's FIRST operand is a
+// PATTERN. The spelling is the whole point, so it was measured and not assumed:
+// `grep rm -r notes/` matches on this machine, which puts `rm` in command
+// position with a recursive flag behind it, and the delete law fired on a
+// search. egrep, fgrep and rg answer to the same spelling and were measured too.
+//
+// This is a name list, which is what let the wrapper table above go stale in the
+// first place. It is allowed to be one because its failure points the other way.
+// A name missing from the WRAPPER table fails OPEN: the gate goes quiet and
+// nobody learns anything. A name missing from THIS list fails CLOSED: a search
+// is refused, with the law's id and its sentence printed, in front of the person
+// who typed it. Put the list where its mistakes are visible.
+inline bool operands_are_text(const string& base) {
+  return name_is(base, "echo") || name_is(base, "printf") || name_is(base, "cat") ||
+         name_is(base, "grep") || name_is(base, "egrep") || name_is(base, "fgrep") ||
+         name_is(base, "rg");
+}
+
+// the index of the command standing behind an unlisted word — npos when that
+// word is not standing in front of one.
+inline size_t command_behind_unknown(const vector<Word>& w, size_t at) {
+  // A word carrying '=' that is not an assignment (command_index asked that
+  // question one line earlier) is a name no shell can resolve: bash looks for a
+  // command called `FOO+bar=/x`, `arr[0=/x`, `2FOO=/x` and never reaches what
+  // follows. native/assign_prefix_test.sh measures exactly that with a real
+  // shell and a fake git, and it is what caught this rule refusing all three the
+  // first time it ran. A wrapper is a program the shell can FIND; these are not.
+  if (w[at].text.find('=') != string::npos) return string::npos;
+  const string lead = base_of(w[at].text);
+  if (acted_on_command(lead) || operands_are_text(lead)) return string::npos;
+  size_t j = at + 1;
+  while (j < w.size()) {
+    const string& o = w[j].text;
+    if (o == "--") { j++; break; }                    // the explicit end of options
+    if (o.size() < 2 || o[0] != '-') break;           // an operand, not an option
+    j++;
+  }
+  if (j >= w.size()) return string::npos;
+  return acted_on_command(base_of(w[j].text)) ? j : string::npos;
+}
+
 // ---------- reserved words: the shell's syntax is not a command name ----------
 // `{ git push --force origin main; }` reported its command name as `{`, and `{`
 // is neither git nor rm, so the segment was marked irrelevant and the three
@@ -377,7 +477,14 @@ inline size_t command_index(const vector<Word>& w) {
     if (i == 0 && case_pattern(w[i])) { i++; continue; }
     if (is_assignment(w[i].text)) { i++; continue; }
     WrapSpec spec;
-    if (!wrapper_of(base_of(w[i].text), spec)) break;
+    if (!wrapper_of(base_of(w[i].text), spec)) {
+      // not a name the table knows. It is still a wrapper when a command this
+      // parser acts on stands behind it; otherwise this word IS the command.
+      const size_t behind = command_behind_unknown(w, i);
+      if (behind == string::npos) break;
+      i = behind;
+      continue;
+    }
     i++;
     while (i < w.size()) {
       const string& o = w[i].text;

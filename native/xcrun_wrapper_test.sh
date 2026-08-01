@@ -187,7 +187,17 @@ inside a brace group|{ xcrun git push --force origin main; }
 in the then branch|if true; then xcrun git push --force origin main; fi
 in a loop body|for b in one; do xcrun git push --force origin main; done
 xcrun wrapping a shell that runs it|xcrun bash -c 'git push --force origin main'
+a name that merely starts with a listed wrapper|xcrunner git push --force origin main
+a two-line helper inside the repo being guarded|./tools/xcrun-helper git push --force origin main
 EOF
+# The last two spellings are the ones this file used to assert must be ALLOWED,
+# as its guard that the table compares a whole NAME and not a prefix. Both were
+# measured handing `git [push] [--force] [origin] [main]` to a real git under a
+# real bash (native/unknown_wrapper_test.sh, section 0), so the guard was
+# rewritten rather than the measurement ignored — see the note over the
+# must-allow list below. A wrapper the table does not name is still a wrapper
+# when a command this parser acts on stands behind it, and a two-line helper
+# inside the repo being guarded is the cheapest wrapper there is.
 
 # the refusal is the compiled law's, and it names the branch it protected
 D=$(detail "$PROJ" "xcrun git push --force origin main")
@@ -207,6 +217,13 @@ LEDGER=$(grep -h '"rule":"baseline-force-push"' "$RABADON_DIR/spool/"*.jsonl 2>/
 # 3. must ALLOW: xcrun is how Xcode work is spelled. Naming the tool as the
 #    command must not start refusing the tools.
 # ---------------------------------------------------------------------------
+# The last entry is the guard that this table lookup compares a whole NAME and
+# not a prefix, respelled. It used to be `xcrunner git push --force origin main`,
+# which asserted that a measured force-push must go unrefused. This spelling
+# keeps the guard and loses the hole: under a PREFIX match `-sdk` is xcrun's
+# valued option, two words are skipped and `git` lands in command position;
+# under a whole-name match the walk stops at `macosx`, which is no command this
+# parser acts on, so nothing behind it is read as one.
 echo "xcrun: still allowed (the work this must not cut)"
 while IFS='|' read -r desc cmd; do
   [ -z "$desc" ] && continue
@@ -241,8 +258,7 @@ an ordinary push after the end-of-options marker|xcrun -- git push origin my-bra
 the words as a commit message|git commit -m "xcrun git push --force origin main"
 the words as an echoed string|echo "xcrun git push --force origin main"
 the word inside a single-quoted argument|grep -F 'xcrun git push --force origin main' notes.md
-a command whose name merely starts with xcrun|xcrunner git push --force origin main
-a path whose last component is not xcrun|./tools/xcrun-helper git push --force origin main
+a name that merely starts with xcrun, before a value-taking option|xcrunner -sdk macosx git push --force origin main
 EOF
 
 # the words in a heredoc are prose being written to a file, not a program

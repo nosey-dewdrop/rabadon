@@ -510,11 +510,13 @@ inline Land land_of(const string& rawIn, const string& cwd, const string& root) 
 // The operands of an `rm`-shaped command, flags off. Both layers read the same
 // list: the compiled law to judge them, the rule layer to ask where the text a
 // regex just matched is actually pointing.
-inline bool is_delete_command(const string& base) {
-  return rbtext::name_is(base, "rm") || rbtext::name_is(base, "rmdir") ||
-         rbtext::name_is(base, "unlink") || rbtext::name_is(base, "shred") ||
-         rbtext::name_is(base, "trash");
-}
+//
+// The names themselves moved to cmdtext.h and are read from there. The walk
+// that finds WHICH WORD is the command now has to know the delete family too —
+// it is how an unlisted wrapper is told from a command — and a list that exists
+// twice diverges twice: the day `trash` is added to one of them, one walk finds
+// the command and the other refuses to read its targets.
+inline bool is_delete_command(const string& base) { return rbtext::is_delete_command(base); }
 
 struct Delete {
   bool isDelete = false;
