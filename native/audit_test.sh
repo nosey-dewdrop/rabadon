@@ -27,6 +27,18 @@ fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
 
 TMP=$(mktemp -d /tmp/rabadon-audit-test.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
+
+# THE LEDGER DAY IS UTC, and this file gets ONE name for it. Every writer of the
+# chained day file names it with gmtime -- gate.cpp, repair.cpp, sandbox.cpp and
+# the JS bus (toISOString) -- so a fixture the test builds under the LOCAL date
+# is a file the gate will never append to. It cost this suite two checks: east
+# of Greenwich after midnight, (h) prepared 2026-08-02.jsonl, the gate migrated
+# and chained 2026-08-01.jsonl, the sidecar the test then read had no count, and
+# the audit found a pre-0.4 file next to a fresh one -> rc=2. Nothing was wrong
+# with the gate; the test was measuring a file it had not written. Not a mystery
+# that needs a clock either: local-vs-UTC divergence is reproducible at ANY hour
+# from a zone (native/ledger_day_test.sh picks one and proves the convention).
+LEDGER_DAY="$(date -u +%Y-%m-%d)"
 export HOME="$TMP/home"; mkdir -p "$HOME/.rabadon/spool"
 export RABADON_DIR="$HOME/.rabadon"
 export RABADON_NOTIFY=0
@@ -235,10 +247,10 @@ grep -q "rbchain::append" native/loop.cpp && pass "rabadon-loop appends through 
 #    convict at the right line. A reader that stopped parsing would fail the
 #    first half; a reader that convicts everything would fail it too.
 SPACED="$TMP/spaced"; mkdir -p "$SPACED/spool"
-python3 - "$SPACED/spool" <<'PY'
-import datetime, hashlib, json, os, sys, time
-spool = sys.argv[1]
-path = os.path.join(spool, datetime.date.today().isoformat() + ".jsonl")
+SPACED_DAY="$SPACED/spool/$LEDGER_DAY.jsonl"
+python3 - "$SPACED_DAY" <<'PY'
+import hashlib, json, sys, time
+path = sys.argv[1]           # named by the caller: one definition of the day
 prev, out = "genesis", []
 for i in range(3):
     e = {"v": 1, "seq": i + 1, "ts": int(time.time() * 1000) + i,
@@ -250,7 +262,6 @@ for i in range(3):
 open(path, "w").write("\n".join(out) + "\n")
 open(path + ".head", "w").write(prev + " 3\n")
 PY
-SPACED_DAY="$SPACED/spool/$(date +%Y-%m-%d).jsonl"
 
 # the fixture must really be spaced, or the arm proves nothing about spacing
 grep -q '"prev": "' "$SPACED_DAY" && pass "(g) the stranger fixture really is stock-serialized (\"prev\": \" with a space)" || fail "(g) fixture is not spaced — the arm would prove nothing"
@@ -296,7 +307,7 @@ else fail "(g) spaced tamper not caught: rc=$RC"; printf '%s\n' "$OUT" | sed 's/
 #    audit convicted the file the moment the real gate touched it.
 MIG="$TMP/mig"; mkdir -p "$MIG/spool"; touch "$MIG/enabled"   # enforce, like $RABADON_DIR
 cp "$SPACED/spool"/*.jsonl "$MIG/spool/" 2>/dev/null
-MIG_DAY="$MIG/spool/$(date +%Y-%m-%d).jsonl"
+MIG_DAY="$MIG/spool/$LEDGER_DAY.jsonl"   # the file the GATE will append to
 python3 - "$MIG_DAY" <<'PY'
 import hashlib, sys
 p = sys.argv[1]
