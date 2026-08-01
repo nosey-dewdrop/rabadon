@@ -2,13 +2,24 @@
 //
 // rabadon's brand claim is that it never counts its own self-tests as catches.
 // That claim is only worth the surface with the loosest reading of it, so the
-// four rules live here once and both readers of the spool call the same code:
+// four rules live here once and ALL THREE readers of the spool call the same
+// code:
 //
 //   rabadon-stats   the local number, read by the operator who knows what a
 //                   drill is;
 //   rabadon-export  OTLP spans pushed OFF the machine into a shared Jaeger /
 //                   Grafana / Langfuse, where a refusal renders red and nobody
-//                   can tell a bench run from a production catch.
+//                   can tell a bench run from a production catch;
+//   rabadon-trace   one run drawn step by step — the prettiest surface in the
+//                   product and the one that gets screenshotted into a pitch.
+//
+// This list said "both readers" and named the first two. trace was the third,
+// and it contained zero occurrences of the word drill: the exact 18 events of a
+// self-run on pipe do-test:do rendered "CAUGHT 2 · REPAIRED 2 · verdict: PASS"
+// and the saved-money line, while stats said "no events in this window" and
+// export emitted 0 spans over the same bytes. A predicate with a caller that
+// does not call it is worse than a copy that drifts — nothing tells you.
+// Anything that grows a fourth reader adds itself to this list or it is a bug.
 //
 // export used to apply rule 1 alone, as a raw substring match, and shipped the
 // other three shapes as ERROR spans — on this machine, 7 events dropped out of
