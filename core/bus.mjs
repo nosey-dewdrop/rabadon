@@ -11,7 +11,10 @@
 //   2. No silent loss. If events can't be delivered they are still appended
 //      to a local spool file, and the number of socket drops is COUNTED and
 //      reported — rabadon does not get to lie about its own delivery.
-//   3. Zero dependencies. node:net + node:fs only.
+//   3. Zero dependencies. node: builtins only (net, fs, crypto).
+//   4. Whatever it writes to the spool must be PROVABLE. The spool is the
+//      ledger `rabadon audit` verifies, and audit exit 0 is the artifact you
+//      put in front of someone. The bus is not allowed to cost that.
 //
 // Topology: `rabadon watch` OWNS the socket (server). Pipelines are clients:
 // they try to connect once, push newline-delimited JSON while they run, and
@@ -21,10 +24,137 @@ import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 
 export const RABADON_DIR = process.env.RABADON_DIR || path.join(os.homedir(), '.rabadon');
 export const SOCK_PATH = process.env.RABADON_SOCK || path.join(RABADON_DIR, 'rabadon.sock');
 export const SPOOL_DIR = path.join(RABADON_DIR, 'spool');
+
+// ---------------------------------------------------------------------------
+// The ledger protocol, JS side. native/chain.h is the specification; this is the
+// second implementation of it, and it must agree byte for byte or `rabadon
+// audit` will call an honest file tampered.
+//
+// Why a second implementation instead of calling the first one: chain.h holds
+// flock(2) on the day file for the whole read-head -> append -> rewrite-head
+// sequence, and Node has no flock — not in `fs`, and macOS ships no flock(1) to
+// shell out to. A JS writer in the SAME file could therefore interleave with
+// gate/repair/loop, and an interleave does not merely lose an event: the next
+// chained line's prev stops matching, which audit reports as a BREAK. A false
+// accusation of tampering is worse than the bug this replaced.
+//
+// So the JS bus owns its own day file, `<day>.js.jsonl`, chained by the same
+// rules and committed by the same `<day>.js.jsonl.head` sidecar. One writer per
+// chained file — which is what chain.h's rule actually protects. audit walks
+// every *.jsonl in the spool, so the file is verified, not merely tolerated,
+// and core/store.mjs reads every *.jsonl too, so replay still sees the events.
+//
+// Mutual exclusion between concurrent NODE writers is a lock file taken with
+// O_EXCL, the one atomic primitive both ends of that race share. If it cannot
+// be taken, we do exactly what chain.h does when flock fails: record the line in
+// `<day>.unchained.jsonl`, outside the chain and outside the chained file, so
+// the day's proof is never damaged by our own fail-open.
+
+const LOCK_STALE_MS = 5000;   // a lock older than this belonged to a killed writer
+const LOCK_WAIT_MS = 250;     // total time to fight for the lock before failing open
+
+const sha256hex = (s) => crypto.createHash('sha256').update(s).digest('hex');
+
+/** Sleep synchronously. emit() is synchronous by contract; it cannot await. */
+function sleepSync(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* no SAB: spin-free fallback */ }
+}
+
+/** Mirror of chain.h read_head(): "<sha256> <count>", count -1 = pre-0.4. */
+function readHead(headPath) {
+  let prev = 'genesis', count = -1;
+  let h;
+  try { h = fs.readFileSync(headPath, 'utf8').split('\n')[0]; } catch { return { prev, count }; }
+  const sp = h.indexOf(' ');
+  const hash = sp === -1 ? h : h.slice(0, sp);
+  if (hash.length !== 64) return { prev, count };
+  prev = hash;
+  if (sp === -1) return { prev, count };
+  const c = h.slice(sp + 1).trim();
+  if (c && /^[0-9]+$/.test(c)) count = Number(c);
+  return { prev, count };
+}
+
+/** Mirror of chain.h count_chained_lines(): a line is chained when it carries a
+ * non-empty top-level `prev`. Read as JSON, not as a byte suffix — SPEC §2 fixes
+ * neither spacing nor key order. */
+function countChainedLines(spoolPath) {
+  let body;
+  try { body = fs.readFileSync(spoolPath, 'utf8'); } catch { return 0; }
+  let n = 0;
+  for (const line of body.split('\n')) {
+    if (!line) continue;
+    try { const p = JSON.parse(line).prev; if (typeof p === 'string' && p !== '') n++; } catch { /* not ours to judge */ }
+  }
+  return n;
+}
+
+function acquireLock(lockPath) {
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try { fs.closeSync(fs.openSync(lockPath, 'wx')); return true; } catch { /* held, or unwritable */ }
+    try {
+      const st = fs.statSync(lockPath);
+      if (Date.now() - st.mtimeMs > LOCK_STALE_MS) { fs.unlinkSync(lockPath); continue; }
+    } catch { /* it vanished under us, or the dir is unwritable — the deadline decides */ }
+    if (Date.now() >= deadline) return false;
+    sleepSync(2);
+  }
+}
+
+const unchainedSibling = (spoolPath) => spoolPath.replace(/\.jsonl$/, '.unchained.jsonl');
+
+/**
+ * Append one event to the chained day file and return the exact line written
+ * (newline included) so the caller can fan the same bytes to the socket.
+ * Never throws: a ledger that kills the pipeline it observes is not a ledger.
+ */
+export function chainedAppend(spoolPath, event) {
+  const lockPath = spoolPath + '.lock';
+  if (!acquireLock(lockPath)) {
+    const line = safeStringify({ ...event, unlocked: true }, event) + '\n';
+    try { fs.appendFileSync(unchainedSibling(spoolPath), line); } catch { /* disk trouble must not stop the run */ }
+    return line;
+  }
+  try {
+    const headPath = spoolPath + '.head';
+    let { prev, count } = readHead(headPath);
+    if (count < 0) count = prev === 'genesis' ? 0 : countChainedLines(spoolPath);
+    // prev goes on LAST, the same place chain.h puts it. Nothing reads it
+    // positionally, but a ledger two implementations write should look like one.
+    const chained = safeStringify({ ...event, prev }, event, prev);
+    fs.appendFileSync(spoolPath, chained + '\n');
+    // the sidecar is written under the same lock as the line it commits to, so
+    // anything the two disagree about happened AFTER emit.
+    fs.writeFileSync(headPath, `${sha256hex(chained)} ${count + 1}\n`);
+    return chained + '\n';
+  } catch {
+    return '';   // disk trouble must not stop the run
+  } finally {
+    try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+  }
+}
+
+/** JSON.stringify that cannot throw: an unserializable detail costs the detail,
+ * not the event, and never the run. */
+function safeStringify(full, frame, prev) {
+  try { return JSON.stringify(full); } catch { /* cyclic or a throwing toJSON */ }
+  const { v, seq, ts, run, pipe, ev } = frame;
+  const stripped = { v, seq, ts, run, pipe, ev, unserializable: true };
+  if (prev !== undefined) stripped.prev = prev;
+  if (full.unlocked) stripped.unlocked = true;
+  return JSON.stringify(stripped);
+}
+
+/** The day file this process's events chain into. Its own, by writer: chain.h
+ * holds a flock over `<day>.jsonl` that no Node process can join. */
+export const jsSpoolPath = (day = new Date().toISOString().slice(0, 10)) =>
+  path.join(SPOOL_DIR, `${day}.js.jsonl`);
 
 /** Event vocabulary. Fixed and small on purpose — the watch UI renders these. */
 export const EV = Object.freeze({
@@ -54,7 +184,7 @@ export function emitter({ pipe = 'pipeline', run = null } = {}) {
   const runId = run || `${Date.now().toString(36)}-${process.pid.toString(36)}-${(++seqCounter).toString(36)}`;
   ensureDirs();
 
-  const spoolPath = path.join(SPOOL_DIR, `${new Date().toISOString().slice(0, 10)}.jsonl`);
+  const spoolPath = jsSpoolPath();
   let sock = null;
   let sockUp = false;
   let dropped = 0;          // events not delivered to a live watcher
@@ -78,15 +208,13 @@ export function emitter({ pipe = 'pipeline', run = null } = {}) {
 
   function emit(ev, fields = {}) {
     const event = { v: 1, seq: ++seq, ts: Date.now(), run: runId, pipe, ev, ...fields };
-    let line;
-    try {
-      line = JSON.stringify(event) + '\n';
-    } catch {
-      // an unserializable detail must not kill the pipeline; strip to the frame
-      line = JSON.stringify({ v: 1, seq, ts: event.ts, run: runId, pipe, ev, unserializable: true }) + '\n';
-    }
-    // spool first — the spool is the source of truth, the socket is the live view
-    try { fs.appendFileSync(spoolPath, line); } catch { /* disk trouble must not stop the run */ }
+    // spool first — the spool is the source of truth, the socket is the live
+    // view. It goes in CHAINED (prev + .head sidecar, chain.h's protocol), or
+    // into the .unchained sibling if the lock could not be taken. It never goes
+    // in bare: an unprovable line beside provable ones costs the whole file its
+    // verdict, and prev cannot be retro-fitted afterwards without rewriting the
+    // file — the exact edit `rabadon audit` exists to convict.
+    const line = chainedAppend(spoolPath, event) || safeStringify(event, event) + '\n';
     if (sock && sockUp) {
       try {
         const ok = sock.write(line);
