@@ -1195,6 +1195,147 @@ inline void lift_functions(vector<Seg>& segs, vector<string>* limits) {
   }
 }
 
+// ---------- pass 7: an alias the SAME line defines IS the subcommand --------
+// THE HOLE THIS CLOSES.
+//
+//   git -c alias.x='push --force' x origin main
+//
+// The option walk below already knew that `-c` takes a value and stepped over
+// it correctly, which is exactly how the verb got through: the walk landed on
+// `x`, the compiled law compared that token to `push`, and a user's deny regex
+// needs the literal word `push` in the text. Both layers returned 0. The
+// dangerous verb was written down once, inside a quoted config value, and never
+// said again — the same shape as `C="push --force"; git $C`, one layer further
+// in, and the answer is the same one: what the line itself writes down is not
+// unknown, it is resolved before any law reads it.
+//
+// Measured against git 2.39.5 in a repo with no remote, and each fact below is
+// a case in native/git_alias_test.sh rather than a reading of the manual:
+//   -c alias.X=... invoked as x   runs. config keys fold case on BOTH sides,
+//                                 section and variable name.
+//   -c alias.a=b -c alias.b=...   runs. aliases chain, so this expands in a
+//                                 loop, with a seen-list ending a cycle.
+//   -c alias.x=A -c alias.x=B     runs B. the last definition wins.
+//   -c alias.x='!...' x aa bb     hands `... aa bb` to a SHELL. that is not
+//                                 argv at all, so it is returned as a script
+//                                 and pass 3's machinery reads it as a command.
+//   -calias.x=... (attached)      REJECTED by git ("unknown option"), so it is
+//                                 not a hole and nothing here pretends it is.
+//
+// THE ONE LIMIT, named and not hidden: git resolves BUILT-IN commands before
+// aliases, so `-c alias.status=<anything> status` really runs status and this
+// expands it anyway. Telling them apart needs a list of every git builtin —
+// the hand-kept set this parser exists to avoid — and the error it buys is a
+// refusal of a line nobody writes.
+// git's own leading options: EVERY one of them, not a list of known ones.
+// `git --exec-path=/x push --force` slipped through a hand-listed set (31.07).
+// The rule is structural: after `git`, skip every token that starts with '-',
+// consuming a value only for the options that genuinely take a separate one.
+// This walk lived in baseline.h and moved here when the alias table above had
+// to be read off the same options — "which word is the subcommand" is a
+// question about READING the line, and this file is where the line is read.
+inline bool git_subcommand(const vector<Word>& t, size_t gi, size_t& subIdx) {
+  size_t i = gi + 1;
+  while (i < t.size()) {
+    const string& s = t[i].text;
+    if (s.empty() || s[0] != '-') { subIdx = i; return true; }
+    const bool takesValue = (s == "-C" || s == "-c" || s == "--git-dir" || s == "--work-tree");
+    i += takesValue ? 2 : 1;
+  }
+  return false;
+}
+
+// `alias.x=push --force` — the config pair `-c` carries, name folded the way
+// git folds a config key. Not an alias key: not ours, and `-c user.name=push`
+// must stay a name and not become a subcommand.
+inline bool git_alias_pair(const string& tok, string& name, string& body) {
+  const size_t eq = tok.find('=');
+  if (eq == string::npos) return false;
+  string key = tok.substr(0, eq);
+  for (size_t i = 0; i < key.size(); i++) key[i] = lower_c(key[i]);
+  if (key.size() <= 6 || key.compare(0, 6, "alias.") != 0) return false;
+  name = key.substr(6);
+  body = tok.substr(eq + 1);
+  // inside quotes this parser writes its own marker where the whitespace was,
+  // so the value read off a SURFACE and the value read off argv are one string
+  for (size_t i = 0; i < body.size(); i++) if (body[i] == DATA_WS) body[i] = ' ';
+  return true;
+}
+
+// the body this command line binds to `want`, last definition winning. Only the
+// options BEFORE the subcommand are read: that is where git's own are.
+inline bool git_line_alias(const vector<Word>& t, size_t gi, size_t sub,
+                           const string& want, string& body) {
+  string key = want;
+  for (size_t i = 0; i < key.size(); i++) key[i] = lower_c(key[i]);
+  bool found = false;
+  for (size_t i = gi + 1; i + 1 < sub && i + 1 < t.size(); i++) {
+    if (t[i].text != "-c") continue;
+    string n, v;
+    if (!git_alias_pair(t[i + 1].text, n, v)) continue;
+    if (n != key) continue;
+    body = v;
+    found = true;
+  }
+  return found;
+}
+
+// `--config-env=alias.x=NAME` binds the alias to an ENVIRONMENT variable, and
+// the environment of the shell that will run git is not in this text. Named as
+// a limit rather than guessed at, which is what Parsed::limits is for.
+inline bool git_configenv_alias(const vector<Word>& t, size_t gi, size_t sub, const string& want) {
+  static const string pre = "--config-env=";
+  string key = want;
+  for (size_t i = 0; i < key.size(); i++) key[i] = lower_c(key[i]);
+  for (size_t i = gi + 1; i < sub && i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s.size() <= pre.size() || s.compare(0, pre.size(), pre) != 0) continue;
+    string n, v;
+    if (git_alias_pair(s.substr(pre.size()), n, v) && n == key) return true;
+  }
+  return false;
+}
+
+// Rewrites `t` into the argv git will really run. A `!` body is not argv, so it
+// comes back through *shellBody and the caller hands it to pass 3.
+inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>* limits) {
+  const size_t ci = command_index(t);
+  if (ci >= t.size() || !name_is(base_of(t[ci].text), "git")) return;
+  vector<string> seen;
+  for (int round = 0; round < 8; round++) {
+    size_t sub = 0;
+    if (!git_subcommand(t, ci, sub)) return;
+    const string tok = t[sub].text;
+    string body;
+    if (!git_line_alias(t, ci, sub, tok, body)) {
+      if (limits && git_configenv_alias(t, ci, sub, tok))
+        limits->push_back("an alias named '" + tok + "' is bound by --config-env to an "
+                          "environment variable, so what git will run under that name is not "
+                          "in this command line");
+      return;
+    }
+    string key = tok;
+    for (size_t i = 0; i < key.size(); i++) key[i] = lower_c(key[i]);
+    for (size_t i = 0; i < seen.size(); i++) if (seen[i] == key) return;  // an alias cycle
+    seen.push_back(key);
+    if (!body.empty() && body[0] == '!') {
+      if (shellBody) {
+        string s = body.substr(1);
+        for (size_t i = sub + 1; i < t.size(); i++) { s += " "; s += t[i].text; }
+        *shellBody = s;
+      }
+      return;
+    }
+    vector<Word> words;
+    split_ws(body, words);
+    if (words.empty()) return;
+    vector<Word> next(t.begin(), t.begin() + sub);
+    next.insert(next.end(), words.begin(), words.end());
+    next.insert(next.end(), t.begin() + sub + 1, t.end());
+    t.swap(next);
+  }
+}
+
 // ---------- the whole answer ----------
 inline void emit(const string& text, int group, int parent, Parsed& out, int depth,
                  vector<Binding> env,
@@ -1229,8 +1370,15 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
     sg.group = group;
     sg.parent = parent;
     apply_env(sg, env);
+    // the argv git will really run, before anything reads it: the alias this
+    // same line defines is resolved here, so the structural reader sees the
+    // subcommand AND the rebuilt text a deny regex is matched against carries
+    // it too. A `!` body is a shell program, and joins the scripts below.
+    string aliasShell;
+    expand_git_alias(sg.words, &aliasShell, &out.limits);
     const vector<string> nested = sg.nested;
-    const vector<string> scripts = shell_scripts(sg.words);
+    vector<string> scripts = shell_scripts(sg.words);
+    if (!aliasShell.empty()) scripts.push_back(aliasShell);
 
     // the program this command is about to run but was never handed as an
     // argument: read off stdin, or read out of a file this same line wrote

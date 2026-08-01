@@ -100,6 +100,17 @@ test: all
 	./native/path_answer_test.sh
 	./native/guard_lint_test.sh
 	./native/cmdtext_test.sh
+# cmdtext_test.sh asks what a shell will RUN. this one asks what GIT will run,
+# which is not the same question: `git -c alias.x='push --force' x origin main`
+# writes the verb into a config value and then invokes it under another name.
+# The option walk was already right — it stepped over `-c` and its value exactly
+# as git does — and landing on `x` was still the wrong answer. Every alias fact
+# it asserts (case folding, chaining, last-definition-wins, a `!` body going to
+# a shell, and the attached `-c<name>=` form git REJECTS) was measured against
+# real git first, and every must-block case has its must-not-block twin: a read
+# alias, a lease push, a force to a private branch, an alias defined and never
+# invoked.
+	./native/git_alias_test.sh
 	./native/bypass_test.sh
 # bypass_test.sh asks whether the LAWS see the command. this one asks whether the
 # PARSER hands them one at all: `FOO=bar <cmd>` was judged and `FOO=/x <cmd>` was

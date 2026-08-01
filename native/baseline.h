@@ -137,20 +137,15 @@ inline string current_branch(const string& root) {
   return b;
 }
 
-// ---------- git option walk: EVERY leading option, not a list of known ones ----
-// `git --exec-path=/x push --force` slipped through a hand-listed set (31.07).
-// The rule is structural: after `git`, skip every token that starts with '-',
-// consuming a value only for the options that genuinely take a separate one.
-inline bool git_subcommand(const vector<rbtext::Word>& t, size_t gi, size_t& subIdx) {
-  size_t i = gi + 1;
-  while (i < t.size()) {
-    const string& s = t[i].text;
-    if (s.empty() || s[0] != '-') { subIdx = i; return true; }
-    const bool takesValue = (s == "-C" || s == "-c" || s == "--git-dir" || s == "--work-tree");
-    i += takesValue ? 2 : 1;
-  }
-  return false;
-}
+// ---------- git option walk: it lives in the parser now ----------------------
+// `git --exec-path=/x push --force` slipped a hand-listed set (31.07) and the
+// walk that replaced it was written here. It moved to cmdtext.h when
+// `git -c alias.x='push --force' x` arrived: the walk was RIGHT — it stepped
+// over `-c` and its value exactly as git does — and landing on `x` was still
+// the wrong answer, because git resolves that token through the alias table the
+// same `-c` options just built. Reading the options and resolving the
+// subcommand is one question, and this file is not where a command is read.
+using rbtext::git_subcommand;
 
 // the same walk, as a string rewrite, so USER regexes written as `git\s+push`
 // still see a command an agent wrote as `git -C /path push`.
