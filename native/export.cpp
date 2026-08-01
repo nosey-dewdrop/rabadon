@@ -36,6 +36,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "cli_help.h"
+#include "drill.h"
 
 using std::string;
 using std::vector;
@@ -160,7 +161,14 @@ int main(int argc, char** argv) {
   }
   std::sort(files.begin(), files.end());
 
-  vector<Ev> events;
+  // Two passes over the same window. The first classifies EVERY in-window line
+  // with the shared drill rules (drill.h) — every line, because rule 4 reads a
+  // marker off events this exporter would never have shipped, and a drill's
+  // fallout must not look like ordinary traffic just because the marker was a
+  // heartbeat. The second keeps the exportable, non-drill ones.
+  vector<RbDrillEv> classify;   // one per in-window line
+  vector<Ev> parsed;            // the exportable payload, same indexing
+  vector<char> exportable;
   for (const string& f : files) {
     string body = read_file(spool + "/" + f);
     size_t pos = 0;
@@ -171,16 +179,30 @@ int main(int argc, char** argv) {
       if (line.empty()) continue;
       double ts = get_num(line, "ts");
       if (!(ts >= cutoff)) continue;
-      if (line.find("\"drill\":true") != string::npos) continue; // drills never leave the machine either
       Ev e; e.ts = ts; e.seq = get_num(line, "seq");
       e.pipe = get_field(line, "pipe"); e.run = get_field(line, "run"); e.ev = get_field(line, "ev");
       e.rule = get_field(line, "rule"); e.detail = get_field(line, "detail");
       e.tin = (long long)get_num(line, "tokensIn"); e.tout = (long long)get_num(line, "tokensOut");
+      RbDrillEv c;
+      c.has_pipe = line.find("\"pipe\":\"") != string::npos;
+      c.pipe = e.pipe; c.ts = ts;
+      c.tag = rb_drill_tag(line);
+      c.marker = rb_drill_marker(line);
       static const char* kept[] = {"STEP_START", "CHECK_FAIL", "STOP", "WOULD_BLOCK", "REPAIR_OK", "REPAIR_FAIL", "RUN_START", "RUN_DONE"};
       bool k = false; for (const char* w : kept) if (e.ev == w) k = true;
-      if (!k) continue;
-      events.push_back(std::move(e));
+      classify.push_back(std::move(c));
+      parsed.push_back(std::move(e));
+      exportable.push_back(k ? 1 : 0);
     }
+  }
+
+  // drills never leave the machine — all four rules, the same ones `rabadon
+  // usage` counts with, so the two surfaces cannot tell different stories.
+  vector<char> isDrill = rb_mark_drills(classify);
+  vector<Ev> events;
+  for (size_t i = 0; i < parsed.size(); i++) {
+    if (!exportable[i] || isDrill[i]) continue;
+    events.push_back(std::move(parsed[i]));
   }
   std::stable_sort(events.begin(), events.end(), [](const Ev& a, const Ev& b) { return a.ts != b.ts ? a.ts < b.ts : a.seq < b.seq; });
 

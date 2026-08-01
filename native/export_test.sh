@@ -29,6 +29,10 @@ cat > "$RABADON_DIR/spool/2026-01-10.jsonl" <<EOF
 {"v":1,"seq":1,"ts":$TS,"run":"r2","pipe":"alpha:session","ev":"STOP","reason":"BLOCKED","rule":"no-force-push-main","detail":"git push --force"}
 {"v":1,"seq":1,"ts":$TS,"run":"r3","pipe":"beta:session","ev":"CHECK_FAIL","step":"Bash","fails":[{"check":"loop-stop","why":"3x"}]}
 {"v":1,"seq":1,"ts":$TS,"run":"d1","pipe":"gamma:session","ev":"STOP","reason":"BLOCKED","rule":"drilled","detail":"x","drill":true}
+{"v":1,"seq":1,"ts":$TS,"run":"d2","pipe":"delta:session","ev":"STOP","reason":"BLOCKED","rule":"marker-drill","sid":"drill-42"}
+{"v":1,"seq":1,"ts":$TS,"run":"d3","pipe":"rabadon-bench-x:session","ev":"STOP","reason":"BLOCKED","rule":"bench-noise"}
+{"v":1,"seq":1,"ts":$TS,"run":"d4","pipe":"epsilon:session","ev":"RUN_START","sid":"doctor-7"}
+{"v":1,"seq":2,"ts":$((TS+5000)),"run":"d5","pipe":"epsilon:session","ev":"STOP","reason":"BLOCKED","rule":"window-fallout"}
 EOF
 
 echo "export: OTLP/JSON"
@@ -75,11 +79,37 @@ keys={a["key"] for s in sp for a in s["attributes"]}
 assert "gen_ai.system" in keys and "gen_ai.usage.input_tokens" in keys, keys
 PY
 
-python3 - <<'PY' && pass "drills are excluded from the export" || fail "drill leaked into export"
+python3 - <<'PY' && pass "all four drill shapes stay home, real refusals still ship" || fail "a drill shape leaked into the export"
 import json,os
 d=json.load(open(os.environ["OUT"]))
 sp=d["resourceSpans"][0]["scopeSpans"][0]["spans"]
-assert not any("drilled" in s["name"] for s in sp)
+names={s["name"] for s in sp}
+# POSITIVE first: rename a rule and the exclusions below start passing for
+# free. The only defence is a check that fails when real work stops shipping.
+assert any("no-force-push-main" in n for n in names), ("real refusal missing", names)
+assert any("loop-stop" in n or "CHECK_FAIL" in n for n in names), ("real check fail missing", names)
+assert len(sp) == 3, ("exactly the three real events ship, got", sorted(names))
+# and now each drill shape rabadon usage already excludes, one by one
+for shape, rule in [("1 emit tag", "drilled"),
+                    ("2 marker session id", "marker-drill"),
+                    ("3 self pipe", "bench-noise"),
+                    ("4 window association", "window-fallout")]:
+    assert not any(rule in n for n in names), ("rule " + shape + " leaked", sorted(names))
+pipes={a["value"]["stringValue"] for s in sp for a in s["attributes"] if a["key"]=="rabadon.pipe"}
+assert not any(p.startswith("rabadon-bench") for p in pipes), pipes
+PY
+
+# The point of the export is that someone else reads it. If it says ERROR more
+# times than `rabadon usage` says refused, it is inflating catches off-machine.
+python3 - <<'PY' && pass "exported ERROR spans agree with rabadon usage's refused count" || fail "export and usage disagree on what a drill is"
+import json,os,subprocess
+d=json.load(open(os.environ["OUT"]))
+sp=d["resourceSpans"][0]["scopeSpans"][0]["spans"]
+stops=[s for s in sp if s["name"].startswith("STOP") and s.get("status",{}).get("code")==2]
+u=json.loads(subprocess.check_output(["./native/rabadon-stats","--json","--days","7"],
+    env={**os.environ,"RABADON_DIR":os.environ["RABADON_DIR"],"RABADON_NOW":os.environ["RABADON_NOW"]}))
+assert u["totals"]["refused"] == len(stops), (u["totals"]["refused"], len(stops), [s["name"] for s in stops])
+assert u["totals"]["drillsExcluded"] > 0, u["totals"]
 PY
 
 python3 - <<'PY' && pass "timestamps are unix-nano STRINGS (OTLP requires string)" || fail "timestamp type"
