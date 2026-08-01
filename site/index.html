@@ -28,15 +28,15 @@
   <span class="mark"><i>[</i>&#124;<i>]</i> rabadon</span>
   <nav>
     <a href="/" class="here">overview</a>
+    <a href="/catches">catches</a>
+    <a href="/benchmarks">benchmarks</a>
     <a href="/patch-notes">patch notes</a>
     <a href="/pull-requests">pull requests</a>
-    <a href="/benchmarks">benchmarks</a>
     <a href="https://github.com/nosey-dewdrop/rabadon">github</a>
   </nav>
 </header>
 
 <div class="top">
-  <div>
     <p class="tag"><b>rabadon is an agent aid.</b> It stands in the way of the command, keeps the receipt, and repairs what breaks.</p>
 
     <h1>an agent that can edit your repository can also delete it. rabadon is the gate its command passes before the process starts.</h1>
@@ -52,21 +52,18 @@
 
     <p class="cta">
       <a href="https://github.com/nosey-dewdrop/rabadon">read the source on github</a>
-      <a href="#findings">see what it found, project by project</a>
+      <a href="/catches">see what it caught, 207 of them</a>
     </p>
-  </div>
 
-  <div>
     <div class="term" id="typed"></div>
     <p class="cap">Printed as it came, on this machine. Thirty-four cases lifted out of real sessions, eleven of them genuinely destructive, and the gate refuses all eleven and nothing else.</p>
-  </div>
 </div>
 
 <section id="findings">
   <h2>what it found, project by project</h2>
   <p class="small dim" style="margin-bottom:var(--g2)">Thirty-one defects across eight open-source projects, mined out of 545 commits of their own history. None of these were invented. Each one is a real fix a maintainer shipped, with the test that caught it written by the same engineer in the same commit, and only the source half rolled back. The test cannot look away, because the reason it exists is the defect.</p>
 
-  <div class="find">
+  <div class="tbl find">
     <div class="head">
       <span>project</span><span style="text-align:right">defects</span><span style="text-align:right">commits read</span><span style="text-align:right">median lines</span><span>what the defects were</span>
     </div>
@@ -78,7 +75,7 @@
     <div class="row"><span class="repo">pallets/jinja</span><span class="n">4</span><span class="n commits">35</span><span class="n">8.0</span><span class="d">template and escaping defects</span></div>
     <div class="row"><span class="repo">pallets/markupsafe</span><span class="n">4</span><span class="n commits">30</span><span class="n">4.5</span><span class="d">escaping and comparison defects</span></div>
     <div class="row"><span class="repo">yaml/pyyaml</span><span class="n">4</span><span class="n commits">27</span><span class="n">1.0</span><span class="d">single-line defects in the loader</span></div>
-    <div class="row" style="padding-top:var(--g2)"><span class="repo dim">total</span><span class="n">31</span><span class="n commits">545</span><span class="n">6.0</span><span class="d">4 dropped guards, 3 off-by-one, 3 wrong boundaries, 2 reversed comparisons</span></div>
+    <div class="row total"><span class="repo dim">total</span><span class="n">31</span><span class="n commits">545</span><span class="n">6.0</span><span class="d">4 dropped guards, 3 off-by-one, 3 wrong boundaries, 2 reversed comparisons</span></div>
   </div>
 
   <p class="cap">The smallest defect is one source line, the largest is thirty-three. At least one test falls, at most ten. All thirty-one are deterministic: the red run was repeated three times and the same tests fell every time.</p>
@@ -198,7 +195,7 @@
     <div class="item"><span class="n b">247</span><span class="t">commits, every one of them on the patch notes page</span></div>
     <div class="item"><span class="n">0</span><span class="t">fake repairs accepted, on every run there is a record of</span></div>
   </div>
-  <p class="cap"><a href="/patch-notes">every commit, with the day it landed</a></p>
+  <p class="cap"><a href="/catches">every command it refused, rule by rule</a></p>
 </section>
 
 <section id="run">

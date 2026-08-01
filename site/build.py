@@ -9,18 +9,42 @@ walked back to a run.
 
     python3 site/build.py && (cd site && vercel deploy --prod --yes)
 """
+import glob
 import html
 import json
+import os
+import re
 import subprocess
 import sys
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 
 REPO_URL = "https://github.com/nosey-dewdrop/rabadon"
 SEP = "\x1f"  # unit separator: safe inside a commit subject, unlike | or tab
 
-NAV = [("/", "overview"), ("/patch-notes", "patch notes"),
-       ("/pull-requests", "pull requests"), ("/benchmarks", "benchmarks"),
+NAV = [("/", "overview"), ("/catches", "catches"), ("/benchmarks", "benchmarks"),
+       ("/patch-notes", "patch notes"), ("/pull-requests", "pull requests"),
        (REPO_URL, "github")]
+
+# where the gate writes what it refused. read at build time, never typed in.
+SPOOL = os.path.expanduser("~/.rabadon/spool")
+
+# a refusal is only worth showing if a human can tell what it stopped, so each
+# rule carries the sentence a reader needs and nothing about the private repo it
+# fired in. names of unreleased projects do not go on a public page.
+RULE_TEXT = {
+    "no-force-push-main":       "a force push aimed at a shared branch",
+    "baseline-force-push":      "a force push aimed at a shared branch, caught by the compiled-in law",
+    "baseline-rm-rf-outside":   "a recursive delete whose target resolved outside the project tree",
+    "no-rm-rf-outside":         "a recursive delete whose target resolved outside the project tree",
+    "no-rm-rf-outside-project": "a recursive delete whose target resolved outside the project tree",
+    "push-gate":                "a push where the code had been edited after the last passing test run",
+    "promise-off-target":       "a session drifting off the thing it said it was doing",
+    "no-gnu-timeout-on-macos":  "a command calling a binary that does not exist on this machine",
+    "no-hook-bypass":           "a commit trying to step around the repository's own hooks",
+    "no-hard-reset-main":       "a hard reset pointed at a shared branch",
+    "baseline-hard-reset":      "a hard reset pointed at a shared branch, caught by the compiled-in law",
+    "no-wrangler-deploy":       "a deploy command fired from a session that was not deploying",
+}
 
 # ---------------------------------------------------------------------------
 # measured numbers. every row carries the command that produced it; nothing here
@@ -271,10 +295,107 @@ def benchmarks(rows):
                 "Measured numbers for rabadon, each with the command that produced it.", "\n".join(out))
 
 
+def ledger():
+    """Read the gate's own spool. A drill is a rehearsal the test suite fired,
+    and counting one as a catch would be the exact dishonesty this tool exists
+    to refuse, so drills are separated and reported separately."""
+    home = os.path.expanduser("~")
+    real, drill, ev = Counter(), Counter(), Counter()
+    sample, projects = {}, Counter()
+    for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
+        for line in open(f, encoding="utf-8", errors="replace"):
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ev[d.get("ev", "?")] += 1
+            if d.get("ev") != "WOULD_BLOCK":
+                continue
+            rule = str(d.get("rule", "?"))
+            if d.get("drill"):
+                drill[rule] += 1
+                continue
+            real[rule] += 1
+            projects[str(d.get("pipe", "?")).split(":")[0]] += 1
+            if rule not in sample:
+                det = str(d.get("detail", "")).replace(home, "~")
+                det = re.sub(r"/Users/[^/ ]+", "~", det)
+                det = re.sub(r"^command matched deny rule: ", "", det)
+                sample[rule] = det.replace("\n", " ")[:150]
+    return real, drill, ev, sample, projects
+
+
+def catches():
+    real, drill, ev, sample, projects = ledger()
+    total = sum(real.values())
+    mine = projects.get("rabadon", 0)
+    others = len([p for p in projects if p != "rabadon"])
+
+    out = ['<div class="intro">', "<h1>what it actually caught.</h1>",
+           '<p class="lede small dim">Read straight out of the gate\'s own spool when this page was built. '
+           "Every line below is a command that was about to run on a real machine, during real work, and did "
+           "not run. Rehearsals fired by the test suite are counted separately and left out of the total, "
+           "because a tool that pads its own numbers with its own drills has no business judging anyone "
+           "else's proof.</p>",
+           '<div class="proof">',
+           f'<div><span class="n p">{total}</span><span class="t">commands refused before they ran</span></div>',
+           f'<div><span class="n b">{others + 1}</span><span class="t">repositories they were refused in</span></div>',
+           f'<div><span class="n g">{ev.get("REPAIR_OK", 0)}</span><span class="t">repairs held after the proof survived</span></div>',
+           f'<div><span class="n y">{sum(drill.values())}</span><span class="t">drills, excluded from the total</span></div>',
+           "</div></div>"]
+
+    out.append("<section><h2>by rule</h2>")
+    out.append('<div class="tbl catches"><div class="head"><span>rule</span>'
+               '<span>times</span><span>what it stopped</span></div>')
+    for rule, count in real.most_common():
+        out.append(f'<div class="row"><span class="s">{html.escape(rule)}</span>'
+                   f'<span class="n">{count}</span>'
+                   f'<span class="d">{html.escape(RULE_TEXT.get(rule, "a command the compiled-in laws refuse"))}</span></div>')
+    out.append("</div>")
+    out.append(f'<p class="cap">{mine} of them fired inside this repository, which is the one being built all '
+               f"day. The rest fired in {others} other repositories on the same machine, and those are not "
+               "named here because they are not released yet.</p></section>")
+
+    out.append('<section><h2>a refusal, as it was written down</h2>'
+               '<p class="small dim">The ledger keeps the reason, not just the verdict, because a refusal '
+               "nobody can read is a refusal that gets switched off. These are real entries with the home "
+               "path stripped out.</p>")
+    for rule in ("baseline-rm-rf-outside", "push-gate", "no-hook-bypass", "baseline-hard-reset",
+                 "baseline-force-push"):
+        if rule in sample and sample[rule].strip():
+            out.append('<div class="term"><span class="r">[&times;]</span> '
+                       f'<span class="c">{html.escape(rule)}</span>\n'
+                       f'    <span class="o">{html.escape(sample[rule])}</span></div>')
+    out.append("</section>")
+
+    out.append('<section><h2>what it repaired</h2>'
+               '<p class="small dim" style="margin-bottom:var(--g2)">A catch is half the product. When a '
+               "check goes red, a fix is proposed in an isolated copy and only held if the project's own "
+               "suite goes green with every test file and every harness file byte-identical.</p>")
+    out.append('<div class="ledger">'
+               f'<div class="item"><span class="n g">{ev.get("REPAIR_OK", 0)}</span>'
+               '<span class="t">repairs held, proof intact</span></div>'
+               f'<div class="item"><span class="n p">{ev.get("REPAIR_FAIL", 0)}</span>'
+               '<span class="t">repairs refused, fail-closed, tree untouched</span></div>'
+               f'<div class="item"><span class="n b">{ev.get("CHECK_FAIL", 0):,}</span>'
+               '<span class="t">red checks caught in flight</span></div>'
+               f'<div class="item"><span class="n y">{ev.get("STOP", 0):,}</span>'
+               '<span class="t">runs stopped rather than allowed to produce something wrong</span></div>'
+               "</div>")
+    out.append('<p class="cap">Two of those held repairs were real source defects in expressjs/express, an '
+               "off-by-one and a reversed comparison, judged by that project's own suite of 1,260 tests with "
+               "91 test files hash-locked. The working tree was never edited. On the same run a proposer that "
+               "bought its green by skipping tests was refused.</p></section>")
+    return page("/catches", "rabadon, what it caught",
+                f"{total} commands refused before they ran, read out of the gate's own ledger.",
+                "\n".join(out))
+
+
 def main():
     rows = commits()
     prs = pull_requests()
-    for name, content in (("patch-notes", patch_notes(rows)),
+    for name, content in (("catches", catches()),
+                          ("patch-notes", patch_notes(rows)),
                           ("pull-requests", pull_request_page(prs, rows)),
                           ("benchmarks", benchmarks(rows))):
         with open(f"site/{name}.html", "w", encoding="utf-8") as f:

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rabadon, what it caught</title>
+<meta name="description" content="207 commands refused before they ran, read out of the gate's own ledger.">
+<meta name="author" content="Damla Su Bilge">
+<link rel="canonical" href="https://rabadon.noseydewdrop.com/catches">
+<meta property="og:type" content="website">
+<meta property="og:title" content="rabadon, what it caught">
+<meta property="og:description" content="207 commands refused before they ran, read out of the gate's own ledger.">
+<meta property="og:url" content="https://rabadon.noseydewdrop.com/catches">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="stars" aria-hidden="true"></div>
+<div class="wrap">
+<header class="site">
+  <span class="mark"><i>[</i>&#124;<i>]</i> rabadon</span>
+  <nav><a href="/">overview</a><a href="/catches" class="here">catches</a><a href="/benchmarks">benchmarks</a><a href="/patch-notes">patch notes</a><a href="/pull-requests">pull requests</a><a href="https://github.com/nosey-dewdrop/rabadon">github</a></nav>
+</header>
+<div class="intro">
+<h1>what it actually caught.</h1>
+<p class="lede small dim">Read straight out of the gate's own spool when this page was built. Every line below is a command that was about to run on a real machine, during real work, and did not run. Rehearsals fired by the test suite are counted separately and left out of the total, because a tool that pads its own numbers with its own drills has no business judging anyone else's proof.</p>
+<div class="proof">
+<div><span class="n p">207</span><span class="t">commands refused before they ran</span></div>
+<div><span class="n b">7</span><span class="t">repositories they were refused in</span></div>
+<div><span class="n g">31</span><span class="t">repairs held after the proof survived</span></div>
+<div><span class="n y">1</span><span class="t">drills, excluded from the total</span></div>
+</div></div>
+<section><h2>by rule</h2>
+<div class="tbl catches"><div class="head"><span>rule</span><span>times</span><span>what it stopped</span></div>
+<div class="row"><span class="s">no-force-push-main</span><span class="n">87</span><span class="d">a force push aimed at a shared branch</span></div>
+<div class="row"><span class="s">baseline-rm-rf-outside</span><span class="n">75</span><span class="d">a recursive delete whose target resolved outside the project tree</span></div>
+<div class="row"><span class="s">push-gate</span><span class="n">19</span><span class="d">a push where the code had been edited after the last passing test run</span></div>
+<div class="row"><span class="s">promise-off-target</span><span class="n">6</span><span class="d">a session drifting off the thing it said it was doing</span></div>
+<div class="row"><span class="s">no-gnu-timeout-on-macos</span><span class="n">6</span><span class="d">a command calling a binary that does not exist on this machine</span></div>
+<div class="row"><span class="s">no-rm-rf-outside</span><span class="n">4</span><span class="d">a recursive delete whose target resolved outside the project tree</span></div>
+<div class="row"><span class="s">no-rm-rf-outside-project</span><span class="n">3</span><span class="d">a recursive delete whose target resolved outside the project tree</span></div>
+<div class="row"><span class="s">no-wrangler-deploy</span><span class="n">2</span><span class="d">a deploy command fired from a session that was not deploying</span></div>
+<div class="row"><span class="s">no-hook-bypass</span><span class="n">2</span><span class="d">a commit trying to step around the repository&#x27;s own hooks</span></div>
+<div class="row"><span class="s">no-hard-reset-main</span><span class="n">1</span><span class="d">a hard reset pointed at a shared branch</span></div>
+<div class="row"><span class="s">baseline-force-push</span><span class="n">1</span><span class="d">a force push aimed at a shared branch, caught by the compiled-in law</span></div>
+<div class="row"><span class="s">baseline-hard-reset</span><span class="n">1</span><span class="d">a hard reset pointed at a shared branch, caught by the compiled-in law</span></div>
+</div>
+<p class="cap">115 of them fired inside this repository, which is the one being built all day. The rest fired in 6 other repositories on the same machine, and those are not named here because they are not released yet.</p></section>
+<section><h2>a refusal, as it was written down</h2><p class="small dim">The ledger keeps the reason, not just the verdict, because a refusal nobody can read is a refusal that gets switched off. These are real entries with the home path stripped out.</p>
+<div class="term"><span class="r">[&times;]</span> <span class="c">baseline-rm-rf-outside</span>
+    <span class="o">rm -r &#x27;/tmp/lulupro&#x27; resolves to /private/tmp/lulupro, outside the project tree (~/damla_projects_2026/youkiddingme)</span></div>
+<div class="term"><span class="r">[&times;]</span> <span class="c">push-gate</span>
+    <span class="o">code was edited after the last passing test run — run the test suite first</span></div>
+<div class="term"><span class="r">[&times;]</span> <span class="c">no-hook-bypass</span>
+    <span class="o">cd ~/damla_projects_2026/rabadon git -c commit.gpgsign=false commit -F /tmp/rb_commit_msg.txt --no-verify 2&gt;&amp;1 | tail -5 echo &quot;=== HEAD ===&quot;; g</span></div>
+<div class="term"><span class="r">[&times;]</span> <span class="c">baseline-hard-reset</span>
+    <span class="o">git reset --hard onto &#x27;origin/main&#x27; — commit or stash first, or reset to a local ref</span></div>
+<div class="term"><span class="r">[&times;]</span> <span class="c">baseline-force-push</span>
+    <span class="o">force-push to shared branch &#x27;main&#x27; — use --force-with-lease, or push to your own branch</span></div>
+</section>
+<section><h2>what it repaired</h2><p class="small dim" style="margin-bottom:var(--g2)">A catch is half the product. When a check goes red, a fix is proposed in an isolated copy and only held if the project's own suite goes green with every test file and every harness file byte-identical.</p>
+<div class="ledger"><div class="item"><span class="n g">31</span><span class="t">repairs held, proof intact</span></div><div class="item"><span class="n p">9</span><span class="t">repairs refused, fail-closed, tree untouched</span></div><div class="item"><span class="n b">1,891</span><span class="t">red checks caught in flight</span></div><div class="item"><span class="n y">1,177</span><span class="t">runs stopped rather than allowed to produce something wrong</span></div></div>
+<p class="cap">Two of those held repairs were real source defects in expressjs/express, an off-by-one and a reversed comparison, judged by that project's own suite of 1,260 tests with 91 test files hash-locked. The working tree was never edited. On the same run a proposer that bought its green by skipping tests was refused.</p></section>
+<footer>
+  <span>built by <a href="https://www.noseydewdrop.com/">Damla Su Bilge</a></span>
+  <span><a href="https://github.com/nosey-dewdrop/rabadon">github.com/nosey-dewdrop/rabadon</a></span>
+  <span class="sp">generated by <code>site/build.py</code></span>
+</footer>
+</div>
+<script src="/effects.js"></script>
+</body>
+</html>

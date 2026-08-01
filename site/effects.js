@@ -1,7 +1,8 @@
 /* rabadon, the two effects carried over from noseydewdrop.com and one typer.
    Same construction as the portfolio: a field of small glyphs that twinkle, and
-   a trail of coloured pieces that falls out of the cursor. Denser here, because
-   a gate page that is all restraint reads as a page nobody built. */
+   a trail of coloured pieces that falls out of the cursor. Denser here, and
+   nothing fires on click: a burst under the pointer reads as a streak and gets
+   in the way of the thing being clicked. */
 
 /* ---------- starfield ---------- */
 (function () {
@@ -45,9 +46,6 @@
   addEventListener("mousemove", function (e) {
     var t = Date.now();
     if (t - last > 34) { last = t; trail(e.clientX, e.clientY); }
-  });
-  addEventListener("click", function (e) {
-    for (var i = 0; i < 40; i++) piece(e.clientX, e.clientY, (Math.random() - 0.5) * 190);
   });
   addEventListener("touchmove", function (e) {
     var t = Date.now();
