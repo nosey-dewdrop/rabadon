@@ -28,9 +28,21 @@
 #include <unistd.h>
 #include "cli_help.h"
 #include "jsonl.h"
+#include "drill.h"
 
 using std::string;
 using std::vector;
+
+// drill.h's header says "both readers of the spool call the same code" and names
+// rabadon-stats and rabadon-export. There are THREE readers. This file carried
+// no copy of the four rules at all, so the exact 18 events of a self-run on pipe
+// do-test:do rendered "CAUGHT 2 · REPAIRED 2 · verdict: PASS" plus the money
+// line, while `rabadon usage` answered "no events in this window" and `rabadon
+// export --otlp` emitted 0 spans over the same bytes. README calls the exclusion
+// load-bearing — a tool that counts its own self-tests as catches is worthless —
+// and trace is the surface that gets screenshotted into a pitch, so this is
+// where the false number does the most damage. One predicate, three readers.
+static const char* kDrillLabel = "rabadon's own drill — excluded from every number";
 
 // ---------- io ----------
 static string read_file(const string& p){
@@ -88,6 +100,9 @@ struct Ev {
 struct Run {
   string id, pipe, goal, arm, tiers;
   long long firstTs=0, lastTs=0; int declaredSteps=0;
+  // set once, from drill.h, after the whole file has been read: this run is
+  // rabadon exercising itself, so none of its catches are catches.
+  bool drill=false;
   vector<Ev> evs;
 };
 // what one arm of a routed A/B costs, filled while its run renders
@@ -153,6 +168,16 @@ struct Pal { const char *dim,*grn,*amb,*red,*bold,*rst; };
 static Pal COLOR{ "\x1b[2m","\x1b[32m","\x1b[33m","\x1b[31m","\x1b[1m","\x1b[0m" };
 static Pal PLAIN{ "","","","","","" };
 
+// A drill run is still rendered — you asked for this run by id, and printing
+// nothing looks like a broken tool — but it is labelled before the first number
+// so no screenshot of it can be read as a production catch.
+static void drill_banner(const Run& r, const Pal& C, string& out){
+  if(!r.drill) return;
+  out+="  "; out+=C.amb; out+="⚑ "; out+=kDrillLabel;
+  if(!r.pipe.empty()){ out+="  ("; out+=r.pipe; out+=")"; }
+  out+=C.rst; out+="\n";
+}
+
 // ---------- per-step reduction ----------
 struct Node {
   int no=0; string id; bool ok=false, caught=false, repaired=false, rejected=false;
@@ -208,6 +233,7 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
     fmt_ms(r.lastTs-r.firstTs).c_str(), (usd>0?fmt_usd(usd):"$0").c_str());
   out+=h;
   if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="goal: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
+  drill_banner(r,C,out);
   out+="\n";
 
   // a control arm has ONE tier: nothing there is "cheap", and calling it that
@@ -264,6 +290,15 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
       (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
   out+=f;
 
+  // A drill arm never feeds the A/B block. That delta is the single number a
+  // buyer will check by hand, and a self-test on either side would fabricate it
+  // outright — the same reason export refuses to ship a drill as a span.
+  if(r.drill){
+    out+="  "; out+=C.dim;
+    out+="this arm is rabadon's own drill: it is NOT entered into the A/B, priced, or exported";
+    out+=C.rst; out+="\n";
+    return;
+  }
   tot.seen=true; tot.arm=r.arm; tot.tiers=r.tiers; tot.verdict=verdict;
   tot.usd_e6=usd; tot.tokens=tok; tot.cheapProven=cheapProven; tot.escalated=escalated; tot.steps=(int)nodes.size();
 }
@@ -305,6 +340,7 @@ static void render_run(const Run& r, const Pal& C, string& out){
            proj.c_str(), mdl.c_str(), dur.c_str(), toks.c_str(), cost.c_str());
   out+=h;
   if(!r.goal.empty()){ out+="  "; out+=C.dim; out+="goal: \""+r.goal+"\""; out+=C.rst; out+="\n"; }
+  drill_banner(r,C,out);
   out+="\n";
 
   // ---- steps ----
@@ -324,6 +360,15 @@ static void render_run(const Run& r, const Pal& C, string& out){
     // caught (the repair's own byte-exact token/$/time is the metrics; the step
     // wall-time equals it here, so we don't print it twice)
     (void)sdur;
+    if(r.drill){
+      // The step really did fail its check and hiding that would be a second
+      // lie, but it failed inside rabadon's own drill: it is not a catch, so it
+      // is not drawn as one and no "the net caught it HERE" line follows.
+      snprintf(line,sizeof line,"  %s▾ %2d  %s   ∅ drill (not counted)  %s%s\n",
+        C.dim, n.no, pad(n.id).c_str(), metrics.c_str(), C.rst);
+      out+=line;
+      continue;
+    }
     snprintf(line,sizeof line,"  %s▾%s %2d  %s   %s⚠ CAUGHT%s  %s\n",
       C.amb,C.rst, n.no, pad(n.id).c_str(), C.amb,C.rst, metrics.c_str());
     out+=line;
@@ -354,6 +399,14 @@ static void render_run(const Run& r, const Pal& C, string& out){
   int caught=0,repaired=0,rejected=0; string caughtNos;
   for(const Node& n: nodes){ if(n.caught){ caught++; if(!caughtNos.empty())caughtNos+=","; caughtNos+=std::to_string(n.no);} if(n.repaired)repaired++; if(n.rejected)rejected++; }
 
+  // The headline. For a drill it reads zero — the same zero `rabadon usage` and
+  // `rabadon export --otlp` already print over these bytes. The shapes are kept
+  // for the operator debugging their own drill, but they are named as shapes,
+  // and zeroing `caught` here is also what suppresses the "saved:" money line
+  // below, because a self-test saved nobody anything.
+  int drillCaught=caught, drillRepaired=repaired, drillRejected=rejected;
+  if(r.drill){ caught=0; repaired=0; rejected=0; caughtNos.clear(); }
+
   out+="  ";
   out+=C.dim; out+="──────────────────────────────────────────────────────────────"; out+=C.rst; out+="\n";
   char f[512];
@@ -362,6 +415,13 @@ static void render_run(const Run& r, const Pal& C, string& out){
     C.grn,repaired,C.rst, C.red,rejected,C.rst,
     (verdict=="PASS")?C.grn:C.red, verdict.empty()?"?":verdict.c_str(), C.rst);
   out+=f;
+
+  if(r.drill){
+    snprintf(f,sizeof f,"  %s%d catch-shaped · %d repair-shaped · %d refusal-shaped event(s) here are rabadon exercising itself — not counted, not exported, not priced%s\n",
+      C.dim, drillCaught, drillRepaired, drillRejected, C.rst);
+    out+=f;
+    return;
+  }
 
   if(caught){
     string saved;
@@ -434,13 +494,30 @@ int main(int argc,char** argv){
     for(Run& r: runs) if(r.id==id) return r;
     runs.push_back({}); runs.back().id=id; return runs.back();
   };
+  // EVERY non-empty line is classified for drill.h, including the ones this
+  // renderer then drops: rule 4 reads its marker off events trace never renders,
+  // and without them a drill's fallout is indistinguishable from real traffic.
+  // drill.h's own header demands exactly this of its callers.
+  vector<RbDrillEv> classify;   // one entry per non-empty line, in file order
+  vector<string>    lineRun;    // that line's run id, "" when trace skipped it
+
   size_t ls=0;
   while(ls<body.size()){
     size_t le=body.find('\n',ls); if(le==string::npos) le=body.size();
     string line=body.substr(ls,le-ls); ls=le+1;
     if(line.empty()) continue;
+
+    RbDrillEv c;
+    c.pipe=str_field(line,"pipe"); c.has_pipe=!c.pipe.empty();
+    c.ts=(double)ll_field(line,"ts");
+    c.tag=rb_drill_tag(line);       // rule 1, off the raw bytes
+    c.marker=rb_drill_marker(line); // rule 2, off the raw bytes
+    classify.push_back(c);
+    lineRun.push_back(string());
+
     string ev=str_field(line,"ev"); if(ev.empty()) continue;
     string run=str_field(line,"run"); if(run.empty()) continue;
+    lineRun.back()=run;
     Run& R=find_run(run);
     Ev e; e.ev=ev; e.ts=ll_field(line,"ts");
     e.step=str_field(line,"step");
@@ -473,6 +550,19 @@ int main(int argc,char** argv){
     if(R.firstTs==0||e.ts<R.firstTs) R.firstTs=e.ts;
     if(e.ts>R.lastTs) R.lastTs=e.ts;
     R.evs.push_back(std::move(e));
+  }
+
+  // rules 1-4 in one pass over the whole file, then OR'd up to the run: trace's
+  // unit is a run, and a run holding ANY drill event is rabadon exercising
+  // itself — its catches are not catches and its dollars are not dollars. Same
+  // predicate object as `rabadon usage` and `rabadon export --otlp`, which is
+  // the entire point: three readers, one definition, no second copy to drift.
+  {
+    vector<char> isDrill=rb_mark_drills(classify);
+    for(size_t i=0;i<isDrill.size();i++){
+      if(!isDrill[i] || lineRun[i].empty()) continue;
+      for(Run& r: runs) if(r.id==lineRun[i]){ r.drill=true; break; }
+    }
   }
 
   const Pal& C = color?COLOR:PLAIN;

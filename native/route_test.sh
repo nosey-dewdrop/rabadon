@@ -131,6 +131,84 @@ echo '{"v":1,"ts":1050,"run":"loop-x","pipe":"demo:do","ev":"RUN_DONE","verdict"
 } > "$S5"
 "$TRACE" "$S5" --no-color | grep -q 'REPAIRED 1'   && ok "a real repair from the loop is still counted (REPAIRED 1)" || bad "a genuine repair stopped counting"
 
+# ---- fixture 6: rabadon must not count its OWN self-tests as catches --------
+# drill.h is the single definition of "this spool line is rabadon's own noise",
+# and its header names TWO readers of the spool. There are three. trace carried
+# no copy of the rules at all, so the exact 18 events of a `do-test:do` self-run
+# rendered "CAUGHT 2 · REPAIRED 2" and the money line, while `rabadon usage` and
+# `rabadon export --otlp` over the SAME bytes answered "no events in this
+# window" and "0 spans". trace is also the surface that gets screenshotted, so
+# it is the single place the false number does the most damage.
+#
+# The needle is proved to exist BEFORE it is asserted absent: the identical
+# event stream is rendered once on an ORDINARY pipe, where CAUGHT 2 and the
+# "saved:" line MUST appear. Without that positive arm, renaming "CAUGHT" would
+# make every check below pass over an empty haystack.
+selfspool(){   # $1 out file · $2 pipe label · $3 extra RUN_START keys
+  local out="$1" pipe="$2" extra="${3:-}"
+  {
+  echo "{\"v\":1,\"ts\":1000,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"RUN_START\",\"goal\":\"prove the loop\",\"steps\":5$extra}"
+  echo "{\"v\":1,\"ts\":1010,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_START\",\"step\":\"s1\"}"
+  echo "{\"v\":1,\"ts\":1020,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_OK\",\"step\":\"s1\"}"
+  echo "{\"v\":1,\"ts\":1030,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_START\",\"step\":\"s2\"}"
+  echo "{\"v\":1,\"ts\":1040,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"CHECK_FAIL\",\"step\":\"s2\",\"fails\":[{\"check\":\"contract\",\"why\":\"FAIL testsuite: RED\"}]}"
+  echo "{\"v\":1,\"ts\":1050,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"REPAIR_START\",\"step\":\"s2\",\"attempt\":1}"
+  echo "{\"v\":1,\"ts\":1060,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"REPAIR_OK\",\"step\":\"s2\",\"attempt\":1,\"tokens\":1200,\"usd_e6\":4000}"
+  echo "{\"v\":1,\"ts\":1070,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_OK\",\"step\":\"s2\"}"
+  echo "{\"v\":1,\"ts\":1080,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_START\",\"step\":\"s3\"}"
+  echo "{\"v\":1,\"ts\":1090,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_OK\",\"step\":\"s3\"}"
+  echo "{\"v\":1,\"ts\":1100,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_START\",\"step\":\"s4\"}"
+  echo "{\"v\":1,\"ts\":1110,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_OK\",\"step\":\"s4\"}"
+  echo "{\"v\":1,\"ts\":1120,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_START\",\"step\":\"s5\"}"
+  echo "{\"v\":1,\"ts\":1130,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"CHECK_FAIL\",\"step\":\"s5\",\"fails\":[{\"check\":\"contract\",\"why\":\"FAIL testsuite: RED\"}]}"
+  echo "{\"v\":1,\"ts\":1140,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"REPAIR_START\",\"step\":\"s5\",\"attempt\":1}"
+  echo "{\"v\":1,\"ts\":1150,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"REPAIR_OK\",\"step\":\"s5\",\"attempt\":1,\"tokens\":1200,\"usd_e6\":4000}"
+  echo "{\"v\":1,\"ts\":1160,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"STEP_OK\",\"step\":\"s5\"}"
+  echo "{\"v\":1,\"ts\":1170,\"run\":\"selfrun\",\"pipe\":\"$pipe\",\"ev\":\"RUN_DONE\",\"verdict\":\"PASS\"}"
+  } > "$out"
+}
+DRILL_LABEL="rabadon's own drill — excluded from every number"
+
+# the positive arm: same 18 events, ordinary pipe. These MUST be present, or
+# every absence asserted below is vacuous.
+selfspool "$TMP/ordinary.jsonl" "demo:do"
+OUT6="$("$TRACE" "$TMP/ordinary.jsonl" --no-color)"
+echo "$OUT6" | grep -q 'CAUGHT 2 (step 2,5)' && ok "needle proved present: the 18 events on an ORDINARY pipe render CAUGHT 2 (step 2,5)" || bad "the positive arm does not render CAUGHT 2 — every drill check below would be vacuous: $(echo "$OUT6" | grep -i caught | tail -1)"
+echo "$OUT6" | grep -q 'REPAIRED 2'   && ok "needle proved present: the same run renders REPAIRED 2 on an ordinary pipe"   || bad "the positive arm does not render REPAIRED 2"
+echo "$OUT6" | grep -q '  saved:'     && ok "needle proved present: the money line renders on an ordinary pipe"            || bad "the 'saved:' money line is gone — its absence below would prove nothing"
+echo "$OUT6" | grep -q "$DRILL_LABEL" && bad "an ordinary run was labelled a drill — the exclusion is too wide"            || ok "an ordinary run is NOT labelled a drill"
+
+# rule 3 — every literal self pipe in drill.h, bare and with a `:verb` suffix,
+# plus the rabadon-bench prefix. The bench alone fires thousands of synthetic
+# denies; as CAUGHT lines they read as production catches.
+for P in do-test do-test:do vibecoded-demo:do llm-repair-live:do bus-test:do rabadon-bench-7:do; do
+  selfspool "$TMP/self.jsonl" "$P"
+  O="$("$TRACE" "$TMP/self.jsonl" --no-color)"
+  echo "$O" | grep -q 'CAUGHT 0' && echo "$O" | grep -q 'REPAIRED 0' \
+    && ok "self pipe '$P' counts 0 catches and 0 repairs" \
+    || bad "self pipe '$P' still counted its own self-test: $(echo "$O" | grep -i 'CAUGHT' | tail -1)"
+  echo "$O" | grep -q "$DRILL_LABEL" && ok "self pipe '$P' says out loud that it is rabadon's own drill" || bad "self pipe '$P' rendered with no drill label"
+  echo "$O" | grep -q '  saved:' && bad "self pipe '$P' still printed the money line for a self-test" || ok "self pipe '$P' prints no 'saved:' claim"
+done
+
+# rule 1 — the emit tag the emitter itself writes.
+selfspool "$TMP/tagged.jsonl" "demo:do" ',"drill":true'
+O1="$("$TRACE" "$TMP/tagged.jsonl" --no-color)"
+echo "$O1" | grep -q 'CAUGHT 0' && ok "rule 1: a \"drill\":true emit tag zeroes the catch count" || bad "rule 1 not applied: $(echo "$O1" | grep -i caught | tail -1)"
+
+# rule 2 + rule 4 — a doctor-N session id on RUN_START marks that line, and the
+# rest of the run is fallout inside the same pipe within the 2-minute window.
+selfspool "$TMP/marked.jsonl" "demo:do" ',"session":"doctor-3"'
+O2="$("$TRACE" "$TMP/marked.jsonl" --no-color)"
+echo "$O2" | grep -q 'CAUGHT 0' && ok "rules 2+4: a doctor-3 marker excludes the run and its 2-minute fallout" || bad "rules 2/4 not applied: $(echo "$O2" | grep -i caught | tail -1)"
+
+# a drill arm must never feed the A/B money block either: the delta is the one
+# number a buyer checks by hand.
+S7="$TMP/drillab.jsonl"; sed 's/"pipe":"demo:do"/"pipe":"do-test:do"/g' "$S" > "$S7"
+"$TRACE" "$S7" --no-color | grep -q 'MEASURED A/B' \
+  && bad "a self-pipe drill still produced a MEASURED A/B money claim" \
+  || ok "a drill run is kept out of the MEASURED A/B block (no money claim from a self-test)"
+
 echo ""
 echo "route: $PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]
