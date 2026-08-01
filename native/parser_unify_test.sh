@@ -238,7 +238,28 @@ blocks "6. literal \$VAR subcommand" "$REPO" 'C="push --force"; git $C origin ma
 blocks "7. xargs bash -c"       "$REPO" 'echo x | xargs bash -c "git push --force origin main"'
 
 echo
+echo "== e2e: five more of the same root cause, found while closing the seven =="
+# None of these was on the list. They are here because one parser means a shape
+# nobody enumerated is read correctly anyway, and the way to show that is to
+# name shapes that were never argued for and check they now land.
+#   timeout/nice: a wrapper that eats an OPERAND or an option VALUE. Skipping
+#     the wrapper's name and stopping read `5` and `10` as the command.
+#   ( ): a subshell was never a command to the laws; the first word was "(cd".
+#   env -i: a wrapper's own option read as the command name.
+#   xargs -I{}: a wrapper whose value is attached to the flag.
+blocks "8. timeout eats an operand"  "$REPO" 'timeout 5 git push --force origin main'
+blocks "9. subshell grouping"        "$REPO" '(cd . && git push --force origin main)'
+blocks "10. nice -n takes a value"   "$REPO" 'nice -n 10 git push --force origin main'
+blocks "11. env -i"                  "$REPO" 'env -i git push --force origin main'
+blocks "12. xargs -I{} then sh -c"   "$REPO" 'echo hi | xargs -I{} sh -c "git push --force origin main"'
+
+echo
 echo "== e2e: the legitimate twin of every case above still runs =="
+allows "timeout of a read"        "$REPO" 'timeout 5 git status'
+allows "subshell, no force"       "$REPO" '(cd . && git push origin main)'
+allows "nice of a read"           "$REPO" 'nice -n 10 git log --oneline -1'
+allows "env -i of a read"         "$REPO" 'env -i git log --oneline -1'
+allows "xargs -I{} of a read"     "$REPO" 'echo hi | xargs -I{} sh -c "git status --short"'
 allows "plain push, no force"    "$REPO" 'git push origin main'
 allows "force-with-lease"        "$REPO" 'git push --force-with-lease origin main'
 allows "sh -lc echo"             "$REPO" "sh -lc 'echo hello'"
