@@ -38,6 +38,45 @@ nbin() {
 }
 
 JS="$ROOT/bin/rabadon.mjs"
+
+# The verbs this dispatcher accepts, READ OUT OF the `case` statement below at
+# run time. Nothing is typed twice, for the same reason cli_test.sh derives its
+# verb list rather than keeping one: the list that WAS typed in went stale and
+# no test could tell. bin/rabadon.mjs still carries that typed list — it names
+# guard/fleet/spin/pack/statusline, which no doc mentions, and omits usage, lens,
+# report, trace, audit, replay, drill and export, i.e. the entire "seeing what
+# happened" half of `rabadon help`. A stranger who mistyped was handed that menu.
+#
+# An arm tagged `#unlisted` is ACCEPTED but NOT ADVERTISED: it still routes,
+# nothing documents it, so an error message must not send a newcomer there —
+# `spin` starts headless `claude -p` sessions inside their repo.
+dispatch_verbs() {
+  awk '
+    /^case "\$VERB" in$/  { inside = 1; next }
+    inside && /^esac/     { exit }
+    inside && /#unlisted/ { next }
+    inside && match($0, /^  [a-z0-9|_-]+\)/) {
+      arm = substr($0, 3, RLENGTH - 3)
+      n = split(arm, parts, "|")
+      for (i = 1; i <= n; i++) print parts[i]
+    }
+  ' "$SELF" | sort -u
+}
+
+# `usag` is not a wrong command, it is `usage` with a dropped letter, and that is
+# the case the reported defect was found on. Prefix match both ways so a truncated
+# verb (usag -> usage) and an over-typed one (statuses -> status) both land. Kept
+# out of the case arm below: a nested `case` inside `$( )` inside a case arm is a
+# bash parse error, which is how this function came to exist.
+verb_suggestions() {
+  typed="$1"
+  dispatch_verbs | while read -r v; do
+    [ -n "$v" ] || continue
+    case "$v" in "$typed"*) printf '%s\n' "$v"; continue ;; esac
+    case "$typed" in "$v"*) printf '%s\n' "$v" ;; esac
+  done
+}
+
 # A BARE `rabadon` REPORTS, it does not act. It used to default to `toggle`, so
 # the first thing a new user typed silently flipped machine-wide enforcement —
 # and typing it again to see what happened put it back, which reads as "nothing
@@ -46,7 +85,7 @@ JS="$ROOT/bin/rabadon.mjs"
 VERB="${1:-status}"   # resolved once: the branches below read VERB, never a bare $1
 case "$VERB" in
   toggle)          G="$(nbin gate)" || exit 1; shift; exec "$G" --toggle "$@" ;;
-  help|--help|-h)
+  help|--help|-h)  #unlisted: named in the last line of the unknown-verb message, in prose
     cat <<'HELP'
 rabadon — a deterministic gate for coding agents. It refuses a bad action
 before it happens, records what it refused, and can prove a repair.
@@ -102,7 +141,7 @@ HELP
   # drop the flag on the floor and print the mode instead, the same swallow the
   # binaries themselves were fixed for.
   on|off|status)   G="$(nbin gate)" || exit 1; shift; exec "$G" "--$VERB" "$@" ;;
-  statusline)      G="$(nbin gate)" || exit 1; shift; exec "$G" --statusline "$@" ;;
+  statusline)      G="$(nbin gate)" || exit 1; shift; exec "$G" --statusline "$@" ;;  #unlisted: goes in settings.json, is not typed
   # the cost half of the product. rabadon-lens shipped in every platform
   # package for weeks with no verb in front of it: `npm i -g rabadon` puts ONE
   # file on your PATH (this script), so a binary the dispatcher never names is
@@ -158,5 +197,28 @@ HELP
     fi
     echo "this was a drill: tagged at emit, excluded from the ledger. \`rabadon usage\` counts only real catches."
     exit 0 ;;
-  *)               exec node "$JS" "$@" ;;
+  # verbs still implemented only in bin/rabadon.mjs — anti-path, called through
+  # here, never edited. `ui` and `watch` are in help, README and docs/commands.md,
+  # so they are advertised. The other four are in NONE of the three, so they keep
+  # working and stay out of the list; naming them would repeat the defect this
+  # branch exists to fix.
+  ui|watch)               exec node "$JS" "$@" ;;
+  guard|fleet|spin|pack)  exec node "$JS" "$@" ;;  #unlisted: no help/README/docs entry
+  *)
+    # NOT a delegation any more. Everything bin/rabadon.mjs implements has an arm
+    # above, so reaching here means the verb exists nowhere — and the answer is
+    # built from the arms above rather than typed out beside them.
+    VERBS="$(dispatch_verbs)"
+    NEAR="$(verb_suggestions "$VERB" | sort -u | tr '\n' ' ')"
+    {
+      printf 'rabadon: unknown command "%s"\n' "$VERB"
+      [ -n "${NEAR% }" ] && printf 'did you mean: %s?\n' "${NEAR% }"
+      if [ -n "$VERBS" ]; then
+        printf '\ncommands:\n'
+        printf '%s\n' "$VERBS" | tr '\n' ' ' | fold -s -w 70 | sed -e 's/ *$//' -e 's/^/  /'
+        printf '\n'
+      fi
+      printf 'run `rabadon help` for what each one does.\n'
+    } >&2
+    exit 1 ;;
 esac
