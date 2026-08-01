@@ -116,7 +116,7 @@ static string nested_str(const string& line,const char* key,bool inArray=false){
 
 // ---------- model ----------
 struct Ev {
-  string ev, step, why, reason, detail, verdict, model, tierName, from, to, repairKind;
+  string ev, step, why, check, reason, detail, verdict, model, tierName, from, to, repairKind;
   long long ts=0, tokens=0, usd_e6=0, dur_ms=0; int tier=0;
 };
 struct Run {
@@ -203,6 +203,14 @@ static void drill_banner(const Run& r, const Pal& C, string& out){
 // ---------- per-step reduction ----------
 struct Node {
   int no=0; string id; bool ok=false, caught=false, repaired=false, rejected=false;
+  // A node the ledger never announced with a STEP_START: the refusal shape.
+  // rabadon-gate assigns one run id per PROCESS and RETURNS at the block, so
+  // its STEP_START (allow path) is never reached; rabadon-sandbox contains no
+  // STEP_START at all. Both leave exactly {CHECK_FAIL, STOP}. The catch used to
+  // be attached only `if(cur)` and was therefore dropped on the floor for the
+  // one event this product exists to record.
+  bool refusal=false;
+  string rule;   // fails[].check — the rule id that fired, when the writer named one
   string why; long long tokens=0, usd_e6=0, dur_ms=0; string model;
   long long startTs=0, endTs=0;
   // routing side: what the cheap attempt cost, whether we had to climb, and
@@ -212,6 +220,28 @@ struct Node {
   long long cheapUsd_e6=0, cheapTok=0;
   long long topUsd_e6=0, topTok=0, topDur=0;   // what the escalation tier itself cost
 };
+
+// A CHECK_FAIL lands on the step it belongs to — and when the ledger never
+// opened one, it OPENS one. Both renderers used `else if(ev=="CHECK_FAIL" &&
+// cur)`, which reads as defensive and is not: `cur` is null for the entire
+// class of runs written by the enforcement leg, because a refusal returns
+// before any step is announced. The event carries its own `step` ("Bash" from
+// the hook, "exec" from the sandbox) and its own rule id, so nothing here is
+// invented — the row is drawn out of bytes that were already in the ledger and
+// that stats and export have been counting all along.
+static void open_catch(vector<Node>& nodes, Node*& cur, const Ev& e){
+  if(!cur){
+    nodes.push_back({});
+    cur=&nodes.back();               // push_back may reallocate; cur is re-seated here
+    cur->no=(int)nodes.size();
+    cur->id=e.step.empty()?string("refused"):e.step;
+    cur->startTs=e.ts;
+    cur->refusal=true;
+  }
+  cur->caught=true;
+  if(cur->why.empty())  cur->why=e.why;
+  if(cur->rule.empty()) cur->rule=e.check;
+}
 
 // ---------- routed view ----------
 // Rendered only for runs that declared a tier ladder. Every number here comes
@@ -230,7 +260,7 @@ static void render_routed(const Run& r, const Pal& C, string& out, ArmTotal& tot
       else { cur->topUsd_e6+=e.usd_e6; cur->topTok+=e.tokens; if(e.dur_ms>cur->topDur) cur->topDur=e.dur_ms; }
       cur->wonTierName=label;   // last attempt seen; corrected by STEP_OK below
     }
-    else if(e.ev=="CHECK_FAIL" && cur){ cur->caught=true; if(cur->why.empty()) cur->why=e.why; }
+    else if(e.ev=="CHECK_FAIL"){ open_catch(nodes,cur,e); }
     else if(e.ev=="ESCALATE" && cur){ cur->escalated=true; cur->escFrom=e.from; cur->escTo=e.to; }
     else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
       if(e.repairKind.empty()){ if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true; }
@@ -330,7 +360,7 @@ static void render_run(const Run& r, const Pal& C, string& out){
   string stopReason, verdict, runModel; long long tok=0, usd=0;
   for(const Ev& e: r.evs){
     if(e.ev=="STEP_START"){ nodes.push_back({}); cur=&nodes.back(); cur->no=(int)nodes.size(); cur->id=e.step; cur->startTs=e.ts; }
-    else if(e.ev=="CHECK_FAIL" && cur){ cur->caught=true; if(cur->why.empty()) cur->why=e.why; }
+    else if(e.ev=="CHECK_FAIL"){ open_catch(nodes,cur,e); }
     else if((e.ev=="REPAIR_OK"||e.ev=="REPAIR_FAIL") && cur){
       // only an unmarked repair is a repair: see the note where repair_kind is read
       if(e.repairKind.empty()){ if(e.ev=="REPAIR_OK") cur->repaired=true; else cur->rejected=true; }
@@ -602,7 +632,14 @@ int main(int argc,char** argv){
     Run& R=find_run(run);
     Ev e; e.ev=ev; e.ts=ll_field(line,"ts");
     e.step=str_field(line,"step");
-    if(ev=="CHECK_FAIL") e.why=nested_str(line,"why");   // inside fails[{check,why}]
+    if(ev=="CHECK_FAIL"){
+      e.why=nested_str(line,"why");                      // inside fails[{check,why}]
+      // ...and its sibling. The gate and exec write the RULE ID here
+      // ("baseline-force-push"), which is the whole of "what the check said"
+      // for a refusal: check_kind() infers a category from the why text and
+      // returns its "contract" fallback for every rule the guard ever names.
+      e.check=nested_str(line,"check");
+    }
     if(ev=="STOP"){ e.reason=str_field(line,"reason"); e.detail=str_field(line,"detail"); }
     if(ev=="RUN_DONE") e.verdict=str_field(line,"verdict");
     if(ev=="REPAIR_OK"||ev=="REPAIR_FAIL"||ev=="STEP_TRY"){
