@@ -4,7 +4,12 @@ CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
 all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export
 
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h native/cli_help.h
+# native/version.h is a prerequisite of every rule whose source includes it,
+# and make does not read #include lines. it was listed nowhere, so a version
+# bump answered `make` with "up to date" and shipped a binary announcing the
+# previous release. native/version_test.sh holds this rule from both ends:
+# textually, and by asking `make -q` after touching version.h.
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h native/cli_help.h
@@ -34,13 +39,13 @@ native/rabadon-net: native/net.cpp native/cli_help.h
 native/rabadon-lens: native/lens.cpp native/usage.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-budget: native/budget.cpp native/cli_help.h
+native/rabadon-budget: native/budget.cpp native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-stats: native/stats.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-drift: native/drift.cpp native/cli_help.h
+native/rabadon-drift: native/drift.cpp native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # measured, not claimed: median hook latency, native vs the legacy node gate,
