@@ -110,6 +110,16 @@ test: all
 # does reach the destructive argv behind the prefix, and does not reach it behind
 # a word whose name is not a name.
 	./native/assign_prefix_test.sh
+# the same question one word further left: a prefix the parser skipped too little
+# of. `{ git push --force origin main; }`, `if ...; then <cmd>; fi`, a loop body
+# and `! <cmd>` all reported a SHELL RESERVED WORD as the command name, so the
+# segment was marked irrelevant and the three compiled laws were never asked —
+# on the fresh-install path with no guard.json, the path baseline.h exists for.
+# it runs a real bash with stub git/rm first to show the shell does run the
+# command behind the keyword, and every must-block spelling has its must-not-block
+# twin: the same keyword carrying ordinary work, and the same words as prose in a
+# commit message, an echo and a heredoc.
+	./native/reserved_word_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh
 	./native/repair_session_test.sh
