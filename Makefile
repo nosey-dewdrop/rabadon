@@ -75,6 +75,49 @@ test: all
 	./native/cli_test.sh
 	./native/audit_test.sh
 	./native/baseline_test.sh
+# baseline_test.sh asks the push law about the three spellings it knows: --force,
+# -f, and a leading + on a refspec. this one asks about the spelling that
+# contains none of them and is the strongest of all: `git push --mirror origin`
+# force-updates every ref on the remote and DELETES the ones that are only
+# there (git-push(1)), and it walked past the law as just another option — then
+# named no branch, so the "no refspec means the current branch" fallback picked
+# the target too. that fallback is the deeper half: `git push --all --force
+# origin` from a feature branch force-updates main, and the law was reading feat.
+# section 1 proves the premise instead of quoting it — a bare repo made by
+# mktemp two lines earlier plays the remote, and the test reads back that it
+# lost a commit and lost a branch. the twins keep the fix honest: --all with no
+# force, --tags, --set-upstream, the lease and a repo whose refspace holds no
+# shared branch all still push.
+	./native/mirror_push_test.sh
+# the same fallback, one source further out. --all and --mirror ask for the
+# whole refspace on the command LINE; `-c` asks for it from CONFIG, and git
+# reads remote.<name>.push and push.default before it ever looks at HEAD. so
+# `git -c remote.origin.push=refs/heads/x:refs/heads/main push --force origin`
+# and `git -c push.default=matching push --force origin` both rewrote main from
+# a feature branch, through BOTH layers: the compiled law fell back to .git/HEAD
+# and read feat, and a project's deny regex needs the literal word main, which
+# neither line contains. every fact the fix rests on is measured against a real
+# git with --dry-run and written at the top of the file -- including the two
+# that keep it from over-blocking: the config key's SUBSECTION is
+# case-sensitive (remote.ORIGIN.push is a different remote), and `--tags`
+# replaces the default refspec with tags only, so the law's old refusal of
+# `git push --tags --force origin` on main was cutting work that writes no
+# branch at all. every must-block case is judged twice, once from main and once
+# from a feature branch, because the bug was that the two disagreed.
+	./native/push_refspec_test.sh
+# and the spelling that is not a force-push at all. a refspec with an EMPTY
+# SOURCE side removes the destination ref -- `git push origin :main` -- and it
+# starts with ':' where the law read only '+', so `force` stayed false and the
+# walk returned before the branch name was consulted. `--delete` and `-d` say
+# the same thing in git's own words and carried no `-f` either, so a project's
+# deny regex missed it in the same breath: both layers, one hole. section 1
+# measures the premise against a real git in a repo with no remote (these
+# spellings parse) and a fake git on PATH (the shell hands them over). the twins
+# are longer than the blocks on purpose -- deleting your own merged branch is
+# the most ordinary cleanup there is, and a law that cannot tell :main from
+# :feature/x would refuse it. it also holds the two laws apart: silencing
+# baseline-force-push must not silence baseline-branch-delete.
+	./native/push_delete_test.sh
 # baseline_test.sh judges the delete law's targets as PATHS. this one judges
 # them as PATTERNS: a wildcard or a brace is rewritten by the shell before rm
 # sees it, and the rule used to read only the text before the first `*`. it runs

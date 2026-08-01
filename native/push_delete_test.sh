@@ -26,11 +26,14 @@
 # silenced `baseline-force-push` because one person force-pushes their own trunk
 # did not thereby agree to have that trunk deleted. Section 6 holds that apart.
 #
-# THE SAME PREDICATE, one word further: short options BUNDLE. `git push -fq
-# origin main` is force + quiet and git accepts it (section 1 measures that with
-# a real git), while the law compared the token to `-f` byte for byte and let it
-# through. Reading a cluster instead of a token closes the delete switch and that
-# one in the same loop, and section 2 holds both.
+# THE CLUSTERED SPELLINGS ARE HERE TOO, AND THEY ARE NOT THIS LAW'S DOING.
+# Short options bundle: `-fd` is --force --delete and `-fq` is --force --quiet,
+# and git accepts both (section 1 measures that against a real git). None of
+# that is read in baseline.h. cmdtext.h splits a cluster into the options it
+# stands for before any law sees the words, so `-d` and `-f` arrive as their own
+# tokens and the law compares tokens, once. The cases below are the JOINT proof
+# that the two halves meet: the parser splits and the law then judges. The split
+# itself is held from its own side by native/short_cluster_test.sh.
 #
 # SECTION 1 EXECUTES A SHELL, ON PURPOSE, so the premise is measured and not
 # asserted: a FAKE `git` and a FAKE `rm` first on PATH record their argv and do

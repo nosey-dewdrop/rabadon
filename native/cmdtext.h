@@ -1262,6 +1262,56 @@ inline bool git_alias_pair(const string& tok, string& name, string& body) {
   return true;
 }
 
+// ---------- a `-c` pair that is not an alias ---------------------------------
+// An alias is not the only thing `-c` can hand git. `remote.<name>.push` is a
+// REFSPEC, and a refspec decides which branch a push rewrites — the question
+// the force-push law asks. `git -c remote.origin.push=refs/heads/x:refs/heads/
+// main push --force origin` names no branch on the line, so the law fell back
+// to reading .git/HEAD and refused it only from main.
+//
+// The key is split and folded the way git folds a config key, and the two
+// halves fold DIFFERENTLY. Measured against git 2.39.5 with --dry-run against a
+// bare repo in a scratch dir (each line is a case in native/push_refspec_test.sh):
+//   -c REMOTE.origin.PUSH=<a>:<main>   used     section and variable fold case
+//   -c remote.ORIGIN.push=<a>:<main>   NOT used the subsection between them is
+//                                               case-SENSITIVE, so this is a
+//                                               config for a different remote
+// A key with no dot at all names no section and is not a key.
+inline bool git_config_pair(const string& tok, string& key, string& value) {
+  const size_t eq = tok.find('=');
+  if (eq == string::npos) return false;
+  const string raw = tok.substr(0, eq);
+  const size_t first = raw.find('.'), last = raw.rfind('.');
+  if (first == string::npos) return false;
+  string sec = raw.substr(0, first), var = raw.substr(last + 1);
+  const string sub = (first == last) ? string() : raw.substr(first + 1, last - first - 1);
+  for (size_t i = 0; i < sec.size(); i++) sec[i] = lower_c(sec[i]);
+  for (size_t i = 0; i < var.size(); i++) var[i] = lower_c(var[i]);
+  key = sub.empty() ? sec + "." + var : sec + "." + sub + "." + var;
+  value = tok.substr(eq + 1);
+  // inside quotes this parser writes its own marker where the whitespace was,
+  // so the value read off a SURFACE and the value read off argv are one string
+  for (size_t i = 0; i < value.size(); i++) if (value[i] == DATA_WS) value[i] = ' ';
+  return true;
+}
+
+// EVERY value this line binds to `wantKey`, in order, and not the last one:
+// remote.<name>.push is MULTI-VALUED, and git pushes all of them. Measured —
+//   -c remote.origin.push=<a>:<topic> -c remote.origin.push=<a>:<main>
+//     -> feat -> main (forced update) AND feat -> topic
+// so a reader that kept the last definition would have read the harmless half
+// of that line. Only the options BEFORE the subcommand are read: that is where
+// git's own are, and `git push origin -c remote.origin.push=...` is an operand.
+inline void git_config_values(const vector<Word>& t, size_t gi, size_t sub,
+                              const string& wantKey, vector<string>& out) {
+  for (size_t i = gi + 1; i + 1 < sub && i + 1 < t.size(); i++) {
+    if (t[i].text != "-c") continue;
+    string k, v;
+    if (!git_config_pair(t[i + 1].text, k, v)) continue;
+    if (k == wantKey) out.push_back(v);
+  }
+}
+
 // the body this command line binds to `want`, last definition winning. Only the
 // options BEFORE the subcommand are read: that is where git's own are.
 inline bool git_line_alias(const vector<Word>& t, size_t gi, size_t sub,

@@ -1,16 +1,24 @@
-// baseline.h — the three laws rabadon holds with NO configuration. (C++17)
+// baseline.h — the laws rabadon holds with NO configuration. (C++17)
 //
 // Until now a repo with no `.rabadon/guard.json` got a gate that refused
 // nothing: `git push --force origin main` and `rm -rf /` both returned 0 with
 // enforce ON. The README promised "the deterministic gate refuses the
 // force-push before it rewrites history" to everyone who runs `npm i -g
-// rabadon`, and for a fresh install that sentence was false. These three are
-// now compiled in. guard.json EXTENDS them; it does not bring them into being.
+// rabadon`, and for a fresh install that sentence was false. These are now
+// compiled in. guard.json EXTENDS them; it does not bring them into being.
 //
 //   baseline-force-push     force-push to a shared branch (main/master/trunk/
 //                           develop). --force, -f, and the +refspec form are
 //                           each recognized. --force-with-lease is legitimate
 //                           and passes.
+//   baseline-branch-delete  a push that REMOVES a shared branch from the
+//                           remote: the empty-source refspec (`origin :main`),
+//                           `--delete`, and `-d`. Its own id, not a clause of
+//                           the force-push law, because a repo that allows
+//                           force-pushing its trunk has not agreed to that
+//                           trunk being deleted — and because the two are not
+//                           the same harm. Deleting your own merged branch is
+//                           ordinary work and passes.
 //   baseline-rm-rf-outside  recursive rm whose target resolves OUTSIDE the
 //                           project tree AND outside the system temp area. The
 //                           target is resolved, not matched: `..`, `~` and a
@@ -57,16 +65,17 @@
 // command name byte for byte, compared `-c` byte for byte so `sh -lc` was not a
 // shell, had never heard of eval, `$( )` or a line continuation, and skipped a
 // wrapper list that did not include xargs. Twelve spellings of a refused
-// force-push walked past these three laws while the plain form was refused, and
+// force-push walked past these laws while the plain form was refused, and
 // every one of them was a difference between the two parsers rather than a new
 // kind of danger. There is one parser now (cmdtext.h) and this file is only the
-// three laws. native/parser_unify_test.sh fails if the second one comes back.
+// laws. native/parser_unify_test.sh fails if the second one comes back.
 
 #pragma once
 
 #include <climits>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -109,7 +118,17 @@ using rbpath::temp_roots;
 
 
 // ---------- shared branches ----------
-inline bool shared_branch(const string& refIn) {
+// The branch a ref operand names, with every spelling git allows around it
+// stripped: `src:dst` answers on the DESTINATION (the side that gets written or
+// removed), a leading `+` is the force marker, `refs/heads/x` is `x` written
+// out, and `origin/x` is `x` on a remote. "" when the operand names no branch
+// at all — a tag, a nested path, some other remote's namespace.
+//
+// It is one function because two callers need two different things out of the
+// same answer: shared_branch() needs the yes/no, and a refusal has to PRINT the
+// branch it is talking about. A message that re-derived the name would be a
+// second derivation of it, and the two would drift.
+inline string dest_name(const string& refIn) {
   string r = refIn;
   const size_t colon = r.rfind(':');            // src:dst — the destination decides
   if (colon != string::npos) r = r.substr(colon + 1);
@@ -118,10 +137,15 @@ inline bool shared_branch(const string& refIn) {
   const size_t slash = r.find('/');
   if (slash != string::npos) {
     const string remote = r.substr(0, slash);
-    if (remote != "origin" && remote != "upstream") return false;
+    if (remote != "origin" && remote != "upstream") return "";
     r = r.substr(slash + 1);
-    if (r.find('/') != string::npos) return false;
+    if (r.find('/') != string::npos) return "";
   }
+  return r;
+}
+
+inline bool shared_branch(const string& refIn) {
+  const string r = dest_name(refIn);
   return r == "main" || r == "master" || r == "trunk" || r == "develop";
 }
 
@@ -175,6 +199,60 @@ inline string current_branch(const string& root) {
   return b;
 }
 
+// ---------- the refspace, for the pushes that do not name a branch ----------
+// `--mirror` and `--all` push every branch there is. They carry no refspec, so
+// the push law's "no refspec means the current branch" fallback answers with
+// HEAD — and HEAD is not the target. Run from a feature branch, `git push --all
+// --force origin` force-updates main and the fallback never looks at main.
+//
+// So for those two the target is read from the repo instead of from the line,
+// in the two halves a mirror actually has:
+//   * refs/heads/*   what gets force updated on the remote;
+//   * refs/remotes/* (mirror only) what this clone knows is THERE. A mirror
+//     makes the remote identical to this refspace, so a branch known only as a
+//     remote-tracking ref is a branch the mirror REMOVES — the "deleted refs
+//     will be removed from the remote end" half of git-push(1).
+// Both are read from this repo alone; nothing here contacts a remote. Loose
+// refs live as files under .git/refs, packed ones in .git/packed-refs, and a
+// repo uses both at once after a gc, so both are read.
+//
+// The walk is bounded. A ref tree is small, but this runs inside a hook on
+// every command, and an unbounded recursive walk of an attacker-shaped
+// directory is a hang in the one place that must not hang.
+inline void refs_under(const string& dir, const string& prefix, vector<string>& out, int depth) {
+  if (depth > 8 || out.size() >= 4096) return;
+  DIR* d = opendir(dir.c_str());
+  if (!d) return;
+  while (struct dirent* e = readdir(d)) {
+    const string n = e->d_name;
+    if (n == "." || n == "..") continue;
+    const string full = dir + "/" + n;
+    struct stat st;
+    if (lstat(full.c_str(), &st) != 0) continue;      // lstat: a symlinked ref dir is not followed
+    if (S_ISDIR(st.st_mode)) refs_under(full, prefix + n + "/", out, depth + 1);
+    else out.push_back(prefix + n);
+    if (out.size() >= 4096) break;
+  }
+  closedir(d);
+}
+
+inline void refspace_branches(const string& root, bool mirror, vector<string>& out) {
+  refs_under(root + "/.git/refs/heads", "", out, 0);
+  if (mirror) refs_under(root + "/.git/refs/remotes", "", out, 0);
+  std::ifstream f(root + "/.git/packed-refs");
+  if (!f) return;
+  string line;
+  while (std::getline(f, line) && out.size() < 4096) {
+    if (line.empty() || line[0] == '#' || line[0] == '^') continue;   // header, and a peeled tag
+    const size_t sp = line.find(' ');
+    if (sp == string::npos) continue;
+    string ref = line.substr(sp + 1);
+    while (!ref.empty() && (ref.back() == '\n' || ref.back() == '\r')) ref.pop_back();
+    if (ref.compare(0, 11, "refs/heads/") == 0) out.push_back(ref.substr(11));
+    else if (mirror && ref.compare(0, 13, "refs/remotes/") == 0) out.push_back(ref.substr(13));
+  }
+}
+
 // ---------- git option walk: it lives in the parser now ----------------------
 // `git --exec-path=/x push --force` slipped a hand-listed set (31.07) and the
 // walk that replaced it was written here. It moved to cmdtext.h when
@@ -216,7 +294,7 @@ inline string strip_git_globals(const string& cmd) {
   return out;
 }
 
-// ---------- the three laws ----------
+// ---------- the laws ----------
 inline bool disabled_has(const vector<string>& disabled, const string& id) {
   for (const auto& d : disabled) if (d == id) return true;
   return false;
@@ -253,23 +331,168 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     if (!git_subcommand(t, ci, sub)) return false;
     const string subcmd = t[sub].text;
 
-    if (subcmd == "push" && !disabled_has(disabled, "baseline-force-push")) {
-      bool force = false, lease = false;
+    if (subcmd == "push") {
+      // TWO LAWS, TWO SWITCHES. A repo that silenced the force-push law because
+      // one person rewrites their own trunk did not thereby agree to that trunk
+      // being DELETED, so each is asked for by name and the walk below still
+      // runs when only one of them is off.
+      const bool noForce = disabled_has(disabled, "baseline-force-push");
+      const bool noDelete = disabled_has(disabled, "baseline-branch-delete");
+      if (noForce && noDelete) return false;
+      bool force = false, lease = false, mirror = false, all = false, del = false;
+      // `--tags` is the one option that REPLACES the default refspec with
+      // something that is not a branch, and `matching` is the one config value
+      // that widens it to every branch. Both decide what an unnamed push writes.
+      bool tags = false, matching = false;
       vector<string> operands;
       for (size_t i = sub + 1; i < t.size(); i++) {
         const string& s = t[i].text;
         if (s.compare(0, 18, "--force-with-lease") == 0 ||
             s.compare(0, 20, "--force-if-includes") == 0) { lease = true; continue; }
         if (s == "--force" || s == "-f") { force = true; continue; }
+        // git-push(1): "--delete — All listed refs are deleted from the remote
+        // repository. This is the same as prefixing all refs with a colon."
+        // git's own words: the switch and the colon are one operation.
+        //
+        // `-fd` and `-qd` are this same switch written in a cluster, and they
+        // are NOT read here: cmdtext.h splits a short-option cluster into the
+        // options it stands for before any law sees the words, so `-d` arrives
+        // as its own token. A second reading of the cluster in this file would
+        // be a second answer to a question the parser has already answered —
+        // the divergence this whole layer exists to end.
+        if (s == "--delete" || s == "-d") { del = true; continue; }
+        // --mirror IS the force, and it is spelled with none of the three
+        // tokens above. git-push(1): "locally updated refs will be force
+        // updated on the remote end, and deleted refs will be removed from the
+        // remote end." The strongest destructive push git has was reaching this
+        // walk as just another option to skip.
+        if (s == "--mirror") { mirror = true; force = true; continue; }
+        if (s == "--all") { all = true; continue; }         // not force by itself
+        // git-push(1): "--tags — All refs under refs/tags are pushed, in
+        // addition to refspecs explicitly listed on the command line." With no
+        // refspec listed there is nothing to add them to, so this line writes
+        // TAGS AND NO BRANCH. Measured from `main` with an upstream set:
+        // `git push --tags --force origin` reports `v1 -> v1` and nothing else.
+        // The law refused it anyway, because the fallback below asked which
+        // branch was checked out — a question this line does not raise.
+        // `--follow-tags` is the opposite word: the ordinary refspec PLUS tags,
+        // measured as `main -> main (forced update)`, and it is not this token.
+        if (s == "--tags") { tags = true; continue; }
         if (!s.empty() && s[0] == '-') continue;
         if (!s.empty() && s[0] == '+') force = true;       // the canonical force refspec
         operands.push_back(s);
       }
-      if (force && !lease) {
-        // operands are <remote> [<refspec>...]; with no refspec git pushes the
-        // current branch, so HEAD is the target.
-        vector<string> refs(operands.begin() + (operands.empty() ? 0 : 1), operands.end());
-        if (refs.empty()) {
+
+      // operands are <remote> [<refspec>...]. The ref words are taken off ONCE,
+      // here, because both laws below judge the same words and a second
+      // derivation of them is a second answer to the same question.
+      const vector<string> named(operands.begin() + (operands.empty() ? 0 : 1), operands.end());
+
+      // ---- the branch REMOVED from the remote --------------------------------
+      // A refspec is <src>:<dst>. An empty source side means "put nothing where
+      // dst is", which is git's spelling for a deletion:
+      //
+      //     git push origin :main
+      //
+      // It begins with ':' and not '+', so the force predicate above never
+      // fired, `if (force && ...)` was false, and the walk returned before the
+      // branch name was ever consulted — though dest_name() splits at the colon
+      // and had the answer `main` waiting the whole time. Both layers missed it
+      // together: a project's own deny regex hunts for `--force|-f`, and there
+      // is no `-f` in a deletion either.
+      //
+      // It gets its own id because it is not a force-push and the remedy is not
+      // the same sentence. A force-push replaces history other people already
+      // have; a deletion removes the branch and every commit reachable only
+      // from it, and the remote keeps no reflog to walk back through.
+      if (!noDelete) {
+        for (const string& raw : named) {
+          string spec = raw;
+          while (!spec.empty() && spec[0] == '+') spec = spec.substr(1);
+          // `git push origin :` is the matching-refs form and deletes nothing,
+          // so the colon has to have a destination after it.
+          const bool emptySource = spec.size() > 1 && spec[0] == ':';
+          if (!del && !emptySource) continue;   // an ordinary push writes, it does not remove
+          if (!shared_branch(raw)) continue;
+          hit = {"baseline-branch-delete",
+                 "deleting a shared branch removes it for everyone, with every commit reachable "
+                 "only from it, and the remote keeps no reflog to walk back through",
+                 "git push deletes shared branch '" + dest_name(raw) + "' on the remote (written "
+                 "as '" + raw + "') — delete your own branch instead, or silence "
+                 "baseline-branch-delete by id"};
+          return true;
+        }
+      }
+
+      // A lease is a promise about what ONE ref currently points at. A mirror
+      // deletes refs the lease never named, so the lease excuses --force and
+      // does not excuse --mirror.
+      if (!noForce && force && (!lease || mirror)) {
+        // with no refspec git pushes the current branch, so HEAD is the target
+        // — unless the line asked for the whole refspace, in which case HEAD is
+        // not the target and the repo is.
+        vector<string> refs = named;
+
+        // ---- where a refspec comes from when the line does not carry one ----
+        // A push that names no refspec has not thereby asked for HEAD. git asks
+        // in order: --all/--mirror (above), then remote.<name>.push, then
+        // push.default, and only then the current branch. This line can set the
+        // middle two itself, because `-c` builds git's config from the same
+        // command line — the same shape as the alias hole one layer over, and
+        // the same answer: what the line writes down is not unknown.
+        //
+        // Reading .git/HEAD first answered a different question than the one
+        // asked, so both spellings below were refused only in the accident that
+        // the shell already sat on main:
+        //   git -c remote.origin.push=refs/heads/x:refs/heads/main push --force origin
+        //   git -c push.default=matching push --force origin
+        //
+        // Measured against git 2.39.5 with --dry-run, from `feat`, main
+        // rewritten so it is a real non-fast-forward: the first reports
+        // `+ feat -> main (forced update)`, the second `+ main -> main (forced
+        // update)`. Neither consulted HEAD. With no remote operand the default
+        // remote is origin, measured the same way.
+        //
+        // NAMED LIMIT: the same two keys can also be set in .git/config,
+        // ~/.gitconfig or /etc/gitconfig, and none of those are in this command
+        // line. This law judges what the LINE says. Reading only the repo's file
+        // would report the other two as absent, which is a worse answer than a
+        // named limit.
+        string viaCfg;
+        if (refs.empty() && !mirror && !all) {
+          const string remote = operands.empty() ? string("origin") : operands[0];
+          rbtext::git_config_values(t, ci, sub, "remote." + remote + ".push", refs);
+          if (!refs.empty())
+            viaCfg = " (remote." + remote + ".push on this command line names it)";
+          if (refs.empty()) {
+            vector<string> pd;
+            rbtext::git_config_values(t, ci, sub, "push.default", pd);
+            // `matching` means every branch that exists on both sides, so the
+            // target is the refspace and not HEAD. Every other value
+            // (simple, current, upstream, nothing) resolves to the current
+            // branch, which the fallback below already answers correctly.
+            if (!pd.empty() && pd.back() == "matching") { all = true; matching = true; }
+          }
+        }
+
+        if (refs.empty() && (mirror || all)) {
+          refspace_branches(root, mirror, refs);
+          // A mirror onto a remote makes that remote identical to this
+          // refspace. An empty or unreadable one is not the harmless case: it
+          // is the case where every branch the remote has gets removed.
+          if (mirror && refs.empty()) {
+            hit = {"baseline-force-push",
+                   "a mirror push makes the remote identical to this repo's refs, force-updating "
+                   "what is here and removing what is only there",
+                   "git push --mirror from a repo whose refs cannot be read or hold no branch — "
+                   "it would empty the remote; name the branch you mean, or silence "
+                   "baseline-force-push by id"};
+            return true;
+          }
+        }
+        // and only now HEAD — unless the line replaced the default refspec with
+        // tags, in which case this push writes no branch at all.
+        if (refs.empty() && !tags) {
           const string b = current_branch(root);
           if (!b.empty()) refs.push_back(b);
         }
@@ -279,13 +502,22 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
           const string r = push_dest_ref(raw, root);
           if (r.empty()) continue;
           if (!shared_branch(r)) continue;
-          // when the branch was not the word the line carried, say both: the
-          // operator asked about HEAD and needs to be told which branch that is
-          const string wrote = (r == raw) ? string() : " (written as " + raw + ")";
-          hit = {"baseline-force-push",
-                 "a force-push to a shared branch rewrites history other people already have",
-                 "force-push to shared branch '" + r + "'" + wrote +
-                     " — use --force-with-lease, or push to your own branch"};
+          if (mirror || all) {
+            const string flag = mirror ? "--mirror"
+                                       : (matching ? "-c push.default=matching" : "--all --force");
+            hit = {"baseline-force-push",
+                   "a force-push to a shared branch rewrites history other people already have",
+                   "git push " + flag + " writes every branch, and '" + r + "' is one of them — "
+                   "name the branch you mean, or push to your own branch"};
+          } else {
+            // when the branch was not the word the line carried, say both: the
+            // operator asked about HEAD and needs to be told which branch that is
+            const string wrote = (r == raw) ? string() : " (written as " + raw + ")";
+            hit = {"baseline-force-push",
+                   "a force-push to a shared branch rewrites history other people already have",
+                   "force-push to shared branch '" + r + "'" + wrote + viaCfg +
+                       " — use --force-with-lease, or push to your own branch"};
+          }
           return true;
         }
       }
@@ -347,7 +579,7 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
   return false;
 }
 
-// The entry point: true = one of the three laws refuses this command.
+// The entry point: true = one of the laws refuses this command.
 //
 // The overload taking a Parsed is what a caller that has ALREADY parsed the
 // line should use — rules.h runs the user's deny rules over the same segments
