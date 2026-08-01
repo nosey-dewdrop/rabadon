@@ -11,10 +11,29 @@
 // around the hole — the file is then internally consistent, but shorter than
 // its own sidecar says it is.
 //
-// Three binaries append to the ledger (gate, repair, loop). They all call
+// ONE WRITER PER CHAINED FILE — that is the rule, and `<day>.jsonl` is this
+// file's. Three binaries append to it (gate, repair, loop). They all call
 // append() so there is one format, and `rabadon audit` is the single referee
 // for all of them. If you change the sidecar format here, audit.cpp's
 // read_head() is the other half.
+//
+// There is a FOURTH writer in the same npm package and it is not a binary:
+// core/bus.mjs, reached through index.mjs, which package.json exports — i.e.
+// `import { pipeline } from 'rabadon'`. It cannot join this file. flock(2) is
+// held here across the whole read_head -> write -> rewrite-head sequence, and
+// Node has no flock: none in `fs`, and macOS ships no flock(1) to shell out to.
+// A JS co-writer would eventually land between our write and our sidecar, and
+// an interleave is not a lost event — the next chained line's prev stops
+// matching and audit convicts an honest ledger of a BREAK.
+//
+// So the bus is the sole writer of its own `<day>.js.jsonl`, chained by these
+// same rules with its own `.head`. audit walks every *.jsonl in the spool, so
+// both files are verified rather than one being tolerated. It used to append
+// into THIS file with no prev, no lock and no sidecar: one run of the documented
+// public API turned a fresh install from INTACT/exit 0 into PARTIAL/exit 2,
+// permanently, because prev cannot be retro-fitted without rewriting the file —
+// the edit audit exists to detect. A fifth writer gets its own file or calls
+// append(); it does not get to append bare into a chained one.
 //
 // Fail-open, without lying: if the lock cannot be taken the line is recorded in
 // a sibling `<day>.unchained.jsonl` instead of being appended unchained into the
