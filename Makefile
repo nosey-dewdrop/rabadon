@@ -9,7 +9,7 @@ all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon
 # bump answered `make` with "up to date" and shipped a binary announcing the
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h native/cli_help.h native/version.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/baseline.h native/rules.h native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h native/cli_help.h
@@ -18,7 +18,12 @@ native/rabadon-audit: native/audit.cpp native/sha256.h native/cli_help.h
 native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-sandbox: native/sandbox.cpp native/cli_help.h
+# exec is the OTHER caller of the shared rule engine (rules.h -> baseline.h) and
+# the ledger writer (chain.h -> sha256.h). None of those were listed, so an edit
+# to the rule engine answered `make` with "up to date" and left exec enforcing
+# the previous version of the law while the gate enforced the new one — the
+# divergence rules.h exists to prevent, reintroduced by the build.
+native/rabadon-sandbox: native/sandbox.cpp native/rules.h native/baseline.h native/chain.h native/sha256.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h

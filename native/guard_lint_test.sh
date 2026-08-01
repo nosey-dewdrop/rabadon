@@ -278,5 +278,42 @@ lint "$A1"; rc_lint_typo=$RC
   && ok 'the typo rule: gate ALLOWS (exit 0) and lint now refuses to certify it' \
   || bad "typo rule: gate allows but lint exit $rc_lint_typo — lint is still lying"
 
+# ------------------------------------- E. the binary under test must be current
+# Everything above proves a source change. It proves NOTHING if `make` will not
+# rebuild after that source changes. rules.h was listed as a prerequisite of no
+# target at all, though gate.cpp and sandbox.cpp both include it: `make all`
+# answered "Nothing to be done" with rules.h 1h41m newer than rabadon-sandbox.
+# So an edit to the shared rule engine left exec enforcing the previous law
+# while the gate enforced the new one — the exact divergence rules.h exists to
+# end, reintroduced by the build. Same shape as the version.h hole the Makefile
+# comment already describes; version_test.sh section J is the precedent for
+# testing it this way. `make -q` only asks, it never builds.
+RULES_TARGETS="$(python3 - <<'PY'
+import os,re
+for f in sorted(os.listdir('native')):
+    if f.endswith('.cpp') and re.search(r'#\s*include\s+"rules\.h"', open(os.path.join('native',f),encoding='utf8',errors='replace').read()):
+        print('native/rabadon-'+f[:-4])
+PY
+)"
+if [ -z "$RULES_TARGETS" ]; then
+  bad "no .cpp includes rules.h — this suite is looking at the wrong header"
+elif unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $RULES_TARGETS >/dev/null 2>&1; then
+  cp -p native/rules.h "$TMP/rules.h.stamp"
+  touch native/rules.h
+  if unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $RULES_TARGETS >/dev/null 2>&1; then
+    bad "make answers 'up to date' after rules.h changed — the suite would test a stale binary"
+  else
+    ok "make rebuilds $(printf '%s' "$RULES_TARGETS" | wc -w | tr -d ' ') binaries when rules.h changes"
+  fi
+  # restore the mtime, or the next run skips this arm for a reason it caused
+  # itself — a check that disables itself after one pass is this file's subject
+  touch -r "$TMP/rules.h.stamp" native/rules.h
+  unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $RULES_TARGETS >/dev/null 2>&1 \
+    && ok "the arm left the tree exactly as it found it (rules.h mtime restored)" \
+    || bad "the make arm left the tree needing a rebuild"
+else
+  echo "  skip - make -q arm: the tree is not built (run make first)"
+fi
+
 echo "guard lint: $PASS ok, $FAIL fail"
 [ "$FAIL" -eq 0 ]
