@@ -88,6 +88,11 @@ operand only a shell can resolve (`$VAR`, `$(cmd)`) is not guessed at — see
 - **Anchor path rules.** `protectedPaths` matches are usually anchored with `^`
   and `$` so `"^src/core/.*"` fences the subtree without matching
   `vendor/src/core`.
+- **A rule with no `deny` is not a rule.** The gate reads `deny` in `bash[]` and
+  `match` in `protectedPaths[]` and nothing else. Misspell it, or put a `match`
+  in `bash[]`, and the object is still valid JSON with an id and a why — it just
+  matches nothing and the gate allows the command. `rabadon lint` refuses to
+  certify a guard containing one, and names the rule.
 
 ## Worked examples
 
@@ -162,6 +167,14 @@ disabling one rule over turning the whole gate off.
   must protect. Open `.rabadon/guard.json`, check every deny regex and every
   protected path, tighten what is loose, remove what is wrong, and run
   `rabadon lint`.
+- **Lint is the trust step, so it is checked to the key.** An LLM writing
+  `"denies"` for `"deny"` costs one letter and produces a rule that reads as
+  enforced and enforces nothing — and `init` decides whether to install the
+  hooks on lint's verdict. Lint therefore reads inside each rule object, not
+  just the top level: an unrecognised key, or a missing pattern, is a non-zero
+  exit naming the rule. Held by `native/guard_lint_test.sh`, which also pins the
+  other half — a guard that is genuinely fine must still pass, or the first
+  false alarm teaches you to skip the step.
 
 ## protectedPaths and the kernel
 

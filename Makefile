@@ -67,6 +67,7 @@ test: all
 	./native/cli_test.sh
 	./native/audit_test.sh
 	./native/baseline_test.sh
+	./native/guard_lint_test.sh
 	./native/bypass_test.sh
 	./native/npm_install_test.sh
 	./native/doctor_test.sh

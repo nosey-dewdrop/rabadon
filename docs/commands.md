@@ -240,13 +240,32 @@ rabadon export --otlp | curl -s localhost:4318/v1/traces \
 
 ## `rabadon lint [dir]`   [stable]
 
-Validate `guard.json`: unknown keys, uncompilable regex. Run this before
-trusting a hand-edited guard. (`init` runs it for you.)
+Validate `guard.json` and refuse to certify a rule the gate will ignore. Run
+this before trusting a hand-edited guard. (`init` runs it for you.)
+
+Checked:
+
+- unknown **top-level** keys (`protectedPathz` for `protectedPaths`),
+- unknown keys **inside a rule** (`denies` for `deny`, `matches` for `match`) —
+  a rule the gate silently skips while it reads as law,
+- a rule with **no pattern**, or an empty one — it matches nothing,
+- every `deny` and `match` regex actually compiles.
+
+Legal beside the pattern: `id`, `why`, and the keys rabadon writes itself
+(`authoredBy` + `incidentAt` on incident-authored rules, `source` on rules from
+`pack import`). Anything else in a rule object is dead weight the gate never
+reads, so lint names it.
 
 Exit: `0` valid · non-zero invalid.
 
 ```
 rabadon lint
+```
+
+```
+rabadon lint: rule "no-wrangler-deploy" in bash has unknown key "denies" (typo for "deny"? the gate ignores it)
+rabadon lint: rule "no-wrangler-deploy" in bash has no "deny" pattern — it matches nothing, the gate skips it
+rabadon lint: 2 problem(s) — fix them or the gate silently ignores those rules.
 ```
 
 ---
