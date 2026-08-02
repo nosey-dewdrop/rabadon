@@ -371,6 +371,78 @@ inline bool is_delete_command(const string& base) {
          name_is(base, "shred") || name_is(base, "trash");
 }
 
+// Verbs that take a tree or a file apart without being called rm. Each spends
+// most of its life doing ordinary work, so membership here is not a verdict —
+// it means the line reaches a law that then reads the flags. `find` destroys
+// only with -delete or an -exec of a delete command, `rsync` only with
+// --delete, `dd` only through its of= operand.
+inline bool is_content_destroyer(const string& base) {
+  return name_is(base, "find") || name_is(base, "rsync") ||
+         name_is(base, "truncate") || name_is(base, "dd");
+}
+
+// THE SPEED FILTER, and the reason eleven red-team probes walked. Every
+// baseline law sits behind one substring scan of the raw line so that the
+// overwhelmingly common command — neither git nor a destroyer — costs almost
+// nothing. That scan named exactly two words, "git" and "rm". A line that takes
+// a tree apart without spelling either never reached a law at all, so there was
+// no verdict to escape from, because no law ran.
+//
+// `shred` is the proof that this was a filter problem and not a coverage
+// problem: it has been in the delete family directly above for as long as the
+// family has existed, and `shred -u ~/Documents/x` still walked, because the
+// family is consulted AFTER the filter that would not let the line through.
+//
+// The list lives here, beside the two families it is a superset of, because a
+// filter kept in a different file from the names it filters for is how it went
+// stale the first time. Any name added above must appear here or it does
+// nothing, and delete_verbs_test.sh asserts that coupling on shred. `>` is in
+// the scan because a redirection destroys a file with no command on the line.
+//
+// The scan is on WORD BOUNDARIES. It was written to buy back latency, on the
+// reasoning that a plain substring scan finds `dd` inside add, added, address
+// and middleware and therefore parses ordinary lines in full for nothing. The
+// measurement refused that reasoning twice: boundary scanning came out at
+// 252.0µs against the 237.8µs it was meant to beat, and removing the `>` clause
+// entirely came out at 256.6µs. Both are inside the noise. The filter was never
+// the cost.
+//
+// The real mistake was comparing against the 130.0µs on record at all — that
+// number was taken in a different session on a quieter machine, and two numbers
+// measured at different moments do not make a difference. Built from both
+// commits and benched in the same minute, this change costs 271.8µs -> 285.8µs,
+// about five percent, and that is the number that means anything.
+//
+// The boundary scan stays because it is tighter, not because it is faster. A
+// name fails one way only here: too loose costs time, too tight is an escape,
+// so the boundary set is deliberately generous — anything that is not a letter,
+// a digit or an underscore ends a word, which keeps /usr/bin/rm, "rm", ;rm and
+// $HOME/bin/shred inside, and leaves terraform and arm64 out.
+inline bool mentions_word(const string& hay, const char* needle) {
+  size_t len = 0;
+  while (needle[len]) len++;
+  if (len == 0 || hay.size() < len) return len == 0;
+  auto inword = [](char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+  };
+  for (size_t i = 0; i + len <= hay.size(); i++) {
+    size_t k = 0;
+    while (k < len && lower_c(hay[i + k]) == lower_c(needle[k])) k++;
+    if (k != len) continue;
+    if (i > 0 && inword(hay[i - 1])) continue;
+    if (i + len < hay.size() && inword(hay[i + len])) continue;
+    return true;
+  }
+  return false;
+}
+
+inline bool mentions_acted_on(const string& cmd) {
+  return mentions_word(cmd, "git") || mentions_word(cmd, "rm") || mentions_word(cmd, "shred") ||
+         mentions_word(cmd, "trash") || mentions_word(cmd, "unlink") || mentions_word(cmd, "find") ||
+         mentions_word(cmd, "rsync") || mentions_word(cmd, "truncate") || mentions_word(cmd, "dd") ||
+         cmd.find('>') != string::npos;
+}
+
 // a word the layers above this parser act on, rather than carry as data
 inline bool acted_on_command(const string& base) {
   if (name_is(base, "git")) return true;      // the push and reset laws

@@ -453,11 +453,131 @@ inline bool disabled_has(const vector<string>& disabled, const string& id) {
 inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, const string& root,
                           const vector<string>& disabled, Hit& hit);
 
+// ---------- the destroyers that are not called rm ----------------------------
+// What each verb takes apart, and which operand is the thing taken apart.
+// Membership in the family is not the verdict, the flags are: `find` walks a
+// tree and destroys only with a -delete primary or an -exec of a delete
+// command, `rsync` only with --delete and then the DESTINATION empties rather
+// than the source, `dd` only through of=, and `truncate` and the delete family
+// always take apart what they name.
+struct Destroy {
+  bool isDestroy = false;
+  const char* verb = "";
+  const char* how = "";
+  vector<string> targets;
+};
+
+inline Destroy destroy_of(const vector<rbtext::Word>& t) {
+  Destroy d;
+  const size_t ci = rbtext::command_index(t);
+  if (ci >= t.size()) return d;
+  const string base = rbtext::base_of(t[ci].text);
+
+  if (rbtext::name_is(base, "find")) {
+    // find's operands are the paths; everything from the first primary on is
+    // the expression, and `!` and `(` open one too.
+    bool inExpr = false, destroys = false;
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (!inExpr && (s == "!" || s == "(" || (s.size() > 1 && s[0] == '-'))) inExpr = true;
+      if (s == "-delete") { destroys = true; d.how = "-delete removes every path the walk matches"; }
+      if (s == "-exec" || s == "-execdir" || s == "-ok" || s == "-okdir") {
+        // the command run per match is the NEXT word: rm is an argument here,
+        // never the command word, which is why the walk above never saw it
+        if (i + 1 < t.size() && rbpath::is_delete_command(rbtext::base_of(t[i + 1].text))) {
+          destroys = true;
+          d.how = "-exec runs a delete on every path the walk matches";
+        }
+      }
+      if (!inExpr) d.targets.push_back(s);
+    }
+    if (!destroys || d.targets.empty()) return d;
+    d.isDestroy = true; d.verb = "find";
+    return d;
+  }
+
+  if (rbtext::name_is(base, "rsync")) {
+    bool del = false; vector<string> operands;
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (s.size() > 1 && s[0] == '-') {
+        if (s.compare(0, 8, "--delete") == 0) del = true;
+        continue;
+      }
+      operands.push_back(s);
+    }
+    if (!del || operands.empty()) return d;
+    d.isDestroy = true; d.verb = "rsync";
+    d.how = "--delete removes everything in the destination the source does not have";
+    d.targets.push_back(operands.back());
+    return d;
+  }
+
+  if (rbtext::name_is(base, "truncate")) {
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (s == "-s" || s == "--size") { i++; continue; }   // the size is not a path
+      if (s.size() > 1 && s[0] == '-') continue;
+      d.targets.push_back(s);
+    }
+    if (d.targets.empty()) return d;
+    d.isDestroy = true; d.verb = "truncate";
+    d.how = "the contents go and the inode stays, so nothing about the file says it was emptied";
+    return d;
+  }
+
+  if (rbtext::name_is(base, "dd")) {
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (s.compare(0, 3, "of=") == 0) d.targets.push_back(s.substr(3));
+    }
+    if (d.targets.empty()) return d;
+    d.isDestroy = true; d.verb = "dd";
+    d.how = "of= is opened for writing and overwritten in place";
+    return d;
+  }
+
+  // shred, trash, unlink are already the delete family and delete_of already
+  // reads their targets. They reached no law only because the rm-rf law asks
+  // whether the command word is spelled rm.
+  if (rbpath::is_delete_command(base) && !rbtext::name_is(base, "rm") &&
+      !rbtext::name_is(base, "rmdir")) {
+    const rbpath::Delete del = rbpath::delete_of(t);
+    if (del.targets.empty()) return d;
+    d.isDestroy = true; d.verb = "shred";
+    d.how = "the contents are overwritten before the name is removed";
+    d.targets = del.targets;
+    return d;
+  }
+  return d;
+}
+
 inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const string& root,
                          const vector<string>& disabled, Hit& hit) {
   const vector<string> cwds = rbpath::segment_cwds(p, cwd0);
-  for (size_t s = 0; s < p.segs.size(); s++)
+  for (size_t s = 0; s < p.segs.size(); s++) {
+    // A redirection destroys a file with no command on the line at all.
+    // `> ROADMAP.md` opens it for writing and truncates it before anything
+    // runs, and the parser has always carried redirections separately from
+    // argv, so no law ever saw one. `>>` appends and is not a loss. /dev/ is
+    // where output is thrown away on purpose, which is what the `2>/dev/null`
+    // on almost every line in this repository is doing.
+    if (!disabled_has(disabled, "baseline-truncating-redirect")) {
+      for (size_t r = 0; r < p.segs[s].redirs.size(); r++) {
+        const rbtext::Redir& rd = p.segs[s].redirs[r];
+        if (rd.op.find('>') == string::npos || rbtext::redir_appends(rd)) continue;
+        if (rd.target.empty() || rd.target.compare(0, 5, "/dev/") == 0) continue;
+        const Land L = land_of(rd.target, cwds[s], root);
+        if (L.where != rbpath::ESCAPES) continue;
+        hit = {"baseline-truncating-redirect",
+               "a redirection empties the file it points at, and there is no command on the line to name",
+               "'" + rd.op + " " + rd.target + "' resolves to " + L.real +
+               ", outside the project tree (" + root + ") — the contents are gone before anything runs"};
+        return true;
+      }
+    }
     if (check_segment(p.segs[s].words, cwds[s], root, disabled, hit)) return true;
+  }
   return false;
 }
 
@@ -929,6 +1049,31 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     return false;
   }
 
+  // ---- the same loss, spelled without the word rm -------------------------
+  // The law below this one asks whether the command word is `rm` and whether
+  // it carries -r, which is the shape of exactly one of the ways to empty a
+  // tree. `find -delete` is a recursive delete written as a search, `rsync
+  // --delete` empties a destination by synchronising an empty source onto it,
+  // `truncate` and `dd` leave the inode and take everything in it, and shred
+  // was in the delete family the whole time. The containment question is
+  // identical for all of them, so it is asked with the same land_of the rm law
+  // uses: inside the project git can undo it, outside nothing can.
+  if (!disabled_has(disabled, "baseline-delete-not-rm")) {
+    const Destroy dz = destroy_of(t);
+    if (dz.isDestroy) {
+      const bool scratchCwd0 = is_temp_root(root);
+      for (const string& raw : dz.targets) {
+        const Land L = land_of(raw, cwd, scratchCwd0 ? string() : root);
+        if (L.where != rbpath::ESCAPES) continue;
+        hit = {"baseline-delete-not-rm",
+               string("`") + dz.verb + "` destroys outside the project tree, where git cannot undo it",
+               string(dz.verb) + " on '" + raw + "' " + (L.rewritten ? "expands to " : "resolves to ") +
+               L.real + ", outside the project tree (" + root + ") — " + dz.how};
+        return true;
+      }
+    }
+  }
+
   if (!disabled_has(disabled, "baseline-rm-rf-outside")) {
     const rbpath::Delete d = rbpath::delete_of(t);
     if (!d.isDelete || !rbtext::name_is(name, "rm")) return false;
@@ -1004,10 +1149,15 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd,
   // how `GIT push` used to escape it.
   bool relevant = false;
   for (size_t s = 0; s < p.segs.size() && !relevant; s++) {
+    // a redirection destroys with no command word to read, so a segment that
+    // carries one is relevant before its argv is looked at
+    for (size_t r = 0; r < p.segs[s].redirs.size() && !relevant; r++)
+      relevant = p.segs[s].redirs[r].op.find('>') != string::npos;
     const size_t ci = rbtext::command_index(p.segs[s].words);
     if (ci >= p.segs[s].words.size()) continue;
     const string b = rbtext::base_of(p.segs[s].words[ci].text);
-    relevant = rbtext::name_is(b, "git") || rbtext::name_is(b, "rm");
+    relevant = relevant || rbtext::name_is(b, "git") || rbpath::is_delete_command(b) ||
+               rbtext::is_content_destroyer(b);
   }
   if (!relevant) return false;
   const string root = project_root(cwd);
@@ -1024,7 +1174,7 @@ inline bool check(const string& command, const string& cwd, const vector<string>
   // question the name comparison does, so on a file system that resolves GIT
   // and git to one binary it is the case-insensitive scan; otherwise the
   // pre-filter would drop the line before the law ever saw it.
-  if (!rbtext::mentions(command, "git") && !rbtext::mentions(command, "rm")) return false;
+  if (!rbtext::mentions_acted_on(command)) return false;
   return check_parsed(rbtext::parse(command), cwd, disabled, hit);
 }
 

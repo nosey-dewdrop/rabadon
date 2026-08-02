@@ -251,9 +251,16 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # anchors to the repo root, and it silently un-ignored native/.rabadon,
   # site/.rabadon and reports/*/.rabadon — three more state.json and a
   # handoff.md. A root-only twin would have called that green.
-  leaked=$(git ls-files -- '*.rabadon/*' | grep -v '^\.rabadon/guard\.json$' || true)
+  # TWO files under the root .rabadon/ are contracts and belong in the history:
+  # guard.json, the rules, and promise.json, the target rabadon-drift measures
+  # every session against. promise.json was untracked until 2 August, which is
+  # why nobody could reconstruct what the north star said on the day a session
+  # disabled the two rules protecting it. Everything else there is live state —
+  # state.json is rewritten mid-run — and the twin still has its teeth: any
+  # third file, and any .rabadon at any depth, is a leak.
+  leaked=$(git ls-files -- '*.rabadon/*' | grep -vE '^\.rabadon/(guard|promise)\.json$' || true)
   if [ -z "$leaked" ]; then
-    ok "the only tracked file under any .rabadon/ is the root guard (state stays local)"
+    ok "the only tracked files under any .rabadon/ are the root contracts (state stays local)"
   else
     bad "session state is tracked under .rabadon/: $(printf '%s' "$leaked" | tr '\n' ' ')"
   fi

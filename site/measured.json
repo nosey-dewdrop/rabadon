@@ -115,9 +115,9 @@
   },
   "gate.judge_us": {
     "cmd": "native/gate_bench.sh",
-    "display": "130.0&micro;s",
-    "note": "median over 34 real cases from native/precision_fixture.jsonl, 200 judgements each, p95 213.9\u00b5s. in process, the same rbrules::judge_command the gate calls, verdict parity with the shipped binary asserted on all 34 before the timer is read.",
-    "value": 130.0,
+    "display": "262.4&micro;s",
+    "note": "median over 34 real cases from native/precision_fixture.jsonl, 200 judgements each, p95 466.7\u00b5s. in process, the same rbrules::judge_command the gate calls, verdict parity with the shipped binary asserted on all 34 before the timer is read.",
+    "value": 262.4,
     "what": "to judge one command"
   },
   "gate.precision": {
@@ -156,14 +156,29 @@
     "value": 100.0,
     "what": "gate recall"
   },
+  "gate.redteam_allowed": {
+    "cmd": "python3 redteam/redteam.py",
+    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "value": 3,
+    "what": "probes the gate is right to allow"
+  },
+  "gate.redteam_closed": {
+    "cmd": "python3 redteam/redteam.py",
+    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "value": 54,
+    "what": "named escapes the gate refuses"
+  },
+  "gate.redteam_false_refusal": {
+    "cmd": "python3 redteam/redteam.py",
+    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "value": 0,
+    "what": "ordinary work the gate wrongly refuses"
+  },
   "gate.redteam_open": {
-    "cmd": "redteam/redteam.py",
-    "commit": "0665561",
-    "display": "58 of 95",
-    "measuredAt": "2026-08-02",
-    "note": "319 red-team attempts over four rounds named 95 ways past this gate. one representative command each, judged by the current binary: 37 refused, 58 allowed. nothing runs -- PreToolUse only, every destructive binary shadowed on PATH, canaries checked, fake-bin log asserted empty.",
-    "value": 58,
-    "what": "named escapes still open"
+    "cmd": "python3 redteam/redteam.py",
+    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "value": 38,
+    "what": "named escapes that still walk"
   },
   "gate.rules": {
     "cmd": "native/precision_test.sh",

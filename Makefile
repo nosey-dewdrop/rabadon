@@ -427,6 +427,19 @@ test: all
 # to be refused by, because on the first draft a guard.json case "passed" on a
 # refusal from promise-off-target that had nothing to do with guard.json.
 	./native/promise_law_test.sh
+# every law in this repository sat behind one substring scan of the raw line --
+# "git" or "rm", nothing else -- so that the common command cost almost nothing.
+# a line that empties a tree without spelling either word never reached a law at
+# all, and there was no verdict to escape from because no law ran. eleven
+# red-team probes were that one filter wearing different clothes: find -delete,
+# find -exec rm, rsync --delete, truncate, dd of=, a bare `>` with no command on
+# the line, and shred -- which cmdtext.h has listed in the delete family the
+# whole time, and which walked anyway because the family is read AFTER the
+# filter. section 0 measures the temp waiver instead of describing it: the first
+# draft of this suite built its fixture under mktemp, which on macOS lands in
+# /var/folders, which the containment law waives on purpose, so ten cases passed
+# in the one place on the machine where the law under test is switched off.
+	./native/delete_verbs_test.sh
 # the suite above asks what a word MEANS. this one asks how much of a name has
 # to be written down before the law recognizes it: `heads/main` IS
 # refs/heads/main, because git resolves a partially qualified ref through the
