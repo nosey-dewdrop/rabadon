@@ -1,0 +1,7 @@
+{
+  "north_star": "rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch->propose->re-verify repair loop, and honest docs — new ENGINE capability is C++ in native/, JS is glue (installer/dispatch) only",
+  "areas": ["^native/", "^Makefile$", "^SPEC\\.md$", "^README\\.md$", "^docs/", "^hooks/", "^scripts/", "^npm/", "^package\\.json$", "^\\.github/"],
+  "anti_paths": ["^bin/rabadon\\.mjs$", "^index\\.html$"],
+  "keywords": ["c++", "native", "gate", "sandbox", "audit", "install", "usage", "repair", "docs", "portable"],
+  "off_keywords": ["landing", "css", "which language", "gtm", "pricing", "fleet"]
+}

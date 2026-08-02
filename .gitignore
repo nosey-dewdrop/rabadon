@@ -22,6 +22,15 @@ BUGUN-*.md
 # root guard is shipped, nested ones stay local.
 **/.rabadon/*
 !/.rabadon/guard.json
+# promise.json is the target rabadon-drift measures every session against, and
+# leaving it untracked meant there was no way to reconstruct what the target
+# said on any given day. On 2 August a supervised session had put the two rules
+# protecting this file into disabled[], and the drift check then answered "on
+# the star" for eight days against a promise the drifter could rewrite. The
+# rules are sealed in the binary now; the history belongs here so that a moved
+# north star shows up in a diff like every other change. The file carries no
+# secrets, only the star, the areas, the anti-paths and the vocabulary.
+!/.rabadon/promise.json
 # built binaries — the source is the artifact, not the a.out. Every
 # rabadon-<name> executable, never the .cpp/.h/.sh that make them.
 native/rabadon-*
