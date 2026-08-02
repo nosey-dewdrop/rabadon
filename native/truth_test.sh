@@ -19,13 +19,13 @@ runof(){ "$BIN" "$1" --json | python3 -c 'import sys,json;print(json.load(sys.st
 # ---- 1: a real npm test script is a SUITE ----
 d="$TMP/npm-real"; mkdir -p "$d"; echo 'console.log(1)' > "$d/a.js"
 printf '{"scripts":{"test":"vitest run","build":"vite build"}}' > "$d/package.json"
-[ "$(lvl "$d")" = "1" ] && ok "package.json scripts.test -> level 1 SUITE" || bad "npm test not level 1"
+[ "$(lvl "$d")" = "3" ] && ok "package.json scripts.test -> level 3 SUITE" || bad "npm test not level 3"
 
 # ---- 2: the npm STUB is not a suite (the whole point) ----
 d="$TMP/npm-stub"; mkdir -p "$d"; echo 'console.log(1)' > "$d/a.js"
 printf '{"scripts":{"test":"echo \\"Error: no test specified\\" && exit 1"}}' > "$d/package.json"
 l="$(lvl "$d")"
-[ "$l" != "1" ] && ok "the npm 'no test specified' stub is REFUSED as a suite (fell to level $l)" \
+[ "$l" != "3" ] && ok "the npm 'no test specified' stub is REFUSED as a suite (fell to level $l)" \
   || bad "the npm stub was accepted as a real test suite"
 
 # ---- 3: build beats syntax when both exist ----
@@ -36,13 +36,13 @@ printf '{}' > "$d/tsconfig.json"
 
 # ---- 4: a Makefile test target is a suite; 'all' alone is only a build ----
 d="$TMP/mk1"; mkdir -p "$d"; printf 'test:\n\techo hi\n' > "$d/Makefile"; echo 'int main(){}' > "$d/m.cpp"
-[ "$(lvl "$d")" = "1" ] && ok "Makefile 'test:' target -> level 1 SUITE" || bad "makefile test not level 1"
+[ "$(lvl "$d")" = "3" ] && ok "Makefile 'test:' target -> level 3 SUITE" || bad "makefile test not level 3"
 d="$TMP/mk2"; mkdir -p "$d"; printf 'all:\n\techo hi\n' > "$d/Makefile"; echo 'int main(){}' > "$d/m.cpp"
 [ "$(lvl "$d")" = "2" ] && ok "Makefile with only 'all:' -> level 2 BUILD" || bad "makefile all not level 2"
 
 # ---- 5: bare python falls to SYNTAX, and the command is real ----
 d="$TMP/py"; mkdir -p "$d"; printf 'x = 1\n' > "$d/app.py"
-[ "$(lvl "$d")" = "3" ] && ok "bare python sources -> level 3 SYNTAX" || bad "python not level 3"
+[ "$(lvl "$d")" = "1" ] && ok "bare python sources -> level 1 SYNTAX" || bad "python not level 1"
 ( cd "$d" && eval "$(runof "$d")" >/dev/null 2>&1 ) \
   && ok "the SYNTAX command actually runs green on healthy sources" || bad "syntax command failed on good code"
 printf 'def broken(\n' > "$d/app.py"
@@ -64,8 +64,8 @@ d="$TMP/locked"; mkdir -p "$d/tests"; echo 'x=1' > "$d/app.py"; echo 'def test_x
 # ---- 8: vendored noise never becomes the project's truth ----
 d="$TMP/noise"; mkdir -p "$d/node_modules/pkg"; printf '{"scripts":{"test":"jest"}}' > "$d/node_modules/pkg/package.json"
 echo 'console.log(1)' > "$d/index.js"
-[ "$(lvl "$d")" = "3" ] \
-  && ok "a package.json inside node_modules is ignored (level 3, not a borrowed suite)" \
+[ "$(lvl "$d")" = "1" ] \
+  && ok "a package.json inside node_modules is ignored (level 1, not a borrowed suite)" \
   || bad "vendored package.json leaked into detection (level $(lvl "$d"))"
 
 echo ""

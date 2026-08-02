@@ -1200,7 +1200,7 @@ int main(int argc, char** argv) {
         if (verdict == "red" && prev != "red") {
           string tail = get_str(netRaw, "tail");
           if (tail.size() > 700) tail = tail.substr(tail.size() - 700);
-          const char* strength = lvl == 1 ? "your own test suite"
+          const char* strength = lvl == 3 ? "your own test suite"
                                : lvl == 2 ? "the build/typecheck"
                                           : "a syntax check (weak evidence)";
           em.emit("CHECK_FAIL", "\"step\":\"net\",\"mode\":\"" + string(mode_tag()) +

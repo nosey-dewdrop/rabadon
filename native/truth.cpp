@@ -241,7 +241,7 @@ static bool make_has_target(const string& mk, const string& target) {
 }
 
 struct Truth {
-  int level = 0;                 // 1 suite, 2 build, 3 syntax, 0 none
+  int level = 0;                 // 3 suite, 2 build, 1 syntax, 0 none (higher is stronger)
   string kind = "none";
   string run;                    // the actual command
   string why;                    // the file that proved it exists
@@ -257,15 +257,15 @@ static Truth detect(const string& dir, const Scan& s) {
     // the npm default stub is not a test suite; treating it as one would make
     // the net "green" on a repo that checks nothing
     if (!t.empty() && t.find("no test specified") == string::npos)
-      return {1, "suite", "npm test --silent", "package.json scripts.test"};
+      return {3, "suite", "npm test --silent", "package.json scripts.test"};
   }
   if (!mk.empty() && make_has_target(mk, "test"))
-    return {1, "suite", "make test", "Makefile test: target"};
+    return {3, "suite", "make test", "Makefile test: target"};
   if (exists(dir + "/pytest.ini") || exists(dir + "/tests") || !s.testFiles.empty()) {
-    if (s.py > 0) return {1, "suite", "python3 -m pytest -q", "python test files"};
+    if (s.py > 0) return {3, "suite", "python3 -m pytest -q", "python test files"};
   }
-  if (exists(dir + "/Cargo.toml")) return {1, "suite", "cargo test --quiet", "Cargo.toml"};
-  if (exists(dir + "/go.mod"))     return {1, "suite", "go test ./...", "go.mod"};
+  if (exists(dir + "/Cargo.toml")) return {3, "suite", "cargo test --quiet", "Cargo.toml"};
+  if (exists(dir + "/go.mod"))     return {3, "suite", "go test ./...", "go.mod"};
 
   // ---- 2: it still builds / typechecks ------------------------------------
   if (!pkg.empty()) {
@@ -287,11 +287,11 @@ static Truth detect(const string& dir, const Scan& s) {
   // looks current, so the second run after a break returns 0 and the rung
   // silently stops being able to fail. Measured, not assumed — the test that
   // asserts "a rung that cannot fail is not a rung" caught exactly this.
-  if (s.py > 0)  return {3, "syntax", "python3 -m compileall -q -f .", "python sources"};
-  if (s.js > 0)  return {3, "syntax",
+  if (s.py > 0)  return {1, "syntax", "python3 -m compileall -q -f .", "python sources"};
+  if (s.js > 0)  return {1, "syntax",
                          "find . -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check",
                          "javascript sources"};
-  if (s.cpp > 0) return {3, "syntax", "", "c++ sources (no build file found)"};
+  if (s.cpp > 0) return {1, "syntax", "", "c++ sources (no build file found)"};
 
   return {0, "none", "", "nothing runnable found"};
 }
@@ -390,9 +390,9 @@ int main(int argc, char** argv) {
            t.level, t.kind.c_str(), json_escape(t.run).c_str(), json_escape(t.why).c_str(),
            s.total(), dirs.c_str(), tests.c_str(), cap.c_str());
   } else {
-    const char* label = t.level == 1 ? "SUITE  (strong: real behaviour)"
+    const char* label = t.level == 3 ? "SUITE  (strong: real behaviour)"
                       : t.level == 2 ? "BUILD  (medium: it still compiles)"
-                      : t.level == 3 ? "SYNTAX (weak: it still parses)"
+                      : t.level == 1 ? "SYNTAX (weak: it still parses)"
                                      : "NONE   (nothing runnable — rabadon will say so, not pretend)";
     printf("%-28s  level %d  %s\n", dir.c_str(), t.level, label);
     if (!t.run.empty()) printf("    run: %s\n    via: %s\n", t.run.c_str(), t.why.c_str());

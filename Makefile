@@ -225,6 +225,13 @@ test: all
 # valid. every rule now carries `allow`, the commands it must NOT match, and
 # they are run against its own pattern through the gate's own matcher.
 	./native/guard_allow_twin_test.sh
+# the strength number rabadon publishes has to be orderable. --help documented
+# 3 SUITE / 2 BUILD / 1 SYNTAX / 0 NONE and the code emitted the reverse, so a
+# repo whose own suite was found printed `level 1  SUITE` -- a number and a word
+# contradicting each other on one line -- and 0 (nothing runnable) sat below 1
+# (the strongest rung), which left the field uncomparable in either direction.
+# found on 2 August measuring discovery on two foreign JS repos.
+	./native/truth_level_order_test.sh
 	./native/cmdtext_test.sh
 # cmdtext_test.sh asks what a shell will RUN. this one asks what GIT will run,
 # which is not the same question: `git -c alias.x='push --force' x origin main`
