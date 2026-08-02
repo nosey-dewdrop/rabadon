@@ -642,6 +642,7 @@ inline string git_dir_for(const string& cwd, const vector<string>& chdirs,
 inline vector<string> segment_cwds(const rbtext::Parsed& p, const string& cwd0) {
   const size_t n = p.groups > 0 ? (size_t)p.groups : 1;
   vector<string> groupCwd(n, cwd0), out(p.segs.size(), cwd0);
+  vector<vector<string> > dirStack(n);   // what pushd saved and popd restores
   vector<char> seen(n, 0);
   seen[0] = 1;
   for (size_t s = 0; s < p.segs.size(); s++) {
@@ -650,13 +651,46 @@ inline vector<string> segment_cwds(const rbtext::Parsed& p, const string& cwd0) 
     const size_t par = (size_t)sg.parent < n ? (size_t)sg.parent : 0;
     if (!seen[g]) { groupCwd[g] = groupCwd[par]; seen[g] = 1; }
     out[s] = groupCwd[g];
-    // follow a literal `cd` so a later segment is judged where it really runs
+    // Follow the verbs that move the shell, so a later segment is judged where
+    // it really runs. This used to read the word straight after `cd` as the
+    // directory and knew no other verb, which cost six red-team probes — and
+    // cost them in the dangerous direction. A walk that loses the shell does
+    // not over-refuse: it believes the delete is happening inside the project,
+    // where deletes are allowed, so every miss is a silent pass.
+    //
+    //   cd -P /elsewhere   the directory is not words[ci+1], `-P` is
+    //   cd -- /elsewhere   and `--` is not one either
+    //   pushd /elsewhere   the same move with a stack behind it
+    //   popd               the way back, which the twins depend on: after a
+    //                      push and a pop the shell is home again, and a delete
+    //                      at the end of that line is ordinary work
     const size_t ci = rbtext::command_index(sg.words);
-    if (ci < sg.words.size() && rbtext::name_is(rbtext::base_of(sg.words[ci].text), "cd") &&
-        ci + 1 < sg.words.size()) {
-      const string& arg = sg.words[ci + 1].text;
-      const string next = lexical_abs(arg, groupCwd[g]);
-      if (!next.empty() && arg.find('$') == string::npos) groupCwd[g] = next;
+    if (ci < sg.words.size()) {
+      const string base = rbtext::base_of(sg.words[ci].text);
+      const bool isCd = rbtext::name_is(base, "cd");
+      const bool isPush = rbtext::name_is(base, "pushd");
+      if (rbtext::name_is(base, "popd")) {
+        if (!dirStack[g].empty()) { groupCwd[g] = dirStack[g].back(); dirStack[g].pop_back(); }
+      } else if (isCd || isPush) {
+        // the first operand that is not an option. pushd also takes +N and -N,
+        // which select a slot in the stack rather than name a directory.
+        string arg; bool endOpts = false;
+        for (size_t i = ci + 1; i < sg.words.size(); i++) {
+          const string& w = sg.words[i].text;
+          if (!endOpts && w == "--") { endOpts = true; continue; }
+          if (!endOpts && w.size() > 1 && (w[0] == '-' || (isPush && w[0] == '+'))) continue;
+          arg = w; break;
+        }
+        // `cd -` is the previous directory, not a path. Treating it as one puts
+        // the walk in <cwd>/- and every later judgement on this line with it.
+        if (!arg.empty() && arg != "-" && arg.find('$') == string::npos) {
+          const string next = lexical_abs(arg, groupCwd[g]);
+          if (!next.empty()) {
+            if (isPush) dirStack[g].push_back(groupCwd[g]);
+            groupCwd[g] = next;
+          }
+        }
+      }
     }
   }
   return out;

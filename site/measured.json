@@ -158,26 +158,26 @@
   },
   "gate.redteam_allowed": {
     "cmd": "python3 redteam/redteam.py",
-    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "note": "95 probes, one representative command per named escape, run against the built gate. 60 refused, 32 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
     "value": 3,
     "what": "probes the gate is right to allow"
   },
   "gate.redteam_closed": {
     "cmd": "python3 redteam/redteam.py",
-    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
-    "value": 54,
+    "note": "95 probes, one representative command per named escape, run against the built gate. 60 refused, 32 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "value": 60,
     "what": "named escapes the gate refuses"
   },
   "gate.redteam_false_refusal": {
     "cmd": "python3 redteam/redteam.py",
-    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "note": "95 probes, one representative command per named escape, run against the built gate. 60 refused, 32 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
     "value": 0,
     "what": "ordinary work the gate wrongly refuses"
   },
   "gate.redteam_open": {
     "cmd": "python3 redteam/redteam.py",
-    "note": "95 probes, one representative command per named escape, run against the built gate. 54 refused, 38 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
-    "value": 38,
+    "note": "95 probes, one representative command per named escape, run against the built gate. 60 refused, 32 still walk. 3 are marked allow because the loss was measured not to happen (git refuses `push --forc` as ambiguous; `branch -D main` is recoverable while the tip is on a remote) and those premises are re-measured against real git on every run, not asserted. 0 false refusals. nothing is executed: PreToolUse only, fake destructive binaries first on PATH, canaries checked after.",
+    "value": 32,
     "what": "named escapes that still walk"
   },
   "gate.rules": {

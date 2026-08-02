@@ -440,6 +440,17 @@ test: all
 # /var/folders, which the containment law waives on purpose, so ten cases passed
 # in the one place on the machine where the law under test is switched off.
 	./native/delete_verbs_test.sh
+# the law above asks WHAT is being destroyed. this one asks where the shell is
+# standing when it happens, which is the other half of every containment
+# verdict. the walk that answers it followed one verb and read the word straight
+# after it as the directory, so `cd -P /elsewhere && rm -rf engine` moved into
+# `-P`, resolved nowhere, left the walk standing in the project and judged a
+# delete next door as a delete at home. pushd it did not know at all. six probes,
+# and all six failed in the direction that matters: a walk that loses the shell
+# does not over-refuse, it believes the delete is happening somewhere deletes are
+# allowed. popd is the twin that keeps the fix honest — after a push and a pop
+# the shell is home, and the delete at the end of that line must still run.
+	./native/shell_cwd_test.sh
 # the suite above asks what a word MEANS. this one asks how much of a name has
 # to be written down before the law recognizes it: `heads/main` IS
 # refs/heads/main, because git resolves a partially qualified ref through the
