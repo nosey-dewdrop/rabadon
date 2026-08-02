@@ -50,8 +50,8 @@
 
     <div class="stats">
       <span class="n p">{{catches.total}}</span><span class="t">commands refused before they ran, across {{catches.repos}} repositories. <a href="/catches">the ledger entry behind every one</a></span>
-      <span class="n g">{{gate.precision}}</span><span class="t">precision, recall {{gate.recall}}, over {{gate.cases}} cases lifted out of real sessions</span>
-      <span class="n b">{{repair.fake_accepted}}</span><span class="t">fake repairs accepted, on every run there is a record of</span>
+      <span class="n g">{{gate.precision}}</span><span class="t">precision over the {{gate.cases}} cases lifted out of real sessions, recall {{gate.recall}}. On this machine's whole ledger the same binary reads {{gate.precision_ledger}}, and {{gate.precision_ledger_real}} once its own test labs are taken out</span>
+      <span class="n b">{{repair.fake_accepted}}</span><span class="t">fake repairs accepted, on every run there is a record of. {{gate.redteam_open}} named ways past the gate are still open, and it stays in watch mode until they are not</span>
       <span class="n y">{{gate.judge_us}}</span><span class="t">to judge one command, so the gate is not what you switch off to go faster</span>
     </div>
   </div>

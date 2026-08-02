@@ -66,7 +66,7 @@ Sentetik `rabadon-bench-*` kosularindaki 1148 reddetme disarida birakildi.
 
 | | sayi |
 |---|---|
-| defterdeki komut-icerikli reddetme | 215 |
+| defterdeki komut-yazi-deposuli reddetme | 215 |
 | **gercek tehlike, hala duruyor** | **15** |
 | **gercek tehlike, artik gecirilen** | **0** |
 | **mesru is, hala kesiliyor** | **42** |
@@ -81,11 +81,11 @@ force-push, 1 gercek repoda `git reset --hard origin/main`, 1 gercek repoda
 
 Kesilen 42 mesru isin **41'i rabadon'un kendini test etmesi**: `mktemp -d` ile
 kurulan, remote'u ayni klasordeki bare repo olan laboratuvarlarda force-push
-denemeleri. Siradan proje isinde (stitchu, icerik, youkiddingme) ayni pencerede
-**1** haksiz kesme var: icerik'te dewrites.md'ye girdi ekleyen bir python
-heredoc'u, `no-blanket-add-stitchu` kuralina takiliyor.
+denemeleri. Siradan proje isinde (uc ozel proje) ayni pencerede
+**1** haksiz kesme var: yazi deposunda bir dosyaya girdi ekleyen bir python
+heredoc'u, o projenin kendi `no-blanket-add-*` kurali kuralina takiliyor.
 
-Bunlarin ustune **19 push-gate durdurmasi** var (hepsi stitchu). Bu tasarim
+Bunlarin ustune **19 push-gate durdurmasi** var (hepsi tek bir ozel projede). Bu tasarim
 geregi: testler bayatken push'u durduruyor. Yanlis pozitif degil ama aktif modda
 19 kez elini durdururdu.
 
@@ -186,11 +186,11 @@ bir koruma sozu verir.
    ayri bir is. En ucuzu kume 2 (kabuk konumu: `pushd`, `cd -P`, `cd --`), en
    pahalisi kume 1 (silen fiil ailesi).
 
-3. **`no-blanket-add-stitchu` kurali icerik reposunda da atesliyor.** Kural
-   stitchu icin yazilmis, icerik'te dewrites.md'ye yazan python heredoc'unu
+3. **o projenin kendi `no-blanket-add-*` kurali kurali yazi-deposu reposunda da atesliyor.** Kural
+   ozel-proje-A icin yazilmis, yazi-deposu'te dewrites.md'ye yazan python heredoc'unu
    kesiyor. Kural daraltilsin mi, yoksa `disabled[]` icine mi?
 
-4. **push-gate stitchu'da 19 kez durdurdu.** Tasarim geregi calisiyor. Aktif
+4. **push-gate ozel-proje-A'da 19 kez durdurdu.** Tasarim geregi calisiyor. Aktif
    modda bu 19 durdurma gercek olur. Boyle mi kalsin?
 
 ---

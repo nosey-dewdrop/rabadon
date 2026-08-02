@@ -105,6 +105,15 @@ GATE_ROWS = [
      "55.0% before one resolver answered the path question for both layers"),
     ("gate.recall",
      "unchanged, and the floor the precision work was not allowed to move"),
+    ("gate.precision_ledger",
+     "the same binary, the same question, asked of everything that really happened "
+     "instead of 34 chosen cases. the fixture number is not wrong, it is narrow"),
+    ("gate.precision_ledger_real",
+     "41 of the 42 refusals it cut were rabadon's own red-team labs, and a tool that "
+     "pads its own numbers with its own drills has no business judging anyone else"),
+    ("gate.redteam_open",
+     "319 attempts over four rounds named 95 ways past this gate; this is how many "
+     "of them the current binary still lets through"),
     ("gate.cases",
      "every one lifted out of a real session, none written for the test"),
     ("repair.green_paths_refused",
@@ -379,6 +388,27 @@ def benchmarks(rows, meas):
                "allowed to become a verdict: on a suite that flakes, a single red throws away a correct "
                "fix somebody already paid for.</p>")
     out.append("</section>")
+
+    out.append('<section><h2>what is still open</h2>'
+               '<p class="small dim">Four rounds of red-teaming this gate, 319 attempts, named 95 ways past '
+               "it. One representative command each, judged by the binary this page describes: 37 refused, "
+               "58 allowed. They fall into four groups, and none of them is a surprise the code did not "
+               "already suspect.</p>"
+               '<div class="term"><span class="hdr">group                                          open   why</span>\n'
+               '14 the deleting verb is not rm                    <span class="r">14</span>   '
+               '<span class="o">find -delete, rsync --delete, truncate, dd, shred, a bare redirect. the law knows five verbs</span>\n'
+               ' 5 the shell moved and nobody followed             <span class="r">5</span>   '
+               '<span class="o">pushd, cd -P, cd --. plain cd is followed; its options and pushd are not</span>\n'
+               '11 the program is not on the line                 <span class="r">11</span>   '
+               '<span class="o">bash s.sh, npm run deploy, python3 -c. three of them record a PARSE_LIMIT, the rest are silent</span>\n'
+               '28 git has other ways to the same place           <span class="r">28</span>   '
+               '<span class="o">git push --forc (git accepts abbreviations), branch -D main, clean -xfd, reset --hard @{u}, rm -rf .git</span>'
+               "</div>"
+               '<p class="cap">Enforce mode is not on, and this is the reason. A gate that promises a protection '
+               "it cannot hold is worse than one that says what it stops. Reproduce with "
+               "<code>python3 redteam/redteam.py</code>; it judges and never runs, with every destructive "
+               "binary shadowed on PATH and the log of what they were asked to do asserted empty.</p>"
+               "</section>")
 
     out.append('<section><h2>what has not been measured</h2>'
                '<p class="small dim">A quiet machine. Every run on this page shared its box with other work, '
@@ -831,6 +861,9 @@ def index(rows, meas):
         "gate.destructive": word(block),
         "gate.allows": word(allow),
         "gate.judge_us": mval(meas, "gate.judge_us"),
+        "gate.precision_ledger": mval(meas, "gate.precision_ledger"),
+        "gate.precision_ledger_real": mval(meas, "gate.precision_ledger_real"),
+        "gate.redteam_open": mval(meas, "gate.redteam_open"),
         "gate.rules_block": rules_block(meas),
         "repair.fake_accepted": "0",
         "repair.green_paths_block": green_paths_block(meas),

@@ -129,6 +129,24 @@
     "value": 100.0,
     "what": "gate precision"
   },
+  "gate.precision_ledger": {
+    "cmd": "redteam/ledger_replay.py",
+    "commit": "0665561",
+    "display": "26.3%",
+    "measuredAt": "2026-08-02",
+    "note": "every real refusal in ~/.rabadon/spool, 2026-07-31 16:10 to 2026-08-02 02:57, replayed through the current gate with the command text recovered from the transcripts because the ledger truncates at 160 characters. 215 refusals with a command in them: 15 real dangers still stopped, 0 real dangers let through, 42 pieces of legitimate work still cut. 41 of those 42 are rabadon's own red-team labs. full method in NOTES-FOR-DAMLA.md.",
+    "value": 26.3,
+    "what": "precision on this machine's own ledger"
+  },
+  "gate.precision_ledger_real": {
+    "cmd": "redteam/ledger_replay.py",
+    "commit": "0665561",
+    "display": "93.8%",
+    "measuredAt": "2026-08-02",
+    "note": "15 of 16. the one remaining wrong refusal in ordinary project work was a python heredoc appending to a file, caught by a project's own rule. a tool that pads its own numbers with its own drills has no business judging anyone else's proof, so both figures are here.",
+    "value": 93.8,
+    "what": "the same, with rabadon's own test labs excluded"
+  },
   "gate.recall": {
     "cmd": "native/precision_test.sh",
     "commit": "bdbc448",
@@ -137,6 +155,15 @@
     "note": "real harm the gate stops, over the same 34 cases.",
     "value": 100.0,
     "what": "gate recall"
+  },
+  "gate.redteam_open": {
+    "cmd": "redteam/redteam.py",
+    "commit": "0665561",
+    "display": "58 of 95",
+    "measuredAt": "2026-08-02",
+    "note": "319 red-team attempts over four rounds named 95 ways past this gate. one representative command each, judged by the current binary: 37 refused, 58 allowed. nothing runs -- PreToolUse only, every destructive binary shadowed on PATH, canaries checked, fake-bin log asserted empty.",
+    "value": 58,
+    "what": "named escapes still open"
   },
   "gate.rules": {
     "cmd": "native/precision_test.sh",
