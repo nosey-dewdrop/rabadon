@@ -130,6 +130,7 @@ seeing what happened
   trace [run]         one run step by step: caught, repaired, refused
   drift [dir]         did this session wander off what it promised to work on
   audit [--days N]    verify the ledger has not been tampered with
+  claims <report>     does a run exist behind each number in this report
   replay              re-run a recorded session against the current rules
   export [--otlp]     the ledger in an open format, for your own tooling
 
@@ -168,6 +169,7 @@ HELP
   report)          S="$(nbin stats)" || exit 1; shift; exec "$S" --md "$@" ;;
   trace)           T="$(nbin trace)" || exit 1; shift; exec "$T" "$@" ;;
   audit)           A="$(nbin audit)" || exit 1; shift; exec "$A" "$@" ;;
+  claims)          C="$(nbin claims)" || exit 1; shift; exec "$C" "$@" ;;
   repair)          R="$(nbin repair)" || exit 1; shift; exec "$R" "$@" ;;
   exec)            B="$(nbin sandbox)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
   sandbox)         B="$(nbin sandbox)" || exit 1; shift; exec "$B" "$@" ;;

@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
+all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
 
 # the OTHER benchmark, and the one the site was quoting without owning: how long
 # rbrules::judge_command takes, in process, over the 34 real cases in the
@@ -20,6 +20,9 @@ native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
 native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+native/rabadon-claims: native/claims.cpp native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h
@@ -624,13 +627,20 @@ test: all
 # this machine, and it was one line away from being published inside a total of
 # twelve live rules while being a rule that cannot fire anywhere.
 	./native/field_census_test.sh
+# and the product move the field numbers were the argument for. every number in a
+# session report is asked which run produced it, against the ledger the gate
+# already writes. eight numbers in nine days had no run behind them and none of
+# them was anybody lying: a benchmark subtracting x from x, a fixture the
+# measured party had chosen, a hash lock that locked 0 of 122 files. written red
+# with a fabricated report and its honest twin, identical prose, one difference.
+	./native/claims_test.sh
 
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate
 	./native/precision_test.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
 
 .PHONY: all bench clean precision
 
