@@ -14,7 +14,9 @@
 #pragma once
 
 #include <cctype>
+#include <fstream>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -359,6 +361,74 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
       }
     }
   }
+  // ---------- the guards the LINE reaches, not the one the session sits in ----
+  // The pass above judges the session's own guard, loaded once from cwd. That
+  // was the whole of it, and it meant a session started in $HOME — which is how
+  // an agent working across several repositories runs all day — loaded no rules
+  // at all. The owner's rules were not overridden or disabled, they were absent,
+  // and only the compiled-in floor was left. Measured on 2 August: `cd <project>
+  // && git commit -m "note: x"` and `git -C <project> commit ...` both walked
+  // past a rule that refuses them when the session happens to stand there.
+  //
+  // The baseline laws never had this hole because they follow the shell.
+  // segment_cwds() already computes where each half of the line runs and
+  // git_repo_knobs() already reads which repository `git -C` points at. Only
+  // the guard loader was still asking once, at the top, about one directory.
+  //
+  // ADDITIVE AND ONLY ADDITIVE. A guard found beside a segment may REFUSE that
+  // segment and can never permit one: its disabled[] is not read here, so
+  // walking into a directory cannot switch a law off. guard.json is a file
+  // inside a tree that the agent may write to, and guard-weaken governs the
+  // session's own guard, not one it wanders into. A reachable guard that could
+  // waive rules would be this same hole spelled backwards.
+  //
+  // The owner still overrides: disabled[] in the guard at `cwd` is read by the
+  // pass above and by the laws below, because that one the operator opted into
+  // by standing there.
+  if (!parsed.degraded) {
+    const std::vector<string> cwds = rbpath::segment_cwds(parsed, realCwd);
+    const string ownRoot = rbpath::project_root(realCwd);
+    std::vector<string> seenRoots;
+    for (size_t i = 0; i < parsed.segs.size(); i++) {
+      if (parsed.segs[i].surface.empty()) continue;
+      // where this segment really acts: the directory it runs in, and for git,
+      // the repository the line points it at (`-C`, --git-dir, GIT_DIR=)
+      string dir = cwds[i];
+      const std::vector<rbtext::Word>& t = parsed.segs[i].words;
+      const size_t ci = rbtext::command_index(t);
+      if (ci < t.size() && rbtext::name_is(rbtext::base_of(t[ci].text), "git")) {
+        size_t sub = 0;
+        if (rbtext::git_subcommand(t, ci, sub)) {
+          std::vector<string> chdirs; string gitDirOpt;
+          if (rbtext::git_repo_knobs(t, ci, sub, chdirs, gitDirOpt))
+            for (size_t k = 0; k < chdirs.size(); k++)
+              dir = rbpath::lexical_abs(chdirs[k], dir);
+        }
+      }
+      const string root = rbpath::project_root(rbpath::resolve_real(dir));
+      if (root.empty() || root == ownRoot) continue;   // already judged above
+      bool already = false;
+      for (size_t k = 0; k < seenRoots.size(); k++) if (seenRoots[k] == root) already = true;
+      if (already) continue;
+      seenRoots.push_back(root);
+      string reached;
+      { std::ifstream gf((root + "/.rabadon/guard.json").c_str(), std::ios::binary);
+        if (!gf) continue;
+        std::ostringstream ss; ss << gf.rdbuf(); reached = ss.str(); }
+      if (reached.empty()) continue;
+      const std::vector<string> none;
+      for (const auto& r : parse_rules(reached, "bash", "deny", none)) {
+        const std::vector<string> one(1, parsed.segs[i].surface);
+        if (!rx_test_any(r.pattern, one)) continue;
+        if (pattern_names_a_path(r.pattern) && all_targets_disposable(parsed.segs[i], cwds[i])) continue;
+        v.refused = true; v.id = r.id; v.why = r.why;
+        v.detail = "command matched deny rule of the project it reaches into (" + root +
+                   "): " + cmd.substr(0, 160);
+        return v;
+      }
+    }
+  }
+
   rbbase::Hit bh;
   if (rbbase::check_parsed(parsed, cwd, disabled, bh)) {
     v.refused = true; v.id = bh.id; v.why = bh.why; v.detail = bh.detail;

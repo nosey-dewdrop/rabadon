@@ -217,6 +217,18 @@ test: all
 # twin, and the twins are re-run with TMPDIR pointed at $HOME and at /.
 	./native/path_answer_test.sh
 	./native/guard_lint_test.sh
+# guard_lint_test.sh asks whether a rule can fire. this one asks whether it is
+# ever consulted. the guard was read once, from the directory the session
+# happened to start in, so a session started in $HOME -- which is how an agent
+# working across several repositories runs all day -- loaded no rules at all.
+# not overridden, not disabled: absent. `cd <project> && git commit -m "note: x"`
+# and `git -C <project> commit ...` both walked past a rule that refuses them
+# when the session stands there. the baseline laws never had the hole because
+# they follow the shell. additive only, and section 3 is why: a guard reached
+# mid-line may refuse a segment and may never permit one, so walking into a
+# directory cannot switch a law off, while the owner's own disabled[] still
+# overrides for a session standing in their tree.
+	./native/guard_reach_test.sh
 # guard_lint_test.sh asks whether a rule CAN fire. this one asks whether it can
 # ever hold its fire, which is the half that broke in the field on 2 August: an
 # authored semantic-commit rule denied EVERY commit, including the fix: ones it
