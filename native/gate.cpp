@@ -96,6 +96,18 @@ static string json_escape(const string& s) {
   return out;
 }
 
+// Every label in the ledger is a cut of text the operator typed, and a cut at a
+// byte offset can land inside a multi-byte character. The dangling bytes are not
+// text, json_escape hands them through, and the line stops being JSON — RFC 8259
+// requires valid UTF-8, so a strict reader rejects the whole event while the
+// chain still verifies it. Walk back to the last complete character instead.
+static string utf8_clip(const string& s, size_t maxBytes) {
+  if (s.size() <= maxBytes) return s;
+  size_t end = maxBytes;
+  while (end > 0 && ((unsigned char)s[end] & 0xC0) == 0x80) --end;
+  return s.substr(0, end);
+}
+
 static string read_file(const string& p) {
   std::ifstream f(p, std::ios::binary);
   if (!f) return "";
@@ -1153,7 +1165,7 @@ int main(int argc, char** argv) {
           em.emit("CHECK_FAIL", "\"step\":\"net\",\"mode\":\"" + string(mode_tag()) +
                   "\",\"level\":" + std::to_string(lvl) + ",\"kind\":\"" + json_escape(kindStr) +
                   "\",\"fails\":[{\"check\":\"net-turned-red\",\"why\":\"" +
-                  json_escape(tail.substr(0, 600)) + "\"}]");
+                  json_escape(utf8_clip(tail, 600)) + "\"}]");
           fprintf(stderr,
             "rabadon: this project just went GREEN -> RED, caught by %s.\n"
             "It happened on your last edit — this is not a pre-existing failure.\n"
@@ -1254,7 +1266,7 @@ int main(int argc, char** argv) {
         Verdict v = driftJudge(ss.goalPrompt, bullets);
         if (v.ok && !v.onTrack && !v.anchor.empty()) {
           em.emit("CHECK_FAIL", "\"step\":\"goal\",\"fails\":[{\"check\":\"goal-drift\",\"why\":\"" +
-            json_escape(v.anchor.substr(0, 200)) + "\"}]");
+            json_escape(utf8_clip(v.anchor, 200)) + "\"}]");
           fprintf(stderr, "rabadon re-anchor: the session goal is \"%s\". %s\n",
             ss.goalPrompt.substr(0, 120).c_str(), v.anchor.c_str());
           return refuse_code();
@@ -1276,7 +1288,7 @@ int main(int argc, char** argv) {
         isTest = rx_test("ctest|--test|npm test", command);
 
       if (!isTest) {
-        em.emit("STEP_OK", "\"step\":\"ran: " + json_escape(command.substr(0, 80)) + "\"");
+        em.emit("STEP_OK", "\"step\":\"ran: " + json_escape(utf8_clip(command, 80)) + "\"");
         stt.save();
         return 0;
       }
@@ -1829,7 +1841,7 @@ int main(int argc, char** argv) {
 
   // the trail: a diagnosis needs to know WHERE the session is, not just that
   // it crashed — same law as the node gate's remember()
-  string label = toolName == "Bash" ? ("bash: " + command.substr(0, 80)) : (toolName + ": " + filePath.substr(filePath.rfind('/') + 1));
+  string label = toolName == "Bash" ? ("bash: " + utf8_clip(command, 80)) : (toolName + ": " + filePath.substr(filePath.rfind('/') + 1));
   ss.recent.push_back({ now_ms(), label.substr(0, 120) });
   if (ss.recent.size() > 30) ss.recent.erase(ss.recent.begin(), ss.recent.end() - 30);
   ss.actionCount++;

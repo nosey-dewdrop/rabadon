@@ -95,6 +95,15 @@ test: all
 # now, so it is as red at 15:00 as at 00:48, and every must-land-together check
 # has its must-not-move twin under UTC.
 	./native/ledger_day_test.sh
+# ledger_day_test.sh proves the events land in ONE file. this one proves that
+# file is still text. every label in the ledger is a cut of what the operator
+# typed, the cut was counted in bytes, and a multi-byte character across the
+# boundary left two orphan bytes in a JSON string -- so the line stopped being
+# JSON while `rabadon audit` still called the chain sound, because a hash does
+# not ask whether the bytes it covers are text. found in the field on 2 August,
+# 8 of that day's 982 lines. the twin asserts the label still carries the
+# readable head of the command, so "clamp" cannot degrade into "drop".
+	./native/ledger_utf8_test.sh
 	./native/baseline_test.sh
 # baseline_test.sh asks the push law about the three spellings it knows: --force,
 # -f, and a leading + on a refspec. this one asks about the spelling that
