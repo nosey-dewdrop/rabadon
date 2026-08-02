@@ -42,9 +42,14 @@ FINDINGS_PATH = "site/findings.jsonl"
 # again if the same fact ends up with two values on two pages.
 INDEX_TMPL = "site/index.tmpl.html"
 
-NAV = [("/", "overview"), ("/catches", "catches"), ("/benchmarks", "benchmarks"),
-       ("/patch-notes", "patch notes"), ("/pull-requests", "pull requests"),
-       (REPO_URL, "github")]
+NAV = [("/", "overview"), ("/field", "the field"), ("/catches", "catches"),
+       ("/benchmarks", "benchmarks"), ("/patch-notes", "patch notes"),
+       ("/pull-requests", "pull requests"), (REPO_URL, "github")]
+
+# the published field records: one line per verdict, written by
+# site/field_stats.py off the ledger, with home paths rewritten and anything
+# matching the sensitive-terms list dropped and counted.
+FIELD_PATH = "site/field.jsonl"
 
 # where the gate writes what it refused. read at build time, never typed in.
 SPOOL = os.path.expanduser("~/.rabadon/spool")
@@ -828,6 +833,224 @@ def catches():
 
 
 # ---------------------------------------------------------------------------
+# the field. What the engine did in repositories where the work was real.
+# ---------------------------------------------------------------------------
+# The ledger had been recording since 25 July and nothing surfaced it, so nine
+# days of evidence sat in ~/.rabadon/spool/*.jsonl where the person who wrote the
+# engine could not see it either. Every number on this page comes out of
+# site/measured.json under a `field.` key, written by site/field_stats.py, which
+# reads that ledger and nothing else. Nothing here is typed.
+#
+# The distinction the page is built around: WATCH mode records the verdict and
+# lets the command run, ENFORCE mode refuses it. Nearly all of this happened in
+# watch mode, which is the honest way to read it -- these are not saves, they are
+# what arming it would have cost, measured before arming it.
+FIELD_SUMMARY = {
+    "field.would_block": "commands it would have refused, recorded while blocking nothing",
+    "field.would_block_own": "of those, in this engineer&#39;s own repositories, not in a test fixture",
+    "field.stop": "commands it refused outright once it was armed, so they never ran",
+    "field.days": "days the ledger has been running, unbroken",
+}
+
+
+def fval(meas, key, default=0):
+    """The number itself, for arithmetic and for the count-up. mval() renders a
+    missing number as the words `not measured`, which is right on a page and
+    wrong in a sum."""
+    v = (meas.get(key) or {}).get("value")
+    return default if v is None else v
+
+
+def field_records():
+    out = []
+    if not os.path.exists(FIELD_PATH):
+        return out
+    for line in open(FIELD_PATH, encoding="utf-8"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def field_headline(meas):
+    """The three rules that did the most, in a sentence, with the counts read off
+    the same file the page reads. Typed as prose it would be a sentence that goes
+    stale the next time the gate refuses anything."""
+    by_rule = fval(meas, "field.would_block_by_rule", [])
+    if not by_rule:
+        return ""
+    top = by_rule[:3]
+    parts = ["%s %s" % (f"{n:,}", RULE_TEXT.get(rule, rule)) for rule, n in top]
+    return html.escape("Most of it was three laws: " + "; ".join(parts) + ".")
+
+
+def field_page(meas):
+    recs = field_records()
+    by_rule = fval(meas, "field.would_block_by_rule", [])
+    rules = fval(meas, "field.rules_list", [])
+    written, live = fval(meas, "field.rules_written"), fval(meas, "field.rules_live")
+    src = evidence_href(meas, "field.would_block", None)
+    note = (meas.get("field.would_block") or {}).get("note", "")
+
+    # the sentence a rule carries about itself, for the rules that carry one
+    why = {r["rule"]: r.get("why", "") for r in rules if r.get("why")}
+
+    out = ['<div class="intro">',
+           "<h1>what it did while somebody was working.</h1>",
+           '<p class="lede small dim">Not a fixture and not a demo. This is what the gate did while an '
+           "engineer used it to build other things, read out of the hash-chained ledger it writes as it "
+           "runs. It had been recording since 25 July and nothing had ever surfaced it, so the evidence "
+           "sat on disk where the person who wrote the engine could not see it either. "
+           "Almost all of it happened in watch mode, where a verdict is recorded and the command runs "
+           "anyway, so these are not saves. They are what arming it would have cost, measured before "
+           "arming it.</p>",
+           '<div class="proof">']
+    for key, caption in FIELD_SUMMARY.items():
+        cls = {"field.would_block": "p", "field.would_block_own": "b",
+               "field.stop": "y", "field.days": "g"}[key]
+        out.append('<div>' + stat(cls, fval(meas, key), caption, src) + "</div>")
+    out.append("</div></div>")
+    out.append(cmdline("python3 site/field_stats.py"))
+    if note:
+        out.append(f'<p class="cap">{html.escape(note)}</p>')
+
+    # ---- the day column, so a total cannot be read as a rate ---------------
+    # The ledger is nine days old and that is not how long these verdicts took.
+    # A reader given one total and one age will divide them, and the number that
+    # comes out never happened, so the days are printed instead of implied.
+    days_w, days_e = fval(meas, "field.days_watch"), fval(meas, "field.days_enforce")
+    wb_days = dict(fval(meas, "field.would_block_by_day", []))
+    st_days = dict(fval(meas, "field.stop_by_day", []))
+    allday = sorted(set(wb_days) | set(st_days))
+    if allday:
+        rows = [[html.escape(d),
+                 (f"{wb_days.get(d, 0):,}" if wb_days.get(d) else "&mdash;", "p"),
+                 (f"{st_days.get(d, 0):,}" if st_days.get(d) else "&mdash;", "y")]
+                for d in allday]
+        out.append("<section><h2>which day, and in which mode</h2>"
+                   f'<p class="small dim">The ledger is {fval(meas, "field.days")} days old. That is not '
+                   f"how long these verdicts took, and the difference is the whole reason this column is "
+                   f"here. Recorded verdicts land on {days_w} of those days and outright refusals on "
+                   f"{days_e}, because the gate spent almost all of that time in watch mode and was only "
+                   "armed at the end. A single total beside an age is a rate the reader will compute and "
+                   "that never existed.</p>")
+        out.append(table([("day", "s"), ("recorded, watch mode", "n"), ("refused, armed", "n")],
+                         rows, "ledger"))
+        if allday:
+            last = allday[-1]
+            if st_days.get(last, 0) > sum(st_days.get(d, 0) for d in allday[:-1]):
+                out.append('<p class="cap">Most of the refusals on the last row are from one night: the '
+                           "gate was armed for the first time and six agent sessions ran underneath it at "
+                           "once. That is a load, not a week, and it is on its own row rather than folded "
+                           "into the total above.</p>")
+        out.append(cmdline("python3 site/field_stats.py"))
+        out.append("</section>")
+
+    # ---- rule by rule ------------------------------------------------------
+    if by_rule:
+        rows = []
+        for rule, n in by_rule:
+            sentence = RULE_TEXT.get(rule) or why.get(rule) or ""
+            rows.append([(f"{n:,}", "p"), html.escape(rule), html.escape(sentence)])
+        out.append("<section><h2>which law, how many times</h2>"
+                   '<p class="small dim">Every count is a verdict the ledger recorded, grouped by the '
+                   "rule that produced it. The laws with <code>baseline-</code> in front of them are "
+                   "compiled into the binary and hold in a repository with no configuration at all; the "
+                   "rest come from a guard file a project owns.</p>")
+        out.append(table([("times", "n"), ("rule", "s"), ("what that law is about", "d")],
+                         rows, "ledger"))
+        out.append(cmdline("python3 site/field_stats.py"))
+        out.append("</section>")
+
+    # ---- the rules it wrote itself ----------------------------------------
+    if rules:
+        rows = []
+        for r in rules:
+            here = ('<span class="g">in ' + html.escape(r.get("in") or "?") + "</span>") if r.get("live") \
+                else '<span class="r">in no guard file</span>'
+            rows.append([html.escape(r["rule"]), html.escape(r.get("project", "")), here,
+                         html.escape(r.get("why", "") or "the write was recorded and never landed")])
+        out.append("<section><h2>the laws it wrote for itself, after the thing had already happened</h2>"
+                   '<p class="small dim">When a check goes red the engine proposes a fix, and where the '
+                   "failure was a way of working rather than a line of code it writes a rule so the same "
+                   "class cannot happen twice. Each one below was authored after a real incident, in the "
+                   "repository the incident happened in. The sentence on the right is the rule&#39;s own, "
+                   "read out of the guard file it lives in rather than retyped here.</p>")
+        out.append('<div class="stats">')
+        out.append(stat("p", written, "rules it wrote itself after an incident", src))
+        out.append(stat("g", live, "of those, in a guard file on this machine right now", src))
+        out.append("</div>")
+        out.append(table([("rule", "s"), ("written in", "s"), ("still there", "s"),
+                          ("the sentence the rule carries", "d")], rows, "ledger"))
+        if written != live:
+            out.append('<p class="cap">Those two numbers are not the same and the gap is printed rather '
+                       "than closed. The ledger records the authoring event, not whether the write landed, "
+                       f"and {written - live} of them is on the ledger and in no guard file anywhere, which "
+                       "means it cannot fire in any repository ever. It was one line away from being "
+                       "published here inside a single total. The count that catches it runs in "
+                       "<code>make test</code>.</p>")
+        out.append(cmdline("python3 site/field_stats.py"))
+        out.append("</section>")
+
+    # ---- the push gate -----------------------------------------------------
+    refused = fval(meas, "field.pushes_refused")
+    out.append("<section><h2>the push it would not let through</h2>"
+               '<p class="small dim">The gate does not take the session&#39;s word for whether the suite '
+               "passes. It runs the project&#39;s own test command itself, reads the verdict, and holds "
+               "the push until the tree is green. What follows is how often that happened during real "
+               "work, not in a rehearsal.</p>")
+    out.append('<div class="stats">')
+    out.append(stat("p", refused, "pushes refused on a red tree, each one held until the suite was green",
+                    src))
+    out.append("</div>")
+    out.append(cmdline("python3 site/field_stats.py"))
+    out.append("</section>")
+
+    # ---- the records themselves -------------------------------------------
+    if recs:
+        by_proj = OrderedDict()
+        for r in recs:
+            by_proj.setdefault(r.get("project", "?"), []).append(r)
+        ordered = sorted(by_proj.items(), key=lambda kv: -len(kv[1]))
+        out.append("<section><h2>the records, as they were written</h2>"
+                   '<p class="small dim">Nothing above has to be taken on trust. Every published record '
+                   "is here, project by project, in the file the page is built from. Home paths are "
+                   "rewritten and the extractor refuses to write at all if an account name survives "
+                   "redaction, whole or truncated. Runs made to exercise the engine are excluded by name "
+                   "and the excluded count is printed, because a filter that hides its own size is the "
+                   "same problem one layer down.</p>")
+        out.append('<p class="cap">The whole file: <a href="/field.jsonl">field.jsonl</a>, '
+                   f"{len(recs):,} records, one JSON object per line.</p>")
+        for proj, group in ordered:
+            if len(group) < 2:
+                continue
+            rows = []
+            for r in sorted(group, key=lambda x: -x.get("ts", 0))[:12]:
+                ts = r.get("ts", 0)
+                when = ("%04d-%02d-%02d %02d:%02d" % (time.gmtime(ts / 1000)[:5])) if ts else "?"
+                rows.append([html.escape(when), html.escape(r.get("ev", "")),
+                             html.escape(r.get("rule", "")),
+                             html.escape((r.get("detail") or "")[:200])])
+            out.append("<details><summary>" + html.escape(proj) +
+                       f", {len(group)} record{'s' if len(group) != 1 else ''}, "
+                       f'showing {len(rows)}</summary><div class="body">' +
+                       table([("when", "s"), ("verdict", "s"), ("rule", "s"),
+                              ("the line the ledger wrote", "d")], rows, "ledger") +
+                       "</div></details>")
+        out.append("</section>")
+
+    return page("/field", "rabadon in real repositories, read off its own ledger",
+                f"{fval(meas, 'field.would_block'):,} commands rabadon would have refused during real "
+                f"work, {fval(meas, 'field.stop'):,} it refused outright once armed, and {live} laws it "
+                "wrote for itself after an incident, each still in a guard file.",
+                "\n".join(out))
+
+
+# ---------------------------------------------------------------------------
 # the overview. Not a page any more: a template with holes, and every hole is
 # filled from the same source the page that details it reads.
 # ---------------------------------------------------------------------------
@@ -1051,6 +1274,23 @@ def index(rows, meas):
             stat("b", len(rows), 'commits in this repository. '
                  '<a href="/patch-notes">all of them, with the day each landed</a>', "/patch-notes"),
         ]),
+        "field.stats": "\n".join([
+            stat("p", fval(meas, "field.would_block"),
+                 'commands it would have refused during real work, '
+                 f'{fval(meas, "field.would_block_own"):,} of them in this engineer&#39;s own repositories '
+                 f'rather than in a fixture, recorded across {fval(meas, "field.days_watch")} days. '
+                 '<a href="/field">every one, rule by rule, with the day it happened</a>', "/field"),
+            stat("g", fval(meas, "field.rules_live"),
+                 'laws it wrote for itself after an incident and that are in a guard file right now, of '
+                 f'{fval(meas, "field.rules_written")} it recorded writing. The gap is printed rather than '
+                 'closed', "/field"),
+            stat("y", fval(meas, "field.pushes_refused"),
+                 "pushes it refused on a red tree, each held until the project&#39;s own suite went green",
+                 "/field"),
+            stat("b", fval(meas, "field.stop"),
+                 "commands it refused outright once it was armed, so they never ran", "/field"),
+        ]),
+        "field.headline": field_headline(meas),
 "seo.desc": (f"Guardrails and a verifiable record for AI coding agents. {total:,} commands refused "
                      f"before they ran, {o.get('totalCases', 0)} real defects found in "
                      f"{o.get('totalRepos', 0)} open-source projects, 0 fake repairs accepted."),
@@ -1093,6 +1333,7 @@ def main():
     prs = pull_requests()
     meas = measured()
     for name, content in (("index", index(rows, meas)),
+                          ("field", field_page(meas)),
                           ("catches", catches()),
                           ("patch-notes", patch_notes(rows)),
                           ("pull-requests", pull_request_page(prs, rows)),

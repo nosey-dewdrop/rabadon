@@ -25,7 +25,7 @@
 # and whatever the operator typed. Home is rewritten to `~`, and any record
 # matching the sensitive-terms list is dropped from the published file — with
 # the number of drops printed, never silently.
-import collections, glob, json, os, re, sys
+import collections, glob, json, os, re, sys, time
 
 HOME = os.path.expanduser("~")
 SPOOL = os.path.join(HOME, ".rabadon", "spool", "*.jsonl")
@@ -141,7 +141,11 @@ def live_rules():
             for r in g.get("bash") or []:
                 rid = r.get("id")
                 if rid:
-                    out.setdefault(rid, proj)
+                    # the sentence comes off the rule itself. a rule explains
+                    # what it is for in its own file, and retyping that
+                    # explanation onto a page is how the page and the rule start
+                    # disagreeing.
+                    out.setdefault(rid, (proj, clean(r.get("why", ""))))
     return out
 
 
@@ -176,6 +180,20 @@ def main():
     # STOP: enforce mode refused and the command never ran.
     stop = evs(field, "STOP")
 
+    # and WHEN, because the two modes did not run for the same length of time.
+    # Watch mode has been recording since 25 July; enforce mode was armed on
+    # 3 August. Printing a single STOP total beside "nine days" invites the
+    # reader to divide one by the other and get a rate that never existed, and
+    # a day column is the cheapest possible way to make that impossible.
+    def by_day(src):
+        c = collections.Counter()
+        for r in src:
+            ts = r.get("ts", 0)
+            c[("%04d-%02d-%02d" % time.gmtime(ts / 1000)[:3]) if ts else "?"] += 1
+        return sorted(c.items())
+
+    stop_days, wb_days = by_day(stop), by_day(wb)
+
     # REPAIR_OK with a rule step: the engine wrote a NEW rule after an incident,
     # so the same class cannot happen twice. The step carries the rule's name.
     rules = []
@@ -194,7 +212,7 @@ def main():
     here = live_rules()
     for r in rules:
         r["live"] = r["rule"] in here
-        r["in"] = here.get(r["rule"], "")
+        r["in"], r["why"] = here.get(r["rule"], ("", ""))
     n_live = sum(1 for r in rules if r["live"])
 
     # push-gate: the engine ran the suite itself and refused the push until green.
@@ -268,11 +286,21 @@ def main():
         ("field.rules_live", n_live, "of those, in a guard file on this machine right now"),
         ("field.pushes_refused", len(pg_fail), "pushes refused on a red tree until the suite was green"),
         ("field.days", len(files), "days the ledger has been running"),
+        # the ledger is nine days old and that is NOT how long these verdicts
+        # took. WOULD_BLOCK appears on three of those nine days, and pairing a
+        # total with the age of the file invites a rate that never existed.
+        ("field.days_watch", len(wb_days), "days that carry a recorded watch-mode verdict"),
+        ("field.days_enforce", len(stop_days), "days that carry an outright refusal"),
     ):
         d[key] = {"value": val, "cmd": "python3 site/field_stats.py", "what": what, "note": note}
     d["field.rules_list"] = {"value": rules, "cmd": "python3 site/field_stats.py",
                              "what": "the rules, with the repository each incident happened in",
                              "note": note}
+    d["field.stop_by_day"] = {"value": stop_days, "cmd": "python3 site/field_stats.py",
+                              "what": "refusals per day, so a total cannot be read as a rate",
+                              "note": note}
+    d["field.would_block_by_day"] = {"value": wb_days, "cmd": "python3 site/field_stats.py",
+                                     "what": "recorded verdicts per day, watch mode", "note": note}
     d["field.would_block_by_rule"] = {"value": by_rule.most_common(12),
                                       "cmd": "python3 site/field_stats.py",
                                       "what": "which rule, how many times", "note": note}

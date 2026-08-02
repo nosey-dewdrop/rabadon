@@ -152,6 +152,21 @@ checks = [
     ('commits in this repository',
      first_stat('site/index.html', 'commits in this repository'),
      proof_stat('site/patch-notes.html', 'commits')),
+    # the field numbers landed on the overview and on their own page in the same
+    # commit, which is exactly how the previous pair started disagreeing: two
+    # surfaces, one source, and nothing asserting they stay equal.
+    ('would have refused',
+     first_stat('site/index.html', 'commands it would have refused'),
+     proof_stat('site/field.html', 'commands it would have refused')),
+    ('refused outright once armed',
+     first_stat('site/index.html', 'refused outright'),
+     proof_stat('site/field.html', 'refused outright')),
+    ('laws still in a guard file',
+     first_stat('site/index.html', 'laws it wrote for itself'),
+     proof_stat('site/field.html', 'in a guard file on this machine')),
+    ('pushes refused on a red tree',
+     first_stat('site/index.html', 'pushes it refused on a red tree'),
+     proof_stat('site/field.html', 'pushes refused on a red tree')),
 ]
 bad = 0
 for name, a, b in checks:

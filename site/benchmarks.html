@@ -34,27 +34,27 @@
 <div class="wrap">
 <header class="site">
   <span class="mark"><i>[</i>&#124;<i>]</i> rabadon</span>
-  <nav><a href="/">overview</a><a href="/catches">catches</a><a href="/benchmarks" class="here">benchmarks</a><a href="/patch-notes">patch notes</a><a href="/pull-requests">pull requests</a><a href="https://github.com/nosey-dewdrop/rabadon">github</a></nav>
+  <nav><a href="/">overview</a><a href="/field">the field</a><a href="/catches">catches</a><a href="/benchmarks" class="here">benchmarks</a><a href="/patch-notes">patch notes</a><a href="/pull-requests">pull requests</a><a href="https://github.com/nosey-dewdrop/rabadon">github</a></nav>
 </header>
 <div class="intro">
 <h1>measured, with the command that measured it.</h1>
 <p class="lede small dim">A number with no run behind it is a slogan. Every row here was produced on one machine by the command named beside it, and the ones that could not be measured cleanly say so rather than being rounded into shape.</p>
 <div class="proof">
 <div><span class="n g">100.0%</span><span class="t">gate precision, recall 100.0%</span></div>
-<div><span class="n b">130.0&micro;s</span><span class="t">to judge one command</span></div>
+<div><span class="n b">262.4&micro;s</span><span class="t">to judge one command</span></div>
 <div><span class="n y">12</span><span class="t">real suites it was run against</span></div>
 <div><span class="n p">31,316</span><span class="t">tests in those suites</span></div>
 </div></div>
 <section><h2>the gate</h2>
 <div class="bench"><div class="head"><span>what</span><span style="text-align:right">now</span><span>before, and what moved it</span><span>where it is measured</span></div>
-<div class="row"><span class="s">to judge one command</span><span class="n">130.0&micro;s</span><span class="d">there was no number before this one. the page said 42.0&micro;s and named a file that did not exist, so the first honest measurement is this one</span><span class="w">native/gate_bench.sh</span></div>
+<div class="row"><span class="s">to judge one command</span><span class="n">262.4&micro;s</span><span class="d">there was no number before this one. the page said 42.0&micro;s and named a file that did not exist, so the first honest measurement is this one</span><span class="w">native/gate_bench.sh</span></div>
 <div class="row"><span class="s">the whole hook, native, median</span><span class="n">2.69ms</span><span class="d">the whole hook, not just the verdict: fork, read the event, load state, judge, write the ledger line, exit</span><span class="w">native/bench.py</span></div>
 <div class="row"><span class="s">the same hook on the node gate it replaced</span><span class="n">100ms</span><span class="d">the gate this replaced, on the same 40 events, with verdict parity asserted first</span><span class="w">native/bench.py</span></div>
 <div class="row"><span class="s">gate precision</span><span class="n">100.0%</span><span class="d">55.0% before one resolver answered the path question for both layers</span><span class="w">native/precision_test.sh</span></div>
 <div class="row"><span class="s">gate recall</span><span class="n">100.0%</span><span class="d">unchanged, and the floor the precision work was not allowed to move</span><span class="w">native/precision_test.sh</span></div>
 <div class="row"><span class="s">precision on this machine&#x27;s own ledger</span><span class="n">26.3%</span><span class="d">the same binary, the same question, asked of everything that really happened instead of 34 chosen cases. the fixture number is not wrong, it is narrow</span><span class="w">redteam/ledger_replay.py</span></div>
 <div class="row"><span class="s">the same, with rabadon&#x27;s own test labs excluded</span><span class="n">93.8%</span><span class="d">41 of the 42 refusals it cut were rabadon's own red-team labs, and a tool that pads its own numbers with its own drills has no business judging anyone else</span><span class="w">redteam/ledger_replay.py</span></div>
-<div class="row"><span class="s">named escapes still open</span><span class="n">58 of 95</span><span class="d">319 attempts over four rounds named 95 ways past this gate; this is how many of them the current binary still lets through</span><span class="w">redteam/redteam.py</span></div>
+<div class="row"><span class="s">named escapes that still walk</span><span class="n">32</span><span class="d">319 attempts over four rounds named 95 ways past this gate; this is how many of them the current binary still lets through</span><span class="w">python3 redteam/redteam.py</span></div>
 <div class="row"><span class="s">cases in the fixture</span><span class="n">34</span><span class="d">every one lifted out of a real session, none written for the test</span><span class="w">native/precision_fixture.jsonl</span></div>
 <div class="row"><span class="s">ways of buying a green, refused</span><span class="n">8 of 8</span><span class="d">3 of 6 before the harness itself was locked</span><span class="w">native/harness_lock_test.sh</span></div>
 </div>
