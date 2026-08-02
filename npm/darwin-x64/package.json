@@ -1,10 +1,35 @@
 {
   "name": "@rabadon/darwin-x64",
   "version": "0.2.0",
-  "description": "rabadon prebuilt native core for darwin-x64 — installed automatically by the 'rabadon' package on this platform.",
+  "description": "rabadon prebuilt native core for darwin-x64 \u2014 installed automatically by the 'rabadon' package on this platform.",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/nosey-dewdrop/rabadon.git" },
-  "os": ["darwin"],
-  "cpu": ["x64"],
-  "files": ["rabadon-gate", "rabadon-stats", "rabadon-drift", "rabadon-trace", "rabadon-verify", "rabadon-loop", "rabadon-do", "rabadon-budget", "rabadon-lens", "rabadon-net", "rabadon-truth", "rabadon-serve", "rabadon-audit", "rabadon-repair", "rabadon-sandbox", "rabadon-export"]
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nosey-dewdrop/rabadon.git"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "rabadon-gate",
+    "rabadon-stats",
+    "rabadon-drift",
+    "rabadon-trace",
+    "rabadon-verify",
+    "rabadon-loop",
+    "rabadon-do",
+    "rabadon-budget",
+    "rabadon-lens",
+    "rabadon-net",
+    "rabadon-truth",
+    "rabadon-serve",
+    "rabadon-audit",
+    "rabadon-claims",
+    "rabadon-repair",
+    "rabadon-sandbox",
+    "rabadon-export"
+  ]
 }

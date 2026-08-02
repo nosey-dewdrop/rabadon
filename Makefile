@@ -634,6 +634,14 @@ test: all
 # measured party had chosen, a hash lock that locked 0 of 122 files. written red
 # with a fabricated report and its honest twin, identical prose, one difference.
 	./native/claims_test.sh
+# the false refusal that was found by being on the receiving end of it. `2>&1` is
+# a descriptor duplication and the delete law read it as a truncating write to a
+# file named 1, so `cd <other repo> && anything 2>&1` was refused -- four of five
+# agent sessions, on their first or second command. section 2 holds the law it
+# was mistaken for. the fixture is NOT under mktemp: /tmp, /var/tmp and
+# /var/folders are exempt by design, and the first version of this file was
+# measuring that carve-out rather than the rule.
+	./native/fd_dup_test.sh
 
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate

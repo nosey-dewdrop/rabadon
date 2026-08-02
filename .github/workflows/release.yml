@@ -61,7 +61,7 @@ jobs:
              native/rabadon-trace native/rabadon-verify native/rabadon-loop \
              native/rabadon-do native/rabadon-budget native/rabadon-lens \
              native/rabadon-net native/rabadon-truth native/rabadon-serve \
-             native/rabadon-audit native/rabadon-repair native/rabadon-sandbox \
+             native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox \
              native/rabadon-export \
              npm/${{ matrix.target }}/
       - uses: actions/upload-artifact@v4

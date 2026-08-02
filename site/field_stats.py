@@ -215,6 +215,16 @@ def main():
         r["in"], r["why"] = here.get(r["rule"], ("", ""))
     n_live = sum(1 for r in rules if r["live"])
 
+    # AND THE COUNT OF EVENTS IS NOT THE COUNT OF RULES. The ledger records one
+    # line per authoring event, and `no-gnu-timeout-on-macos` was authored twice
+    # after two separate incidents in two repositories. Publishing the event
+    # count as "rules it wrote itself" is the same defect one layer along from
+    # the one this file was just taught to catch: counting the record instead of
+    # the thing. Both are kept, and the page prints the distinct one.
+    ids = {r["rule"] for r in rules}
+    ids_live = {r["rule"] for r in rules if r["live"]}
+    n_ids, n_ids_live = len(ids), len(ids_live)
+
     # push-gate: the engine ran the suite itself and refused the push until green.
     pg_fail = [r for r in evs(field, "REPAIR_FAIL") if r.get("step") == "push-gate"]
     pg_ok = [r for r in evs(field, "REPAIR_OK") if r.get("step") == "push-gate"]
@@ -232,8 +242,8 @@ def main():
     print()
     print("STOP (enforce mode: the command did not run) %d" % len(stop))
     print()
-    print("RULES THE ENGINE WROTE ITSELF after an incident: %d written, %d still in a guard file"
-          % (len(rules), n_live))
+    print("RULES THE ENGINE WROTE ITSELF after an incident: %d authoring events, %d distinct rules, "
+          "%d of those still in a guard file" % (len(rules), n_ids, n_ids_live))
     for r in rules:
         print("    %-34s %-10s %s" % (r["rule"], r["project"],
                                       ("live in " + r["in"]) if r["live"] else "NOT IN ANY GUARD FILE"))
@@ -284,6 +294,8 @@ def main():
         ("field.stop", len(stop), "commands enforce mode refused outright"),
         ("field.rules_written", len(rules), "rules the engine wrote itself after an incident"),
         ("field.rules_live", n_live, "of those, in a guard file on this machine right now"),
+        ("field.rules_distinct", n_ids, "distinct rules behind those events; one was authored twice"),
+        ("field.rules_distinct_live", n_ids_live, "distinct rules that are in a guard file right now"),
         ("field.pushes_refused", len(pg_fail), "pushes refused on a red tree until the suite was green"),
         ("field.days", len(files), "days the ledger has been running"),
         # the ledger is nine days old and that is NOT how long these verdicts

@@ -4,52 +4,140 @@
     {
       "id": "no-force-push-main",
       "deny": "git\\s+push[^|;&]*(--force|-f)\\b[^|;&]*\\b(main|master)\\b",
-      "why": "baseline: force-pushing a shared branch destroys history"
+      "why": "baseline: force-pushing a shared branch destroys history",
+      "allow": ["git push origin feature/lens", "git push --force-with-lease origin my-branch"]
     },
     {
       "id": "no-rm-rf-outside",
       "deny": "rm\\s+-\\w*[rf]\\w*\\s+(/(?!tmp)|~/(?!\\.)|\\$HOME)",
-      "why": "baseline: recursive delete outside a project is unrecoverable"
+      "why": "baseline: recursive delete outside a project is unrecoverable",
+      "allow": ["rm -rf node_modules", "rm -rf ./native/gate_bench.dSYM"]
     },
     {
       "id": "no-hard-reset-main",
       "deny": "git\\s+reset\\s+--hard\\s+(origin/)?(main|master)\\b",
-      "why": "baseline: rewrite shared state via commits, not resets"
+      "why": "baseline: rewrite shared state via commits, not resets",
+      "allow": ["git reset --hard HEAD~1"]
     },
     {
       "id": "no-hook-bypass",
       "deny": "git\\s+(commit|push)[^|;&]*--no-verify",
-      "why": "baseline: bypassing hooks bypasses every gate at once"
+      "why": "baseline: bypassing hooks bypasses every gate at once",
+      "allow": ["git commit -m lens: byte-exact meter"]
     },
     {
       "id": "no-gnu-timeout-on-macos",
       "deny": "(^|[;&|]\\s*)timeout\\s+[0-9]",
       "why": "`timeout` is not on macOS; the shell aborts and an empty exit code masquerades as a red test suite — use the tool's timeout parameter instead.",
       "authoredBy": "incident",
-      "incidentAt": "2026-08-01T11:19:33Z"
+      "incidentAt": "2026-08-01T11:19:33Z",
+      "allow": ["make test", "npm test --silent"]
     },
     {
       "id": "no-blind-inplace-source-rewrite",
       "deny": "\\b(perl|python3?|ruby|sed)\\b[^\\n]*(-0?[a-z]*i|--in-place|\\bopen\\([^\\n]*['\\\"]w['\\\"])[^\\n]*(native/|\\.cpp|\\.h|Makefile|_test\\.sh)",
       "why": "In-place scripted rewrites of engine source and its test expectations edit both sides blind and let the two drift into contradicting each other.",
       "authoredBy": "incident",
-      "incidentAt": "2026-08-02T07:47:57Z"
+      "incidentAt": "2026-08-02T07:47:57Z",
+      "allow": ["python3 native/bench.py", "python3 site/build.py"]
+    },
+    {
+      "id": "no-silenced-ctest-stderr",
+      "deny": "\\bctest\\b[^\\n]*2>\\s*/dev/null",
+      "why": "Discarding stderr from the test runner turns a diagnosable failure into a bare test name and forces a second full run.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-02T23:06:48Z",
+      "allow": ["ctest --output-on-failure", "make test"]
+    },
+    {
+      "id": "no-shell-rewrite-of-guard-or-promise",
+      "deny": "(>\\s*|\\btee\\s+(-a\\s+)?)(\\./)?\\.rabadon/(guard|promise)\\.json\\b|\\b(sed|perl|python3?|ruby)\\b[^\\n]*(\\s-[0-9a-z]*i\\b|--in-place)[^\\n]*\\.rabadon/(guard|promise)\\.json|\\b(rm|mv)\\b[^\\n]*\\.rabadon/(guard|promise)\\.json",
+      "why": "guard-weaken and promise-tamper are sealed in the binary but they judge Edit/Write TOOL calls only (gate.cpp:1860 gates on isEditTool) — a shell redirect, an in-place editor or an rm reaches the same two files without ever passing that law.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": ["cat .rabadon/guard.json", "rabadon lint .", "git diff .rabadon/guard.json"]
+    },
+    {
+      "id": "no-shell-write-to-frozen-file",
+      "deny": "(>\\s*|\\btee\\s+(-a\\s+)?)(\\./)?(index\\.html|bin/rabadon\\.mjs)\\b|\\b(sed|perl|python3?|ruby)\\b[^\\n]*(\\s-[0-9a-z]*i\\b|--in-place)[^\\n]*(index\\.html|bin/rabadon\\.mjs)",
+      "why": "CLAUDE.md freezes the landing (index.html is damla-approved) and HANDOFF §9 makes bin/rabadon.mjs an anti-path. protectedPaths only sees Edit/Write; a redirect or a sed -i rewrites the same two files straight from the shell.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": ["python3 site/build.py", "grep -n rabadon index.html", "cp index.html /tmp/index-backup.html"]
+    },
+    {
+      "id": "no-delete-native-binaries",
+      "deny": "\\brm\\b[^\\n]*native/(rabadon-(gate|drift|verify|loop|do|stats|net|truth|serve|budget|lens|trace|audit|repair|sandbox|export)|gate_bench)\\b",
+      "why": ".claude/settings.json points every hook at native/rabadon-gate, so deleting the built binaries disarms this repo's own supervision while the session keeps running. Rebuild with `make all`. (`make clean` runs the same rm inside make, where this rule cannot see it.)",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": ["make all", "rm -f /tmp/rabadon-unknown-verb.AbC123"]
+    },
+    {
+      "id": "no-publish-without-dry-run",
+      "deny": "npm\\s+publish(?![^\\n]*--dry-run)",
+      "why": "package.json is a publishable package (rabadon@0.2.0 plus four optional platform packages) and CLAUDE.md leaves Faz 5 — npm org, NPM_TOKEN, release — to Damla. A session may rehearse the publish, never perform it.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": ["npm publish --dry-run", "npm pack"]
+    },
+    {
+      "id": "no-release-tag-push",
+      "deny": "git\\s+push[^|;&]*(--tags|--follow-tags|refs/tags/|\\s+v[0-9]+\\.[0-9]+\\.[0-9]+)",
+      "why": ".github/workflows/release.yml fires on a version tag, so pushing a tag IS the publish; CLAUDE.md leaves `tag v0.2.0 push` to Damla.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": ["git push origin main", "git push origin feature/lens"]
     }
   ],
   "protectedPaths": [
     {
       "id": "anti-path-frozen",
       "match": "^(bin/rabadon\\.mjs|index\\.html)$",
-      "why": "HANDOFF §9: bin/rabadon.mjs is anti-path and index.html is damla-approved — never edited, only called"
+      "why": "HANDOFF §9: bin/rabadon.mjs is anti-path and index.html is damla-approved — never edited, only called",
+      "allow": ["native/gate.cpp", "site/index.html"]
     },
     {
       "id": "release-workflow-needs-test-gate",
       "match": "^\\.github/workflows/release\\.(yml|yaml)$",
       "why": "Any edit to the publish pipeline must be re-checked for a test job and a post-publish smoke install before it can ship an unverified artifact.",
       "authoredBy": "incident",
-      "incidentAt": "2026-07-31T15:15:30Z"
+      "incidentAt": "2026-07-31T15:15:30Z",
+      "allow": [".github/workflows/ci.yml"]
+    },
+    {
+      "id": "anti-path-frozen-abs",
+      "match": "^(bin/rabadon\\.mjs|index\\.html)$|/rabadon/(bin/rabadon\\.mjs|index\\.html)$",
+      "why": "the twin of anti-path-frozen that can actually fire: gate.cpp:1811 matches protectedPaths against the RAW file_path and Claude Code always sends an absolute path, so the ^-anchored form above matches nothing. Measured 2026-08-03: absolute path exit 0, relative path exit 2.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": ["site/index.html", "/Users/damummyphus/damla_projects_2026/rabadon/site/index.html", "native/gate.cpp"]
+    },
+    {
+      "id": "release-workflow-abs",
+      "match": "(^|/)\\.github/workflows/release\\.(yml|yaml)$",
+      "why": "the same defect as anti-path-frozen-abs: the ^-anchored release rule never sees an absolute file_path. This one does.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-03T02:10:00Z",
+      "allow": [".github/workflows/ci.yml", "/Users/damummyphus/damla_projects_2026/rabadon/.github/workflows/ci.yml"]
     }
   ],
+  "codePaths": [
+    "native/.*\\.(cpp|h)$",
+    "core/.*\\.mjs$",
+    "hooks/.*\\.mjs$",
+    "index\\.mjs$",
+    "native/rabadon-cli\\.sh$"
+  ],
+  "testPaths": [
+    "native/[A-Za-z0-9_]+_test\\.sh$",
+    "native/repair_proof(_llm)?\\.sh$",
+    "\\.test\\.mjs$",
+    "native/precision_fixture\\.jsonl$",
+    "native/corpus_cheats\\.sh$"
+  ],
+  "testCommand": "(^|[;&|]\\s*)(make\\s+(-\\S+\\s+)*test\\b|npm\\s+(run\\s+)?test\\b|\\./native/[A-Za-z0-9_]+_test\\.sh\\b|\\./native/repair_proof(_llm)?\\.sh\\b)",
+  "testPassPattern": "^(?![\\s\\S]*(?:make(?:\\[[0-9]+\\])?:[ \\t]*\\*\\*\\*|\\n[ \\t]*(?:ℹ|#)[ \\t]*fail[ \\t]+[1-9]|\\n[ \\t]*[0-9]+ passed, [1-9][0-9]* failed))[\\s\\S]*(?:\\n[ \\t]*(?:ℹ|#)[ \\t]*fail[ \\t]+0\\b|\\n[ \\t]*[0-9]+ passed, 0 failed|\\nPASS\\n)",
   "disabled": [],
-  "generatedBy": "the two ids removed from disabled[] on 2026-08-02 were promise-anti-path and promise-tamper, put there by a supervised session citing an unrelated permission; both are sealed in the binary now and this list can no longer reach them"
+  "generatedBy": "the two ids removed from disabled[] on 2026-08-02 were promise-anti-path and promise-tamper, put there by a supervised session citing an unrelated permission; both are sealed in the binary now and this list can no longer reach them · 2026-08-03: testCommand + testPassPattern added (ci.yml runs BOTH `make test` and `npm test`; both patterns verified against the real green output of each), an allow twin written for every pre-existing rule, five bash rules added and two absolute-path twins added for the two protectedPaths rules that could never fire. Nothing removed, disabled[] still empty."
 }

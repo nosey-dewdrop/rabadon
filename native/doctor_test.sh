@@ -103,14 +103,19 @@ done
   || fail "half tree reported $HALF_P problems, full tree $FULL_P — the binaries add nothing"
 
 # ---- 3. one binary short: the realistic npm case (make stopped on export) ----
+# COUNTS ARE DERIVED, NEVER TYPED. Every label here used to read "15 of 16"
+# while the rest of the file computed from $NALL, so the seventeenth binary
+# turned a correct message ("16 of 17 binaries built") into a red suite. A test
+# that hardcodes the size of the thing it is measuring fails the next time the
+# thing is right.
 ONE="$TMP/one"; ONELIST=""
 for b in $ALL; do [ "$b" = "export" ] || ONELIST="$ONELIST $b"; done
 mk "$ONE" $ONELIST
 OUT=$(doc "$ONE"); ONE_RC=$?
-[ "$ONE_RC" -ne 0 ] && pass "15 of 16 built: doctor exits non-zero ($ONE_RC)" \
-  || fail "15 of 16 built: doctor exited 0 — \`rabadon export --otlp\` is dead and the install looks fine"
-has "$OUT" "rabadon-export" && pass "15 of 16 built: the one absent binary is named" \
-  || { fail "15 of 16 built: rabadon-export not named"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$ONE_RC" -ne 0 ] && pass "$((NALL-1)) of $NALL built: doctor exits non-zero ($ONE_RC)" \
+  || fail "$((NALL-1)) of $NALL built: doctor exited 0 — \`rabadon export --otlp\` is dead and the install looks fine"
+has "$OUT" "rabadon-export" && pass "$((NALL-1)) of $NALL built: the one absent binary is named" \
+  || { fail "$((NALL-1)) of $NALL built: rabadon-export not named"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
 
 # ---- 4. the seventeenth binary, direction A: added to `all:` ----
 # nobody who adds a binary has any reason to open hooks/manage.mjs. doctor must
@@ -186,12 +191,12 @@ mkb "$BONE" $BLIST
 OUT=$(node "$BONE/scripts/build.mjs" 2>&1); B1_RC=$?
 [ "$B1_RC" -eq 0 ] && pass "postinstall still exits 0 with a binary missing (npm must not brick)" \
   || fail "postinstall exited $B1_RC — installing must fail open"
-has "$OUT" "15 of 16 binaries built" && pass "postinstall names the count it actually got (15 of 16)" \
+has "$OUT" "$((NALL-1)) of $NALL binaries built" && pass "postinstall names the count it actually got ($((NALL-1)) of $NALL)" \
   || { fail "postinstall does not say how many binaries it produced"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
 has "$OUT" "absent: rabadon-export" && pass "postinstall names the binary that is not there" \
   || fail "postinstall does not name the absent binary"
-has "$OUT" "already built" && fail "postinstall called a 15-of-16 tree already built" \
-  || pass "postinstall does not call a 15-of-16 tree already built"
+has "$OUT" "already built" && fail "postinstall called a $((NALL-1))-of-$NALL tree already built" \
+  || pass "postinstall does not call a $((NALL-1))-of-$NALL tree already built"
 
 echo "doctor: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

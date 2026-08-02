@@ -567,6 +567,35 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const stri
         const rbtext::Redir& rd = p.segs[s].redirs[r];
         if (rd.op.find('>') == string::npos || rbtext::redir_appends(rd)) continue;
         if (rd.target.empty() || rd.target.compare(0, 5, "/dev/") == 0) continue;
+        // `2>&1` is a DESCRIPTOR DUPLICATION, not a write. It opens nothing,
+        // creates nothing, truncates nothing, and there is no file named `1`
+        // anywhere in it. The operator carries a `>`, so this law read it as a
+        // truncating write to <cwd>/1, and whenever the segment's cwd sat
+        // outside the tree the session started in, it refused the command.
+        //
+        // Measured the night it was found: four of five agent sessions were
+        // refused on their first or second command, every one on the shape
+        //
+        //     cd <another repo> && <anything> 2>&1
+        //
+        // which is on nearly every line an agent writes. A false refusal is the
+        // expensive kind of wrong here. A missed catch costs one incident; a
+        // refusal the operator knows is wrong costs their belief in every other
+        // refusal, and the tool gets switched off after that. It was switched
+        // off that night, at 02:25, by a session that is not in this file.
+        //
+        // The test is the operator ENDING in `&`, which is the only thing that
+        // makes a duplication: `>&`, `1>&`, `2>&`. `&> file` ends in `>` and IS
+        // a write to `file`, so it is untouched. A duplication's target is a
+        // descriptor number, or `-` to close it, and never a path.
+        if (!rd.op.empty() && rd.op.back() == '&') {
+          bool fd = rd.target == "-";
+          if (!fd) {
+            fd = true;
+            for (char c : rd.target) if (c < '0' || c > '9') { fd = false; break; }
+          }
+          if (fd) continue;
+        }
         const Land L = land_of(rd.target, cwds[s], root);
         if (L.where != rbpath::ESCAPES) continue;
         hit = {"baseline-truncating-redirect",

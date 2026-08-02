@@ -981,17 +981,24 @@ def field_page(meas):
                    "repository the incident happened in. The sentence on the right is the rule&#39;s own, "
                    "read out of the guard file it lives in rather than retyped here.</p>")
         out.append('<div class="stats">')
-        out.append(stat("p", written, "rules it wrote itself after an incident", src))
-        out.append(stat("g", live, "of those, in a guard file on this machine right now", src))
+        out.append(stat("p", fval(meas, "field.rules_distinct"),
+                        "distinct laws it wrote for itself after an incident", src))
+        out.append(stat("g", fval(meas, "field.rules_distinct_live"),
+                        "of those, in a guard file on this machine right now", src))
+        out.append(stat("y", written, "authoring events on the ledger; one law was written twice, after two "
+                                      "separate incidents in two repositories", src))
         out.append("</div>")
         out.append(table([("rule", "s"), ("written in", "s"), ("still there", "s"),
                           ("the sentence the rule carries", "d")], rows, "ledger"))
-        if written != live:
-            out.append('<p class="cap">Those two numbers are not the same and the gap is printed rather '
-                       "than closed. The ledger records the authoring event, not whether the write landed, "
-                       f"and {written - live} of them is on the ledger and in no guard file anywhere, which "
-                       "means it cannot fire in any repository ever. It was one line away from being "
-                       "published here inside a single total. The count that catches it runs in "
+        nd, ndl = fval(meas, "field.rules_distinct"), fval(meas, "field.rules_distinct_live")
+        if nd != ndl or written != nd:
+            out.append('<p class="cap">Three numbers where a page would normally print one, because the '
+                       "ledger records an authoring EVENT and neither of the other two facts follows from "
+                       f"it. {written} events, {nd} distinct laws, because one law was written twice after "
+                       f"two separate incidents in two repositories. And {nd - ndl} of those laws is on the "
+                       "ledger and in no guard file anywhere, which means it cannot fire in any repository "
+                       "ever. Counting events and calling them rules was the first version of this section "
+                       "and it would have published a law that does not exist. The check runs in "
                        "<code>make test</code>.</p>")
         out.append(cmdline("python3 site/field_stats.py"))
         out.append("</section>")
@@ -1280,10 +1287,11 @@ def index(rows, meas):
                  f'{fval(meas, "field.would_block_own"):,} of them in this engineer&#39;s own repositories '
                  f'rather than in a fixture, recorded across {fval(meas, "field.days_watch")} days. '
                  '<a href="/field">every one, rule by rule, with the day it happened</a>', "/field"),
-            stat("g", fval(meas, "field.rules_live"),
+            stat("g", fval(meas, "field.rules_distinct_live"),
                  'laws it wrote for itself after an incident and that are in a guard file right now, of '
-                 f'{fval(meas, "field.rules_written")} it recorded writing. The gap is printed rather than '
-                 'closed', "/field"),
+                 f'{fval(meas, "field.rules_distinct")} distinct laws it recorded writing across '
+                 f'{fval(meas, "field.rules_written")} incidents. The gap is printed rather than closed',
+                 "/field"),
             stat("y", fval(meas, "field.pushes_refused"),
                  "pushes it refused on a red tree, each held until the project&#39;s own suite went green",
                  "/field"),

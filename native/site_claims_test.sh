@@ -138,6 +138,14 @@ def first_stat(path, needle):
             return m.group(1).replace(',', '')
     return None
 
+def measured_val(key):
+    """the number in measured.json, so a stat on a page can be checked against
+    the file that produced it and not only against another page."""
+    import json
+    d = json.load(open('site/measured.json', encoding='utf-8'))
+    v = (d.get(key) or {}).get('value')
+    return None if v is None else str(v)
+
 def proof_stat(path, needle):
     s = open(path, encoding='utf-8').read()
     for m in re.finditer(r'class="n[^"]*"[^>]*>([0-9,]+)</(?:span|a)><span class="t">([^<]*)', s):
@@ -164,6 +172,12 @@ checks = [
     ('laws still in a guard file',
      first_stat('site/index.html', 'laws it wrote for itself'),
      proof_stat('site/field.html', 'in a guard file on this machine')),
+    # not two pages this time, a page and the file the page reads. counting
+    # authoring EVENTS and printing them as rules published a law that does not
+    # exist, so the distinct count is checked against its own source.
+    ('distinct laws written',
+     first_stat('site/field.html', 'distinct laws it wrote for itself'),
+     measured_val('field.rules_distinct')),
     ('pushes refused on a red tree',
      first_stat('site/index.html', 'pushes it refused on a red tree'),
      proof_stat('site/field.html', 'pushes refused on a red tree')),

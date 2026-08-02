@@ -48,3 +48,17 @@ npm/*/rabadon-*
 
 # the micro benchmark is a built binary like the rest; the source is the artifact
 native/gate_bench
+
+.rabadon/state.json
+.rabadon/handoff.md
+
+# `rabadon init` writes .claude/settings.json into the project it is setting up,
+# and the hook commands in it are ABSOLUTE paths on this machine — seven of
+# them, account name included. It arrived untracked and unignored, so one
+# `git add -A` by any session in this repository would have published the
+# operator's home path in the tool that exists to stop exactly that.
+.claude/
+
+# python bytecode from site/build.py and its imports
+__pycache__/
+*.pyc
