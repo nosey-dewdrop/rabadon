@@ -1,3 +1,5 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785714427551, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785714276190, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785713965304, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "WOULD_BLOCK", "rule": "baseline-clean-ignored", "project": "rails", "ts": 1785713596001, "detail": "git clean with -x takes ignored files too (.env, local config, build output) — run it with -n first to see the list, or drop the -x"}
 {"ev": "WOULD_BLOCK", "rule": "no-hard-reset-main", "project": "home", "ts": 1785713510709, "detail": "command matched deny rule: git --git-dir=~/damla_projects_2026/katki/rails/.git --work-tree=~/damla_projects_2026/katki/rails reset --hard origin/main"}
