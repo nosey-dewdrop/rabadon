@@ -392,6 +392,21 @@ test: all
 # measured against real git — it creates refs/heads/HEAD on the remote, so a fix
 # that read the word HEAD anywhere in a refspec would refuse a harmless push.
 	./native/head_ref_test.sh
+# every suite above asks about ONE verb, spelled many ways: push. git ships other
+# verbs that lose work outright and the law named none of them, so the red-team
+# corpus collected them and they stayed open. `reset --hard @{u}` and
+# `refs/remotes/origin/main` are the shared branch under two names the law never
+# resolved; `branch -D` overrides git's own merged check and discards commits no
+# remote holds; `clean -x` takes the ignored files git was never watching;
+# `reflog expire --expire=now` and `gc --prune=now` remove the way back that
+# every other refusal here assumes is still there; and `rm -rf .git` is inside
+# the tree, so the delete law's carve-out for "git can undo this" hands over the
+# thing doing the undoing. Section 0 measures its own premises against a real git
+# and corrected two corpus assumptions: git REFUSES `push --forc` as ambiguous
+# (--force has two siblings, so it cannot be abbreviated at all), and deleting
+# main locally is the RECOVERABLE case -- the loss is a tip no remote has,
+# whatever the branch is called, which is what the law judges.
+	./native/git_verbs_test.sh
 # the suite above asks what a word MEANS. this one asks how much of a name has
 # to be written down before the law recognizes it: `heads/main` IS
 # refs/heads/main, because git resolves a partially qualified ref through the

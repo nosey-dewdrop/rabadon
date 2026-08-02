@@ -324,6 +324,58 @@ inline void refs_under(const string& dir, const string& prefix, vector<string>& 
   closedir(d);
 }
 
+// The sha a ref points at, loose file first and packed-refs after, because a
+// repository uses both at once after a gc and a branch that has been packed is
+// not a branch that stopped existing.
+inline string ref_sha(const string& gitDir, const string& ref) {
+  if (gitDir.empty()) return "";
+  {
+    std::ifstream f(gitDir + "/" + ref);
+    string line;
+    if (f && std::getline(f, line)) {
+      while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' ')) line.pop_back();
+      if (line.compare(0, 5, "ref: ") == 0) return ref_sha(gitDir, line.substr(5));
+      if (line.size() >= 7) return line;
+    }
+  }
+  std::ifstream pf(gitDir + "/packed-refs");
+  string line;
+  while (pf && std::getline(pf, line)) {
+    if (line.empty() || line[0] == '#' || line[0] == '^') continue;
+    const size_t sp = line.find(' ');
+    if (sp == string::npos) continue;
+    string name = line.substr(sp + 1);
+    while (!name.empty() && (name.back() == '\n' || name.back() == '\r')) name.pop_back();
+    if (name == ref) return line.substr(0, sp);
+  }
+  return "";
+}
+
+// Is this commit held anywhere a remote can hand it back? `git branch -D` is
+// the override of git's own merged check, and what it discards is commits
+// nothing else has. Comparing tips is deliberately cheap: this runs inside a
+// hook with a 2.3ms budget and a commit-graph walk does not belong there. It
+// errs toward refusing, and the refusal names `git branch -d` as the way out,
+// which is git's own safe spelling and succeeds exactly when the work is safe.
+inline bool sha_on_a_remote(const string& gitDir, const string& sha) {
+  if (gitDir.empty() || sha.empty()) return false;
+  vector<string> remotes;
+  refs_under(gitDir + "/refs/remotes", "", remotes, 0);
+  for (size_t i = 0; i < remotes.size(); i++)
+    if (ref_sha(gitDir, "refs/remotes/" + remotes[i]) == sha) return true;
+  std::ifstream pf(gitDir + "/packed-refs");
+  string line;
+  while (pf && std::getline(pf, line)) {
+    if (line.empty() || line[0] == '#' || line[0] == '^') continue;
+    const size_t sp = line.find(' ');
+    if (sp == string::npos) continue;
+    string name = line.substr(sp + 1);
+    while (!name.empty() && (name.back() == '\n' || name.back() == '\r')) name.pop_back();
+    if (name.compare(0, 13, "refs/remotes/") == 0 && line.compare(0, sp, sha) == 0) return true;
+  }
+  return false;
+}
+
 inline void refspace_branches(const string& gitDir, bool mirror, vector<string>& out) {
   if (gitDir.empty()) return;          // the same repo the branch fallback reads
   refs_under(gitDir + "/refs/heads", "", out, 0);
@@ -420,6 +472,15 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     if (!git_subcommand(t, ci, sub)) return false;
     const string subcmd = t[sub].text;
 
+    // `-C <dir>` and `--git-dir` move which repository the verb acts on, and
+    // every law below has to ask the same repository the shell will. Read once
+    // per segment rather than once per law: the answer cannot differ between
+    // them, and a second walk is a second answer to the same question.
+    vector<string> chdirs;
+    string gitDirOpt;
+    const bool repoElsewhere = rbtext::git_repo_knobs(t, ci, sub, chdirs, gitDirOpt);
+    (void)repoElsewhere;
+
     if (subcmd == "push") {
       // TWO LAWS, TWO SWITCHES. A repo that silenced the force-push law because
       // one person rewrites their own trunk did not thereby agree to that trunk
@@ -444,9 +505,7 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
       // the line STARTED in, because the root was resolved once per command
       // line while the cwd is tracked per segment. This resolves from the
       // segment's own cwd.
-      vector<string> chdirs;
-      string gitDirOpt;
-      const bool elsewhere = rbtext::git_repo_knobs(t, ci, sub, chdirs, gitDirOpt);
+      const bool elsewhere = repoElsewhere;
       const string gdir = rbpath::git_dir_for(cwd, chdirs, gitDirOpt);
       // named in the refusal only when the LINE pointed git somewhere else: an
       // operator who is told 'main' about a repo she is not in has to be told
@@ -730,15 +789,142 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
       bool hard = false;
       for (size_t i = sub + 1; i < t.size(); i++) if (t[i].text == "--hard") hard = true;
       if (!hard) return false;
+      const string gdir = rbpath::git_dir_for(cwd, chdirs, gitDirOpt);
       for (size_t i = sub + 1; i < t.size(); i++) {
-        const string& s = t[i].text;
+        string s = t[i].text;
         if (!s.empty() && s[0] == '-') continue;
+        // The law used to compare the WORD against main/master/trunk/develop, so
+        // every other way of naming the same commit walked past it. git resolves
+        // three of them and they were all still open in the red-team corpus:
+        //   @{u} and @{upstream}      the upstream of the current branch, read
+        //                             out of branch.<cur>.merge
+        //   refs/remotes/origin/main  the same ref, fully spelled
+        //   origin/main               the one spelling the law already knew
+        // Measured: `git rev-parse --symbolic-full-name @{upstream}` on a branch
+        // tracking origin/main answers refs/remotes/origin/main. So the ref is
+        // RESOLVED and then judged, which is what keeps a fourth spelling from
+        // being a fourth hole.
+        string shown = s;
+        if (s == "@{u}" || s == "@{upstream}" || s == "@{U}") {
+          const string cur = current_branch(gdir);
+          rbgitcfg::Value v;
+          if (!cur.empty() &&
+              rbgitcfg::last_value(t, ci, sub, gdir, "branch." + cur + ".merge", v) &&
+              !v.text.empty()) {
+            s = v.text;
+            if (s.compare(0, 11, "refs/heads/") == 0) s = s.substr(11);
+          }
+        }
+        if (s.compare(0, 13, "refs/remotes/") == 0) {
+          const string rest = s.substr(13);
+          const size_t sl = rest.find('/');
+          if (sl != string::npos) s = rest.substr(sl + 1);
+        }
         if (!shared_branch(s)) continue;
         hit = {"baseline-hard-reset",
                "a hard reset onto a shared branch discards local work with no way back",
-               "git reset --hard onto '" + s + "' — commit or stash first, or reset to a local ref"};
+               "git reset --hard onto '" + shown + "'" +
+               (shown == s ? "" : " (which resolves to '" + s + "')") +
+               " — commit or stash first, or reset to a local ref"};
         return true;
       }
+      return false;
+    }
+
+    // ---- the verbs that lose work without ever saying push ------------------
+    // Every spelling the push law learned was a spelling of ONE verb. git ships
+    // others that discard just as permanently, and the corpus collected them
+    // because the law names none of them: a branch delete that overrides git's
+    // own merged check, a clean that takes files git never tracked, and the two
+    // commands that remove the way back.
+
+    if (subcmd == "branch" && !disabled_has(disabled, "baseline-branch-discard")) {
+      // `-d` is safe: git itself refuses it on an unmerged branch. `-D` and
+      // `--delete --force` are the override of that check, and what they discard
+      // is commits nothing else holds. So the law is not "protect main" — on a
+      // repo with a remote, deleting main locally is recoverable by checkout,
+      // measured in git_verbs_test.sh section 0. What is unrecoverable is a tip
+      // no remote has, whatever the branch is called.
+      bool force = false, del = false;
+      string target;
+      for (size_t i = sub + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (w == "-D") { del = true; force = true; continue; }
+        if (w == "--delete" || w == "-d") { del = true; continue; }
+        if (w == "--force" || w == "-f") { force = true; continue; }
+        if (!w.empty() && w[0] == '-') continue;
+        if (target.empty()) target = w;
+      }
+      if (del && force && !target.empty()) {
+        const string gdir = rbpath::git_dir_for(cwd, chdirs, gitDirOpt);
+        const string sha = ref_sha(gdir, "refs/heads/" + target);
+        // no such branch: git will refuse it itself and there is nothing to lose
+        if (!sha.empty() && !sha_on_a_remote(gdir, sha)) {
+          hit = {"baseline-branch-discard",
+                 "force-deleting a branch no remote holds discards those commits with no way back",
+                 "git branch -D '" + target + "' — its tip " + sha.substr(0, 8) +
+                 " is on no remote. push it, or use `git branch -d " + target +
+                 "` which git allows once the work is merged"};
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (subcmd == "clean" && !disabled_has(disabled, "baseline-clean-ignored")) {
+      // -x is the flag that takes IGNORED files too, which is where the loss
+      // lives: .env, local config, a build nobody can reproduce. Measured in
+      // section 0 — `clean -xfd -n` lists .gitignore and an ignored file. A
+      // dry run is a question and always allowed; `clean -fd` without -x only
+      // takes untracked-and-not-ignored files and stays allowed.
+      bool x = false, force = false, dry = false;
+      for (size_t i = sub + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (w == "--dry-run") { dry = true; continue; }
+        if (w == "-x" || w == "--force-x") { x = true; continue; }
+        if (w == "--force") { force = true; continue; }
+        if (w.size() > 1 && w[0] == '-' && w[1] != '-') {
+          for (size_t k = 1; k < w.size(); k++) {
+            if (w[k] == 'x' || w[k] == 'X') x = true;
+            else if (w[k] == 'f') force = true;
+            else if (w[k] == 'n') dry = true;
+          }
+        }
+      }
+      if (x && force && !dry) {
+        hit = {"baseline-clean-ignored",
+               "git clean -x removes ignored files, which is everything git was never watching",
+               "git clean with -x takes ignored files too (.env, local config, build output) — "
+               "run it with -n first to see the list, or drop the -x"};
+        return true;
+      }
+      return false;
+    }
+
+    if ((subcmd == "reflog" || subcmd == "gc") &&
+        !disabled_has(disabled, "baseline-reflog-drop")) {
+      // The two laws above lean on one assumption: a bad reset or a bad delete
+      // can be undone because the reflog still holds the old tip. These two
+      // commands remove that, and after them the other refusals are advice about
+      // something already gone.
+      bool now = false;
+      for (size_t i = sub + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        const size_t eq = w.find('=');
+        if (eq == string::npos) continue;
+        const string k = w.substr(0, eq), v = w.substr(eq + 1);
+        if ((k == "--expire" || k == "--expire-unreachable" || k == "--prune") &&
+            (v == "now" || v == "all" || v == "0"))
+          now = true;
+      }
+      if (now) {
+        hit = {"baseline-reflog-drop",
+               "expiring the reflog now removes the only record of where a branch used to point",
+               "git " + subcmd + " with an immediate expiry throws away the way back from a bad "
+               "reset or delete — leave a window (--expire=90.days.ago), or run it after the work is pushed"};
+        return true;
+      }
+      return false;
     }
     return false;
   }
@@ -747,6 +933,29 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     const rbpath::Delete d = rbpath::delete_of(t);
     if (!d.isDelete || !rbtext::name_is(name, "rm")) return false;
     if (!d.recursive) return false;
+
+    // The repository's own .git, which the delete law above cannot see because
+    // it is INSIDE the tree the law carves out. That carve-out exists for one
+    // reason, that git can undo a delete inside the project — and this is the
+    // delete that removes the thing doing the undoing. It takes the index, the
+    // reflog, every unpushed commit and every stash in one line, and the two git
+    // laws above are advice about a recovery path that is gone.
+    if (!disabled_has(disabled, "baseline-git-dir-delete")) {
+      for (size_t i = 0; i < d.targets.size(); i++) {
+        const string abs = rbpath::lexical_abs(d.targets[i], cwd);
+        const size_t sl = abs.rfind('/');
+        const string leaf = sl == string::npos ? abs : abs.substr(sl + 1);
+        if (leaf != ".git") continue;
+        struct stat st;
+        if (stat(abs.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+        hit = {"baseline-git-dir-delete",
+               "deleting .git removes the history, the reflog and every unpushed commit at once",
+               "rm -rf on '" + d.targets[i] + "' takes the repository itself, which is what every "
+               "other refusal here assumes is still there — delete the working tree instead if "
+               "that is what you meant"};
+        return true;
+      }
+    }
     // The project tree is the carve-out because git can undo a delete inside it.
     // With no worktree above cwd that tree falls back to cwd ITSELF, and if the
     // shell is sitting in the shared temp root the fallback hands back exactly
