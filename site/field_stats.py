@@ -113,6 +113,38 @@ def project_of(pipe):
     return "home" if p == USER else p
 
 
+def live_rules():
+    """Every rule id that is in a guard file on this machine right now, and the
+    project whose guard holds it.
+
+    The ledger records `new gate: <id>` the moment the engine authors a rule
+    after an incident, and counting those events is how many rules it WROTE. It
+    is not how many exist. `release-workflow-needs-test-gate` is on the ledger
+    and is in no guard.json anywhere — the event was recorded, the write never
+    landed, and a rule that is not in a guard file cannot fire in any repository
+    ever. Publishing it inside a total of twelve would have been a claim with
+    nothing behind it, on the page that exists to say claims need something
+    behind them.
+
+    Guards live beside the project they govern, so this walks the home tree to
+    the depth projects actually sit at rather than trusting a list."""
+    out = {}
+    pats = [os.path.join(HOME, ".rabadon", "guard.json")]
+    pats += [os.path.join(HOME, *(["*"] * d), ".rabadon", "guard.json") for d in (1, 2, 3)]
+    for pat in pats:
+        for path in sorted(glob.glob(pat)):
+            try:
+                g = json.load(open(path, encoding="utf-8"))
+            except Exception:
+                continue
+            proj = project_of(g.get("project") or os.path.basename(os.path.dirname(os.path.dirname(path))))
+            for r in g.get("bash") or []:
+                rid = r.get("id")
+                if rid:
+                    out.setdefault(rid, proj)
+    return out
+
+
 def load():
     rows, files, bad = [], sorted(glob.glob(SPOOL)), 0
     for f in files:
@@ -158,6 +190,13 @@ def main():
             })
     rules.sort(key=lambda x: x["ts"])
 
+    # written is one number, still there is another, and the page prints both.
+    here = live_rules()
+    for r in rules:
+        r["live"] = r["rule"] in here
+        r["in"] = here.get(r["rule"], "")
+    n_live = sum(1 for r in rules if r["live"])
+
     # push-gate: the engine ran the suite itself and refused the push until green.
     pg_fail = [r for r in evs(field, "REPAIR_FAIL") if r.get("step") == "push-gate"]
     pg_ok = [r for r in evs(field, "REPAIR_OK") if r.get("step") == "push-gate"]
@@ -175,9 +214,11 @@ def main():
     print()
     print("STOP (enforce mode: the command did not run) %d" % len(stop))
     print()
-    print("RULES THE ENGINE WROTE ITSELF after an incident: %d" % len(rules))
+    print("RULES THE ENGINE WROTE ITSELF after an incident: %d written, %d still in a guard file"
+          % (len(rules), n_live))
     for r in rules:
-        print("    %-34s %s" % (r["rule"], r["project"]))
+        print("    %-34s %-10s %s" % (r["rule"], r["project"],
+                                      ("live in " + r["in"]) if r["live"] else "NOT IN ANY GUARD FILE"))
     print()
     print("push-gate: %d pushes refused on a red tree, %d released once the suite was green"
           % (len(pg_fail), len(pg_ok)))
@@ -224,6 +265,7 @@ def main():
         ("field.would_block_own", len(wb_own), "of those, in the operator's own repositories"),
         ("field.stop", len(stop), "commands enforce mode refused outright"),
         ("field.rules_written", len(rules), "rules the engine wrote itself after an incident"),
+        ("field.rules_live", n_live, "of those, in a guard file on this machine right now"),
         ("field.pushes_refused", len(pg_fail), "pushes refused on a red tree until the suite was green"),
         ("field.days", len(files), "days the ledger has been running"),
     ):

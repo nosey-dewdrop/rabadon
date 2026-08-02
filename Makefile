@@ -617,6 +617,13 @@ test: all
 # defeated all three at once, a detail the gate had already clipped mid-path.
 # `/Users/damu` matched none of them and was published twice.
 	./native/field_redaction_test.sh
+# and the number that turned out to be counting the wrong thing. the ledger
+# records `new gate: <id>` when the engine authors a rule after an incident, so
+# counting those events answers "how many did it write" — not "how many exist".
+# `release-workflow-needs-test-gate` is on the ledger and in no guard.json on
+# this machine, and it was one line away from being published inside a total of
+# twelve live rules while being a rule that cannot fire anywhere.
+	./native/field_census_test.sh
 
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate

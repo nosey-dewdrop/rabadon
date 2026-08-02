@@ -1,3 +1,101 @@
+{"ev": "STOP", "rule": "no-blind-inplace-source-rewrite", "project": "rabadon", "ts": 1785712596565, "detail": "command matched deny rule: P=/tmp/rabadon-stitchu-backup/probe.sh\nrun(){ printf '%-34s | %s\\n' \"$1\" \"$($P \"$2\" 2>&1 | grep -E '^Rule:|^GATE_EXIT' | tr '\\n' ' ')\"; }\necho \"RULE ID (expecte"}
+{"ev": "STOP", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785712591333, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss commit --no-verify -m c1"}
+{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712591322, "detail": "command matched deny rule: cp /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss/empty.md /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_ps"}
+{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712591296, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss commit -m \"cekirdek 3.1x hizlandi\""}
+{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712591275, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss commit -m \"matmul 4x faster than naive\""}
+{"ev": "STOP", "rule": "push-gate", "project": "reports", "ts": 1785712586958, "detail": "rabadon ran the tests itself (./check-integrity.sh) — NOT GREEN.\nsh: ./check-integrity.sh: No such file or directory\nFix the failure; rabadon will re-run the suite on your next push attempt."}
+{"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "icerik", "ts": 1785712580861, "detail": "'> ~Shared/zzz-scratch.txt' resolves to ~Shared/zzz-scratch.txt, outside the project tree (~) — the contents are gone before anything runs"}
+{"ev": "STOP", "rule": "push-gate", "project": "reports", "ts": 1785712572868, "detail": "rabadon ran the tests itself (./check-integrity.sh) — NOT GREEN.\nsh: ./check-integrity.sh: No such file or directory\nFix the failure; rabadon will re-run the suite on your next push attempt."}
+{"ev": "STOP", "rule": "reports-no-truncate-jsonl", "project": "reports", "ts": 1785712572770, "detail": "command matched deny rule: python3 runner.py > /tmp/rb-scratch.DHTrbj/candidates.jsonl"}
+{"ev": "STOP", "rule": "reports-no-inplace-edit", "project": "reports", "ts": 1785712572568, "detail": "command matched deny rule: sed -i s/a/b/ /tmp/rb-scratch.DHTrbj/x.txt"}
+{"ev": "STOP", "rule": "reports-no-find-delete", "project": "reports", "ts": 1785712572344, "detail": "command matched deny rule: find /tmp/rb-scratch.DHTrbj -name x.tmp -delete"}
+{"ev": "STOP", "rule": "reports-no-glob-delete", "project": "reports", "ts": 1785712572208, "detail": "command matched deny rule: rm /tmp/rb-scratch.DHTrbj/*.txt"}
+{"ev": "STOP", "rule": "reports-no-evidence-tree-delete", "project": "reports", "ts": 1785712572102, "detail": "command matched deny rule: rm -rf /tmp/rb-scratch.DHTrbj/golden-kanit"}
+{"ev": "STOP", "rule": "reports-no-evidence-tree-delete", "project": "reports", "ts": 1785712572039, "detail": "command matched deny rule: rm -rf /tmp/rb-scratch.DHTrbj/2026-08-01-yabanci-toprak"}
+{"ev": "STOP", "rule": "reports-no-git-clean", "project": "reports", "ts": 1785712571959, "detail": "command matched deny rule: git clean -fd"}
+{"ev": "STOP", "rule": "reports-no-repo-wide-discard", "project": "reports", "ts": 1785712571890, "detail": "command matched deny rule: git checkout -- ."}
+{"ev": "STOP", "rule": "reports-no-repo-wide-commit", "project": "reports", "ts": 1785712571747, "detail": "command matched deny rule: git commit -am wip"}
+{"ev": "STOP", "rule": "reports-no-repo-wide-stage", "project": "reports", "ts": 1785712571667, "detail": "command matched deny rule: git add ."}
+{"ev": "STOP", "rule": "reports-no-repo-wide-stage", "project": "reports", "ts": 1785712571556, "detail": "command matched deny rule: git add -A"}
+{"ev": "STOP", "rule": "no-hook-bypass", "project": "reports", "ts": 1785712571483, "detail": "command matched deny rule: git commit --no-verify -m x"}
+{"ev": "STOP", "rule": "no-hard-reset-main", "project": "reports", "ts": 1785712571388, "detail": "command matched deny rule: git reset --hard origin/main"}
+{"ev": "STOP", "rule": "no-rm-rf-outside", "project": "reports", "ts": 1785712571191, "detail": "command matched deny rule: rm -rf /etc/rb-nonexistent"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "reports", "ts": 1785712571035, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785712552438, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv commit --no-verify -m c1"}
+{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712552419, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv/PROOF.md"}
+{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712552410, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv commit -m \"cekirdek 3.1x hizlandi\""}
+{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712552392, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv commit -m \"matmul 4x faster than naive\""}
+{"ev": "STOP", "rule": "no-rm-rf-outside", "project": "icerik", "ts": 1785712533582, "detail": "command matched deny rule: rm -rf ~Shared/no-such-dir-xyz"}
+{"ev": "STOP", "rule": "no-rm-rf-outside", "project": "icerik", "ts": 1785712533572, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026/stitchu/no-such-dir-xyz"}
+{"ev": "STOP", "rule": "p-ctestN", "project": "rb-surface-probe-RuBOng", "ts": 1785712527044, "detail": "command matched deny rule: ctest -N --test-dir engine/build | grep -c Test"}
+{"ev": "STOP", "rule": "p-tail", "project": "rb-surface-probe-RuBOng", "ts": 1785712526988, "detail": "command matched deny rule: ctest --test-dir engine/build | tail -1"}
+{"ev": "STOP", "rule": "generated-protobuf-stubs", "project": "terraform", "ts": 1785712500761, "detail": "protected file: internal/stacks/tfstackdata1/tfstackdata1.pb.go"}
+{"ev": "STOP", "rule": "go-generate-output", "project": "terraform", "ts": 1785712500633, "detail": "protected file: internal/tfdiags/severity_string.go"}
+{"ev": "STOP", "rule": "promise-off-target", "project": "rabadon", "ts": 1785712488259, "detail": "star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch->propose->re-verify repair loop, and honest docs — new ENGINE capability is C++ in native/, JS is glue (installer/dispatch) only — latest off-target file: site/field_stats.py (fires once per session; if this work is "}
+{"ev": "STOP", "rule": "no-git-add-never-push-dirs", "project": "stitchu", "ts": 1785712456710, "detail": "command matched deny rule: git add new_flats/scan.pdf"}
+{"ev": "STOP", "rule": "no-host-pytest-python-airflow", "project": "airflow", "ts": 1785712447768, "detail": "command matched deny rule: python3 -m compileall -q -f ."}
+{"ev": "STOP", "rule": "dokunulmayan-is-frozen", "project": "icerik", "ts": 1785712430295, "detail": "protected file: ~/damla_projects_2026/icerik/dewrites-dokunulmayan.txt"}
+{"ev": "STOP", "rule": "dewstock-no-delete", "project": "icerik", "ts": 1785712430291, "detail": "command matched deny rule: rm -f /tmp/rbdrill-kGI5Mp/x-content-bank.md"}
+{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712410532, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-dy0n7wp3/PROOF.md"}
+{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712410526, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-dy0n7wp3 commit -m \"matmul 4x faster than naive\""}
+{"ev": "STOP", "rule": "dewstock-no-truncating-write", "project": "icerik", "ts": 1785712346515, "detail": "command matched deny rule: grep -v TODO /tmp/rbdrill-kGI5Mp/in.md > /tmp/rbdrill-kGI5Mp/dewlog.md"}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292871, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292862, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292855, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292848, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292839, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292829, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292817, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "release-workflow-needs-test-gate", "project": "rabadon", "ts": 1785712291138, "detail": "protected file: .github/workflows/release.yml"}
+{"ev": "STOP", "rule": "promise-anti-path", "project": "rabadon", "ts": 1785712256962, "detail": "index.html matches anti-path '^index\\.html$'"}
+{"ev": "STOP", "rule": "kanit-bundle-is-captured-output", "project": "icerik", "ts": 1785712245071, "detail": "protected file: ~/damla_projects_2026/icerik/rabadon-show-hn-kanit/ledger-2026-08-01.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244272, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244265, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244257, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244252, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244235, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244225, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712244214, "detail": "looping on: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244202, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244196, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244190, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174047, "detail": "command matched deny rule: sed -i s/a/b/ f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174042, "detail": "command matched deny rule: sed -i s/a/b/ f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174037, "detail": "command matched deny rule: sed -i s/a/b/ f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174033, "detail": "command matched deny rule: sed -i s/a/b/ f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174027, "detail": "command matched deny rule: sed -i s/a/b/ f.txt"}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174022, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174005, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712173997, "detail": "command matched deny rule: git commit -m \"wip fix\""}
+{"ev": "STOP", "rule": "dewstock-no-inplace-rewrite", "project": "icerik", "ts": 1785712139147, "detail": "command matched deny rule: sed -i '' 's/kalip/pattern/g' /tmp/rbdrill-kGI5Mp/dewrites.md"}
+{"ev": "STOP", "rule": "jsonl-trunc", "project": "rbprobe.nqskoD", "ts": 1785712129452, "detail": "command matched deny rule: python3 runner.py >out.jsonl"}
+{"ev": "STOP", "rule": "jsonl-trunc", "project": "rbprobe.nqskoD", "ts": 1785712129443, "detail": "command matched deny rule: python3 runner.py > out.jsonl"}
+{"ev": "STOP", "rule": "quoted-body", "project": "rbprobe.nqskoD", "ts": 1785712129417, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
+{"ev": "STOP", "rule": "probe-catchall", "project": "rbprobe.nqskoD", "ts": 1785712081827, "detail": "command matched deny rule: git add -A"}
+{"ev": "STOP", "rule": "probe-catchall", "project": "rbprobe.nqskoD", "ts": 1785712081822, "detail": "command matched deny rule: sed -i 's/a/b/' 2026-08-01-x.txt"}
+{"ev": "STOP", "rule": "probe-catchall", "project": "rbprobe.nqskoD", "ts": 1785712081816, "detail": "command matched deny rule: python3 runner.py >> out.jsonl"}
+{"ev": "STOP", "rule": "probe-catchall", "project": "rbprobe.nqskoD", "ts": 1785712081810, "detail": "command matched deny rule: python3 runner.py > out.jsonl"}
+{"ev": "STOP", "rule": "probe-catchall", "project": "rbprobe.nqskoD", "ts": 1785712081802, "detail": "command matched deny rule: rm -rf 2026-08-01-yabanci-toprak"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785712072252, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "baseline-clean-ignored", "project": "terraform", "ts": 1785712054105, "detail": "git clean with -x takes ignored files too (.env, local config, build output) — run it with -n first to see the list, or drop the -x"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "terraform", "ts": 1785712053827, "detail": "command matched deny rule: git push --force-with-lease origin main"}
+{"ev": "STOP", "rule": "baseline-delete-not-rm", "project": "terraform", "ts": 1785712053799, "detail": "find on '/' resolves to /, outside the project tree (~/damla_projects_2026/katki/terraform) — -delete removes every path the walk matches"}
+{"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "terraform", "ts": 1785712053773, "detail": "command matched deny rule: rm --recursive --force ~/Documents"}
+{"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "terraform", "ts": 1785712053747, "detail": "command matched deny rule: rm -r -f ~/Documents"}
+{"ev": "STOP", "rule": "generated-protobuf-stubs", "project": "terraform", "ts": 1785712006253, "detail": "protected file: ~/damla_projects_2026/katki/terraform/internal/plans/planproto/planfile.pb.go"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785712006242, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785712006215, "detail": "command matched deny rule: git -C ~/damla_projects_2026/katki/terraform push --force origin main"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785712006185, "detail": "command matched deny rule: cd ~/damla_projects_2026/katki/terraform && git push --force origin main"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "terraform", "ts": 1785712006155, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "changie-managed-changelog", "project": "terraform", "ts": 1785711986301, "detail": "protected file: .changes/v1.17/ENHANCEMENTS-20260803-010101.yaml"}
+{"ev": "STOP", "rule": "changie-managed-changelog", "project": "terraform", "ts": 1785711986274, "detail": "protected file: .changes/v1.17/BUG FIXES-20260803-010101.yaml"}
+{"ev": "STOP", "rule": "deprecated-tool-provisioners", "project": "terraform", "ts": 1785711986131, "detail": "protected file: internal/builtin/provisioners/chef/resource_provisioner.go"}
+{"ev": "STOP", "rule": "go-sum-lockfile", "project": "terraform", "ts": 1785711986103, "detail": "protected file: go.sum"}
+{"ev": "STOP", "rule": "changie-managed-changelog", "project": "terraform", "ts": 1785711986076, "detail": "protected file: CHANGELOG.md"}
+{"ev": "STOP", "rule": "equivalence-test-goldens", "project": "terraform", "ts": 1785711986048, "detail": "protected file: testing/equivalence-tests/outputs/basic_json_string_update/plan.json"}
+{"ev": "STOP", "rule": "go-generate-output", "project": "terraform", "ts": 1785711986019, "detail": "protected file: internal/addrs/resourcemode_string.go"}
+{"ev": "STOP", "rule": "generated-protobuf-stubs", "project": "terraform", "ts": 1785711985988, "detail": "protected file: internal/cloudplugin/cloudproto1/cloudproto1_grpc.pb.go"}
+{"ev": "STOP", "rule": "generated-protobuf-stubs", "project": "terraform", "ts": 1785711985925, "detail": "protected file: internal/plans/planproto/planfile.pb.go"}
 {"ev": "STOP", "rule": "promise-off-target", "project": "rabadon", "ts": 1785711982887, "detail": "star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch->propose->re-verify repair loop, and honest docs — new ENGINE capability is C++ in native/, JS is glue (installer/dispatch) only — latest off-target file: ~/damla_projects_2026/icerik/.rabadon/guard.json (fires once "}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "terraform", "ts": 1785711926485, "detail": "command matched deny rule: git commit -am \"wip\" && git push --force origin main"}
 {"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "terraform", "ts": 1785711926295, "detail": "command matched deny rule: rm -rf ~/Documents"}
