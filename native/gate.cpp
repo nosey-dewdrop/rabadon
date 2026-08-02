@@ -859,7 +859,7 @@ int main(int argc, char** argv) {
     // section's pattern key is deliberately NOT legal: a `match` inside bash[]
     // is inert, and reading as enforced while matching nothing is the bug.
     auto lint_rule_objects = [&](const char* section, const char* patKey) {
-      static const char* kRuleKeys[] = {"id", "why", "authoredBy", "incidentAt", "source"};
+      static const char* kRuleKeys[] = {"id", "why", "authoredBy", "incidentAt", "source", "allow"};
       int idx = -1;
       for (const string& obj : rbrules::parse_rule_objects(g, section)) {
         idx++;
@@ -887,10 +887,51 @@ int main(int argc, char** argv) {
         }
       }
     };
+    // Everything above asks whether a rule CAN fire. Nothing asked whether it
+    // can ever hold its fire, and that is the half that broke in the field: an
+    // authored `semantic-commit-required` denied every commit including the
+    // `fix:` ones it existed to permit, because an optional quote let its
+    // negative lookahead pass on the quote character instead of the message.
+    // lint called that guard valid, because the rule compiled and it fired.
+    //
+    // A rule that refuses everything is as broken as one that matches nothing,
+    // and it is worse to live with: the first blocks real work every day, the
+    // second only fails when the danger finally arrives. So a rule carries
+    // `allow`, the commands it must NOT match, and they are run against its own
+    // pattern through the same matcher the gate uses. A rule with no twin is
+    // reported but not failed yet — no guard in the wild has them until the
+    // author writes them.
+    auto lint_allow_twins = [&](const char* section, const char* patKey) {
+      int missing = 0, total = 0;
+      const bool isCommand = string(section) == "bash";
+      for (const string& obj : rbrules::parse_rule_objects(g, section)) {
+        total++;
+        const string id = rbrules::get_str(obj, "id");
+        const string pat = rbrules::get_str(obj, patKey);
+        if (pat.empty()) continue;  // already reported above
+        const std::vector<string> allow = rbrules::get_str_array(obj, "allow");
+        if (allow.empty()) { missing++; continue; }
+        for (const string& example : allow) {
+          const bool refused = isCommand ? rbrules::rx_test_cmd(pat, example)
+                                         : rbrules::rx_test(pat, example);
+          if (refused) {
+            fprintf(stderr, "rabadon lint: rule \"%s\" refuses its own allow example — %s\n",
+                    id.c_str(), example.c_str());
+            problems++;
+          }
+        }
+      }
+      if (missing) {
+        fprintf(stderr, "rabadon lint: %d of %d rule(s) in %s carry no \"allow\" example — nothing proves they let real work through\n",
+                missing, total, section);
+      }
+    };
     lint_rules("bash", "deny");
     lint_rules("protectedPaths", "match");
     lint_rule_objects("bash", "deny");
     lint_rule_objects("protectedPaths", "match");
+    lint_allow_twins("bash", "deny");
+    lint_allow_twins("protectedPaths", "match");
     if (problems == 0) { printf("rabadon lint: %s is valid.\n", path.c_str()); return 0; }
     fprintf(stderr, "rabadon lint: %d problem(s) — fix them or the gate silently ignores those rules.\n", problems);
     return 1;

@@ -73,6 +73,34 @@ inline string get_str(const string& j, const string& key, size_t from = 0) {
   return json_unescape(raw);
 }
 
+// The string array stored under `key` inside one object's raw text. Written for
+// a rule's `allow` twins, the commands that rule must NOT match: a rule refusing
+// everything is as broken as one that fires at nothing, and only the second was
+// ever checked.
+inline std::vector<string> get_str_array(const string& j, const string& key) {
+  std::vector<string> out;
+  const size_t k = j.find("\"" + key + "\"");
+  if (k == string::npos) return out;
+  const size_t a = j.find('[', k);
+  if (a == string::npos) return out;
+  const size_t b = j.find(']', a);
+  if (b == string::npos) return out;
+  size_t p = a + 1;
+  while (p < b) {
+    const size_t s = j.find('"', p);
+    if (s == string::npos || s > b) break;
+    string val;
+    size_t e = s + 1;
+    for (; e < j.size() && j[e] != '"'; e++) {
+      if (j[e] == '\\' && e + 1 < j.size()) { val += j[e]; val += j[e + 1]; e++; }
+      else val += j[e];
+    }
+    out.push_back(json_unescape(val));
+    p = e + 1;
+  }
+  return out;
+}
+
 // ---------- rules ----------
 
 struct Rule { string id, pattern, why; };

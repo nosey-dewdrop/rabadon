@@ -112,14 +112,20 @@ const SCHEMA_PROMPT = `You are rabadon, a reliability runtime. Below is the EVID
 
 {
   "project": "<name>",
-  "bash": [ { "id": "kebab-id", "deny": "<JS regex, case-insensitive, matched against the full bash command>", "why": "<one line: which evidence, why>" } ],
-  "protectedPaths": [ { "id": "kebab-id", "match": "<JS regex matched against the file path being edited/written>", "why": "<one line>" } ],
+  "bash": [ { "id": "kebab-id", "deny": "<JS regex, case-insensitive, matched against ONE PARSED COMMAND SEGMENT (see below)>", "why": "<one line: which evidence, why>", "allow": [ "<a real command this rule must NOT match>" ] } ],
+  "protectedPaths": [ { "id": "kebab-id", "match": "<JS regex matched against the file path being edited/written>", "why": "<one line>", "allow": [ "<a real path this rule must NOT match>" ] } ],
   "codePaths": [ "<JS regex for paths that count as CODE (used to demand tests before push)>" ],
   "testPaths": [ "<JS regex for TEST files — used to catch test-tampering while the suite is red>" ],
   "testCommand": "<JS regex matching the project's test command>",
   "testPassPattern": "<JS regex that appears in the test output ONLY when fully green>",
   "pushGate": { "why": "<the evidence that says tests must be green before push>", "testHint": "<human hint>", "run": "<the LITERAL shell command that builds and runs the full suite from the project root — rabadon executes this itself at the push gate>", "timeoutSec": 600 }
 }
+
+WHAT A deny REGEX ACTUALLY SEES. Not the raw shell line. rabadon parses the command first and matches each rule against one segment's surface, and that surface has the quotes removed and the whitespace inside a quoted argument removed with them. \`git commit -q -m "fix(auth): drop the retry"\` arrives as \`git commit -q -m fix(auth):droptheretry\`, and \`a && b\` arrives as two separate surfaces. So: never write a quote character into a pattern, it can never match. Never match a multi-word phrase that was quoted, the spaces are gone. Never rely on a pipe or && being present, each side is judged on its own.
+
+EVERY RULE CARRIES ITS TWIN. \`allow\` is required and holds at least one real command (or path) the rule must let through. \`rabadon lint\` runs them against the rule's own pattern and fails the guard when the rule refuses its own example. A rule that refuses everything is as broken as one that matches nothing, and it is worse to live with, because it blocks real work every day while the other only fails on the day the danger arrives.
+
+THE TRAP THAT PRODUCES THAT. An optional quantifier in front of a negative lookahead makes the lookahead trivially true: \`\\s-m\\s*(?!fix:)\` lets \`\\s*\` match nothing, so the lookahead is tested on the space, a space does not start with \`fix\`, and the rule refuses every commit including the ones it exists to permit. Make the separator mandatory (\`\\s+\`) whenever a lookahead follows it.
 
 Rules for writing rules:
 - Behavioral deny rules come from LAW FILES only. Do not invent policy the laws do not state. Also always include: git push --force to main, rm -rf outside the project, git reset --hard on shared branches.

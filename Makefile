@@ -217,6 +217,14 @@ test: all
 # twin, and the twins are re-run with TMPDIR pointed at $HOME and at /.
 	./native/path_answer_test.sh
 	./native/guard_lint_test.sh
+# guard_lint_test.sh asks whether a rule CAN fire. this one asks whether it can
+# ever hold its fire, which is the half that broke in the field on 2 August: an
+# authored semantic-commit rule denied EVERY commit, including the fix: ones it
+# existed to permit, because an optional quantifier in front of its negative
+# lookahead let the lookahead be tested on a space. lint called that guard
+# valid. every rule now carries `allow`, the commands it must NOT match, and
+# they are run against its own pattern through the gate's own matcher.
+	./native/guard_allow_twin_test.sh
 	./native/cmdtext_test.sh
 # cmdtext_test.sh asks what a shell will RUN. this one asks what GIT will run,
 # which is not the same question: `git -c alias.x='push --force' x origin main`
