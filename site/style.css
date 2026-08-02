@@ -86,15 +86,23 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
    leaves a dead field of background to the right of itself */
 .term{background:var(--bg-soft);border-radius:var(--radius);padding:16px 20px;
       font-size:var(--t-mono);line-height:1.9;overflow-x:auto;white-space:pre;
-      width:fit-content;max-width:100%;
+      width:100%;max-width:100%;
       font-variant-ligatures:none;font-variant-numeric:tabular-nums}
 
 /* a narrow run sits beside the sentence that introduces it rather than under it */
-.side{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--sec);
+/* Two columns that both reach the edge of the page. The right column used to
+   be `auto`, so it hugged its longest line and left a dead field of background
+   between it and the margin -- the gap that made every one of these blocks read
+   as unplanned. Both columns are fractions now, and a terminal inside one fills
+   its column, so the left margin and the right margin are the same on every
+   section of every page. */
+.side{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:var(--sec);
       align-items:start}
+.side > .term,.side > * > .term{width:100%}
 /* the claim carries the argument on the left and the evidence on the right */
-.side.hero{grid-template-columns:minmax(0,40ch) minmax(0,1fr);column-gap:var(--sec);
+.side.hero{grid-template-columns:minmax(0,34ch) minmax(0,1fr);column-gap:var(--sec);
            align-items:start;margin-top:var(--g3)}
+.lede p{font-size:var(--t-body);line-height:1.6;max-width:78ch}
 .side.hero .col p{font-size:var(--t-small);line-height:1.65}
 .side > .col > * + *{margin-top:var(--g2)}
 .side h2{margin-bottom:var(--g1)}
@@ -112,16 +120,41 @@ header.site nav a:hover{color:var(--pink);text-decoration:underline dotted}
 .cap{font-size:var(--t-small);color:var(--ink-dim);line-height:1.7;max-width:var(--measure)}
 
 /* ---------- the numbers, as one big block in the middle of the page ---------- */
-.stats{background:var(--bg-soft);border-radius:var(--radius);padding:24px 28px;
-       display:grid;grid-template-columns:14ch 1fr;column-gap:var(--g3);row-gap:var(--g2);
-       align-items:baseline}
+/* No box. The alignment is what makes these read as one thing, not a panel
+   drawn around them: the number sits in a column of its own, right-aligned so
+   the digits stack, and the sentence starts at the same x on every row. This is
+   the shape of `rabadon usage` output, which is the surface the tool actually
+   has. Rows are tight on purpose. */
+/* The number column is a PIXEL width, not `ch`. A ch is measured against the
+   font-size of the element the grid is declared on, which is the body size,
+   while the number inside it is nearly twice that -- so `12ch` was about eight
+   of the digits it was supposed to hold and a value like 130.0us ran straight
+   into its own caption. This is the misalignment that was visible on every
+   stat block on the site. */
+.stats{display:grid;grid-template-columns:160px minmax(0,1fr);
+       column-gap:var(--g3);row-gap:10px;align-items:baseline}
 .stats .n{font-size:var(--t-num);font-weight:700;text-align:right;letter-spacing:-.5px;
-          font-variant-numeric:tabular-nums;line-height:1.25}
+          font-variant-numeric:tabular-nums;line-height:1.25;
+          text-decoration:none;display:block;transition:transform .16s ease-out}
+/* the number IS the link to its own evidence, so it has to look reachable
+   without turning into a wall of underlines */
+a.n{cursor:pointer}
+a.n:hover{transform:translateX(-2px) scale(1.03)}
+a.n:hover + .t{color:var(--ink)}
 .stats .n.g{color:var(--green)} .stats .n.p{color:var(--pink)}
 .stats .n.b{color:var(--blue)}  .stats .n.y{color:var(--yellow)}
-.stats .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.5;max-width:none}
+.stats .t{font-size:var(--t-small);color:var(--ink-dim);line-height:1.55;max-width:none;
+          transition:color .16s ease-out}
 .stats .t a{color:var(--pink)}
 .stats .rule{grid-column:1 / -1;height:1px;background:var(--ink-dim);opacity:.18;margin:2px 0}
+
+/* ---------- reveal: slide and scale, never a fade ---------- */
+[data-reveal]{transform:translateY(16px) scale(.99);opacity:.001;
+              transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .28s linear}
+[data-reveal].in{transform:none;opacity:1}
+@media(prefers-reduced-motion:reduce){
+  [data-reveal]{transform:none;opacity:1;transition:none}
+}
 
 /* ---------- disclosure ---------- */
 details summary{cursor:pointer;font-size:var(--t-small);color:var(--pink);
@@ -139,7 +172,12 @@ details .body > * + *{margin-top:var(--g2)}
 .law .v{font-size:var(--t-body);line-height:1.7}
 .law .v em{font-style:normal;color:var(--ink-dim)}
 
-.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--g3)}
+/* Two runs shown side by side are a comparison, and a comparison whose halves
+   are different heights reads as two unrelated boxes. They stretch to the same
+   height, and the run inside wraps instead of running out of its own box. */
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--g3);align-items:stretch}
+.pair > div{display:flex;flex-direction:column}
+.pair .term{width:100%;height:100%;white-space:pre-wrap;overflow-wrap:anywhere}
 
 footer{padding:var(--sec) 0 52px;font-size:var(--t-small);color:var(--ink-dim);
        display:flex;gap:var(--g3);flex-wrap:wrap;align-items:baseline}
@@ -195,4 +233,54 @@ footer .sp{margin-left:auto}
   .r .t{display:none}
   .pr{grid-template-columns:7ch 1fr}
   .pr .st{grid-column:1 / -1;text-align:left}
+}
+
+/* ============================================================
+   tables, as tables
+
+   These used to be preformatted text with the columns padded to
+   width in python. The browser aligns them now: numeric columns
+   are right-aligned and use tabular figures so the digits stack,
+   the prose column wraps inside its own cell instead of running
+   out of the panel, and every panel is the width of the column
+   it sits in rather than the width of its own longest line. That
+   last one is what made the margins unequal from block to block.
+   ============================================================ */
+.tt{width:100%;border-collapse:collapse;background:var(--bg-soft);
+    border-radius:var(--radius);font-size:var(--t-mono);line-height:1.55;
+    font-variant-numeric:tabular-nums;font-variant-ligatures:none;
+    table-layout:auto}
+.tt th,.tt td{padding:7px 14px;vertical-align:baseline;text-align:left}
+.tt thead th{color:var(--ink-dim);font-weight:400;padding-top:14px;
+             border-bottom:1px solid rgba(157,146,181,.16)}
+.tt tbody tr:first-child td{padding-top:12px}
+.tt tbody tr:last-child td{padding-bottom:14px}
+.tt .n{text-align:right;white-space:nowrap;color:var(--blue)}
+.tt th.n{text-align:right}
+.tt .s{color:var(--ink);white-space:nowrap}
+.tt .d{color:var(--ink-dim)}
+.tt .g{color:var(--green)} .tt .r{color:var(--pink)}
+.tt .b{color:var(--blue)} .tt .y{color:var(--yellow)}
+.tt .p{color:var(--pink)} .tt .u{color:var(--purple)}
+.tt a{color:var(--ink);text-decoration:underline dotted}
+.tt a:hover{color:var(--pink)}
+.tt .tot{border-top:1px solid rgba(157,146,181,.16);color:var(--ink);padding-top:12px}
+/* a key/value panel has no headings to show */
+.tt.bare thead{display:none}
+.tt.bare tbody tr:first-child td{padding-top:14px}
+/* the command that produced the panel underneath it */
+.cmd{background:var(--bg-soft);border-radius:var(--radius) var(--radius) 0 0;
+     padding:14px 14px 0;font-size:var(--t-mono);line-height:1.6}
+.cmd + .tt{border-radius:0 0 var(--radius) var(--radius)}
+.cmd .p{color:var(--pink)} .cmd .c{color:var(--ink)}
+
+@media(max-width:820px){
+  /* a table that cannot fit stacks instead of scrolling sideways */
+  .tt,.tt tbody,.tt tr,.tt td{display:block;width:100%}
+  .tt thead{display:none}
+  .tt tr{padding:10px 14px;border-bottom:1px solid rgba(157,146,181,.12)}
+  .tt td{padding:1px 0}
+  .tt .n{text-align:left}
+  .stats{grid-template-columns:1fr}
+  .stats .n{text-align:left}
 }

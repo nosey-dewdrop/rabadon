@@ -90,3 +90,106 @@
   }
   step();
 })();
+
+/* ============================================================
+   reveal and count-up.
+
+   Two rules from the house style decide the shape of this:
+   a screen is never faded in, it slides or scales, and a number
+   that carries a page counts up to itself rather than being
+   printed already finished. Both are driven by one observer, so
+   a block reveals and its numbers start counting in the same
+   frame, and nothing animates twice.
+
+   The value is read from data-to and the FINAL string from
+   data-show, so a number that ends in a unit or a percent lands
+   on exactly the text the build wrote. Nothing here invents a
+   number: it only walks to the one already in the page.
+   ============================================================ */
+(function () {
+  var reduce = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // every block worth revealing, marked here rather than in the templates so a
+  // new section on any page gets it without anyone remembering to
+  var blocks = document.querySelectorAll(
+    ".stats, .proof, .term, .law, .pair > div, .day, .tbl, details, .cta, .intro > h1, section > h2"
+  );
+  for (var i = 0; i < blocks.length; i++) blocks[i].setAttribute("data-reveal", "");
+
+  if (reduce || !("IntersectionObserver" in window)) {
+    for (var j = 0; j < blocks.length; j++) blocks[j].classList.add("in");
+    countAll(document);
+    return;
+  }
+
+  function ease(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function count(el) {
+    if (el.dataset.counted) return;
+    el.dataset.counted = "1";
+    var to = parseFloat(el.getAttribute("data-to"));
+    var show = el.getAttribute("data-show") || el.textContent;
+    if (!isFinite(to)) return;
+    // the shape of the finished string, so the walk keeps its own formatting:
+    // thousands separators, a decimal place, a trailing unit
+    var m = show.match(/^([^0-9-]*)(-?[\d,]*\.?\d+)(.*)$/);
+    if (!m) return;
+    var pre = m[1], post = m[3];
+    var dec = (m[2].split(".")[1] || "").length;
+    var grouped = m[2].indexOf(",") >= 0;
+    var dur = 900, t0 = 0;
+    function fmt(v) {
+      var s = dec ? v.toFixed(dec) : String(Math.round(v));
+      if (grouped) {
+        var parts = s.split(".");
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        s = parts.join(".");
+      }
+      return pre + s + post;
+    }
+    function frame(ts) {
+      if (!t0) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      el.textContent = p < 1 ? fmt(to * ease(p)) : show;
+      if (p < 1) requestAnimationFrame(frame);
+    }
+    el.textContent = fmt(0);
+    requestAnimationFrame(frame);
+  }
+
+  function countAll(root) {
+    var ns = root.querySelectorAll("[data-to]");
+    for (var k = 0; k < ns.length; k++) count(ns[k]);
+  }
+
+  var io = new IntersectionObserver(function (entries) {
+    for (var e = 0; e < entries.length; e++) {
+      if (!entries[e].isIntersecting) continue;
+      var el = entries[e].target;
+      // a stagger, so a column of five numbers arrives as a column and not as
+      // one block landing at once
+      var sibs = el.parentNode ? el.parentNode.children : [el];
+      var idx = Array.prototype.indexOf.call(sibs, el);
+      setTimeout(function (node) {
+        return function () { node.classList.add("in"); countAll(node); };
+      }(el), Math.min(idx, 6) * 55);
+      io.unobserve(el);
+    }
+  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+
+  for (var n = 0; n < blocks.length; n++) io.observe(blocks[n]);
+
+  // anything already on screen at load counts immediately, so the hero is not
+  // sitting at zero while the reader looks at it
+  requestAnimationFrame(function () {
+    for (var q = 0; q < blocks.length; q++) {
+      var r = blocks[q].getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) {
+        blocks[q].classList.add("in");
+        countAll(blocks[q]);
+        io.unobserve(blocks[q]);
+      }
+    }
+  });
+})();

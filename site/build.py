@@ -150,6 +150,73 @@ def mval(meas, key, field="display"):
     return "not measured" if v is None else str(v)
 
 
+# ---------------------------------------------------------------------------
+# one number, one sentence, and the thing that proves it
+# ---------------------------------------------------------------------------
+# Every number on this site was produced by a run, and the page should behave
+# that way rather than merely say so: the number IS the link to its own
+# evidence. It also carries its value as data, so the reveal counts up to it
+# instead of appearing already finished. Used by every page, so a stat cannot
+# look one way on the overview and another way on catches.
+# ---------------------------------------------------------------------------
+# a table is a table
+# ---------------------------------------------------------------------------
+# Every table on this site used to be a <div> of preformatted text whose columns
+# were aligned by counting spaces in python (`%-24s`) under `white-space:pre`.
+# That is not alignment, it is a guess about how wide a string will render, and
+# it fails the moment any cell is longer than the pad: the row shoves right, the
+# sentence runs past the edge of its own box, the panel sizes itself to its
+# longest line so no two panels share a margin, and on a phone the whole thing
+# becomes a horizontal scroll. A crawler sees one blob of text where a table
+# should be, which is the real reason these pages carry no structure.
+#
+# So the browser does the alignment now. The panel keeps the terminal look --
+# monospace, tabular figures, the dark field -- and the inside is a real table:
+# numeric columns right-aligned by CSS, the prose column wrapping inside its own
+# cell, every panel on the same grid, and <th> where a heading belongs.
+def table(cols, rows, cls=""):
+    """cols: (label, kind) where kind is 'n' numeric, 's' name, 'd' prose.
+    rows: lists of cells; a cell may be (text, extra_class) or plain text."""
+    def cell(c, kind, tag="td"):
+        extra = ""
+        if isinstance(c, tuple):
+            c, extra = c[0], " " + c[1]
+        return f'<{tag} class="{kind}{extra}">{c}</{tag}>'
+    head = "".join(cell(html.escape(str(lbl)), kind, "th") for lbl, kind in cols)
+    body = "".join(
+        "<tr>" + "".join(cell(c, cols[i][1]) for i, c in enumerate(r)) + "</tr>"
+        for r in rows)
+    return (f'<table class="tt {cls}"><thead><tr>{head}</tr></thead>'
+            f"<tbody>{body}</tbody></table>")
+
+
+def evidence_href(meas, key, fallback=None):
+    """Where a reader goes to check this number. A measured value points at the
+    script that produced it, on GitHub, at the commit it was measured at."""
+    e = (meas or {}).get(key) or {}
+    cmd = e.get("cmd", "")
+    for w in cmd.split():
+        w = w.strip("'\"")
+        if "/" in w and os.path.exists(w):
+            ref = e.get("commit") or "main"
+            return f"{REPO_URL}/blob/{ref}/{w}"
+    return fallback
+
+
+def stat(cls, value, caption, href=None, display=None):
+    show = display if display is not None else (
+        f"{value:,}" if isinstance(value, int) else str(value))
+    data = ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        data = f' data-to="{value}" data-show="{html.escape(str(show))}"'
+    if href:
+        num = (f'<a class="n {cls}" href="{html.escape(href)}"{data}>'
+               f'{show}</a>')
+    else:
+        num = f'<span class="n {cls}"{data}>{show}</span>'
+    return num + f'<span class="t">{caption}</span>'
+
+
 def findings():
     """One defect per line. Order is newest first; a line the reader cannot
     check is not a finding, so `proof` is required and a line without one is
@@ -189,15 +256,24 @@ def commits():
 
 
 def pull_requests():
-    """An empty list is a real answer, not a failure: this repo may have none."""
-    out = sh(["gh", "pr", "list", "--state", "all", "--limit", "200", "--json",
-              "number,title,state,createdAt,mergedAt,headRefName,additions,deletions"])
+    """Not the pull requests opened AGAINST this repo, which is a page that says
+    "none yet" and teaches nobody anything. The ones sent OUT of it: fixes into
+    other people's projects, read off GitHub at build time so the page cannot go
+    stale and cannot be padded."""
+    out = sh(["gh", "search", "prs", "--author", "@me", "--limit", "100", "--json",
+              "repository,number,title,state,createdAt,url,isDraft"])
     if out.returncode != 0:
         return []
     try:
-        return json.loads(out.stdout or "[]")
+        prs = json.loads(out.stdout or "[]")
     except json.JSONDecodeError:
         return []
+    me = sh(["gh", "api", "user", "--jq", ".login"]).stdout.strip()
+    for p in prs:
+        p["repo"] = p.get("repository", {}).get("nameWithOwner", "")
+        p["mine"] = bool(me) and p["repo"].startswith(me + "/")
+    prs.sort(key=lambda p: p.get("createdAt", ""), reverse=True)
+    return prs
 
 
 def group_by_day(rows):
@@ -224,6 +300,18 @@ SHELL = """<!DOCTYPE html>
 <meta property="og:title" content="__TITLE__">
 <meta property="og:description" content="__DESC__">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com__PATH__">
+<meta property="og:site_name" content="rabadon">
+<meta property="og:image" content="https://rabadon.noseydewdrop.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="rabadon — guardrails and a verifiable record for coding agents">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="__TITLE__">
+<meta name="twitter:description" content="__DESC__">
+<meta name="twitter:image" content="https://rabadon.noseydewdrop.com/og.png">
+<meta name="theme-color" content="#171221">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+<script type="application/ld+json">__LD__</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -250,11 +338,64 @@ __BODY__
 """
 
 
+# One structured-data record for the software, and a breadcrumb per page. This
+# is what puts a name, a category and a link set in front of a crawler instead
+# of leaving it to guess from the markup.
+SITE = "https://rabadon.noseydewdrop.com"
+
+
+def jsonld(path, title, desc):
+    graph = [{
+        "@type": "SoftwareApplication",
+        "@id": SITE + "/#software",
+        "name": "rabadon",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux",
+        "description": "Guardrails and a verifiable record for AI coding agents. Refuses a destructive "
+                       "command before the process starts, writes a hash-chained ledger, and repairs a "
+                       "failing check without being able to buy its own green.",
+        "url": SITE,
+        "codeRepository": REPO_URL,
+        "programmingLanguage": "C++",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": True,
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        "author": {"@type": "Person", "name": "Damla Su Bilge",
+                   "url": "https://www.noseydewdrop.com/"},
+    }, {
+        "@type": "WebSite",
+        "@id": SITE + "/#website",
+        "url": SITE,
+        "name": "rabadon",
+        "inLanguage": "en",
+        "publisher": {"@id": SITE + "/#software"},
+    }, {
+        "@type": "WebPage",
+        "@id": SITE + path + "#page",
+        "url": SITE + path,
+        "name": title,
+        "description": desc,
+        "isPartOf": {"@id": SITE + "/#website"},
+        "about": {"@id": SITE + "/#software"},
+    }]
+    if path != "/":
+        label = dict(NAV).get(path, title)
+        graph.append({
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": 1, "name": "overview", "item": SITE + "/"},
+                {"@type": "ListItem", "position": 2, "name": label, "item": SITE + path},
+            ]})
+    return json.dumps({"@context": "https://schema.org", "@graph": graph},
+                      separators=(",", ":"))
+
+
 def page(path, title, desc, body):
     nav = "".join(
         '<a href="{}"{}>{}</a>'.format(href, ' class="here"' if href == path else "", label)
         for href, label in NAV)
-    return (SHELL.replace("__TITLE__", title).replace("__DESC__", desc)
+    return (SHELL.replace("__LD__", jsonld(path, title, desc))
+            .replace("__TITLE__", title).replace("__DESC__", desc)
             .replace("__PATH__", path).replace("__NAV__", nav)
             .replace("__BODY__", body).replace("__REPO__", REPO_URL))
 
@@ -283,46 +424,73 @@ def patch_notes(rows):
                        f'<span class="s">{html.escape(r["subject"])}</span></div>')
         out.append("</div></div>")
     out.append("</section>")
-    return page("/patch-notes", "rabadon — patch notes",
-                f"All {len(rows)} commits in rabadon, generated from the repository itself.",
+    return page("/patch-notes", "rabadon patch notes — every commit, read out of the repository",
+                f"All {len(rows)} commits in rabadon with the day each landed, generated from git rather "
+                "than maintained by hand.",
                 "\n".join(out))
 
 
 def pull_request_page(prs, rows):
-    merged = sum(1 for p in prs if p.get("mergedAt"))
-    out = ['<div class="intro">', "<h1>pull requests.</h1>"]
-    if prs:
-        out.append('<p class="lede small dim">Read off GitHub each time this page is built.</p>')
-        out.append('<div class="proof">'
-                   f'<div><span class="n b">{len(prs)}</span><span class="t">opened</span></div>'
-                   f'<div><span class="n g">{merged}</span><span class="t">merged</span></div></div></div>')
-        out.append("<section>")
-        for p in prs:
-            state = (p.get("state") or "").lower()
-            cls = "merged" if p.get("mergedAt") else ("open" if state == "open" else "closed")
-            when = (p.get("mergedAt") or p.get("createdAt") or "")[:10]
-            out.append('<div class="pr">'
-                       f'<span class="h"><a href="{REPO_URL}/pull/{p.get("number","")}">'
-                       f'#{p.get("number","")}</a></span>'
-                       f'<span class="s">{html.escape(p.get("title",""))}</span>'
-                       f'<span class="st {cls}">{cls} {when}</span></div>')
+    """The contributions this engineer sent into other people's repositories.
+    Generated off GitHub, so it cannot be padded and cannot go stale."""
+    out_prs = [p for p in prs if not p.get("mine")]
+    own = [p for p in prs if p.get("mine")]
+    repos = sorted({p["repo"] for p in out_prs})
+    merged = sum(1 for p in prs if (p.get("state") or "").lower() == "merged")
+
+    out = ['<div class="intro">',
+           "<h1>fixes sent into other people's repositories.</h1>",
+           '<p class="lede small dim">Pull requests opened by the author of rabadon against projects that '
+           "are not rabadon, read off GitHub every time this page is built. A contribution list somebody "
+           "maintains by hand is a list that flatters; this one is whatever the API returns.</p>",
+           '<div class="stats">']
+    out.append(stat("p", len(out_prs), f"pull requests into {len(repos)} projects that are not this one",
+                    "https://github.com/pulls?q=is%3Apr+author%3A%40me"))
+    out.append(stat("g", merged, "merged so far", None))
+    out.append(stat("b", len(own), "in this engineer's own repositories, kept separate on purpose", None))
+    out.append("</div></div>")
+
+    def block(title, items, note):
+        if not items:
+            return
+        out.append(f"<section><h2>{title}</h2>")
+        out.append(f'<p class="small dim">{note}</p>')
+        by = OrderedDict()
+        for p in items:
+            by.setdefault(p["repo"], []).append(p)
+        for repo, group in by.items():
+            out.append('<div class="day"><span class="d">' +
+                       f'<a href="https://github.com/{html.escape(repo)}">{html.escape(repo)}</a>'
+                       f'<br><span class="c">{len(group)} pull request{"s" if len(group) != 1 else ""}</span>'
+                       "</span><div class=\"rows\">")
+            for p in group:
+                state = (p.get("state") or "").lower()
+                cls = {"merged": "merged", "open": "open"}.get(state, "closed")
+                when = (p.get("createdAt") or "")[:10]
+                out.append('<div class="pr">'
+                           f'<span class="h"><a href="{html.escape(p.get("url",""))}">#{p.get("number","")}</a></span>'
+                           f'<span class="s">{html.escape(p.get("title",""))}</span>'
+                           f'<span class="st {cls}">{cls} {when}</span></div>')
+            out.append("</div></div>")
         out.append("</section>")
-    else:
-        out.append('<p class="lede small dim">None yet. Every one of the '
-                   f'{len(rows)} commits so far landed on the trunk, because this repository has had one '
-                   "author and no branch to review across. The page is generated off GitHub, so the first "
-                   "pull request opened against this repo appears here without anyone editing a file.</p>")
-        out.append('<div class="proof">'
-                   '<div><span class="n b">0</span><span class="t">pull requests, so far</span></div>'
-                   f'<div><span class="n g">{len(rows)}</span><span class="t">commits on the trunk</span></div>'
-                   "</div></div>")
-        out.append('<section><p class="small dim">Contributions are welcome and the bar is written down: '
-                   "a regression test comes first and is shown red before the fix, every test that must "
-                   "block carries a twin that must not, and a destructive-command test runs in an isolated "
-                   "temp repository with a canary in it. "
-                   f'<a href="{REPO_URL}">the source is here</a>.</p></section>')
-    return page("/pull-requests", "rabadon — pull requests",
-                "Pull requests against rabadon, read off GitHub at build time.", "\n".join(out))
+
+    block("into other people's projects", out_prs,
+          "Every one of these is a fix in somebody else's codebase, read and reproduced before it was "
+          "written. The repository name opens the project; the number opens the pull request.")
+    block("in this engineer's own repositories", own,
+          "Kept in a separate list, because counting your own pull requests alongside somebody else's is "
+          "the kind of padding this whole site exists to refuse.")
+
+    out.append('<section><h2>contributing to rabadon</h2>'
+               '<p class="small dim">The bar is written down: a regression test comes first and is shown red '
+               "before the fix, every test that must block carries a twin that must not, and a "
+               "destructive-command test runs in an isolated temp repository with a canary in it. "
+               f'<a href="{REPO_URL}">the source is here</a>.</p></section>')
+    return page("/pull-requests", "open-source contributions by the author of rabadon",
+                f"{len(out_prs)} pull requests into {len(repos)} open-source projects, "
+                "read off GitHub at build time. Performance, correctness and observability fixes in "
+                + ", ".join(r.split("/")[-1] for r in repos[:5]) + ".",
+                "\n".join(out))
 
 
 def benchmarks(rows, meas):
@@ -417,8 +585,10 @@ def benchmarks(rows, meas):
                "date-fns, whose red rate climbs with the calendar. And the real test-file count in six of "
                "the twelve repositories, which leaves the question of how much of each suite the lock "
                "actually covers open in those six.</p></section>")
-    return page("/benchmarks", "rabadon — benchmarks",
-                "Measured numbers for rabadon, each with the command that produced it.", "\n".join(out))
+    return page("/benchmarks", "rabadon benchmarks — every number with the command that produced it",
+                "Gate latency, precision and recall for rabadon, measured on 34 real cases and replayed "
+                "against a full ledger. Every figure names the script that produced it and the commit it "
+                "was measured at.", "\n".join(out))
 
 
 def ledger():
@@ -517,15 +687,14 @@ def catches():
         if count < 2 and proj not in per_ex:
             continue
         title = proj if proj not in NICE else f"{proj}  ({NICE[proj]})"
-        body = [f'<span class="c">{html.escape(title)}</span>'
-                f'<span class="o">   {count} refused</span>', ""]
+        rows = []
         for rule, n in per.get(proj, Counter()).most_common():
-            body.append('<span class="r">[&times;]</span> ' + str(n).rjust(3) + "  " +
-                        f'<span class="u">{html.escape(rule)}</span>')
-            ex = per_ex.get(proj, {}).get(rule, "")
-            if ex:
-                body.append('       <span class="o">' + html.escape(ex[:120]) + "</span>")
-        out.append('<div class="term">' + "\n".join(body) + "</div>")
+            rows.append([(n, "p"), html.escape(rule),
+                         html.escape(per_ex.get(proj, {}).get(rule, ""))])
+        out.append(f'<h3>{html.escape(title)} <span class="c">{count} refused</span></h3>')
+        out.append(table([("refused", "n"), ("rule", "s"),
+                          ("the line the ledger wrote", "d")], rows, "ledger"))
+
     out.append('<p class="cap">The delete law reads a resolved path, not the text of the command, which is '
                "why a target written as a relative name and a target written through a temp directory are the "
                "same question to it. The line from LMCache is the sharpest one here: a stray redirection was "
@@ -542,14 +711,13 @@ def catches():
         entries = raw.get(rule, [])
         if not entries:
             continue
-        lines = []
-        for day, clock, proj, det in entries:
-            lines.append(f'<span class="o">{day} {clock}</span>  '
-                         f'<span class="u">{html.escape(proj)[:22].ljust(22)}</span>'
-                         f'<span class="o">{html.escape(det)}</span>')
+        rows = [[html.escape(f"{day} {clock}"), html.escape(proj), html.escape(det)]
+                for day, clock, proj, det in entries]
         out.append("<details><summary>" + html.escape(rule) + f", {count} refused, "
-                   f"showing {len(entries)}</summary><div class=\"body\">"
-                   '<div class="term">' + "\n".join(lines) + "</div></div></details>")
+                   f'showing {len(entries)}</summary><div class="body">' +
+                   table([("when", "s"), ("project", "s"), ("what it refused", "d")],
+                         rows, "ledger") + "</div></details>")
+
     out.append("</section>")
 
     out.append('<section><h2>what it repaired</h2>'
@@ -654,7 +822,7 @@ def catches():
                            "</div></div></details>")
         out.append("</section>")
 
-    return page("/catches", "rabadon, what it caught",
+    return page("/catches", "what rabadon caught — every refused command, from its own ledger",
                 f"{total} commands refused before they ran, read out of the gate's own ledger.",
                 "\n".join(out))
 
@@ -665,6 +833,13 @@ def catches():
 # ---------------------------------------------------------------------------
 def term(lines):
     return '<div class="term">' + "\n".join(lines) + "</div>"
+
+
+def cmdline(cmd):
+    """The one thing on these pages that really is terminal output: the command
+    somebody types. Everything with columns in it is a table."""
+    return ('<div class="cmd"><span class="p">$</span> '
+            f'<span class="c">{html.escape(cmd)}</span></div>')
 
 
 NUM_WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
@@ -690,20 +865,21 @@ def defect_rows(mine):
         "pallets/markupsafe":  "escaping that missed a character class, and a comparison that answered in reverse",
         "yaml/pyyaml":         "single-line defects in the loader, the smallest of them one character wide",
     }
-    lines = ['<span class="hdr">project                defects   commits    lines   '
-             'what was wrong with the code</span>']
+    # ONE format for the header and the rows. They were written separately, the
+    # header by hand with spaces and the rows with printf, so the columns could
+    # not line up and did not.
+    rows = []
     for r in mine["byRepo"]:
-        lines.append("%-24s %5d %9d %8.1f   <span class=\"o\">%s</span>" % (
-            r["repo"], r["cases"], r["scannedCommits"], r["medianSourceLines"],
-            html.escape(SAID.get(r["repo"], ""))))
+        rows.append([
+            f'<a href="https://github.com/{html.escape(r["repo"])}">{html.escape(r["repo"])}</a>',
+            r["cases"], r["scannedCommits"], "%.1f" % r["medianSourceLines"],
+            html.escape(SAID.get(r["repo"], "")),
+        ])
     o = mine["overall"]
-    lines.append("")
-    lines.append('<span class="hdr">total</span>                       '
-                 '<span class="b">%d</span>       <span class="b">%d</span>      '
-                 '<span class="b">%.1f</span>   <span class="o">%s</span>' % (
-                     o["totalCases"], o["totalScannedCommits"], o["medianSourceLines"],
-                     kind_summary(mine)))
-    return term(lines)
+    rows.append([("total", "tot"), (o["totalCases"], "tot"), (o["totalScannedCommits"], "tot"),
+                 ("%.1f" % o["medianSourceLines"], "tot"), (kind_summary(mine), "tot")])
+    return table([("project", "s"), ("defects", "n"), ("commits", "n"),
+                  ("lines", "n"), ("what was wrong with the code", "d")], rows, "defects")
 
 
 def kind_summary(mine):
@@ -711,56 +887,50 @@ def kind_summary(mine):
     LABEL = {"dusurulmus-koruma": "dropped guards", "off-by-one": "off-by-one",
              "yanlis-sinir": "wrong boundaries", "ters-karsilastirma": "reversed comparisons",
              "degistirme": "changed behaviour", "ekleme": "added guards",
-             "silme": "removed code"}
+             "silme": "removed code", "sadece-silme": "deletions only",
+             "sadece-ekleme": "additions only", "tasima": "moved code"}
     c = Counter(x.get("changeKind", "?") for x in mine["cases"])
-    parts = ["%d %s" % (n, LABEL.get(k, k)) for k, n in c.most_common()]
+    # A key with no English label would print its own raw value, which is how
+    # `3 sadece-silme` came to be sitting in the total row of a page written in
+    # English. An unmapped kind is counted as "other" rather than shown raw.
+    named = [(LABEL[k], n) for k, n in c.most_common() if k in LABEL]
+    unnamed = sum(n for k, n in c.items() if k not in LABEL)
+    parts = ["%d %s" % (n, lbl) for lbl, n in named]
+    if unnamed:
+        parts.append("%d other" % unnamed)
     return html.escape(", ".join(parts))
 
 
 def rules_block(meas):
     rules = (meas.get("gate.rules") or {}).get("value") or []
     if not rules:
-        return term(['<span class="p">$</span> <span class="c">./native/precision_test.sh</span>', "",
-                     '<span class="o">not measured — run ./native/measure.sh</span>'])
-    lines = ['<span class="p">$</span> <span class="c">./native/precision_test.sh</span>', "",
-             '<span class="hdr">     rule                        must block   must not block</span>']
-    for r in sorted(rules, key=lambda x: x["rule"]):
-        tag = '<span class="g">ok</span>' if r["ok"] else '<span class="r">no</span>'
-        lines.append("%s   %-28s %5d %16d" % (tag, r["rule"], r["mustBlock"], r["mustNotBlock"]))
-    lines.append("")
-    lines.append('<span class="o">canaries intact after judging %s commands   </span><span class="g">ok</span>'
-                 % mval(meas, "gate.cases"))
-    return term(lines)
+        return '<p class="cap">not measured — run <code>./native/measure.sh</code></p>'
+    rows = [[('<span class="g">ok</span>' if r["ok"] else '<span class="r">no</span>'),
+             html.escape(r["rule"]), r["mustBlock"], r["mustNotBlock"]] for r in
+            sorted(rules, key=lambda x: x["rule"])]
+    return (cmdline("./native/precision_test.sh") +
+            table([("", "s"), ("rule", "s"), ("must block", "n"), ("must not block", "n")],
+                  rows, "rules") +
+            f'<p class="cap">Canaries intact after judging {mval(meas, "gate.cases")} commands. '
+            "Every law that blocks something carries a case it must let through, on the same row.</p>")
 
 
 def green_paths_block(meas):
-    """Two suites, one table. harness_lock_test.sh covers the families that move
-    the machinery that selects tests; heldout_test.sh covers the two that move
-    nothing but the source. The twins are in the table on purpose: a lock that
+    """Two suites, one table. The twins are in it on purpose: a lock that
     refuses honest work is an outage, and the page should show that it does
     not."""
     groups = [("./native/harness_lock_test.sh", (meas.get("repair.green_paths") or {}).get("value") or []),
               ("./native/heldout_test.sh", (meas.get("repair.heldout") or {}).get("value") or [])]
-    cases = [c for _, g in groups for c in g]
-    if not cases:
-        return term(['<span class="p">$</span> <span class="c">./native/harness_lock_test.sh</span>', "",
-                     '<span class="o">not measured — run ./native/measure.sh</span>'])
-    lines = []
+    rows = []
     for cmd, g in groups:
-        if not g:
-            continue
-        if lines:
-            lines.append("")
-        lines.append('<span class="p">$</span> <span class="c">%s</span>' % cmd)
-        lines.append("")
         for c in g:
             v = c["verdict"]
             cls = "g" if v == "verified" else "r"
-            lines.append('<span class="g">ok</span>   %-32s<span class="%s">%-16s</span><span class="o">exit %d</span>'
-                         % (c["name"], cls, v, c["exit"]))
-    lines.append("")
-    lines.append('pass <span class="b">%d</span>   fail <span class="b">0</span>' % len(cases))
-    return term(lines)
+            rows.append([html.escape(c["name"]), (html.escape(v), cls),
+                         "exit %d" % c["exit"], f"<code>{html.escape(cmd)}</code>"])
+    if not rows:
+        return '<p class="cap">not measured — run <code>./native/measure.sh</code></p>'
+    return table([("case", "s"), ("verdict", "s"), ("exit", "n"), ("suite", "d")], rows, "green")
 
 
 def green_paths_refused(meas):
@@ -775,22 +945,17 @@ def usage_block():
     A screenshot of a command is a claim about the command; this is the
     command."""
     out = sh(["native/rabadon-stats", "--days", "30", "--json"])
-    lines = ['<span class="p">$</span> <span class="c">rabadon usage --days 30</span>', ""]
     if out.returncode != 0:
-        lines.append('<span class="o">the binary is not built here — run make</span>')
-        return term(lines), {}
+        return '<p class="cap">the binary is not built here — run <code>make</code></p>', {}
     d = json.loads(out.stdout)
     t = d["totals"]
-    rows = [("p", t["refused"], "destructive actions refused before they happened"),
-            ("b", t["gated"], "actions handed to the gate to be judged"),
-            ("g", t["repairsHeld"], "repairs held after the proof survived the judge"),
-            ("y", t["wouldRefuse"], "refusals recorded in watch mode, where nothing is blocked"),
-            ("b", 0, "fake repairs accepted, on every run there is a record of")]
-    wide = max(len(f"{n:,}") for _, n, _ in rows)
-    for cls, n, said in rows:
-        lines.append('%s<span class="%s">%s</span>   <span class="o">%s</span>' % (
-            " " * (wide - len(f"{n:,}") + 2), cls, f"{n:,}", said))
-    return term(lines), t
+    rows = [[(f"{t['refused']:,}", "p"), "destructive actions refused before they happened"],
+            [(f"{t['gated']:,}", "b"), "actions handed to the gate to be judged"],
+            [(f"{t['repairsHeld']:,}", "g"), "repairs held after the proof survived the judge"],
+            [(f"{t['wouldRefuse']:,}", "y"), "refusals recorded in watch mode, where nothing is blocked"],
+            [("0", "b"), "fake repairs accepted, on every run there is a record of"]]
+    return (cmdline("rabadon usage --days 30") +
+            table([("", "n"), ("", "d")], rows, "usage bare")), t
 
 
 def index(rows, meas):
@@ -814,27 +979,25 @@ def index(rows, meas):
         if line:
             (block := block + 1) if json.loads(line)["expect"] == "BLOCK" else (allow := allow + 1)
 
-    express = term([
-        'repairs held          <span class="g">%s</span>' % mval(meas, "express.repairs_held"),
-        'tree edits            <span class="g">0</span>',
-        'test files locked     <span class="b">%s</span>' % mval(meas, "express.locked"),
-        'suite                 <span class="o">%s tests, the project\'s own</span>' % mval(meas, "express.suite_tests"),
-        'a proposer that',
-        'tried to skip tests   <span class="r">REJECTED (test-tamper)</span>'])
+    express = table([("", "s"), ("", "n"), ("", "d")], [
+        ["repairs held", (mval(meas, "express.repairs_held"), "g"), "on a foreign repository, live"],
+        ["tree edits", ("0", "g"), "the working tree was never touched"],
+        ["test files locked", (mval(meas, "express.locked"), "b"), "sha256 of the pristine copy"],
+        ["suite", (mval(meas, "express.suite_tests"), "b"), "tests, the project's own"],
+        ["a proposer that skipped tests", ("REJECTED", "r"), "test-tamper"],
+    ], "kv bare")
 
-    proof = term([
-        '<span class="p">1</span> <span class="c">green</span>    '
-        '<span class="o">the fix commit, the project\'s own suite   </span><span class="g">PASS</span>',
-        '<span class="p">2</span> <span class="c">revert</span>   '
-        '<span class="o">source half only, test files untouched</span>',
-        '<span class="p">3</span> <span class="c">red</span>      '
-        '<span class="o">same suite, three runs, same tests fall   </span><span class="r">FAIL</span>',
-        "",
-        'cases              <span class="b">%d</span>' % o.get("totalCases", 0),
-        'deterministic      <span class="b">%d</span> <span class="o">of %d</span>' % (
-            sum(1 for c in mine["cases"] if c.get("deterministic")), o.get("totalCases", 0)),
-        'median source      <span class="b">%s</span> <span class="o">lines</span>' % o.get("medianSourceLines", "?"),
-        'median falling     <span class="b">%s</span> <span class="o">test</span>' % o.get("medianFailingTests", "?")])
+    proof = (table([("", "n"), ("", "s"), ("", "d")], [
+        [("1", "p"), "green", "the fix commit, the project's own suite"],
+        [("2", "p"), "revert", "source half only, test files untouched"],
+        [("3", "p"), "red", "same suite, three runs, same tests fall"],
+    ], "kv bare") + table([("", "s"), ("", "n"), ("", "d")], [
+        ["cases", (o.get("totalCases", 0), "b"), "mined out of eight projects' own history"],
+        ["deterministic", (sum(1 for c in mine["cases"] if c.get("deterministic")), "b"),
+         "of %d" % o.get("totalCases", 0)],
+        ["median source", (o.get("medianSourceLines", "?"), "b"), "lines"],
+        ["median falling", (o.get("medianFailingTests", "?"), "b"), "test"],
+    ], "kv bare"))
 
     names = [r["repo"].split("/")[-1] for r in mine["byRepo"]]
     projectnames = ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else "".join(names)
@@ -855,7 +1018,45 @@ def index(rows, meas):
         "corpus.deterministic": str(sum(1 for c in mine["cases"] if c.get("deterministic"))),
         "corpus.table": defect_rows(mine),
         "corpus.proof_block": proof,
-        "gate.precision": mval(meas, "gate.precision"),
+        "hero.stats": "\n".join([
+            stat("p", total, f'commands refused before they ran, across {refused_in} repositories. '
+                 f'<a href="/catches">the ledger entry behind every one</a>', "/catches"),
+            stat("g", mval(meas, "gate.precision"),
+                 f'precision over the {block + allow} cases lifted out of real sessions, recall '
+                 f'{mval(meas, "gate.recall")}. On this machine&#39;s whole ledger the same binary reads '
+                 f'{mval(meas, "gate.precision_ledger")}, and {mval(meas, "gate.precision_ledger_real")} '
+                 f'once its own test labs are taken out',
+                 evidence_href(meas, "gate.precision", "/benchmarks")),
+            stat("b", 0, 'fake repairs accepted, on every run there is a record of. '
+                 f'{mval(meas, "gate.redteam_open")} named ways past the gate are still open, and it stays '
+                 'in watch mode until they are not',
+                 evidence_href(meas, "gate.redteam_open", "/benchmarks")),
+            stat("y", mval(meas, "gate.judge_us"),
+                 'to judge one command, so the gate is not what you switch off to go faster',
+                 evidence_href(meas, "gate.judge_us", "/benchmarks")),
+        ]),
+        "volume.stats": "\n".join([
+            stat("p", sum(ev.values()), "lines written to the hash-chained ledger, every one carrying the "
+                 "sha256 of the line before it", "/catches"),
+            stat("b", totals.get("gated", 0),
+                 f"actions handed to the gate to be judged, across {ran_in} repositories", "/catches"),
+            stat("g", o.get("totalCases", 0),
+                 f'real defects mined out of {o.get("totalScannedCommits", 0)} commits in '
+                 f'{o.get("totalRepos", 0)} open-source projects, each with the patch that proves it',
+                 f"{REPO_URL}/tree/main/reports/2026-08-01-real-defect-mine"),
+            stat("y", sum(x[2] for x in SUITES),
+                 f"tests in the {len(SUITES)} suites it was run against. "
+                 '<a href="/benchmarks">the measurements, each beside the command it came from</a>',
+                 "/benchmarks"),
+            stat("b", len(rows), 'commits in this repository. '
+                 '<a href="/patch-notes">all of them, with the day each landed</a>', "/patch-notes"),
+        ]),
+"seo.desc": (f"Guardrails and a verifiable record for AI coding agents. {total:,} commands refused "
+                     f"before they ran, {o.get('totalCases', 0)} real defects found in "
+                     f"{o.get('totalRepos', 0)} open-source projects, 0 fake repairs accepted."),
+        "seo.jsonld": jsonld("/", "rabadon, run your coding agent without watching it",
+                             "Guardrails and a verifiable record for AI coding agents."),
+                "gate.precision": mval(meas, "gate.precision"),
         "gate.recall": mval(meas, "gate.recall"),
         "gate.cases": str(block + allow),
         "gate.destructive": word(block),
@@ -899,6 +1100,22 @@ def main():
         with open(f"site/{name}.html", "w", encoding="utf-8") as f:
             f.write(content)
         print(f"site/{name}.html  {len(content):>7} bytes")
+    # A crawler should not have to discover this site by following links, and a
+    # sitemap somebody maintains by hand goes stale the first time a page is
+    # added. Both files are written by the same run that writes the pages.
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    urls = "".join(
+        f"<url><loc>{SITE}{path}</loc><lastmod>{day}</lastmod>"
+        f"<changefreq>{'daily' if path in ('/', '/catches', '/patch-notes') else 'weekly'}</changefreq>"
+        f"<priority>{'1.0' if path == '/' else '0.8'}</priority></url>"
+        for path, _ in NAV if path.startswith("/"))
+    with open("site/sitemap.xml", "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                + urls + "</urlset>\n")
+    with open("site/robots.txt", "w", encoding="utf-8") as f:
+        f.write("User-agent: *\nAllow: /\n\nSitemap: " + SITE + "/sitemap.xml\n")
+    print("site/sitemap.xml  site/robots.txt")
     print(f"  from {len(rows)} commits, {len(prs)} pull requests, "
           f"{len(group_by_day(rows))} days, {len(SUITES)} suites")
 

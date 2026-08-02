@@ -3,14 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>rabadon — benchmarks</title>
-<meta name="description" content="Measured numbers for rabadon, each with the command that produced it.">
+<title>rabadon benchmarks — every number with the command that produced it</title>
+<meta name="description" content="Gate latency, precision and recall for rabadon, measured on 34 real cases and replayed against a full ledger. Every figure names the script that produced it and the commit it was measured at.">
 <meta name="author" content="Damla Su Bilge">
 <link rel="canonical" href="https://rabadon.noseydewdrop.com/benchmarks">
 <meta property="og:type" content="website">
-<meta property="og:title" content="rabadon — benchmarks">
-<meta property="og:description" content="Measured numbers for rabadon, each with the command that produced it.">
+<meta property="og:title" content="rabadon benchmarks — every number with the command that produced it">
+<meta property="og:description" content="Gate latency, precision and recall for rabadon, measured on 34 real cases and replayed against a full ledger. Every figure names the script that produced it and the commit it was measured at.">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com/benchmarks">
+<meta property="og:site_name" content="rabadon">
+<meta property="og:image" content="https://rabadon.noseydewdrop.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="rabadon — guardrails and a verifiable record for coding agents">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="rabadon benchmarks — every number with the command that produced it">
+<meta name="twitter:description" content="Gate latency, precision and recall for rabadon, measured on 34 real cases and replayed against a full ledger. Every figure names the script that produced it and the commit it was measured at.">
+<meta name="twitter:image" content="https://rabadon.noseydewdrop.com/og.png">
+<meta name="theme-color" content="#171221">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","@id":"https://rabadon.noseydewdrop.com/#software","name":"rabadon","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Guardrails and a verifiable record for AI coding agents. Refuses a destructive command before the process starts, writes a hash-chained ledger, and repairs a failing check without being able to buy its own green.","url":"https://rabadon.noseydewdrop.com","codeRepository":"https://github.com/nosey-dewdrop/rabadon","programmingLanguage":"C++","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Damla Su Bilge","url":"https://www.noseydewdrop.com/"}},{"@type":"WebSite","@id":"https://rabadon.noseydewdrop.com/#website","url":"https://rabadon.noseydewdrop.com","name":"rabadon","inLanguage":"en","publisher":{"@id":"https://rabadon.noseydewdrop.com/#software"}},{"@type":"WebPage","@id":"https://rabadon.noseydewdrop.com/benchmarks#page","url":"https://rabadon.noseydewdrop.com/benchmarks","name":"rabadon benchmarks \u2014 every number with the command that produced it","description":"Gate latency, precision and recall for rabadon, measured on 34 real cases and replayed against a full ledger. Every figure names the script that produced it and the commit it was measured at.","isPartOf":{"@id":"https://rabadon.noseydewdrop.com/#website"},"about":{"@id":"https://rabadon.noseydewdrop.com/#software"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"overview","item":"https://rabadon.noseydewdrop.com/"},{"@type":"ListItem","position":2,"name":"benchmarks","item":"https://rabadon.noseydewdrop.com/benchmarks"}]}]}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -133,14 +133,14 @@ import re, sys
 def first_stat(path, needle):
     """the number in the stat block whose caption contains `needle`"""
     s = open(path, encoding='utf-8').read()
-    for m in re.finditer(r'class="n[^"]*">([0-9,]+)</span><span class="t">([^<]*)', s):
+    for m in re.finditer(r'class="n[^"]*"[^>]*>([0-9,]+)</(?:span|a)><span class="t">([^<]*)', s):
         if needle in m.group(2):
             return m.group(1).replace(',', '')
     return None
 
 def proof_stat(path, needle):
     s = open(path, encoding='utf-8').read()
-    for m in re.finditer(r'class="n[^"]*">([0-9,]+)</span><span class="t">([^<]*)', s):
+    for m in re.finditer(r'class="n[^"]*"[^>]*>([0-9,]+)</(?:span|a)><span class="t">([^<]*)', s):
         if needle in m.group(2):
             return m.group(1).replace(',', '')
     return None
