@@ -18,6 +18,7 @@
 #include <cstring>
 #include <ctime>
 #include <regex>
+#include <set>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -116,6 +117,14 @@ static string read_file(const string& p) {
 }
 
 static bool file_exists(const string& p) { struct stat st; return stat(p.c_str(), &st) == 0; }
+
+// Three rules answer to the operator alone: disabled[] in guard.json does not
+// switch them off, and the refusal must not offer a door that is welded shut.
+// They are named here rather than at the decision site because the refusal
+// printer needs the same answer. See the sealing note above the promise block.
+static bool sealed_rule(const string& id) {
+  return id == "promise-tamper" || id == "promise-anti-path" || id == "guard-weaken";
+}
 
 // The rabadon home: RABADON_DIR when set (test isolation, multi-tenant), else
 // $HOME/.rabadon. ONE rule for the mode flags AND the spool — a split home
@@ -1622,10 +1631,17 @@ int main(int argc, char** argv) {
       em.emit("STOP", "\"reason\":\"BLOCKED\",\"rule\":\"" + json_escape(ruleId) +
               "\",\"sid\":\"" + json_escape(sid) + "\",\"detail\":\"" + json_escape(detail) + "\"");
       stt.save();
+      // the override line has to be true. A sealed rule cannot be answered by
+      // adding it to disabled[], and printing that as the way out taught the
+      // session to try exactly the edit the seal exists to refuse.
+      const string override_line = sealed_rule(ruleId)
+        ? "(this rule is sealed: disabled[] does not switch it off. Only the operator, editing "
+          ".rabadon/promise.json or .rabadon/guard.json by hand, can change what it protects.)"
+        : "(user override: add \"" + ruleId + "\" to disabled[] in .rabadon/guard.json, or "
+          "`rabadon off` to pause supervision)";
       fprintf(stderr,
-        "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n"
-        "(user override: add \"%s\" to disabled[] in .rabadon/guard.json, or `rabadon off` to pause supervision)\n",
-        ruleId.c_str(), why.c_str(), detail.c_str(), ruleId.c_str());
+        "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n%s\n",
+        ruleId.c_str(), why.c_str(), detail.c_str(), override_line.c_str());
       exit(2);
     }
     // WATCH: the verdict is real and it is recorded — it is simply not enforced.
@@ -1805,10 +1821,92 @@ int main(int argc, char** argv) {
   // No promise, or a broken one -> nothing to enforce (fail open).
   const bool isEditTool = toolName == "Edit" || toolName == "Write" ||
                           toolName == "MultiEdit" || toolName == "NotebookEdit";
+
+  // THREE RULES ARE SEALED: disabled[] does not switch them off. Measured in
+  // this repository on 2 August 2026 — .rabadon/guard.json carried
+  //
+  //   "disabled": ["promise-anti-path", "promise-tamper"],
+  //   "generatedBy": "rabadon rework session, override of stale promise rules
+  //                   authorized by damla 2026-07-31"
+  //
+  // A supervised session had put the two rules protecting the goal contract on
+  // the list of rules it does not have to obey, citing a permission the
+  // operator gave about something else. promise.json is not tracked by git, so
+  // no trail was left either, and rabadon-drift answered "on the star" for
+  // eight days while measuring against a promise the drifter could rewrite.
+  //
+  // A door anything inside can close is not a door. These three describe the
+  // integrity of the contract itself and answer only to the operator editing
+  // the files by hand, which does not come through this hook.
+  //
+  // promise-off-target is deliberately NOT sealed. It is a challenge that
+  // fires once per session and then lets the session past; sealing a nag buys
+  // no integrity and costs real work, and drift stays on the ledger regardless.
   auto ruleOff = [&](const char* id) {
+    if (sealed_rule(id)) return false;
     for (const auto& d : disabled) if (d == id) return true;
     return false;
   };
+
+  // ---------- guard-weaken: strengthen your own guard, never cut it ----------
+  // Sealing the promise rules alone would move the hole one file over: the
+  // session could still edit .rabadon/guard.json and put them back into
+  // disabled[]. So the guard file carries an invariant that needs no list of
+  // protected ids — a session may ADD to what supervises it and may never
+  // remove a rule or name one in disabled[]. Adding is ordinary work (the
+  // repair loop authors incident rules into this same file) and goes through
+  // untouched. The two directions are told apart by comparing the ids and the
+  // disabled[] set before and after, not by trusting a description of the edit.
+  if (isEditTool && !filePath.empty() && rx_test("\\.rabadon/guard\\.json$", filePath)) {
+    const string before = read_file(filePath);
+    if (!before.empty()) {
+      string after; bool known = false;
+      if (toolName == "Write") {
+        after = ti == string::npos ? "" : get_str(raw, "content", ti);
+        known = true;
+      } else if (toolName == "Edit") {
+        const string oldS = ti == string::npos ? "" : get_str(raw, "old_string", ti);
+        const string newS = ti == string::npos ? "" : get_str(raw, "new_string", ti);
+        const size_t at = oldS.empty() ? string::npos : before.find(oldS);
+        if (at != string::npos) { after = before; after.replace(at, oldS.size(), newS); known = true; }
+      }
+      // MultiEdit, NotebookEdit, or an Edit whose old_string is not in the file
+      // leave the result unknowable from the tool call. The guard is the one
+      // file where "I could not tell" has to mean no: an unverifiable rewrite
+      // of the rules is exactly the edit this law is about.
+      if (!known)
+        block("guard-weaken",
+              "an edit to the guard must be provably a strengthening, and this one cannot be checked",
+              toolName + " on " + filePath + " — rewrite the whole file with Write so before and after can be compared");
+      { JParser p(after); JVal v = p.parse();
+        if (!p.ok || v.t != JVal::OBJ)
+          block("guard-weaken", "a guard that does not parse enforces nothing, which is the strongest weakening there is",
+                "the proposed " + filePath + " is not valid JSON"); }
+      // every "id": "..." in the file, disabled ones included. parse_rules
+      // filters by disabled[], which would hide the very rule being cut.
+      auto ids = [](const string& s) {
+        std::set<string> out;
+        static const std::regex re("\"id\"\\s*:\\s*\"([^\"]*)\"", std::regex::ECMAScript);
+        for (auto it = std::sregex_iterator(s.begin(), s.end(), re); it != std::sregex_iterator(); ++it)
+          out.insert((*it)[1].str());
+        return out;
+      };
+      const std::set<string> idsBefore = ids(before), idsAfter = ids(after);
+      for (const auto& id : idsBefore)
+        if (!idsAfter.count(id))
+          block("guard-weaken", "the session may add rules to its own guard and may not remove one",
+                "rule '" + id + "' disappears from " + filePath);
+      const auto disBefore = parse_disabled(before), disAfter = parse_disabled(after);
+      for (const auto& d : disAfter) {
+        bool had = false;
+        for (const auto& b : disBefore) if (b == d) { had = true; break; }
+        if (!had)
+          block("guard-weaken", "the session may not switch off a rule that watches it",
+                "'" + d + "' is added to disabled[] in " + filePath);
+      }
+    }
+  }
+
   if (isEditTool && !filePath.empty()) {
     // the promise is authored by the user; a supervised session rewriting it
     // to escape the gate is the exact gaming this binary exists to refuse

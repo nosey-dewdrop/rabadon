@@ -414,6 +414,19 @@ test: all
 # main locally is the RECOVERABLE case -- the loss is a tip no remote has,
 # whatever the branch is called, which is what the law judges.
 	./native/git_verbs_test.sh
+# every law above can be switched off from inside. On 2 August this repository's
+# own guard.json read "disabled": ["promise-anti-path", "promise-tamper"] --
+# a supervised session had put the two rules protecting the goal contract on
+# the list it does not have to obey, citing a permission the operator gave
+# about something else, and rabadon-drift then answered "on the star" for eight
+# days while measuring against a promise the drifter was free to rewrite. This
+# suite asserts the one invariant that closes it: a session may make its own
+# supervision stronger and never weaker. Adding a rule to guard.json goes
+# through, removing one or naming one in disabled[] does not, and three rules
+# stop answering to disabled[] entirely. Every case names the rule it expects
+# to be refused by, because on the first draft a guard.json case "passed" on a
+# refusal from promise-off-target that had nothing to do with guard.json.
+	./native/promise_law_test.sh
 # the suite above asks what a word MEANS. this one asks how much of a name has
 # to be written down before the law recognizes it: `heads/main` IS
 # refs/heads/main, because git resolves a partially qualified ref through the

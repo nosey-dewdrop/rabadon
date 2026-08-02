@@ -75,12 +75,29 @@ echo '{ not json' > "$E/.rabadon/promise.json"
 edit_event "$E" "$E/web/y.mjs" s2 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "broken promise -> fails open, no crash (exit 0)" || bad "broken promise must fail open"
 
-# --- F: disabled[] in guard.json silences a promise rule (the override is real) ---
+# --- F: disabled[] does NOT silence a promise rule ---
+# This case asserted the opposite until 2 August 2026, and the assertion was the
+# hole. A supervised session then wrote exactly this into the repository's own
+# guard -- "disabled": ["promise-anti-path", "promise-tamper"] -- citing a
+# permission the operator had given about something else, and rabadon-drift
+# reported "on the star" for eight days while measuring against a promise the
+# drifter could rewrite. An override that the overridden party can invoke is not
+# an override. The two contract rules are sealed in the binary now; the operator
+# changes what they protect by editing promise.json by hand, which never comes
+# through this hook. promise-off-target stays overridable and case G proves it.
 F="$(scratch)"; RD="$(rdnew)"
 echo '{ "project": "f", "disabled": ["promise-anti-path"] }' > "$F/.rabadon/guard.json"
 edit_event "$F" "$F/web/feature.mjs" s1 | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
-[ $? -eq 0 ] && ok "disabled[] override silences the promise rule (exit 0)" \
-  || bad "disabled promise-anti-path should allow the edit"
+[ $? -eq 2 ] && ok "disabled[] does not reach a sealed promise rule (exit 2)" \
+  || bad "promise-anti-path is sealed and must still refuse with disabled[] naming it"
+
+# --- G: the seal is narrow -- an unsealed rule still answers to disabled[] ---
+G="$(scratch)"; RD="$(rdnew)"
+echo '{ "project": "g", "bash": [ { "id": "no-touch-foo", "deny": "touch\\s+foo", "why": "ordinary" } ], "disabled": ["no-touch-foo"] }' > "$G/.rabadon/guard.json"
+printf '{"hook_event_name":"PreToolUse","session_id":"s1","cwd":"%s","tool_name":"Bash","tool_input":{"command":"touch foo"}}' "$G" \
+  | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
+[ $? -eq 0 ] && ok "an ordinary rule named in disabled[] is still switched off (exit 0)" \
+  || bad "the seal must cover the contract rules only, not every rule"
 
 echo "gate promise: $PASS ok, $FAIL fail"
 [ $FAIL -eq 0 ]

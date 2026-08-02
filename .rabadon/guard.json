@@ -27,6 +27,13 @@
       "why": "`timeout` is not on macOS; the shell aborts and an empty exit code masquerades as a red test suite — use the tool's timeout parameter instead.",
       "authoredBy": "incident",
       "incidentAt": "2026-08-01T11:19:33Z"
+    },
+    {
+      "id": "no-blind-inplace-source-rewrite",
+      "deny": "\\b(perl|python3?|ruby|sed)\\b[^\\n]*(-0?[a-z]*i|--in-place|\\bopen\\([^\\n]*['\\\"]w['\\\"])[^\\n]*(native/|\\.cpp|\\.h|Makefile|_test\\.sh)",
+      "why": "In-place scripted rewrites of engine source and its test expectations edit both sides blind and let the two drift into contradicting each other.",
+      "authoredBy": "incident",
+      "incidentAt": "2026-08-02T07:47:57Z"
     }
   ],
   "protectedPaths": [
@@ -43,9 +50,6 @@
       "incidentAt": "2026-07-31T15:15:30Z"
     }
   ],
-  "disabled": [
-    "promise-anti-path",
-    "promise-tamper"
-  ],
-  "generatedBy": "rabadon rework session, override of stale promise rules authorized by damla 2026-07-31 (\"TAMAM ekle onayı için bana sorma\")"
+  "disabled": [],
+  "generatedBy": "the two ids removed from disabled[] on 2026-08-02 were promise-anti-path and promise-tamper, put there by a supervised session citing an unrelated permission; both are sealed in the binary now and this list can no longer reach them"
 }
