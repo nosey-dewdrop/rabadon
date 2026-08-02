@@ -52,12 +52,56 @@ def is_lab(pipe):
 
 
 USER = os.path.basename(HOME)
+HOMES = os.path.dirname(HOME)   # the directory home directories live in
+
+# somebody else's home, in output this machine merely relayed: a CI log from a
+# foreign repository carries /home/runner, a foreign macOS path carries
+# /Users/<name>. Neither is this operator's, and neither belongs on the page.
+FOREIGN_HOME = re.compile(r"/(?:Users|home)/[^/\s'\"]*")
+
+# how much of an account name has to survive before it counts as leaked. Four
+# characters is enough to search on, so four characters is a leak.
+PREFIX = 4
+
+
+def unhome(s):
+    """Rewrite every absolute home path to `~`, INCLUDING a truncated one.
+
+    The details being redacted here were already clipped by the gate that wrote
+    them, and a clip lands wherever the byte budget ran out — often in the
+    middle of the account name. `replace(HOME, "~")` matches a whole string and
+    a half of a path is not that string, so `/Users/damu` walked past the
+    rewrite, past the account-name replacement, and past the check that was
+    supposed to refuse the write, because the name that check searches for had
+    been cut in half two steps earlier. Two records shaped exactly like that
+    were published.
+
+    So the longest prefix of HOME that is actually present is what gets
+    replaced, down to the directory homes live in; then anything else shaped
+    like somebody's home directory goes the same way."""
+    s = s.replace(HOME, "~")
+    for n in range(len(HOME) - 1, len(HOMES), -1):
+        if HOME[:n] in s:
+            s = s.replace(HOME[:n], "~")
+    return FOREIGN_HOME.sub("~", s)
+
+
+def leaks(blob):
+    """What must never appear in the published file. Returns the reason, or ""
+    — the write is refused on any of these rather than trimmed, because a rule
+    that quietly edits its way out of a leak cannot be checked."""
+    if HOMES + "/" in blob:
+        return "an absolute home path survived redaction"
+    for n in range(len(USER), PREFIX - 1, -1):
+        if USER[:n] in blob:
+            return "the account name survives redaction (%d of %d characters)" % (n, len(USER))
+    return ""
 
 
 def clean(s):
     if not s:
         return ""
-    s = s.replace(HOME, "~").replace(USER, "home")
+    s = unhome(s).replace(USER, "home")
     return s[:400]
 
 
@@ -156,10 +200,11 @@ def main():
             "detail": clean(r.get("detail", "")),
         })
     pub.sort(key=lambda x: x["ts"], reverse=True)
-    leak = [p for p in pub if USER in json.dumps(p, ensure_ascii=False)]
+    leak = [(p, leaks(json.dumps(p, ensure_ascii=False))) for p in pub]
+    leak = [(p, why) for p, why in leak if why]
     if leak:
-        print("REFUSING TO WRITE: the account name survives redaction in %d record(s)" % len(leak))
-        print("  first:", json.dumps(leak[0], ensure_ascii=False)[:300])
+        print("REFUSING TO WRITE: %s, in %d record(s)" % (leak[0][1], len(leak)))
+        print("  first:", json.dumps(leak[0][0], ensure_ascii=False)[:300])
         sys.exit(1)
     with open(os.path.join(REPO, "site", "field.jsonl"), "w", encoding="utf-8") as f:
         for p in pub:

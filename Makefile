@@ -597,16 +597,30 @@ test: all
 # (native/precision_test.sh) and moving it down is the one edit that makes the
 # file worthless. `make precision` runs it alone.
 	./native/precision_test.sh
-
-# the same suite without the rest of the build, for working on the number
-precision: native/rabadon-gate
-	./native/precision_test.sh
 # and the page. every source the site names has to exist, no headline number may
 # be typed into the template, and a fact that appears on two pages has to have
 # one value. written red: the overview said 207 refusals while the page built
 # from the same ledger said 232, and it named native/gate_bench.sh as a source
 # when no such file existed.
+#
+# THIS LINE WAS NOT IN THIS TARGET. `precision:` was declared between the
+# comment and the command, so the recipe that guards the site belonged to
+# `make precision` and `make test` never ran it — for the whole week the suite
+# was being reported green. The test written to stop a typed-in number reaching
+# the page was the one test nothing was gating.
 	./native/site_claims_test.sh
+# site_claims_test.sh asks whether a number on the page can be walked back to a
+# run. this asks the other question about the same pages: whether something that
+# should never have left this machine rode along with it. the redaction in
+# site/field_stats.py matched whole strings — the home path, then the account
+# name, then a refusal to write if the account name survived — and one thing
+# defeated all three at once, a detail the gate had already clipped mid-path.
+# `/Users/damu` matched none of them and was published twice.
+	./native/field_redaction_test.sh
+
+# the same suite without the rest of the build, for working on the number
+precision: native/rabadon-gate
+	./native/precision_test.sh
 
 clean:
 	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
