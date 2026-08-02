@@ -104,6 +104,33 @@ sayıyor.
 
 ---
 
+## 2 AĞUSTOS 03:55 — SİTEDEKİ MANŞET DÜZELTİLDİ, AKTİF MOD AÇILMIYOR
+
+Bu oturumun /clear'dan ÖNCE başlattığı workflow (39 ajan, ~7 saat) 03:11'de
+bitti ve iki sayı getirdi. İkisini de kendim yeniden ürettim.
+
+**Fixture %100, gerçek defter %26.3.** 34 vakalık fixture yanlış değil, DAR.
+Aynı binary `~/.rabadon/spool` içindeki 215 gerçek reddedişle koşulunca: 15
+gerçek tehlike duruyor, 0 geçiyor, 42 meşru iş kesiliyor. 42'nin 41'i rabadon'un
+KENDİ kırmızı-takım laboratuvarı; onlar çıkınca 15/16 = %93.8. Üç sayı da sitede,
+her birinin altında komutu.
+
+**95 adı konmuş kaçağın 58'i açık.** `python3 redteam/redteam.py` ile kendim
+koştum: 37 kapalı, 58 açık. Dokuzunu izole laboratuvarda elle tekrar doğruladım,
+dokuzu da tekrarlandı (`git push --forc`, `git branch -D main`, `git clean -xfd`,
+`git reset --hard @{u}`, `rm -rf .git`, `find -delete`, `rsync --delete`,
+`pushd && rm -rf`, `bash /tmp/s.sh`). Dört küme: silen fiil rm değil (14), kabuk
+konumu takip edilmiyor (5), program satırda yok (11), git'in kendi grameri (28).
+
+**AKTİF MOD AÇILMIYOR.** Tutamayacağı koruma sözü veren kapı, ne durdurduğunu
+söyleyen kapıdan kötüdür. Site bunu yazıyor.
+
+**Bir sızıntı kapatıldı:** `NOTES-FOR-DAMLA.md` public repoya üç yayınlanmamış
+proje adıyla push'lanmıştı. HEAD'de temizlendi. Adlar tek bir commit'in
+geçmişinde duruyor; çıkarmak filter-repo + force-push ister, o KARAR DAMLA'NIN.
+
+---
+
 ## ÖLÇEMEDİKLERİM
 
 - **zod ve date-fns bu makinede yok.** Keşif düzeltmesi onların ÖLÇÜLMÜŞ
