@@ -31,7 +31,14 @@ test('fresh project: settings created with every gate hook + drift on Stop + sta
   assert.equal(s.hooks.PreToolUse[0].hooks[0].timeout, 960, 'PreToolUse outlasts the 900s push-gate suite budget');
   assert.equal(s.hooks.PostToolUse[0].hooks[0].timeout, 120, 'PostToolUse outlasts the 90s incident brain');
   assert.ok(s.statusLine.command.includes('--statusline'));
-  assert.ok(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').includes('.rabadon/state.json'));
+  // Both of these are per-machine session state and both land in the project the
+  // moment a session touches it. state.json was ignored from the start, handoff.md
+  // was not, so in a repository the operator is only visiting `git add -A` staged
+  // it along with their work — and it carries the session goal and the last
+  // commands run.
+  const ignored = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(ignored.includes('.rabadon/state.json'));
+  assert.ok(ignored.includes('.rabadon/handoff.md'), 'the handoff is session state, not the project’s');
 });
 
 test('existing settings: user hooks and permissions PRESERVED, gate appended, backup made', () => {

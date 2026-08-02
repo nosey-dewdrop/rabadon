@@ -219,13 +219,17 @@ export function installHooks(dir, { gateCmd = GATE_BIN, driftCmd = DRIFT_BIN, st
 
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 
-  // .rabadon/state.json is per-machine session state — never someone's diff
-  // noise. Skipped for the global target: ~/.gitignore is not ours to touch.
+  // state.json and handoff.md are per-machine session state — never someone's
+  // diff noise. Both are written the moment a session touches the project, and
+  // in a repository the operator is only visiting, an unignored one rides into
+  // their pull request carrying the session goal and the last commands run.
+  // Skipped for the global target: ~/.gitignore is not ours to touch.
   if (path.resolve(dir) !== path.resolve(os.homedir())) {
     try {
       const gi = path.join(dir, '.gitignore');
       const cur = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
-      if (!cur.includes('.rabadon/state.json')) fs.appendFileSync(gi, '\n.rabadon/state.json\n');
+      const missing = ['.rabadon/state.json', '.rabadon/handoff.md'].filter((p) => !cur.includes(p));
+      if (missing.length) fs.appendFileSync(gi, '\n' + missing.join('\n') + '\n');
     } catch { /* a read-only gitignore must not stop the install */ }
   }
 
