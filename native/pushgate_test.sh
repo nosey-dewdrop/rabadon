@@ -71,5 +71,24 @@ t1=$(python3 -c 'import time;print(time.time())')
 [ $rc -eq 2 ] && ok "timeout: a hanging suite is killed and the push blocked (exit 2)" || bad "timeout should block (got $rc)"
 python3 -c "import sys;sys.exit(0 if ($t1-$t0)<4 else 1)" && ok "timeout: gate returned fast, did not wait out the sleep" || bad "timeout should return fast"
 
+# --- E: the suite runs under a shell that can hold the project's own env ---
+# Measured on aaif-goose/goose, whose test command starts `source bin/activate-hermit`.
+# Under `sh -c` that script dies on line 68 with
+#   bin/activate-hermit: line 68: `deactivate-hermit': not a valid identifier
+# because POSIX sh rejects a hyphen in a function name. cargo never ran, the
+# gate read a nonzero exit and blocked a green tree while saying the tests
+# failed. hermit, nvm and asdf all define hyphenated functions, so this is every
+# repo that activates a toolchain before testing, not one project.
+E="$(scratch "deactivate-hermit() { :; }; echo 100 percent tests passed" "tests passed")"
+RD="$(mktemp -d)"; : > "$RD/enabled"
+out="$(pushev "$E" | RABADON_DIR="$RD" "$BIN" 2>&1)"; rc=$?
+[ $rc -eq 0 ] && ok "env shell: a suite needing bash function syntax runs and the push is allowed" || bad "env shell: push should be allowed (got $rc)"
+
+# --- E2 (twin of E): the bigger shell must not turn a red suite green ---
+E2="$(scratch "deactivate-hermit() { :; }; echo FAILED 1 test; exit 1" "tests passed")"
+RD="$(mktemp -d)"; : > "$RD/enabled"
+out="$(pushev "$E2" | RABADON_DIR="$RD" "$BIN" 2>&1)"; rc=$?
+[ $rc -eq 2 ] && ok "env shell twin: a real failure under the same shell still blocks (exit 2)" || bad "env shell twin: red should still block (got $rc)"
+
 echo "gate push: $PASS ok, $FAIL fail"
 [ $FAIL -eq 0 ]

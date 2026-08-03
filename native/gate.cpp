@@ -744,6 +744,16 @@ static string run_shell(const string& cmd, int timeoutSec, size_t maxBytes, int*
     if (devnull >= 0) dup2(devnull, STDIN_FILENO);
     close(outPipe[0]); close(outPipe[1]);
     setenv("RABADON_OFF", "1", 1); // the suite run is work, not a supervised action
+    // bash, not sh, and the reason is a whole class of repositories. A project
+    // that activates a toolchain before testing sources a script written for
+    // bash: hermit, nvm and asdf all define functions with a hyphen in the name,
+    // which POSIX sh rejects outright. Measured on aaif-goose/goose, whose test
+    // command opens `source bin/activate-hermit`: under sh the script died on
+    // line 68 with `deactivate-hermit': not a valid identifier, cargo never ran,
+    // and the gate blocked a green tree while reporting that the tests failed.
+    // execlp only returns when the exec failed, so sh stays as the fallback for
+    // images that ship no bash.
+    execlp("bash", "bash", "-c", cmd.c_str(), (char*)nullptr);
     execlp("sh", "sh", "-c", cmd.c_str(), (char*)nullptr);
     _exit(127);
   }
