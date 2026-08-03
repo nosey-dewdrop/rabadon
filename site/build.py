@@ -913,25 +913,52 @@ def census_block(c):
                    "go wrong again.</p>")
 
     over = c.get("over_fires") or {}
-    ov = over.get("rules") or over.get("items") or []
+    # `confirmed` is what the generator writes. The two keys read here before it
+    # were `rules` and `items`, neither of which the file has ever carried, so
+    # this whole block rendered nothing on the published page while looking like
+    # it was rendering something — the failure mode one layer above the one the
+    # section is about.
+    ov = over.get("confirmed") or over.get("rules") or over.get("items") or []
     if ov:
         rows = []
         for o in ov[:12]:
             rows.append([html.escape(str(o.get("project", ""))), html.escape(str(o.get("id", ""))),
                          html.escape(str(o.get("command", o.get("probe", "")))[:120])])
+        driven = over.get("allow_twins_checked", 0)
+        held = over.get("allow_twins_withheld", 0)
         out.append("<h3>and the other direction</h3>"
                    '<p class="small dim">Rules that refuse work they were never written about. '
-                   "Found by running ordinary commands against every guard, and by running all 193 "
-                   "allow twins on this machine through the gate, an allow twin being a command the "
-                   "rule's own author wrote down as one that must pass.</p>")
+                   f"Found by driving {driven} allow twins through the gate, an allow twin being a "
+                   "command the rule's own author wrote down as one that must pass. "
+                   + (f"{held} more were withheld: a <code>git push</code> twin at a guard carrying "
+                      "a push gate is not a judgement, because the gate forks a shell and runs the "
+                      "project's own suite before deciding, and driving one would both execute "
+                      "that suite and move the state the two binaries were being compared under."
+                      if held else "") + "</p>")
         out.append(table([("project", "s"), ("rule", "s"), ("the command it refused", "d")],
                          rows, "ledger"))
 
-    out.append('<p class="cap">Measured at commit <code>'
-               + html.escape(str(c.get("gate_commit", "?"))[:12]) +
-               "</code>, which is BEFORE the two repairs that closed the largest mechanisms. The "
-               "number is the state it was found in, not the state it is in, and it stays that way "
-               "until the census is run again against the repaired gate.</p>")
+    cmp_ = c.get("comparison") or {}
+    was = cmp_.get("old_binary_remeasured") or {}
+    if was:
+        window = cmp_.get("measured_between_utc") or ["?", "?"]
+        out.append('<p class="cap">Measured at commit <code>'
+                   + html.escape(str(c.get("gate_commit", "?"))[:12]) +
+                   "</code>. The first census was run at <code>"
+                   + html.escape(str(cmp_.get("old_gate_commit", "?"))[:12]) +
+                   "</code>, before the repairs, and it is not enough to compare this number "
+                   "against that one: two figures taken at two moments differ by the clock as much "
+                   "as by the code. So both binaries were built and every rule was driven through "
+                   "each of them back to back, in one pass, between "
+                   + html.escape(str(window[0])) + " and " + html.escape(str(window[1])) +
+                   f". The old binary answered {was.get('can_fire', 0)} can fire and "
+                   f"{was.get('cannot_fire', 0)} cannot, reproducing the published figure exactly; "
+                   f"the repaired one answered {h.get('can_fire', 0)} and "
+                   f"{h.get('cannot_fire', 0)}.</p>")
+    else:
+        out.append('<p class="cap">Measured at commit <code>'
+                   + html.escape(str(c.get("gate_commit", "?"))[:12]) +
+                   "</code>, with no comparison run beside it.</p>")
     out.append("</section>")
     return "\n".join(out)
 
