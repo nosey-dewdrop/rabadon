@@ -579,6 +579,20 @@ test: all
 	./native/discovery_language_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh
+# export_test.sh asks whether the spans that ship are correct. this one asks
+# whether the ones that did NOT ship were announced. measured 3 August against
+# the live spool: 80,690 lines in, 77,084 spans out, exit 0, stderr empty, and
+# nothing in the program could tell anyone where the gap went. under that
+# silence sat a real discard -- "older than the window" and "I could not read
+# this line" left through the same bare `continue`, because rbjson::get_num
+# returns 0 for absent, mistyped and unparseable alike. three more cost a reader
+# something: one invalid utf-8 byte made the whole 25 MB document invalid per
+# RFC 8259 and a collector rejects every span rather than one; a refusal shipped
+# with no rule on it, because export read a top-level "rule" while the gate
+# writes fails[]; and a torn line shipped as an anonymous span into the trace id
+# of the literal string "?". the export now closes its books on stderr and the
+# arithmetic reconciles: lines read == spans + drills + held back.
+	./native/export_drop_test.sh
 	./native/gate_promise_test.sh
 	./native/lamp_test.sh
 	./native/watch_test.sh

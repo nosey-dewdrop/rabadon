@@ -19,13 +19,58 @@
 //   - a catch/refusal sets span status = ERROR with the rule as the message —
 //     so a refused action is red in any trace viewer, which is exactly why the
 //     drill rules here (drill.h, shared with rabadon-stats) have to be the same
-//     four the local number uses: this is the surface strangers read;
+//     four the local number uses: this is the surface strangers read. The rule
+//     is read from BOTH shapes the ledger actually has: the top-level "rule"
+//     key, which only STOP and WOULD_BLOCK carry (gate.cpp:1842, :1862), and
+//     fails[].check, which is where every CHECK_FAIL puts it (gate.cpp:1837,
+//     and the net/scope/goal/tests/budget checks at :1375 :1457 :1478 :1581
+//     :1896). This reader knew the STOP shape only, so a refusal went out red
+//     with the literal word CHECK_FAIL as its message and no rule anywhere on
+//     the span — the one thing a stranger's collector is looking at. rabadon
+//     -stats has read fails[0].check as "the rule that fired" the whole time
+//     (stats.cpp:574), so the two readers described the same refusal
+//     differently;
 //   - attributes: rabadon.ev, rabadon.rule, rabadon.detail, and the GenAI
 //     conventions gen_ai.system / gen_ai.request.model / gen_ai.usage.* where
 //     token counts exist. Those counts are read under THE KEYS THE SHIPPED
 //     BINARIES WRITE — see the token block below; this reader used to name
 //     keys nothing in the repo emits, and shipped 0 gen_ai attributes over a
-//     ledger of 1366 token-bearing events.
+//     ledger of 1366 token-bearing events. Every field the exporter does NOT
+//     map rides along as rabadon.<key>, on EVERY event — this used to happen
+//     only for unrecognised verbs, and `step`, the field that says what the
+//     agent actually ran, is written on all ten of SPEC §2's verbs and was
+//     exported for none of them: a STEP_START/STEP_OK pair left the machine
+//     carrying its own name and nothing about the command;
+//   - the accounting. Every other reader of the spool answers to a count; this
+//     one never did. Measured 3 August 2026: 80,690 lines in, 77,084 spans
+//     out, exit 0, empty stderr — the gap is drills, which is correct, and no
+//     number in the program could have said so. The books are now closed on
+//     stderr (stdout stays the document): lines read, spans out, every discard
+//     classified. Two different facts used to share one bare `continue`,
+//     because rbjson::get_num returns 0 for absent, mistyped AND unparseable
+//     and 0 is never >= a cutoff in 2026:
+//       * ts older than the window -> held back, counted, named;
+//       * no readable ts           -> SHIPPED, rabadon.export.dated="no",
+//                                     placed at the day its file is named for.
+//                                     A line the reader cannot date is not a
+//                                     line from last year;
+//       * unparseable JSON         -> SHIPPED as an UNREADABLE span, red, with
+//                                     the byte offset the walk stopped at, the
+//                                     fields that were readable before it, and
+//                                     the head of the raw line. Where the
+//                                     damage sat used to decide the outcome:
+//                                     before `ts` the line vanished, after it
+//                                     the line shipped nameless with an empty
+//                                     pipe into the trace id of the literal
+//                                     string "?";
+//   - one document, one encoding. jesc() passed every byte >= 0x80 through
+//     untouched, so ONE invalid UTF-8 byte in ONE field made the entire
+//     payload invalid JSON (RFC 8259 §8.1) and a collector rejects all 77,084
+//     spans, not the one line. 65 lines of the live spool carry invalid UTF-8
+//     today, 59 of them in `step` — harmless only for as long as `step` was
+//     never exported, which stopped being true two bullets ago. Bytes that are
+//     not UTF-8 leave as U+FFFD, and the lines that carried them are counted
+//     and reported.
 //
 //   rabadon export --otlp [--days N]   -> OTLP/JSON on stdout
 //   POST it:  rabadon export --otlp | curl -s localhost:4318/v1/traces \
@@ -70,19 +115,148 @@ static string read_file(const string& p) {
 }
 
 // Read the line AS JSON (jsonl.h), not as the bytes rabadon's own printf emits.
-// These matched the literal `"key":"`, so a spool written by a stock serializer
-// (`"ev": "STOP"`) yielded an empty `ev` for every line, no line matched the
-// exportable set, and the exporter shipped ZERO spans while claiming the
-// standard. rabadon's own G3 evidence ledger,
+// The old readers matched the literal `"key":"`, so a spool written by a stock
+// serializer (`"ev": "STOP"`) yielded an empty `ev` for every line, no line
+// matched the exportable set, and the exporter shipped ZERO spans while
+// claiming the standard. rabadon's own G3 evidence ledger,
 // reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl, is in that
 // format: 10 real events, 0 spans. An exporter that only speaks its own
 // emitter's whitespace is not the agent-agnostic surface SPEC Part II promises.
-static string get_field(const string& line, const string& key) {
-  return rbjson::get_str(line, key);
+//
+// One walk per line, not one per field. rbjson::find_field restarts at byte 0
+// for every key and answers only "here is the value, or nothing" — it cannot
+// say WHY there was nothing, and "absent", "mistyped" and "the line is torn in
+// half" are three different facts that a reader owes an operator separately.
+// So: walk the object once, keep the depth-1 fields in document order, and
+// record where the walk stopped when it could not finish. Fields read before
+// the damage are kept — a truncated line still knows its own `run`.
+//
+// Depth-1 strictness only: rbjson::skip_value matches braces and skips string
+// literals, so damage INSIDE a nested value is not detected here. That is the
+// same boundary jsonl.h draws and it is the boundary that matters for this
+// reader, whose answers all live at depth 1.
+struct RbField { string key, val; bool is_string = false; };
+struct RbLine {
+  bool is_object = false;   // starts with '{'
+  bool complete = false;    // ...and the walk reached its closing '}'
+  size_t stop = 0;          // byte offset the walk gave up at
+  const char* why = "";     // in words, for the span that carries the damage
+  vector<RbField> f;
+};
+
+static RbLine parse_line(const string& s) {
+  RbLine r;
+  size_t i = rbjson::skip_ws(s, 0);
+  if (i >= s.size() || s[i] != '{') { r.stop = i; r.why = "not a JSON object"; return r; }
+  r.is_object = true;
+  i = rbjson::skip_ws(s, i + 1);
+  if (i < s.size() && s[i] == '}') { r.complete = true; r.stop = i + 1; }
+  while (!r.complete && i < s.size()) {
+    RbField fl;
+    size_t n = rbjson::scan_string(s, i, &fl.key);
+    if (n == string::npos) { r.stop = i; r.why = "key is not a closed string"; return r; }
+    i = rbjson::skip_ws(s, n);
+    if (i >= s.size() || s[i] != ':') { r.stop = i; r.why = "no ':' after key"; return r; }
+    i = rbjson::skip_ws(s, i + 1);
+    size_t vs = i;
+    n = rbjson::skip_value(s, i);
+    if (n == string::npos) { r.stop = i; r.why = "value is truncated or malformed"; return r; }
+    fl.is_string = (vs < s.size() && s[vs] == '"');
+    if (fl.is_string) rbjson::scan_string(s, vs, &fl.val);
+    else fl.val = s.substr(vs, n - vs);
+    r.f.push_back(std::move(fl));
+    i = rbjson::skip_ws(s, n);
+    if (i < s.size() && s[i] == '}') { r.complete = true; r.stop = i + 1; break; }
+    if (i >= s.size()) { r.stop = i; r.why = "the object never closes"; return r; }
+    if (s[i] != ',') { r.stop = i; r.why = "no ',' between fields"; return r; }
+    i = rbjson::skip_ws(s, i + 1);
+  }
+  if (!r.complete) { r.stop = i; r.why = "the object never closes"; return r; }
+  size_t t = rbjson::skip_ws(s, r.stop);
+  if (t != s.size()) { r.complete = false; r.stop = t; r.why = "trailing bytes after the closing brace"; }
+  return r;
 }
 
-static double get_num(const string& line, const string& key) {
-  return rbjson::get_num(line, key);
+// jsonl.h's rule, kept byte for byte: the first occurrence of a key at depth 1
+// is the answer, and a value of the wrong type reads as absent.
+static bool is_jnum(const string& v) {
+  if (v.empty()) return false;
+  char c = v[0];
+  return c == '-' || c == '+' || c == '.' || (c >= '0' && c <= '9');
+}
+
+// A non-string value rides along as its own JSON text, so two producers that
+// mean the same thing have to export the same bytes: string literals verbatim,
+// insignificant whitespace dropped. Without this a stock serializer's
+// `"fails": [{"check": "x"}]` and rabadon's own `"fails":[{"check":"x"}]`
+// become two different attribute values for one identical fact — the same
+// emitter-fingerprinting jsonl.h exists to end, one level down.
+static string jmin(const string& v) {
+  string o;
+  o.reserve(v.size());
+  for (size_t i = 0; i < v.size();) {
+    char c = v[i];
+    if (c == '"') {
+      size_t n = rbjson::scan_string(v, i, nullptr);
+      if (n == string::npos) { o.append(v, i, v.size() - i); break; }
+      o.append(v, i, n - i); i = n; continue;
+    }
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') { i++; continue; }
+    o += c; i++;
+  }
+  return o;
+}
+
+// The refusal ledger's OTHER shape. `rule` at the top level exists on STOP and
+// WOULD_BLOCK; a CHECK_FAIL puts the rule that fired in fails[].check with the
+// evidence in fails[].why, which is what rabadon-stats reads (stats.cpp:574).
+// Every check is named, not just the first — a line that failed three rules
+// says three rules, and stats' "first one wins" is a display choice, not the
+// record.
+static void rule_from_fails(const string& arr, string& rule, string& why) {
+  size_t i = rbjson::skip_ws(arr, 0);
+  if (i >= arr.size() || arr[i] != '[') return;
+  i = rbjson::skip_ws(arr, i + 1);
+  while (i < arr.size() && arr[i] != ']') {
+    size_t n = rbjson::skip_value(arr, i);
+    if (n == string::npos) return;
+    if (arr[i] == '{') {
+      string obj = arr.substr(i, n - i);
+      string c = rbjson::get_str(obj, "check");
+      if (!c.empty()) {
+        if (!rule.empty()) rule += ",";
+        rule += c;
+        if (why.empty()) why = rbjson::get_str(obj, "why");
+      }
+    }
+    i = rbjson::skip_ws(arr, n);
+    if (i < arr.size() && arr[i] == ',') { i = rbjson::skip_ws(arr, i + 1); continue; }
+    break;
+  }
+}
+
+// Midnight UTC of the day a spool file is named for, in ms. The spool is one
+// file per day (YYYY-MM-DD.jsonl), so the file name is real evidence about
+// when a line inside it happened — the only evidence left when the line's own
+// `ts` cannot be read. days_from_civil rather than timegm/mktime: the answer
+// must not move with the operator's TZ.
+static bool file_day_ms(const string& fn, double& out) {
+  if (fn.size() < 10) return false;
+  for (int i = 0; i < 10; i++) {
+    char c = fn[i];
+    bool digit = c >= '0' && c <= '9';
+    if ((i == 4 || i == 7) ? c != '-' : !digit) return false;
+  }
+  int y = atoi(fn.substr(0, 4).c_str()), m = atoi(fn.substr(5, 2).c_str()), d = atoi(fn.substr(8, 2).c_str());
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  y -= m <= 2;
+  int era = (y >= 0 ? y : y - 399) / 400;
+  unsigned yoe = (unsigned)(y - era * 400);
+  unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
+  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  long long days = (long long)era * 146097 + (long long)doe - 719468;
+  out = (double)days * 86400000.0;
+  return true;
 }
 
 // FNV-1a 64-bit; two of them (salted) make a stable 128-bit trace id
@@ -95,9 +269,62 @@ static string hex64(uint64_t v) { char b[17]; snprintf(b, sizeof b, "%016llx", (
 static string trace_id(const string& pipe) { return hex64(fnv(pipe, 1469598103934665603ULL)) + hex64(fnv(pipe, 1099511628211ULL)); }
 static string span_id(const string& s) { return hex64(fnv(s, 0xcbf29ce484222325ULL)); }
 
+// Length of the well-formed UTF-8 sequence starting at i, or 0 when the bytes
+// there are not one. RFC 3629: no overlongs (C0/C1, E0 80, F0 80), no
+// surrogates (ED A0..BF), nothing above U+10FFFF (F5..FF).
+static size_t utf8_seq(const string& s, size_t i) {
+  unsigned char c = (unsigned char)s[i];
+  if (c < 0x80) return 1;
+  size_t n; unsigned lo = 0x80, hi = 0xBF;
+  if (c >= 0xC2 && c <= 0xDF) n = 1;
+  else if (c == 0xE0) { n = 2; lo = 0xA0; }
+  else if (c >= 0xE1 && c <= 0xEC) n = 2;
+  else if (c == 0xED) { n = 2; hi = 0x9F; }
+  else if (c >= 0xEE && c <= 0xEF) n = 2;
+  else if (c == 0xF0) { n = 3; lo = 0x90; }
+  else if (c >= 0xF1 && c <= 0xF3) n = 3;
+  else if (c == 0xF4) { n = 3; hi = 0x8F; }
+  else return 0;
+  if (i + n >= s.size()) return 0;   // the sequence runs off the end of the string
+  for (size_t k = 1; k <= n; k++) {
+    unsigned char d = (unsigned char)s[i + k];
+    unsigned a = (k == 1) ? lo : 0x80, b = (k == 1) ? hi : 0xBF;
+    if (d < a || d > b) return 0;
+  }
+  return n + 1;
+}
+
+static bool has_bad_utf8(const string& s) {
+  for (size_t i = 0; i < s.size();) {
+    size_t n = utf8_seq(s, i);
+    if (n == 0) return true;
+    i += n;
+  }
+  return false;
+}
+
+// The export is ONE JSON document, so ONE byte decides whether ANY of it can be
+// read. This escaped control characters and passed every byte >= 0x80 through
+// untouched — correct only while every producer's bytes happen to be UTF-8.
+// RFC 8259 §8.1 requires the text to be Unicode; a lone 0xC3 from a truncated
+// write, a latin-1 filename, or a binary blob in a `step` string makes the
+// whole payload undecodable and a collector drops every span in it. So the
+// escaper is now the encoding boundary: valid sequences pass through as they
+// are, anything that is not UTF-8 leaves as U+FFFD (escaped, so the output is
+// pure ASCII either way). One damaged field costs its own bytes and nothing
+// else's. The lines this happens to are counted and reported on stderr — a
+// substitution nobody is told about is the same silence as a dropped line.
 static string jesc(const string& s) {
   string o;
-  for (unsigned char c : s) {
+  o.reserve(s.size());
+  for (size_t i = 0; i < s.size();) {
+    unsigned char c = (unsigned char)s[i];
+    if (c >= 0x80) {
+      size_t n = utf8_seq(s, i);
+      if (n == 0) { o += "\\ufffd"; i++; }
+      else { o.append(s, i, n); i += n; }
+      continue;
+    }
     switch (c) {
       case '"': o += "\\\""; break;
       case '\\': o += "\\\\"; break;
@@ -106,6 +333,7 @@ static string jesc(const string& s) {
       case '\t': o += "\\t"; break;
       default: if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); o += b; } else o += (char)c;
     }
+    i++;
   }
   return o;
 }
@@ -117,18 +345,28 @@ static string attr_int(const string& k, long long v) { return "{\"key\":\"" + k 
 // for a micro-dollar count — the double is a rendering, never the record.
 static string attr_dbl(const string& k, double v) { char b[40]; snprintf(b, sizeof b, "%.6f", v); return "{\"key\":\"" + k + "\",\"value\":{\"doubleValue\":" + b + "}}"; }
 
-struct Ev { double ts, seq; string pipe, run, ev, rule, detail, model; long long tin = 0, tout = 0, usd_e6 = 0; bool known = false; string extra; };
+struct Ev {
+  double ts = 0, seq = 0;
+  string pipe, run, ev, rule, detail, model;
+  long long tin = 0, tout = 0, usd_e6 = 0;
+  string extra;
+  // what the READER knows about the line, as opposed to what the line says
+  string src;              // "<file>:<lineno>", so a damaged line can be found
+  string file;             // the trace a pipeless line falls back to
+  bool dated = true;       // the line carried a readable ts of its own
+  bool readable = true;    // the walk reached the closing brace
+  string why, raw;         // when it did not: where it stopped, and the bytes
+};
 
-// The ten `ev` values SPEC §2 fixes. This is NOT a filter — every event ships.
-// It only decides SHAPING: a known verb keeps the mapping this exporter has
-// always given it, an unrecognised one renders generically with its own fields
-// carried along, because rabadon cannot know what a stranger's field means.
-static bool is_known_ev(const string& ev) {
-  static const char* v[] = {"RUN_START", "STEP_START", "STEP_OK", "CHECK_FAIL", "WOULD_BLOCK",
-                            "REPAIR_START", "REPAIR_OK", "REPAIR_FAIL", "STOP", "RUN_DONE"};
-  for (const char* w : v) if (ev == w) return true;
-  return false;
-}
+// SPEC §2 fixes ten `ev` values and adds the MUST that unknown ones render
+// generically and are never dropped. There used to be a predicate here that
+// told the two apart, because an unrecognised verb was the ONLY event whose
+// own fields were carried along. That was the bug in section 4 of
+// export_drop_test: `step` — the field that says what the agent ran — is
+// written by all ten of the known verbs, and being known is exactly what made
+// it invisible. Every event now carries every field this exporter does not map,
+// so there is no shaping difference left for a predicate to decide, and a
+// predicate with no consumer is the drift drill.h warns about.
 
 // Everything this exporter already maps to a span field or a named attribute.
 // The rest of the line is what "unknown fields MUST be preserved" is about.
@@ -136,6 +374,18 @@ static bool is_mapped_field(const string& k) {
   static const char* v[] = {"v", "ts", "seq", "run", "pipe", "ev", "rule", "detail", "tokensIn", "tokensOut"};
   for (const char* w : v) if (k == w) return true;
   return false;
+}
+
+// A mapped key whose value is the WRONG TYPE reads as absent — jsonl.h's rule,
+// and the right one — but it was then dropped from the export as well, on the
+// grounds that it was "mapped". `"ts":"1785599999000"` is precisely the line
+// that leaves undated, and the one thing its span could not say was why. So a
+// mapped key rides along as rabadon.<key> whenever the mapper did not take it.
+static bool mapper_took(const string& k, bool is_string, const string& val) {
+  bool num = !is_string && is_jnum(val);
+  if (k == "ts" || k == "seq" || k == "tokensIn" || k == "tokensOut") return num;
+  if (k == "run" || k == "pipe" || k == "ev" || k == "rule" || k == "detail") return is_string;
+  return true;   // "v" is the ledger's schema version and is exported by nobody
 }
 
 static const char* kHelp =
@@ -212,21 +462,110 @@ int main(int argc, char** argv) {
   // `ev` values MUST be rendered generically, never dropped" — which is what
   // makes Part II's agent-agnostic promise false for any producer that adds a
   // verb. The only thing that may keep an event home is a drill.
-  vector<RbDrillEv> classify;   // one per in-window line
+  //
+  // The window filter was two lines and both discards were the same bare
+  // `continue`:
+  //
+  //     double ts = get_num(line, "ts");
+  //     if (!(ts >= cutoff)) continue;
+  //
+  // rbjson::get_num answers 0 for absent, mistyped AND unparseable, and 0 is
+  // never >= a cutoff in 2026 — so "this line is older than the window" and "I
+  // could not read this line" left by the same silent door. Worse, WHERE the
+  // damage sat decided which way it went wrong: find_field walks keys left to
+  // right and stops at the first structural error, so damage before `ts` meant
+  // the line vanished and damage after `ts` meant the line shipped with every
+  // later field blank. The live spool never showed the first case only because
+  // the shipped emitters happen to put `ts` third — a property of one
+  // emitter's key order, and Part II exists so a stranger's serializer can
+  // order keys however it likes.
+  //
+  // Now: read the line once, and let it fall into exactly one of three states.
+  //   dated + in window   -> a span, as before;
+  //   dated + out         -> held back, counted as out-of-window;
+  //   undated             -> a span, marked, placed at the day its file names,
+  //                          and held back only if that whole day is older
+  //                          than the window (the file name is the only
+  //                          evidence about a line that will not say when it
+  //                          happened; guessing "now" would import an ancient
+  //                          spool into today, guessing "1970" would drop it).
+  // Unreadable is orthogonal: it says whether the line could be parsed, not
+  // whether it belongs in the window, and a line can be both undated and
+  // unreadable.
+  vector<RbDrillEv> classify;   // one per line that will be considered
   vector<Ev> parsed;            // the payload, same indexing
+  long long n_read = 0, n_files = 0, n_old_ts = 0, n_old_file = 0;
+  long long n_undated = 0, n_unreadable = 0, n_badutf8 = 0;
   for (const string& f : files) {
     string body = read_file(spool + "/" + f);
+    double dayMs = 0;
+    bool haveDay = file_day_ms(f, dayMs);
+    n_files++;
     size_t pos = 0;
+    long long lineno = 0;
     while (pos < body.size()) {
       size_t nl = body.find('\n', pos);
       string line = body.substr(pos, (nl == string::npos ? body.size() : nl) - pos);
       pos = (nl == string::npos) ? body.size() : nl + 1;
-      if (line.empty()) continue;
-      double ts = get_num(line, "ts");
-      if (!(ts >= cutoff)) continue;
-      Ev e; e.ts = ts; e.seq = get_num(line, "seq");
-      e.pipe = get_field(line, "pipe"); e.run = get_field(line, "run"); e.ev = get_field(line, "ev");
-      e.rule = get_field(line, "rule"); e.detail = get_field(line, "detail");
+      lineno++;
+      if (line.empty()) continue;   // a blank line is not an event and never was
+      n_read++;
+      if (has_bad_utf8(line)) n_badutf8++;
+
+      RbLine lp = parse_line(line);
+      Ev e;
+      e.file = f;
+      e.src = f + ":" + std::to_string(lineno);
+      e.readable = lp.is_object && lp.complete;
+      if (!e.readable) {
+        e.why = string(lp.why) + " at byte " + std::to_string((long long)lp.stop);
+        e.raw = line.size() > 160 ? line.substr(0, 160) + "…" : line;
+      }
+
+      // one pass over the depth-1 fields: the mapped ones by name, everything
+      // else carried along as rabadon.<key>. First occurrence wins and a value
+      // of the wrong type reads as absent — jsonl.h's rule, kept identical, so
+      // the two readers cannot disagree about what a line says.
+      bool gTs = false, gSeq = false, gPipe = false, gRun = false, gEv = false, gRule = false;
+      bool gDetail = false, gModel = false, gIn = false, gOut = false, gTin = false;
+      bool gTout = false, gTok = false, gUsd = false;
+      double ts = 0; bool tsOk = false;
+      long long v_in = 0, v_out = 0, v_tin = 0, v_tout = 0, v_tok = 0;
+      string failsRaw;
+      auto num = [](const RbField& fl) { return strtod(fl.val.c_str(), nullptr); };
+      for (const RbField& fl : lp.f) {
+        const string& k = fl.key;
+        if (k == "ts") { if (!gTs) { gTs = true; if (!fl.is_string && is_jnum(fl.val)) { ts = num(fl); tsOk = true; } } }
+        else if (k == "seq") { if (!gSeq) { gSeq = true; if (!fl.is_string && is_jnum(fl.val)) e.seq = num(fl); } }
+        else if (k == "pipe") { if (!gPipe) { gPipe = true; if (fl.is_string) e.pipe = fl.val; } }
+        else if (k == "run") { if (!gRun) { gRun = true; if (fl.is_string) e.run = fl.val; } }
+        else if (k == "ev") { if (!gEv) { gEv = true; if (fl.is_string) e.ev = fl.val; } }
+        else if (k == "rule") { if (!gRule) { gRule = true; if (fl.is_string) e.rule = fl.val; } }
+        else if (k == "detail") { if (!gDetail) { gDetail = true; if (fl.is_string) e.detail = fl.val; } }
+        else if (k == "model") { if (!gModel) { gModel = true; if (fl.is_string) e.model = fl.val; } }
+        else if (k == "in") { if (!gIn) { gIn = true; if (!fl.is_string && is_jnum(fl.val)) v_in = (long long)num(fl); } }
+        else if (k == "out") { if (!gOut) { gOut = true; if (!fl.is_string && is_jnum(fl.val)) v_out = (long long)num(fl); } }
+        else if (k == "tokensIn") { if (!gTin) { gTin = true; if (!fl.is_string && is_jnum(fl.val)) v_tin = (long long)num(fl); } }
+        else if (k == "tokensOut") { if (!gTout) { gTout = true; if (!fl.is_string && is_jnum(fl.val)) v_tout = (long long)num(fl); } }
+        else if (k == "tokens") { if (!gTok) { gTok = true; if (!fl.is_string && is_jnum(fl.val)) v_tok = (long long)num(fl); } }
+        else if (k == "usd_e6") { if (!gUsd) { gUsd = true; if (!fl.is_string && is_jnum(fl.val)) e.usd_e6 = (long long)num(fl); } }
+        if (k == "fails" && failsRaw.empty() && !fl.is_string) failsRaw = fl.val;
+      }
+
+      // the window, and the three states
+      if (tsOk) {
+        e.ts = ts; e.dated = true;
+        if (!(ts >= cutoff)) { n_old_ts++; continue; }
+      } else {
+        e.dated = false;
+        e.ts = haveDay ? dayMs : 0;
+        // the whole day the file is named for is behind the window: the line
+        // cannot be in it either, whatever its own ts would have said.
+        if (haveDay && dayMs + 86400000.0 < cutoff) { n_old_file++; continue; }
+        n_undated++;
+      }
+      if (!e.readable) n_unreadable++;
+
       // Token accounting, read under the keys PRODUCERS WRITE.
       //
       // This line used to read "tokensIn"/"tokensOut" and nothing else. Those
@@ -253,32 +592,44 @@ int main(int argc, char** argv) {
       // accepted for a third-party producer that mirrors them; the bare
       // "tokens" is taken as output ONLY when neither split is present, which
       // is exactly the gate's shape and exactly what its value means.
-      e.tin = (long long)get_num(line, "in");
-      e.tout = (long long)get_num(line, "out");
-      if (e.tin <= 0) e.tin = (long long)get_num(line, "tokensIn");
-      if (e.tout <= 0) e.tout = (long long)get_num(line, "tokensOut");
-      if (e.tin <= 0 && e.tout <= 0) e.tout = (long long)get_num(line, "tokens");
-      e.usd_e6 = (long long)get_num(line, "usd_e6");
-      e.model = get_field(line, "model");
+      e.tin = v_in; e.tout = v_out;
+      if (e.tin <= 0) e.tin = v_tin;
+      if (e.tout <= 0) e.tout = v_tout;
+      if (e.tin <= 0 && e.tout <= 0) e.tout = v_tok;
+
+      // The refusal's rule, from whichever shape the producer used. A
+      // CHECK_FAIL has no top-level "rule" — it has fails[] — so this used to
+      // leave the machine as a red span whose message was the word CHECK_FAIL
+      // and whose rule attribute did not exist.
+      if (e.rule.empty() && !failsRaw.empty()) {
+        string why;
+        rule_from_fails(failsRaw, e.rule, why);
+        if (e.detail.empty()) e.detail = why;
+      }
+
+      // SPEC §2, the other MUST: unknown fields are preserved. A struct can
+      // only carry what it was compiled to know, so enumerate the line and hand
+      // every unmapped key over as rabadon.<key>. Non-string values go across
+      // as their own (minified) JSON text — a reader that does not know the
+      // field has no business guessing its type.
+      for (const RbField& fl : lp.f) {
+        if (fl.key.empty()) continue;
+        if (is_mapped_field(fl.key) && mapper_took(fl.key, fl.is_string, fl.val)) continue;
+        // the one true duplicate: usd_e6 leaves as an exact integer attribute
+        // under this very name, and OTLP attribute keys are a map. Emitting it
+        // twice, once as intValue and once as stringValue, lets the collector
+        // pick. Every other raw field stays, deliberately — see export_test.sh
+        // arm 5: an unknown producer's "out" may not mean tokens at all.
+        if (fl.key == "usd_e6" && e.usd_e6 > 0) continue;
+        if (!e.extra.empty()) e.extra += ",";
+        e.extra += attr_str("rabadon." + fl.key, fl.is_string ? fl.val : jmin(fl.val));
+      }
+
       RbDrillEv c;
-      c.has_pipe = rbjson::has_str(line, "pipe");
-      c.pipe = e.pipe; c.ts = ts;
+      c.has_pipe = !e.pipe.empty();
+      c.pipe = e.pipe; c.ts = e.ts;
       c.tag = rb_drill_tag(line);
       c.marker = rb_drill_marker(line);
-      e.known = is_known_ev(e.ev);
-      if (!e.known) {
-        // SPEC §2, the other MUST: unknown fields are preserved. A struct can
-        // only carry what it was compiled to know, so enumerate the line and
-        // hand every unmapped key over as rabadon.<key>. Non-string values go
-        // across as their raw JSON text — a reader that does not know the
-        // field has no business guessing its type.
-        string& x = e.extra;
-        rbjson::for_each_field(line, [&x](const string& k, const string& v, bool) {
-          if (k.empty() || is_mapped_field(k)) return;
-          if (!x.empty()) x += ",";
-          x += attr_str("rabadon." + k, v);
-        });
-      }
       classify.push_back(std::move(c));
       parsed.push_back(std::move(e));
     }
@@ -300,20 +651,47 @@ int main(int argc, char** argv) {
   string out = "{\"resourceSpans\":[{\"resource\":{\"attributes\":[" + attr_str("service.name", "rabadon") + "," + attr_str("telemetry.sdk.name", "rabadon-export") + "]},\"scopeSpans\":[{\"scope\":{\"name\":\"rabadon\"},\"spans\":[";
   bool firstSpan = true;
   for (const Ev& e : events) {
-    string tid = trace_id(e.pipe.empty() ? "?" : e.pipe);
-    string sid = span_id(e.run + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts));
-    bool isCatch = (e.ev == "STOP" || e.ev == "CHECK_FAIL" || e.ev == "WOULD_BLOCK" || e.ev == "REPAIR_FAIL");
     // A line with no `ev` at all is not in the vocabulary and not outside it
     // either — but it is still something that happened, and dropping it is the
     // silence this exporter just stopped committing. It ships under a name a
     // human can see in a trace list instead of the blank row an empty name
     // renders as; its fields ride along like any other unrecognised event.
-    string name = e.ev.empty() ? "UNKNOWN" : e.ev;
+    //
+    // rabadon.ev carries that same name. It is the ledger's `ev` whenever the
+    // line has one, and the reader's own word for the line when it does not,
+    // because a span with an empty name AND an empty pipe is an anonymous row:
+    // nothing to search for, nothing to group by, no way back to the bytes it
+    // came from. Two of those shipped out of eighteen lines in
+    // export_drop_test's fixture, into the trace id of the literal string "?".
+    string evName = e.ev.empty() ? (e.readable ? "UNKNOWN" : "UNREADABLE") : e.ev;
+    // A pipeless line cannot join a session trace; it joins the file it was
+    // read from, which is a real place a human can go and look. "?" was not.
+    string tid = trace_id(e.pipe.empty() ? ("rabadon:no-pipe:" + e.file) : e.pipe);
+    // run+seq+ts identifies an event only while the line is readable enough to
+    // have them. A torn line has neither, and three torn lines in a row would
+    // have collided on one span id (OTLP: a span id is unique within a trace),
+    // so the source position — which IS unique — completes the seed.
+    string sid = span_id(e.run.empty()
+      ? e.src + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts)
+      : e.run + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts));
+    bool isCatch = (e.ev == "STOP" || e.ev == "CHECK_FAIL" || e.ev == "WOULD_BLOCK" || e.ev == "REPAIR_FAIL");
+    string name = evName;
     if (!e.rule.empty()) name += ":" + e.rule;
-    string attrs = attr_str("rabadon.ev", e.ev);
+    string attrs = attr_str("rabadon.ev", evName);
     if (!e.rule.empty()) attrs += "," + attr_str("rabadon.rule", e.rule);
     if (!e.detail.empty()) attrs += "," + attr_str("rabadon.detail", e.detail);
     attrs += "," + attr_str("rabadon.pipe", e.pipe);
+    attrs += "," + attr_str("rabadon.export.source", e.src);
+    if (!e.dated) {
+      // said on the span, not only in the summary: whoever queries this trace
+      // by time is entitled to know the time is the file's, not the line's.
+      attrs += "," + attr_str("rabadon.export.dated", "no");
+      attrs += "," + attr_str("rabadon.export.ts_basis", "the day this spool file is named for — the line carries no readable ts");
+    }
+    if (!e.readable) {
+      attrs += "," + attr_str("rabadon.export.unreadable", e.why);
+      attrs += "," + attr_str("rabadon.export.raw", e.raw);
+    }
     if (e.tin > 0 || e.tout > 0 || e.usd_e6 > 0) {
       attrs += "," + attr_str("gen_ai.system", "anthropic");
       if (!e.model.empty()) attrs += "," + attr_str("gen_ai.request.model", e.model);
@@ -331,16 +709,56 @@ int main(int argc, char** argv) {
       }
     }
     if (!e.extra.empty()) attrs += "," + e.extra;
+    // A line the reader could not parse is an error about the LEDGER, and it
+    // renders red for the same reason a refusal does: the person looking at
+    // this trace is the only one who can go fix the producer that wrote it.
+    string status;
+    if (isCatch) status = ",\"status\":{\"code\":2,\"message\":\"" + jesc(e.rule.empty() ? e.ev : e.rule) + "\"}";
+    else if (!e.readable) status = ",\"status\":{\"code\":2,\"message\":\"" + jesc("unreadable ledger line: " + e.why) + "\"}";
     // point-in-time event: start == end (trace viewers render a marker)
     string span = string("{\"traceId\":\"") + tid + "\",\"spanId\":\"" + sid +
       "\",\"name\":\"" + jesc(name) + "\",\"kind\":1,\"startTimeUnixNano\":\"" + nanos(e.ts) +
-      "\",\"endTimeUnixNano\":\"" + nanos(e.ts) + "\",\"attributes\":[" + attrs + "]" +
-      (isCatch ? ",\"status\":{\"code\":2,\"message\":\"" + jesc(e.rule.empty() ? e.ev : e.rule) + "\"}" : "") + "}";
+      "\",\"endTimeUnixNano\":\"" + nanos(e.ts) + "\",\"attributes\":[" + attrs + "]" + status + "}";
     if (!firstSpan) out += ",";
     out += span; firstSpan = false;
     (void)curPipe; (void)firstPipe;
   }
   out += "]}]}]}\n";
   fwrite(out.data(), 1, out.size(), stdout);
+
+  // Close the books, on stderr, where they cannot corrupt the document on
+  // stdout. Three surfaces read this spool and the other two have always
+  // answered to a count; this one exited 0 over 80,690 lines and 77,084 spans
+  // and said nothing at all, so the 3,606-line gap was only reconstructable by
+  // someone who had already read this file. Every line read lands in exactly
+  // one bucket, and the arithmetic is printed so it can be checked rather than
+  // trusted.
+  {
+    long long shipped = (long long)events.size();
+    long long drills = (long long)parsed.size() - shipped;
+    string m = "rabadon export: " + std::to_string(n_read) + " line(s) read from " +
+               std::to_string(n_files) + " spool file(s), " + std::to_string(shipped) + " span(s) out\n";
+    m += "  held back: " + std::to_string(n_old_ts + n_old_file) + " outside the " +
+         (days == (double)(long long)days ? std::to_string((long long)days) : std::to_string(days)) +
+         "-day window";
+    if (n_old_file) m += " (" + std::to_string(n_old_file) + " of them by file date, having no readable ts)";
+    m += ", " + std::to_string(drills) + " drill event(s)\n";
+    if (n_unreadable || n_undated || n_badutf8) {
+      m += "  shipped, and damaged:";
+      string parts;
+      if (n_unreadable) parts += " " + std::to_string(n_unreadable) + " unreadable (span name UNREADABLE, rabadon.export.unreadable says where),";
+      if (n_undated) parts += " " + std::to_string(n_undated) + " with no readable ts (dated from the file name),";
+      if (n_badutf8) parts += " " + std::to_string(n_badutf8) + " carrying invalid UTF-8 (those bytes leave as U+FFFD),";
+      if (!parts.empty()) parts.erase(parts.size() - 1);
+      m += parts + "\n";
+    }
+    // the check, not the claim: read == shipped + held back, or the counter is
+    // lying and the operator hears about it from the counter itself.
+    long long booked = shipped + drills + n_old_ts + n_old_file;
+    if (booked != n_read)
+      m += "  WARNING: the accounting does not reconcile — " + std::to_string(n_read) +
+           " read but " + std::to_string(booked) + " booked. This is a bug in rabadon-export.\n";
+    fwrite(m.data(), 1, m.size(), stderr);
+  }
   return 0;
 }
