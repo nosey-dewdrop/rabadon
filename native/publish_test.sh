@@ -445,5 +445,37 @@ else
 fi
 
 echo
+
+# ---------------------------------------------------------------------------
+# 8. A FAILED PUSH PUBLISHES THE SITE AND STILL REPORTS THE FAILURE
+# ---------------------------------------------------------------------------
+# Two sessions share this tree, so losing a push race is an ordinary Tuesday.
+# The site is what the public reads and it goes out anyway; the commit is local
+# and the next run carries it. But the run has to end non-zero, because a
+# scheduler only ever sees the exit code, and a failure that exits 0 is one
+# nobody hears about.
+echo "8. a push that fails does not stop the publish, and is not swallowed either"
+(cd "$T/repo" && git remote set-url origin "$T/no-such-remote.git")
+BEFORE_ALIAS="$(alias_now)"
+set_ledger 151
+OUT="$("$RUN" 2>&1)"; RC=$?
+(cd "$T/repo" && git remote set-url origin "$T/origin.git")
+
+if [ "$(alias_now)" != "$BEFORE_ALIAS" ]; then ok "the site was published anyway — the alias moved"
+else bad "an unreachable git remote stopped the site from being published"; echo "$OUT" | sed 's/^/        /'; fi
+if [ $RC -ne 0 ]; then ok "and the run still exits non-zero (exit $RC)"
+else bad "a failed push exited 0 — nothing watching exit codes would ever notice"; fi
+if echo "$OUT" | grep -q "push=FAILED"; then ok "the line names the step that failed: push"
+else bad "it does not say the push failed"; echo "$OUT" | sed 's/^/        /'; fi
+if tail -1 "$LOG" | grep -q "push=FAILED"; then ok "the log carries it too"
+else bad "the log hides the failed push"; tail -1 "$LOG" | sed 's/^/        /'; fi
+# and the local commit survives, so the next successful run carries it
+if (cd "$T/repo" && git log -1 --format=%s | grep -qi "field numbers"); then
+  ok "the commit is still in the local history, waiting for the next push"
+else
+  bad "the commit was lost when the push failed"
+fi
+
+echo
 echo "  $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

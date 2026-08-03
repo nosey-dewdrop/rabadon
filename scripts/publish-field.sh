@@ -79,6 +79,7 @@ mkdir -p "$STATE_DIR"
 TMP="$(mktemp -d)"
 STARTED="$(date -u +%s)"
 HELD_LOCK=""
+EXIT_CODE=0
 
 now()  { date -u +%Y-%m-%dT%H:%M:%SZ; }
 say()  { printf '%s\n' "$*"; }
@@ -96,7 +97,10 @@ finish() {   # finish <word> <rest of the line>
   local word="$1"; shift
   log "$(printf '%-10s %s' "$word" "$*")"
   say "$word: $*"
-  exit 0
+  # a run can publish the site correctly and still have failed at something.
+  # The line above records what it did; the exit code has to record that
+  # something went wrong, or a scheduler watching exit codes never learns.
+  exit "${EXIT_CODE:-0}"
 }
 die() {      # die <step> <what went wrong>
   local step="$1"; shift
@@ -251,12 +255,17 @@ if ! git diff --cached --quiet; then
   COMMITTED="$(git rev-parse --short HEAD)"
 fi
 
-# push is best effort and its failure is reported, not swallowed. A push that
-# loses a race with another session must not stop the numbers from reaching the
-# page — the commit is local, the next successful run carries it.
+# A push that loses a race with another session must not stop the numbers from
+# reaching the page: the site is the thing the public reads, the commit is local
+# and the next successful run carries it. So the deploy goes ahead — and the run
+# still ends non-zero, because a failure that exits 0 is a failure nobody hears
+# about until somebody goes looking.
 PUSHED=ok
 if [ "$COMMITTED" != none ]; then
-  git push origin main > "$TMP/push.out" 2>&1 || PUSHED="FAILED ($(tail -1 "$TMP/push.out"))"
+  if ! git push origin main > "$TMP/push.out" 2>&1; then
+    PUSHED="FAILED($(tail -1 "$TMP/push.out" | tr -d '\n' | cut -c1-90))"
+    EXIT_CODE=1
+  fi
 fi
 
 # --------------------------------------------------------------------------
