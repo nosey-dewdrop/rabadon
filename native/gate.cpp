@@ -388,6 +388,52 @@ static JVal jstr(const string& raw) { JVal v; v.t = JVal::STR; v.str = json_esca
 
 // ---------- spool + socket emit ----------
 
+// ---------- where this session's guard lives ----------
+// It was `cwd + "/.rabadon/guard.json"`: the exact directory the session is
+// standing in, with no walk toward the project root. So a session started at the
+// project root got the project's rules and a session started one directory down
+// got none of them. Measured in a real repository on 3 August, from its `engine`
+// subdirectory, with four rules loaded at the root and zero loaded there:
+//
+//   git add <a copyrighted never-push directory>   ALLOWED
+//   git add -A                                     ALLOWED
+//   ctest --test-dir build -N                      ALLOWED
+//   wrangler deploy                                ALLOWED
+//
+// Three of those four were written by the engine itself after real incidents, so
+// each one is a thing that had already happened once and was free to happen
+// again one `cd` away from where the rule was authored. An agent works in `src/`
+// far more often than at the root, so this was the ordinary condition and not an
+// edge of it. The compiled baseline was never affected because it resolves paths
+// per segment; the guard was the last layer reading a single directory, and it
+// is the layer the operator writes their own rules into.
+//
+// The walk goes UP from cwd and STOPS AT THE PROJECT ROOT. Stopping matters as
+// much as walking: a guard found above the repository would apply one project's
+// private rules to another project's work, which is a worse failure than the one
+// being repaired. The nearest guard wins, so a nested `.rabadon/` still governs
+// its own subtree.
+static string guard_path_for(const string& cwd) {
+  const string root = rbpath::project_root(cwd);
+  string p = rbpath::resolve_real(rbpath::lexical_abs(cwd, "/"));
+  for (;;) {
+    struct stat st;
+    const string cand = p + "/.rabadon/guard.json";
+    if (stat(cand.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return cand;
+    if (p == root || p.size() <= 1) break;
+    const size_t slash = p.rfind('/');
+    if (slash == string::npos || slash == 0) break;
+    const string up = p.substr(0, slash);
+    // never climb past the project. if the root is not an ancestor of where we
+    // are, the walk has already left the tree and has to stop here.
+    if (up.size() < root.size()) break;
+    p = up;
+  }
+  // nothing found: name the session's own directory, so a later write creates
+  // the guard where the session is rather than somewhere it did not choose.
+  return cwd + "/.rabadon/guard.json";
+}
+
 // ---------- ledger lines written before the session emitter exists ----------
 // `--on`, `--off` and `--wrong` all answer in the argv block at the top of
 // main, before there is a cwd, a run id or a project. They still belong on the
@@ -1242,7 +1288,11 @@ int main(int argc, char** argv) {
     }
   }
 
-  const string guardRaw = read_file(cwd + "/.rabadon/guard.json");
+  // one resolution, used by the reader, the re-reader and the writer below.
+  // reading one file and authoring into another is how the engine ends up
+  // writing rules that nothing ever loads.
+  const string guardPath = guard_path_for(cwd);
+  const string guardRaw = read_file(guardPath);
   const auto disabled = parse_disabled(guardRaw);
 
   const char* judgeEnv = getenv("RABADON_JUDGE");
@@ -1487,7 +1537,7 @@ int main(int argc, char** argv) {
             bool compiles = false;
             if (target) { try { std::regex re(patUnescaped, std::regex::ECMAScript | std::regex::icase); compiles = true; (void)re; } catch (...) { compiles = false; } }
             if (target && compiles) {
-              const string fresh = read_file(cwd + "/.rabadon/guard.json");
+              const string fresh = read_file(guardPath);
               JParser gp(fresh); JVal g = gp.parse();
               if (gp.ok && g.t == JVal::OBJ) {
                 JVal* idV = diag.newRule.get("id");
@@ -1511,7 +1561,7 @@ int main(int argc, char** argv) {
                   arr->arr.push_back(rule);
                   string pretty; jval_print(g, pretty, 0); pretty += "\n";
                   // atomic write: temp + rename so the law can never corrupt
-                  const string gpath = cwd + "/.rabadon/guard.json";
+                  const string gpath = guardPath;
                   const string tmp = gpath + ".tmp";
                   { std::ofstream tf(tmp, std::ios::trunc); if (tf) tf << pretty; }
                   rename(tmp.c_str(), gpath.c_str());

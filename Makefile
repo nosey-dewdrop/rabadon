@@ -649,6 +649,12 @@ test: all
 # there was no record type for them -- which put the one number this product is
 # judged on outside the ledger.
 	./native/mode_wrong_test.sh
+# DEVIR item 2, open since 2 August: the guard was loaded from the exact session
+# directory with no walk toward the project root, so a session one directory down
+# got none of its project's rules and only the compiled floor was left. Measured
+# in a real repository from its engine/ subdirectory: four rules held at the root
+# and zero held there, three of them authored by the engine after real incidents.
+	./native/guard_subdir_test.sh
 
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate
