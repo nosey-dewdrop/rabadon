@@ -1,214 +1,166 @@
-# DEVİR — rabadon, 2 Ağustos sabahı
+# DEVİR — rabadon, 3 Ağustos
 
-Bu dosya yeni oturuma yapıştırılır. Her sayı ölçüldü. Ölçülemeyenler en altta,
-ayrı başlık altında, "ölçemedim" diye yazılı.
+Bu dosya yeni oturuma yapıştırılır. Bir önceki devir `DEVIR-2026-08-02.md`'de duruyor, silinmedi.
+Gecenin tam raporu: `~/damla_projects_2026/reports/2026-08-03-saha-kosusu.txt`.
 
 ---
 
-## DURUM
+## OTURUM TİPİ: YAPIM. Saha değil.
 
-`make test` EXIT=0, sıfır hata. Sitede duran her sayının altında onu üreten
-komut var ve bunu bir test tutuyor.
+Dün gece beş yabancı depoda saha koşuldu ve kusurlar bilerek düzeltilmedi.
+Bu oturum onların en ağırını kapatır. Yeni depoya girilmez, yeni ajan salınmaz
+(Damla "ajan sal" demedikçe).
 
+---
+
+## TEK İŞ
+
+**"Hakem kandırılamaz, sahte fix reddedilir" cümlesinin yabancı depoda dayanağı yok.
+Bu oturum o dayanağı kurar.**
+
+Neden bu, neden başka bir şey değil. Motor sağlam ve sayı bunu söylüyor: beş depoda
+88 belgelenmiş sıradan komutun 88'i doğru geçti, yanlış blok 0. Kırılan yer motor
+değil, motora *neyi koruyacağını* söyleyen katman. Ve o katman kırık olduğu için
+ürünün sattığı cümle şu anda kendi repolarının dışında yanlış.
+
+---
+
+## ADIM 1 — Keşif dosyanın dilinden değil, yerinden karar verecek
+
+`native/truth.cpp:156-167` bir uzantı beyaz listesi tutuyor (js/ts/py/c/cpp/h/go/rs/
+swift/java). Liste dışı her dosya `continue` ile düşüyor. `tests/` yol kuralı 11 satır
+aşağıda, guard'ın kendi `testPaths` kuralı 20 satır aşağıda. **İkisine de hiç ulaşılmıyor.**
+
+ÖLÇÜLEN BUGÜNKÜ HÂL (kırmızı testin beklediği sayılar bunlar):
 ```
-cases: 34   correct block: 11   wrong block: 0   missed: 0   correct allow: 23
-precision 100.0%   recall 100.0%
-judge one command   median 130.0µs   p95 ~205µs   (n=200 × 34 vaka)
-hook, uçtan uca     native 2.70ms    node 102ms    38 kat
+redis   rabadon 255 dosya kilitledi, .tcl sayısı 0.  Diskte 229 .tcl (211'i unit/
+        integration/cluster/sentinel altında).  discoveryCapped: []  ← uyarı yok
+rails   rabadon 20 dosya kilitledi.  Diskte 1290 *_test.rb.  Oran %1.55.
+        O 20'nin içinde gzip fixture'ı, dummy app manifest'i, rollup config var;
+        ancak 7'si gerçek test.
+```
+REGRESYON KORUMASI — bu ikisi BOZULMAYACAK, ikisi de bugün doğru:
+```
+terraform  668 / 668 kilitli, discoveryCapped boş, hiçbir sınır ısırmadı
+airflow    4096 / 4103 kilitli, discoveryCapped ['depth','limit'] diye DÜRÜST bastı
 ```
 
-Site dört sayfa, dördü de üretiliyor. Deploy `python3 site/build.py`, sonra
-`cd site && vercel deploy --prod --yes`, sonra
-`vercel alias set <deployment> rabadon.noseydewdrop.com`.
+## ADIM 2 — Push kapısı zaman damgası değil ağaç soracak
 
-**DEPLOY TUZAĞI, 2 Ağustos'ta düzeltildi.** `site/` klasörü kendi adını taşıyan
-ikinci bir Vercel projesine bağlıydı, alan adı ise `rabadon` projesinin. Bir
-alan adını başka projenin deployment'ına alias'lamak deployment protection'ı
-açık bırakıyor, yani **rabadon.noseydewdrop.com her ziyaretçiye 302 SSO login
-duvarı veriyordu** ve 200 dönen tek adres eski sayfayı servis eden
-rabadon.vercel.app'ti. `site/.vercel/project.json` artık `rabadon` projesine
-bağlı. Deploy'dan sonra `curl -o /dev/null -w '%{http_code}'` ile 200 gör.
+`native/gate.cpp:1777` koşulu: `lastCodeEdit > lastTestPass`. Bu bir zaman damgası
+sorusu, doğruluk sorusu değil. Sıfır test koşan tek komut damgayı tazeliyor ve kapı
+kendini kapatıyor.
 
----
+UÇTAN UCA ÖLÇÜLDÜ, kırmızı test bunları kullanacak:
+```
+terraform  go test -run TestNothingMatchesThis ./...   gerçek çıktı "ok ... [no tests
+           to run]", exit 0  →  lastTestPass tazelendi  →  git push rc=0 İZİN VERİLDİ
+           (suit hâlâ kırmızı, suit hiç koşturulmadı)
+discourse  bin/rspec spec/models --tag nonexistent_tag  →  aynı sonuç
+her ikisi   tek satır "ok pkga (cached)" beslemek de aynı etkiyi yapıyor, çünkü uzun
+           tool çıktıları kırpılıyor — burada hile bile yok
+```
+İKİNCİ DELİK, aynı ailede: `gate.cpp:1351` PostToolUse yolu `lastTestPass`'i **yalnız
+desene bakarak** set ediyor, çıkış koduna BAKMIYOR. Kapının kendi koştuğu yol
+(`gate.cpp:1790`) `(code == 0) && rx_test(...)` diyor, yani orası sağlam. Delik karar
+yolunda.
 
-## BU GECE KAPANANLAR
+## ADIM 3 — `discoveryCapped` yalan söylemeyi bırakacak
 
-**1. 42.0µs ölçülemiyordu, artık ölçülüyor.** Sitede haftalardır duran sayı
-`native/gate_bench.sh`'ı kaynak gösteriyordu ve o dosya yoktu; depoda hiçbir
-mikro benchmark yoktu. `native/gate_bench.cpp` yazıldı, `rbrules::judge_command`
-in-process ölçülüyor, 34 gerçek vaka, medyan **130.0µs** (sayfadaki sayının üç
-katı). Benchmark timer'ı okumadan önce aynı 34 vakayı gerçek `rabadon-gate`
-binary'sinden geçiriyor; tek hüküm uyuşmazsa hiçbir sayı basmıyor.
-
-**2. Gate, judge_command'ın elle yazılmış ikinci kopyasıydı.** Parite kanıtı
-bunu buldu. `rules.h` "bu fonksiyonun yarısını yeniden yazan caller exec'i
-bypass yaptı" diye yazıyor ve o caller gate'in kendisiydi. Artık paylaşılan
-hükmü çağırıyor, parse'ı geri alıyor, ve gate_bench.sh ikisini bir arada tutuyor.
-
-**3. Manşet sayıları elle tutulmuyor.** `site/index.tmpl.html` şablon,
-`site/measured.json` ölçümleri komut ve commit ile taşıyor, `native/measure.sh`
-onu yazıyor. `native/site_claims_test.sh` dört kuralı tutuyor: sitenin adını
-verdiği her kaynak var olacak, manşet yuvasına elle sayı yazılamayacak, iki
-sayfada geçen olgunun tek değeri olacak, ve README'nin satır iddiası gerçek
-sayıyla karşılaştırılacak.
-
-**4. Bulgu defteri açıldı.** `site/findings.jsonl`, 42 kalem, her biri repo +
-dosya + ne bozuktu + kanıtlayan komut + durum. `site/finding.py` ekliyor, elle
-yazılmıyor. Catches sayfasında render ediliyor. 31'i sekiz açık kaynak projeden
-çıkarılmış gerçek kusur, yamalarıyla birlikte `reports/2026-08-01-real-defect-mine/`.
-
-**5. Hakemdeki iki delik kapandı.** `native/heldout.h` + repair.cpp adım 5c.
-Eleme yapısal ve hiçbir şeye karar vermiyor (kilitli test dosyalarındaki her
-string, sha256'sı ve uzunluğu toplanıyor); hüküm her zaman yeniden koşu
-(işaretli hunk'lar `patch -R` ile geri alınıp projenin kendi kontrolü tekrar
-koşuyor, kırmızı ise yeşil o hunk'a aitti). Girdiye kilitlenmenin üç biçimi de
-kapalı: değer, sha256, uzunluk. `native/heldout_test.sh` 4 reddedilmeli + 4
-ikiz, hepsi gerçek binary.
-
-**6. Hile korpusu ürünün kendisiyle koşuldu.** `native/corpus_cheats.sh`, 10
-aile, **10 reddedildi, 0 kabul, defekti hâlâ taşıyan 0 tutulan yama.** Denetim
-bunu arena.sh taklidiyle yapmıştı.
-
-**7. Kilit hiçbir şeyi kilitlemiyordu, büyük süitlerde.** İlk korpus koşusu
-buldu: `rabadon-truth` commander'da 122 test dosyası buluyor, `repair` 0
-kilitliyordu. Sebep tek varsayılan — `run_shell` çocuğun çıktısının son 4000
-baytını tutuyor ve repair truth'un JSON'unu aynı tampondan okuyor; JSON 4503
-bayt olunca `"testFiles":[` etiketi baştan kesiliyor. express 2382 baytla
-sığdığı için 91 kilitlemiş ve kimse görmemişti. **Süit büyüdükçe koruma
-azalıyordu.** `native/lock_coverage_test.sh` kırmızı yazıldı; üçüncü vakası
-bedeli gösteriyor: 161 dosyalık süitte testi `assert True` yapan öneri
-reddedilmiyor, TUTULUYORDU.
-
-**8. Keşifte üç sessiz sınır.** Derinlik 4 (zod'un süiti 6 derinde, 170'in 2'si
-bulunuyordu), `test.ts` adlı dosyaya uyan hiçbir desen yok (date-fns'in 253
-dosyasının tamamı), liste 512 + yürüyüş 20000 bütçe. Derinlik 12, liste 4096,
-bütçe 200000, ve üçü de `discoveryCapped` ile kendini ilan ediyor. İkiz kuralı
-gerçek repodan geldi: jinja'da `src/jinja2/tests.py` KAYNAK ve
-`examples/basic/test.py` örnek, ilk geçiş ikisini de kilitledi. Artık çıplak
-`test` kökü ancak repo üç ayrı dizinde tekrarlıyorsa sayılıyor, `tests` hiç
-sayılmıyor.
-
-**9. npm kurulumu derleyicisiz kanıtlandı.** `native/npm_install_test.sh` bölüm
-6: temiz prefix, PATH'in başında cc/gcc/g++/clang/clang++/c++/make/cmake/ld
-yerine adını loglayıp 127 ile çıkan shim'ler. Kurulum başarılı, shim logu boş,
-`rabadon --version` tarball'dan gelen gerçek binary'den 0.2.0 basıyor. 12 kontrol,
-sıfır atlama. **Tag atılmadı, yayın yapılmadı.**
-
-**10. `rabadon --version` diye bir komut yoktu.** `unknown command "--version"`
-diyordu. Alttaki her binary cevaplıyordu, insanın yazdığı tek komut
-cevaplamıyordu. Artık var ve cevabı BINARY'den alıyor.
-
-**11. README 2.7 kat eksik söylüyordu.** "~5k lines of dependency-free C++"
-yazıyordu, gerçek 14.140. Düzeltildi ve site_claims_test.sh her koşuda yeniden
-sayıyor.
+Bugün "kırpılmadım" ile "her şeyi gördüm" aynı boş dizi. redis'te 229 dosya sessizce
+düşerken `discoveryCapped: []` bastı. Sayaç dolu göründüğü için koruma varmış gibi
+duruyor, ve bu sıfır basmaktan daha kötü.
 
 ---
 
-## 2 AĞUSTOS 03:55 — SİTEDEKİ MANŞET DÜZELTİLDİ, AKTİF MOD AÇILMIYOR
+## KAPANIŞ KANITI — beş depo diskte, klonlama maliyeti sıfır
 
-Bu oturumun /clear'dan ÖNCE başlattığı workflow (39 ajan, ~7 saat) 03:11'de
-bitti ve iki sayı getirdi. İkisini de kendim yeniden ürettim.
+ÖNEMLİ, ölçüldü: ağaçların hepsi gerçek değil. Dün gece ağ 2-5 KB/s'e düştüğü için
+iki depo yeniden inşa edildi (isimler gerçek, içerik sıfır bayt).
+```
+depo         dosya    sıfır bayt   kullanılabilirlik
+redis         2244        3        GERÇEK, derlenmiş, suit koştu — asıl kanıt burada
+rails         4977       62        GERÇEK (tarball) — isim tabanlı keşif geçerli
+airflow        288        0        gerçek ama SPARSE (13661 yolun 288'i)
+terraform     5438     5167        İSKELET — yalnız isim tabanlı ölçüm
+discourse    24023    23987        İSKELET — yalnız isim tabanlı ölçüm
+```
+Yani: içerik gerektiren her kanıt **redis** üstünde koşar (gerçek yeşil ve gerçek
+kırmızı koşu dün üretildi). İsim tabanlı keşif kanıtı beşinde de koşar.
 
-**Fixture %100, gerçek defter %26.3.** 34 vakalık fixture yanlış değil, DAR.
-Aynı binary `~/.rabadon/spool` içindeki 215 gerçek reddedişle koşulunca: 15
-gerçek tehlike duruyor, 0 geçiyor, 42 meşru iş kesiliyor. 42'nin 41'i rabadon'un
-KENDİ kırmızı-takım laboratuvarı; onlar çıkınca 15/16 = %93.8. Üç sayı da sitede,
-her birinin altında komutu.
-
-**95 adı konmuş kaçağın 58'i açık.** `python3 redteam/redteam.py` ile kendim
-koştum: 37 kapalı, 58 açık. Dokuzunu izole laboratuvarda elle tekrar doğruladım,
-dokuzu da tekrarlandı (`git push --forc`, `git branch -D main`, `git clean -xfd`,
-`git reset --hard @{u}`, `rm -rf .git`, `find -delete`, `rsync --delete`,
-`pushd && rm -rf`, `bash /tmp/s.sh`). Dört küme: silen fiil rm değil (14), kabuk
-konumu takip edilmiyor (5), program satırda yok (11), git'in kendi grameri (28).
-
-**AKTİF MOD AÇILMIYOR.** Tutamayacağı koruma sözü veren kapı, ne durdurduğunu
-söyleyen kapıdan kötüdür. Site bunu yazıyor.
-
-**Bir sızıntı kapatıldı:** `NOTES-FOR-DAMLA.md` public repoya üç yayınlanmamış
-proje adıyla push'lanmıştı. HEAD'de temizlendi. Adlar tek bir commit'in
-geçmişinde duruyor; çıkarmak filter-repo + force-push ister, o KARAR DAMLA'NIN.
+Oturumun çıktısı: aynı probe matrisleri yeniden koşulup **beş gerçek açık kaynak
+deposu üstünde önce/sonra tablosu**. Önce sayıları yukarıda ve raporda hazır.
 
 ---
 
-## ÖLÇEMEDİKLERİM
+## KURALLAR — İHLAL EDİLMEZ
 
-- **zod ve date-fns bu makinede yok.** Keşif düzeltmesi onların ÖLÇÜLMÜŞ
-  şekillerine (derinlik, `test.ts` adı) göre kurulmuş fixture'larla ve jinja
-  üstünde kanıtlandı. O iki repoda 2/170 ve 16/253 sayıları YENİDEN ÖLÇÜLMEDİ.
-- **JUnit ve Go kilidi hâlâ uçtan uca koşulmadı.** `pom.xml`, `build.gradle`,
-  `go.work` hash listesinde ve gerekçesi repair.cpp'de yazılı, ama bu makinede
-  maven surefire'ı çevrimdışı çözemiyor ve go yok.
-- `h3js_pkgscript` ailesi "still-red" ile reddedildi, harness kilidiyle değil:
-  koşuya `--cmd` ile sabit komut verildiğinden package.json'ı yeniden yazmak
-  hakemin koştuğu komutu değiştirmedi. Reddediş gerçek, gerekçe farklı.
-- Hile ailelerinin sadece 2 repoda (markupsafe, commander) denendiği korpus
-  uyarısı hâlâ geçerli.
+Regresyon testi ÖNCE yazılır ve kırmızı olduğu çıktıyla gösterilir. Her "bloklanmalı"
+testinin yanında "bloklanmamalı" ikizi olur.
 
----
+`git add -A` YASAK. Commit öncesi `ps ax | grep claude`; başka oturum varsa sadece
+kendi yollarını tek tek stage'le. Dün gece 6 oturum paralel koştu ve state dosyası
+çakıştı.
 
-## SIRADAKİ İŞLER
+Bir adım bir commit. Mesaj lowercase İngilizce, ne kanıtladığını söyler, co-author yok,
+`-F` ile dosyadan verilir. **Ev deposunun uzak sunucusu YOK** (`git remote -v` boş),
+yani push edilemez, kayıt commit'te durur.
 
-**A. Bağımsız oracle'lı fuzzer (Damla'nın git-ai turundan, kabul edildi).**
-Hakemin kandırılamazlığının kanıtı hâlâ elle kurulmuş 10 aile ve elle kurulan
-hile kuranın aklına geleni sınar. Fuzz'lanacak şey proposer uzayı; bağımsız
-oracle "hata hâlâ kaynakta mı" probu. Her bulgu dörde dönüşür: seed + operasyon
-logu, minimize edilmiş deterministik regresyon testi, kök sebep, kalıcı test.
-`make test`'e GİRMEZ, ayrı `make fuzz` hedefi olur.
-
-**B. `docs/LEDGER.md` + bağımsız doğrulayıcı.** `rabadon audit` "zincir sağlam"
-diyor ve bunu kimse bağımsız doğrulayamıyor, çünkü alan sırası, boşluk ve prev
-hash'in tam olarak neyin sha256'sı olduğu sadece kodda yaşıyor. Tek sayfa spec
-artı spec'e bakarak yazılmış 20 satırlık python doğrulayıcı artı onu koşturan
-test. Doğrulayıcı `rabadon audit` ile aynı cevabı vermiyorsa spec yalandır.
-
-**C. `docs/BANNED-PROOFS.md`.** Denenip elenmiş ispat yolları tek yerde: dosya
-hash'i H5/H6'yı göremez, test sayımı kök conftest'i göremez, AST tek başına
-yeter değil, trace2 asenkron olduğu için gate olamaz. Malzeme bu gece üretildi.
-
-**D. Redaksiyon.** README "nothing leaves" diyor, aynı repoda `export --otlp`
-var ve event'lerin `detail` alanı komut metnini taşıyor. Dar iş: export yolunda
-sır deseni taraması, baştan/sondan 4 karakter bırakan redaksiyon, önce kırmızı
-test (gerçek şekilli sahte token'lar export'tan geçiyor mu).
-
-**E. express katkısı, GÖNDERİLMEDİ, KARAR DAMLA'NIN.** Dal hazır:
-`~/damla_projects_2026/katki/express`, dal adı
-`fix/res-send-arraybuffer-view-bytes`. Aynı satırlara dokunan açık PR #7363 var,
-6 Temmuz'dan beri yorumsuz, çakıştığı `git merge-tree` ile ölçüldü. Tavsiye:
-rakip PR değil, #7363 altına ölçümü koyan bir yorum. Hiçbir ajan göndermez.
-
-**F. npm yayını.** v0.2.0 dört platform için kurulu, kurulum derleyicisiz
-kanıtlandı. Eksik olan tek şey npm org + NPM_TOKEN, ikisi de Damla'da.
-
----
-
-## KURALLAR, İHLAL EDİLMEZ
-
-**AYNI AĞAÇTA İKİNCİ OTURUM VARSA `git add -A` YAPMA.** 2 Ağustos gecesi açık
-kalmış başka bir Claude oturumu bu repoda çalışıyordu ve 01:48'de attığı commit
-benim stage'lediğim dosyaları kendi mesajının altına aldı. Commit'ten önce
-`ps ax | grep claude` ve son 5 dakikada değişen dosyalara bak; başkası varsa
-sadece kendi yollarını tek tek stage'le.
-
-**Ajanlara dokunma.** Damla "ajan sal" demeden ajan açılmaz. Damla NET olarak
-"ajanı öldür" demeden koşan hiçbir iş durdurulmaz, kesilmez, resume edilmez.
-
-Regresyon testi ÖNCE yazılır ve kırmızı olduğu çıktıyla gösterilir. Her
-"bloklanmalı" testinin yanında "bloklanmamalı" ikizi olur. Yıkıcı komut testi
-izole, remote'suz temp repoda, sahte git/rm ikilileriyle, HOME o kök altına
-yönlendirilmiş ve içinde kanarya dosya var.
-
-Dışarı hiçbir şey: publish yok, tag yok, PR yok, issue yok, fork yok,
-force-push yok. Commit ve main'e normal push serbest.
-
-Bir adım bir commit bir push. Mesaj ne kanıtladığını söyler, lowercase
-İngilizce, co-author yok, `-F` ile dosyadan verilir.
-
-Ölçemediğine "ölçemedim" yazılır. Sayı uydurulmaz. Sitede duran her sayının
-altında onu üreten komut olur ve `native/site_claims_test.sh` bunu tutar.
+Dışarı hiçbir şey: publish yok, tag yok, PR yok, fork yok, force-push yok.
 
 `bin/rabadon.mjs` okunur, asla düzenlenmez. JS'e yeni kod yazılmaz.
 
+Ölçemediğine "ölçemedim" yazılır. Sayı uydurulmaz.
+
 İçerik çıkış koşulu: bir sayı, karar, teşhis ya da çürütme çıktığı AN
-`~/damla_projects_2026/icerik/dewrites.md` dosyasına düşer. Yazmadan önce
-dosyanın başındaki YASA okunur. Bu gecenin girdisi: `TOHUM 2-8-02-55`.
+`~/damla_projects_2026/icerik/dewrites.md` dosyasına düşer. Yazmadan önce dosyanın
+başındaki YASA okunur.
+
+---
+
+## BU OTURUMDA YAPILMAYACAKLAR (kuyruk, sırayla — hiçbiri kayıp değil)
+
+Hepsi ölçüldü, hepsi rapordadır, hiçbiri bu oturumun işi değil:
+
+1. `codePaths`'in "kod" tanımı. rails'te üretim kodunun %6'sı (93/1558) ve 14 yayınlanmış
+   migration dışarıda, çünkü kural `lib/` diyor ve üç bileşen `app/` kullanıyor.
+   discourse'ta 1728 dosyalık `db/` hiç tanınmıyor, yani migration düzenlemek "kod
+   düzenlemesi" bile sayılmıyor.
+2. `protectedPaths` yalnız Edit/Write araçlarını görüyor. Aynı dosya `sed -i`,
+   `truncate -s 0`, `echo >`, `rm` ile serbest. Beş deponun beşinde de.
+3. `^` çapalı yol kuralları mutlak yolla eşleşmiyor. airflow'da 5 kuralın 2'si üretimde
+   ölü, `lint` "valid" dedi.
+4. Yeni kaçak ailesi: `make -C`, `make --directory=`, `env -C`,
+   `git --git-dir=/--work-tree=`. `git -C` çözülüyor, bunlar çözülmüyor.
+5. `baseline.h:199` `shared_branch()` dört ada gömülü (main/master/trunk/develop).
+   redis'in ana dalı `unstable`, ve üç taban yasası birden kör.
+6. ir-globe'un her commit'i bloklayan `no-emoji-in-commit` kuralı, ve `\uXXXX`
+   kaçışlarının `std::regex` char altında sessizce "her şey"e derlenmesi.
+7. Yabancı depoya yazma: `.rabadon/` davetsiz yazılıyor, ve `install.mjs:227` yabancı
+   deponun **takipli** `.gitignore`'unu değiştiriyor.
+8. `evidence[]` gerçeği anlatmıyor; guard yazan alt süreç `--allowedTools` kısıtı
+   olmadan koşuyor, yani üretim tekrarlanabilir değil.
+9. `lint` ikiz uyarısını basıp yine de exit 0 veriyor. 241 canlı kuralın 241'inde ikiz yok.
+10. `promise-off-target`'ın "oturumda bir kez ateşler" sözü, durumu tek dosyada kilitsiz
+    ve son 4 oturukla sınırlı tuttuğu için yedi oturum altında bozuluyor.
+    `no-blind-inplace-source-rewrite`'ın `\.h` deseni `.html`'i de yakalıyor.
+11. Siteye eş zamanlı loglama. **Bilerek en sonda.** Defter kesintisiz yazıyor
+    (83657 satır, 10 gün, JSON olmayan 0 satır) ama site elle üç komutla yayınlanıyor
+    ve hiçbir workflow'da yayın adımı yok. Boru döşenmeden önce sayının anlamı düzelmeli,
+    yoksa yanlış sayıyı hızlandırmış oluruz.
+
+---
+
+## DAMLA'NIN MASASINDA (Claude yapamaz)
+
+`charmbracelet/crush#3482` — teknik itiraz yok, tek engel CLA botu. PR'a şu yorum:
+`I have read the Contributor License Agreement (CLA) and hereby sign the CLA.`
+
+`aaif-goose/goose#10890` — kapandı, CI 13 yeşil 0 hata, inceleme cevaplandı. Beklemede.
+
+rails'te bir katkı adayı var: `rake smoke` çıkış kodunu yutuyor (Rakefile L144-158
+`system()` dönüş değerini atıyor, L13-21'deki `rake test` atmıyor). Kasıtlı olabilir,
+rails özellik için önce forumda geri bildirim istiyor. PR değil, önce soru.
+
+`~/.rabadon/enabled` dün gece kendiliğinden doğdu ve makineyi ENFORCE'a aldı; WATCH'a
+geri alındı. Yazan kod bulunamadı, **sebep DOĞRULANMADI**.
