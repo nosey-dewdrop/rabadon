@@ -240,6 +240,34 @@ test: all
 # valid. every rule now carries `allow`, the commands it must NOT match, and
 # they are run against its own pattern through the gate's own matcher.
 	./native/guard_allow_twin_test.sh
+# guard_allow_twin_test.sh asks whether a rule can hold its fire. this one asks
+# the other half, which had no answer at all: nothing in the schema let an author
+# say what a rule EXISTS TO STOP, so nothing could tell them it stops nothing.
+# measured 3 August by driving all 430 guard rules on this machine through the
+# real gate with a command each pattern was written to refuse: 16 refused
+# nothing, in any repository, ever, and all 16 linted clean. three of those had
+# been authored by the engine itself after real incidents, so each named
+# something that had already happened once and was free to happen again. the two
+# mechanisms are invisible in the pattern -- a path rule authored relative is
+# compared against a spelling no event carries (12,948 of 13,128 measured Edit
+# calls arrive absolute, project-relative arrives zero times), and a pattern that
+# spells a pipe wants a character the parser removed. so a rule carries
+# `catches` beside `allow`, lint drives it through the rule's own pattern with
+# the gate's own matcher, and a rule born from an incident is not installed at
+# all unless it can refuse the thing it names.
+	./native/guard_deny_twin_test.sh
+# and the shape no rule can reach, found while proving the check above. one
+# guard rule, one token, five deliveries: a plain argument, a quoted one and a
+# token on the second line are all judged; the same token inside a heredoc body
+# is not, because a rule is matched against one parsed segment surface and a
+# heredoc body is not a segment. it surfaced because every scripted edit in one
+# session went through `python3 - <<PY` and a rule authored that same night to
+# refuse exactly those edits never fired once. the FLOOR does not have the gap:
+# baseline.h reads words across the whole text, so `bash <<EOF / rm -rf ~/keep`
+# is still refused, and a body that only PRINTS the words is still allowed.
+# both halves are pinned, including the allow, so the day somebody widens the
+# regex layer this file fails and the widening is a decision.
+	./native/heredoc_reach_test.sh
 # the strength number rabadon publishes has to be orderable. --help documented
 # 3 SUITE / 2 BUILD / 1 SYNTAX / 0 NONE and the code emitted the reverse, so a
 # repo whose own suite was found printed `level 1  SUITE` -- a number and a word

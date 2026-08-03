@@ -8,6 +8,9 @@
       "allow": [
         "git push origin feature/lens",
         "git push --force-with-lease origin my-branch"
+      ],
+      "catches": [
+        "git push --force origin main"
       ]
     },
     {
@@ -17,6 +20,9 @@
       "allow": [
         "rm -rf node_modules",
         "rm -rf ./native/gate_bench.dSYM"
+      ],
+      "catches": [
+        "rm -rf ~/damla_projects_2026"
       ]
     },
     {
@@ -25,6 +31,9 @@
       "why": "baseline: rewrite shared state via commits, not resets",
       "allow": [
         "git reset --hard HEAD~1"
+      ],
+      "catches": [
+        "git reset --hard origin/main"
       ]
     },
     {
@@ -33,6 +42,9 @@
       "why": "baseline: bypassing hooks bypasses every gate at once",
       "allow": [
         "git commit -m lens: byte-exact meter"
+      ],
+      "catches": [
+        "git commit --no-verify -m wip"
       ]
     },
     {
@@ -44,6 +56,9 @@
       "allow": [
         "make test",
         "npm test --silent"
+      ],
+      "catches": [
+        "timeout 30 make test"
       ]
     },
     {
@@ -55,6 +70,9 @@
       "allow": [
         "python3 native/bench.py",
         "python3 site/build.py"
+      ],
+      "catches": [
+        "sed -i '' s/a/b/ native/gate.cpp"
       ]
     },
     {
@@ -66,6 +84,9 @@
       "allow": [
         "ctest --output-on-failure",
         "make test"
+      ],
+      "catches": [
+        "ctest 2> /dev/null"
       ]
     },
     {
@@ -78,6 +99,9 @@
         "cat .rabadon/guard.json",
         "rabadon lint .",
         "git diff .rabadon/guard.json"
+      ],
+      "catches": [
+        "echo {} > .rabadon/guard.json"
       ]
     },
     {
@@ -90,6 +114,9 @@
         "python3 site/build.py",
         "grep -n rabadon index.html",
         "cp index.html /tmp/index-backup.html"
+      ],
+      "catches": [
+        "echo x > index.html"
       ]
     },
     {
@@ -101,6 +128,9 @@
       "allow": [
         "make all",
         "rm -f /tmp/rabadon-unknown-verb.AbC123"
+      ],
+      "catches": [
+        "rm -f native/rabadon-gate"
       ]
     },
     {
@@ -112,6 +142,9 @@
       "allow": [
         "npm publish --dry-run",
         "npm pack"
+      ],
+      "catches": [
+        "npm publish"
       ]
     },
     {
@@ -123,14 +156,30 @@
       "allow": [
         "git push origin main",
         "git push origin feature/lens"
+      ],
+      "catches": [
+        "git push origin --tags"
       ]
     },
     {
       "id": "no-scripted-inplace-test-rewrite",
-      "deny": "(sed\\s+-i|perl\\s+-i|python3?[^\\n]*re\\.sub)[^\\n]*_test\\.sh",
+      "deny": "(sed|perl|ruby)\\s+-i[^\\n]*_test\\.sh|\\bopen\\(\\s*['\"]?[^,\\n]*_test\\.sh['\"]?\\s*,\\s*['\"]?w",
       "why": "Blind bulk regex rewrites of test scripts silently corrupt expected fixtures; test edits must go through reviewable per-case edits.",
       "authoredBy": "incident",
-      "incidentAt": "2026-08-03T18:32:11Z"
+      "incidentAt": "2026-08-03T18:32:11Z",
+      "wrongAt": "2026-08-03T21:40:00Z",
+      "wrongWhy": "It refused a command that edited no test file. The pattern asked only that the tokens for an interpreter, a write call and a name ending in the test suffix appear somewhere on the line, in any order, so a command whose body merely QUOTED such a name inside a JSON fixture read as a bulk rewrite of it. It even refused the ledger entry recording that it was wrong. A rule about a write was matching a mention; it now names the write target and the mode.",
+      "catches": [
+        "sed -i '' s/a/b/ native/session_test.sh",
+        "python3 -c open('native/session_test.sh','w').write(x)"
+      ],
+      "allow": [
+        "bash native/session_test.sh",
+        "python3 native/bench.py",
+        "python3 site/build.py",
+        "grep -n catches native/guard_deny_twin_test.sh",
+        "echo the tokens python3 and _test.sh in one sentence"
+      ]
     }
   ],
   "protectedPaths": [
@@ -141,6 +190,9 @@
       "allow": [
         "native/gate.cpp",
         "site/index.html"
+      ],
+      "catches": [
+        "bin/rabadon.mjs"
       ]
     },
     {
@@ -151,6 +203,9 @@
       "incidentAt": "2026-07-31T15:15:30Z",
       "allow": [
         ".github/workflows/ci.yml"
+      ],
+      "catches": [
+        ".github/workflows/release.yml"
       ]
     },
     {
@@ -163,6 +218,9 @@
         "site/index.html",
         "/Users/damummyphus/damla_projects_2026/rabadon/site/index.html",
         "native/gate.cpp"
+      ],
+      "catches": [
+        "bin/rabadon.mjs"
       ]
     },
     {
@@ -174,6 +232,9 @@
       "allow": [
         ".github/workflows/ci.yml",
         "/Users/damummyphus/damla_projects_2026/rabadon/.github/workflows/ci.yml"
+      ],
+      "catches": [
+        ".github/workflows/release.yml"
       ]
     }
   ],

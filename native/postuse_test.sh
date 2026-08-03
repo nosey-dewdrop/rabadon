@@ -443,7 +443,7 @@ author() { # $1=stubjson $2=guard-extra-json -> native run; sets AC (cwd) / ARD
     | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON="$1" RABADON_DIR="$ARD" "$BIN" >/tmp/pt_a.$$ 2>&1
 }
 GUARD_BASE='{"project":"p","testCommand":"ctest","bash":[{"id":"existing","deny":"rm -rf /","why":"never"}]}'
-author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-force-push","deny":"git push --force","why":"never"}}' "$GUARD_BASE"
+author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-force-push","deny":"git push --force","why":"never","catches":["git push --force origin main"]}}' "$GUARD_BASE"
 python3 - "$AC/.rabadon/guard.json" <<'PY' && ok "BR7 deny rule installed into bash[] with authoredBy+incidentAt, pretty+trailing-nl" || bad "BR7 deny rule authoring wrong"
 import json,sys
 p=sys.argv[1]; txt=open(p).read(); g=json.loads(txt)
@@ -460,11 +460,11 @@ grep -q '"step":"new gate: no-force-push"' "$ARD/spool/$DAY.jsonl" && ok "BR7 RE
 grep -q "new gate installed: no-force-push" /tmp/pt_a.$$ && ok "BR7 advice mentions the new gate" || bad "BR7 advice missing new-gate line"
 # refire same red with same rule id -> NOT appended twice (id dedup)
 echo '{"hook_event_name":"PostToolUse","cwd":"'"$AC"'","session_id":"s1","tool_use_id":"a-again","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"9 failed\ncrash-different"}}' \
-  | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON='{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-force-push","deny":"git push --force","why":"never"}}' RABADON_DIR="$ARD" "$BIN" >/dev/null 2>&1
+  | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON='{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-force-push","deny":"git push --force","why":"never","catches":["git push --force origin main"]}}' RABADON_DIR="$ARD" "$BIN" >/dev/null 2>&1
 cnt="$(python3 -c "import json;g=json.load(open('$AC/.rabadon/guard.json'));print(len([x for x in g['bash'] if x['id']=='no-force-push']))")"
 [ "$cnt" = 1 ] && ok "BR7 id-dedup: the same rule id is not appended twice" || bad "BR7 rule duplicated ($cnt copies)"
 # newRule.match -> lands in protectedPaths[]
-author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-touch-lock","match":"package-lock\\.json$","why":"generated"}}' '{"project":"p","testCommand":"ctest"}'
+author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-touch-lock","match":"package-lock\\.json$","why":"generated","catches":["/Users/x/proj/package-lock.json"]}}' '{"project":"p","testCommand":"ctest"}'
 python3 -c "import json;g=json.load(open('$AC/.rabadon/guard.json'));import sys;sys.exit(0 if any(x['id']=='no-touch-lock' for x in g.get('protectedPaths',[])) and not g.get('bash') else 1)" \
   && ok "BR7 match rule lands in protectedPaths[], not bash[]" || bad "BR7 match rule mis-targeted"
 # invalid regex -> NOT installed, no crash
@@ -472,6 +472,43 @@ author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"bad-rx","deny":"[","
 python3 -c "import json;g=json.load(open('$AC/.rabadon/guard.json'));import sys;sys.exit(0 if not any(x.get('id')=='bad-rx' for x in g.get('bash',[])) else 1)" \
   && ok "BR7 invalid-regex rule is dropped, never installed" || bad "BR7 invalid regex installed"
 grep -q '"step":"new gate: bad-rx"' "$ARD/spool/$DAY.jsonl" && bad "BR7 REPAIR_OK for the dropped invalid rule" || ok "BR7 no REPAIR_OK for the dropped rule"
+
+# BR7b — COMPILING IS NOT FIRING, and this is the path that paid for the
+# difference. Of the 16 rules on this machine that could refuse nothing in any
+# repository, three were authored right here after real incidents, so each named
+# something that had already happened once and was free to happen again — and
+# the session that authored one was told a new gate had been installed.
+#
+# A proposal now has to name what it would have refused, and the example is
+# driven through the proposal's own pattern with the gate's own matcher.
+#
+# The pattern below is the ordinary authoring mistake: a rule written across an
+# `&&`, which is how a person describes what they saw. The line is split on `&&`
+# before any rule is consulted, so no surface a rule is judged against carries
+# both halves, and this rule can never fire.
+author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"cd-then-delete","deny":"cd\\s+\\S+\\s+&&\\s+rm\\s+-rf","why":"hides the target","catches":["cd /tmp/build && rm -rf ."]}}' '{"project":"p","testCommand":"ctest"}'
+python3 -c "import json;g=json.load(open('$AC/.rabadon/guard.json'));import sys;sys.exit(0 if not any(x.get('id')=='cd-then-delete' for x in g.get('bash',[])) else 1)" \
+  && ok "BR7b a proposed rule that cannot refuse its own example is NOT installed" \
+  || bad "BR7b a rule that can never fire was written into the guard"
+grep -q "cannot refuse cd /tmp/build && rm -rf ." /tmp/pt_a.$$ \
+  && ok "BR7b the session is told which example the proposal could not catch" \
+  || bad "BR7b the drop was silent: $(tail -3 /tmp/pt_a.$$ | tr '\n' ' ')"
+
+# BR7c — and a proposal with no example at all is not installed either. A rule
+# nothing proves is the state all 430 rules on this machine were in until
+# tonight, and it is the state that hid sixteen dead ones.
+author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"unproven-rule","deny":"git\\s+push\\s+--force","why":"needs review"}}' '{"project":"p","testCommand":"ctest"}'
+python3 -c "import json;g=json.load(open('$AC/.rabadon/guard.json'));import sys;sys.exit(0 if not any(x.get('id')=='unproven-rule' for x in g.get('bash',[])) else 1)" \
+  && ok "BR7c a proposal carrying no example is not installed" \
+  || bad "BR7c a rule with nothing proving it was installed"
+
+# BR7d — TWIN. A proposal that names what it would have stopped, and whose
+# pattern really does stop it, still lands. A check that only ever rejects is a
+# check nobody can ship behind.
+author '{"where":"w","cause":"c","fix":"f","newRule":{"id":"no-hard-reset","deny":"git\\s+reset\\s+--hard","why":"discards work","catches":["git reset --hard origin/main"]}}' '{"project":"p","testCommand":"ctest"}'
+python3 -c "import json;g=json.load(open('$AC/.rabadon/guard.json'));import sys;sys.exit(0 if any(x.get('id')=='no-hard-reset' for x in g.get('bash',[])) else 1)" \
+  && ok "BR7d a proven proposal is still installed" \
+  || bad "BR7d a rule that can fire was refused: $(tail -3 /tmp/pt_a.$$ | tr '\n' ' ')"
 
 # =====================================================================
 # BR8 — RABADON_OFF=1 in the child env (the recursion root-fix)

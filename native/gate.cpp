@@ -980,8 +980,10 @@ static Diag diagnose(const string& goal, const std::vector<string>& recentBullet
     << "{ \"where\": \"<which step/gate of the work this belongs to, one short phrase>\",\n"
     << "  \"cause\": \"<root cause in one sentence, from the evidence — never invent>\",\n"
     << "  \"fix\": \"<the concrete next action to fix it, one sentence>\",\n"
-    << "  \"newRule\": { \"id\": \"kebab-id\", \"deny\": \"<JS regex over bash commands>\", \"why\": \"<one line>\" } | { \"id\": \"kebab-id\", \"match\": \"<JS regex over file paths>\", \"why\": \"<one line>\" } | null }\n"
-    << "newRule: ONLY if this class of mistake could have been caught BEFORE it happened by blocking a command or an edit; otherwise null. Prefer null over a rule that could block legitimate work.\n\n"
+    << "  \"newRule\": { \"id\": \"kebab-id\", \"deny\": \"<JS regex over bash commands>\", \"why\": \"<one line>\", \"catches\": [\"<the exact command that would have been refused>\"], \"allow\": [\"<a real command this must NOT refuse>\"] } | { \"id\": \"kebab-id\", \"match\": \"<JS regex over file paths>\", \"why\": \"<one line>\", \"catches\": [\"<the exact path that would have been protected>\"], \"allow\": [\"<a real path this must NOT protect>\"] } | null }\n"
+    << "newRule: ONLY if this class of mistake could have been caught BEFORE it happened by blocking a command or an edit; otherwise null. Prefer null over a rule that could block legitimate work.\n"
+    << "catches is REQUIRED and it is checked. Write the literal command or path this rule would have refused, and rabadon runs it through your own pattern with the same matcher the gate uses before installing anything. A rule whose pattern cannot refuse its own example is not installed, because a rule that reads correctly and refuses nothing is worse than no rule: it is a law everyone believes in.\n"
+    << "A deny pattern never sees the raw line. rabadon splits on ; && || | first and matches ONE segment at a time, with quotes and the whitespace inside them removed. So `a && b` arrives as two separate surfaces and a pattern spanning both can never match. A match pattern is offered the path as it arrived, which is ABSOLUTE, and the path relative to the project root.\n\n"
     << "## session goal\n" << goal << "\n"
     << "## last moves\n";
   for (const auto& r : recentBullets) p << "- " << r << "\n";
@@ -1153,7 +1155,13 @@ int main(int argc, char** argv) {
     // section's pattern key is deliberately NOT legal: a `match` inside bash[]
     // is inert, and reading as enforced while matching nothing is the bug.
     auto lint_rule_objects = [&](const char* section, const char* patKey) {
-      static const char* kRuleKeys[] = {"id", "why", "authoredBy", "incidentAt", "source", "allow"};
+      // `wrongAt`/`wrongWhy` are the other half of `authoredBy`/`incidentAt`.
+      // A rule born from an incident already carries the day it was born; a rule
+      // that has refused something it should not have has to carry that too, on
+      // the rule, where the next author reads it — the ledger records the event
+      // and nobody opening guard.json sees the ledger.
+      static const char* kRuleKeys[] = {"id", "why", "authoredBy", "incidentAt", "source",
+                                        "allow", "catches", "wrongAt", "wrongWhy"};
       int idx = -1;
       for (const string& obj : rbrules::parse_rule_objects(g, section)) {
         idx++;
@@ -1220,12 +1228,63 @@ int main(int argc, char** argv) {
                 missing, total, section);
       }
     };
+    // And the half neither of those covers. `allow` proves a rule is not too
+    // WIDE. Nothing proved it was not too NARROW, because the schema had no way
+    // for an author to say what the rule exists to stop.
+    //
+    // Measured on 3 August: every guard rule on this machine, 430 of them, was
+    // driven through the real gate with a command its own pattern was written to
+    // refuse. 16 refused nothing, in any repository, ever, and all 16 linted
+    // clean. Three had been authored by the engine itself after real incidents,
+    // so each named something that had already happened once and was free to
+    // happen again. The two mechanisms behind fourteen and two of them are
+    // invisible in the pattern: a protectedPaths rule authored relative is
+    // compared against a spelling no event carries, and a bash pattern that
+    // spells a pipe is asking for a character the parser removed before any rule
+    // was consulted. An author cannot be expected to know either.
+    //
+    // What an author CAN write is the thing the rule is for. So a rule carries
+    // `catches` beside `allow`, and lint runs it through the rule's own pattern
+    // with the gate's own matcher — rx_test_cmd for a command, which segments
+    // the line exactly as judging does, and rx_test for a path, which is offered
+    // both the arriving spelling and the project-relative one. A rule that
+    // cannot cut its own example is dead, and it is said at author time rather
+    // than on the night the danger arrives.
+    auto lint_deny_twins = [&](const char* section, const char* patKey) {
+      int missing = 0, total = 0;
+      const bool isCommand = string(section) == "bash";
+      for (const string& obj : rbrules::parse_rule_objects(g, section)) {
+        total++;
+        const string id = rbrules::get_str(obj, "id");
+        const string pat = rbrules::get_str(obj, patKey);
+        if (pat.empty()) continue;  // already reported above
+        const std::vector<string> catches = rbrules::get_str_array(obj, "catches");
+        if (catches.empty()) { missing++; continue; }
+        for (const string& example : catches) {
+          const bool refused = isCommand ? rbrules::rx_test_cmd(pat, example)
+                                         : rbrules::rx_test(pat, example);
+          if (!refused) {
+            fprintf(stderr, "rabadon lint: rule \"%s\" cannot refuse the thing it was written for — %s\n",
+                    id.c_str(), example.c_str());
+            fprintf(stderr, "              the rule is dead: it compiles, it reads correctly, and no %s reaches it\n",
+                    isCommand ? "command" : "path");
+            problems++;
+          }
+        }
+      }
+      if (missing) {
+        fprintf(stderr, "rabadon lint: %d of %d rule(s) in %s carry no \"catches\" example — nothing proves they can still refuse anything\n",
+                missing, total, section);
+      }
+    };
     lint_rules("bash", "deny");
     lint_rules("protectedPaths", "match");
     lint_rule_objects("bash", "deny");
     lint_rule_objects("protectedPaths", "match");
     lint_allow_twins("bash", "deny");
     lint_allow_twins("protectedPaths", "match");
+    lint_deny_twins("bash", "deny");
+    lint_deny_twins("protectedPaths", "match");
     if (problems == 0) { printf("rabadon lint: %s is valid.\n", path.c_str()); return 0; }
     fprintf(stderr, "rabadon lint: %d problem(s) — fix them or the gate silently ignores those rules.\n", problems);
     return 1;
@@ -1861,7 +1920,46 @@ int main(int argc, char** argv) {
             if (target) patUnescaped = json_unescape(patRaw);
             bool compiles = false;
             if (target) { try { std::regex re(patUnescaped, std::regex::ECMAScript | std::regex::icase); compiles = true; (void)re; } catch (...) { compiles = false; } }
+            // COMPILING IS NOT FIRING, and this is the path where the difference
+            // was paid for. Of the 16 rules on this machine that could not refuse
+            // anything in any repository, three were authored right here, after
+            // real incidents — so each named something that had already happened
+            // once and was free to happen again, and the session that authored it
+            // was told a new gate was installed.
+            //
+            // The proposal now has to name what it would have refused, and the
+            // example is driven through the proposal's own pattern with the
+            // matcher the gate uses. No example, or an example the pattern cannot
+            // catch, and nothing is written. A rule that reads correctly and
+            // refuses nothing is worse than no rule: it is a law everyone
+            // believes in.
+            bool provenLive = false;
+            string deadExample;
             if (target && compiles) {
+              const bool isCmd = string(target) == "bash";
+              std::vector<string> examples;
+              if (JVal* cv = diag.newRule.get("catches")) {
+                if (cv->t == JVal::ARR) {
+                  for (auto& e : cv->arr) {
+                    if (e.t == JVal::STR) examples.push_back(json_unescape(e.str));
+                  }
+                } else if (cv->t == JVal::STR) {
+                  examples.push_back(json_unescape(cv->str));
+                }
+              }
+              if (examples.empty()) deadExample = "(none proposed)";
+              for (const string& ex : examples) {
+                if (isCmd ? rbrules::rx_test_cmd(patUnescaped, ex) : rbrules::rx_test(patUnescaped, ex))
+                  provenLive = true;
+                else if (deadExample.empty()) deadExample = ex;
+              }
+            }
+            if (target && compiles && !provenLive) {
+              em.emit("REPAIR_FAIL", "\"step\":\"new gate\",\"attempt\":1,\"repair_kind\":\"rule\",\"why\":\"proposed rule cannot refuse its own example\"");
+              advice += "  a rule was proposed and NOT installed: its pattern cannot refuse " +
+                        deadExample + "\n";
+            }
+            if (target && compiles && provenLive) {
               const string fresh = read_file(guardPath);
               JParser gp(fresh); JVal g = gp.parse();
               if (gp.ok && g.t == JVal::OBJ) {
