@@ -144,11 +144,60 @@ static bool backticked(const string& raw, string& out) {
   return true;
 }
 
+// A shell line is a list of commands. `cd x && make test` ran `make test`, and a
+// report that cites `make test` is citing something that happened. The gate
+// splits on exactly these separators before it judges anything (cmdtext.h), so
+// the index is built the same way rather than on whole lines only.
+static vector<string> segments(const string& line) {
+  vector<string> out;
+  size_t start = 0;
+  for (size_t i = 0; i < line.size(); i++) {
+    size_t skip = 0;
+    if (line[i] == ';') skip = 1;
+    else if (line[i] == '|') skip = (i + 1 < line.size() && line[i + 1] == '|') ? 2 : 1;
+    else if (line[i] == '&') skip = (i + 1 < line.size() && line[i + 1] == '&') ? 2 : 1;
+    if (!skip) continue;
+    // `2>&1` and `&>` are not separators; a `&` glued to the previous character
+    // is part of a redirection, not the end of a command.
+    if (line[i] == '&' && skip == 1 && i > 0 && line[i - 1] != ' ') continue;
+    if (i > start) out.push_back(normalize(line.substr(start, i - start)));
+    i += skip - 1;
+    start = i + 1;
+  }
+  if (start < line.size()) out.push_back(normalize(line.substr(start)));
+  return out;
+}
+
 // ---------- the ledger: every command this machine ever ran ----------
 struct Ledger {
   std::set<string> ran;      // normalised, clipped
   int files = 0;
   long long lines = 0;
+
+  // A REPORT CITES THE COMMAND. THE LEDGER HOLDS THE WHOLE LINE.
+  //
+  // A report says `rabadon on`. The shell was handed
+  // `rabadon on 2>&1 | head -20; rabadon status`, and that is what the ledger
+  // wrote down. Exact matching called the citation unrun, on this tool's first
+  // real report, for a command that had been run twenty minutes earlier.
+  //
+  // So a citation counts if it is the HEAD of a line the ledger saw. The cut has
+  // to fall on a word boundary or the citation `git` would match every git
+  // command ever run, and a one-word citation is not a citation of anything —
+  // it names a program, not a run.
+  bool saw(const string& cmd) const {
+    if (cmd.empty()) return false;
+    if (ran.count(cmd)) return true;
+    if (cmd.find(' ') == string::npos) return false;   // one word names no run
+    auto it = ran.lower_bound(cmd);
+    for (; it != ran.end() && it->compare(0, cmd.size(), cmd) == 0; ++it) {
+      if (it->size() == cmd.size()) return true;
+      const char next = (*it)[cmd.size()];
+      if (next == ' ' || next == ';' || next == '|' || next == '&' ||
+          next == '>' || next == '<') return true;
+    }
+    return false;
+  }
 };
 
 static void collect(Ledger& L, const string& path) {
@@ -166,7 +215,16 @@ static void collect(Ledger& L, const string& path) {
     const size_t colon = step.find(": ");
     if (colon != string::npos && colon <= 12) step = step.substr(colon + 2);
     step = normalize(step);
-    if (!step.empty()) L.ran.insert(step.substr(0, kClip));
+    if (step.empty()) continue;
+    L.ran.insert(step.substr(0, kClip));
+    // AND EVERY SEGMENT OF IT. A report cites `rabadon on`; the line the shell
+    // was handed is `cd ~/proj && rabadon on 2>&1 | head -20`, so the citation
+    // is not the head of the line, it is the head of the line's SECOND segment.
+    // The gate already treats a command as a list of segments split on the same
+    // separators (cmdtext.h), and judging by segment while indexing by whole
+    // line asks two different questions of the same string.
+    for (const string& seg : segments(step))
+      if (!seg.empty()) L.ran.insert(seg.substr(0, kClip));
   }
 }
 
@@ -340,7 +398,7 @@ int main(int argc, char** argv) {
         c.line = (int)i + 1;
         c.cmd = nearest(i);
         if (c.cmd.empty()) c.verdict = "unsourced";
-        else c.verdict = L.ran.count(c.cmd.substr(0, kClip)) ? "backed" : "unrun";
+        else c.verdict = L.saw(c.cmd.substr(0, kClip)) ? "backed" : "unrun";
         claims.push_back(c);
         j = end;
       } else j++;

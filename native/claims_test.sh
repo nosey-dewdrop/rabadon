@@ -176,5 +176,46 @@ assert any(c['verdict'] != 'backed' for c in d['claims']), d
 else bad "--json is not machine-readable"; echo "$OUT" | head -5 | sed 's/^/        /'; fi
 
 echo
+
+# ---------------------------------------------------------------------------
+# 7. a report cites the command, not the whole line the shell ran
+# ---------------------------------------------------------------------------
+# A report says `rabadon on`. The ledger holds the line as it was typed:
+# `rabadon on 2>&1 | head -20; rabadon status`. Exact matching called that
+# unrun, on this tool's own first real report, for a command that had plainly
+# been run minutes earlier. A citation that is a PREFIX of a line the ledger saw
+# counts, cut on a word boundary so that citing `git` does not match everything.
+echo "7. a citation is the command, not the whole line the shell ran"
+cat > "$T/prefix.md" <<'MD'
+# session report
+
+Enforce mode was armed and it refused 256 commands.
+
+    $ rabadon on
+MD
+python3 - "$RABADON_DIR/spool/2026-08-03.jsonl" <<'PYEOF'
+import json, sys
+line = json.dumps({"v": 1, "seq": 20, "ts": 1785600020, "run": "r20", "pipe": "proj:session",
+                   "ev": "STEP_OK", "step": "ran: rabadon on 2>&1 | head -20; rabadon status",
+                   "prev": "x" * 64}, ensure_ascii=False)
+open(sys.argv[1], "a", encoding="utf-8").write(line + "\n")
+PYEOF
+OUT=$("$BIN" "$T/prefix.md" 2>&1); RC=$?
+if [ $RC -eq 0 ]; then ok "a citation that heads a longer ledger line is backed"
+else bad "prefix citation still reads as unrun (exit $RC)"; echo "$OUT" | sed 's/^/        /'; fi
+
+# and the boundary holds: one bare word is not a citation of every line
+cat > "$T/toobroad.md" <<'MD'
+# session report
+
+Something happened 4200 times.
+
+    $ rabadon
+MD
+OUT=$("$BIN" "$T/toobroad.md" 2>&1); RC=$?
+if [ $RC -ne 0 ]; then ok "a bare program name does not match every line starting with it"
+else bad "a one-word citation matched anything"; echo "$OUT" | sed 's/^/        /'; fi
+
+echo
 echo "  $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
