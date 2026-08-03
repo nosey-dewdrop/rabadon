@@ -1,3 +1,10 @@
+{"ev": "STOP", "rule": "no-force-push-main", "project": ".reachprobe", "ts": 1785756482538, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "reports", "ts": 1785756482528, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": ".reachprobe", "ts": 1785756482496, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "no-force-push-main", "project": "icerik", "ts": 1785756482482, "detail": "command matched deny rule: git push --force origin main"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785756167310, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "no-blind-inplace-source-rewrite", "project": "rabadon", "ts": 1785756017161, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && sed -i.bak 's|#include \"chain.h\"|#include \"chain.h\"\\n#include \"testout.h\"|' native/net.cpp && rm -f native/net.cpp.bak && gr"}
+{"ev": "STOP", "rule": "no-gnu-timeout-on-macos", "project": "rabadon", "ts": 1785755431573, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && timeout 900 git push 2>&1 | tail -20; echo \"RC=$?\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785753966369, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "no-blind-inplace-source-rewrite", "project": "rabadon", "ts": 1785753777628, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && rabadon wrong no-blind-inplace-source-rewrite \"the \\\\.h alternative has no boundary so it also matches .html and .hpp; it re"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785715166803, "detail": "command matched deny rule: git commit -m \"wip\""}
