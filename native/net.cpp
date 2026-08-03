@@ -43,6 +43,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include "cli_help.h"
+#include "testout.h" // did the runner execute any tests — shared with the gate
 
 using std::string;
 
@@ -238,7 +239,12 @@ int main(int argc, char** argv) {
   }
 
   const long long dur = now_ms() - t0;
-  string tail = read_file(outFile);
+  // Vacuity is decided on the WHOLE output; the tail only travels. Deciding it
+  // on the last 1200 bytes can cut away the `ok pkg 0.3s` lines that prove
+  // something ran, and turn a healthy green into a refusal.
+  const string full = read_file(outFile);
+  const bool emptyRun = rbtestout::ran_no_tests(full);
+  string tail = full;
   if (tail.size() > 1200) tail = tail.substr(tail.size() - 1200);
   unlink(outFile.c_str());
 
@@ -250,6 +256,15 @@ int main(int argc, char** argv) {
   }
   const int rc = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
   if (rc == 127) { finish("inconclusive", rc, dur, "the checker is not installed here: " + tail); return 0; }
+  // A run that executed no tests exited 0 and proved nothing. It is not green
+  // and it is not red — it is the same honest third answer a timeout gets. This
+  // matters here and not only in the gate, because the gate now treats a net
+  // green as verification: calling an empty run green would re-open, through
+  // the net, exactly the door the push gate just closed.
+  if (rc == 0 && emptyRun) {
+    finish("inconclusive", rc, dur, "the check ran no tests: " + tail);
+    return 0;
+  }
   finish(rc == 0 ? "green" : "red", rc, dur, tail);
   return 0;
 }

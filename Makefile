@@ -588,6 +588,20 @@ test: all
 	./native/budget_test.sh
 	./native/postuse_test.sh
 	./native/pushgate_test.sh
+# pushgate_test.sh proves the gate runs the suite and reads the real result.
+# this one asks who is allowed to say the suite was green. the gate skipped its
+# own run whenever lastTestPass was fresh, and that stamp is written in two
+# places it could not tell apart: a run rabadon forked and read the exit code
+# of, and a Bash tool result it merely WATCHED go past, where no exit code
+# reaches the post hook at all. so a command that ran no tests refreshed the
+# stamp and the next push went out over a red suite. measured 3 August, both
+# run rather than quoted: `go test -run TestNothingMatchesThis ./...` prints
+# `ok vac 0.142s [no tests to run]` and exits 0, and pytest on an empty
+# directory prints `no tests ran in 0.00s`. five of the nine cases here are
+# twins, because the failure mode of this fix is refusing honest pushes forever
+# -- go prints `[no test files]` for every package without tests, beside real
+# green lines, on a perfectly healthy run.
+	./native/pushgate_forge_test.sh
 	./native/drift_test.sh
 	./native/verify_test.sh
 	./native/loop_test.sh

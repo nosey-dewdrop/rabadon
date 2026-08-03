@@ -49,7 +49,14 @@ grep -q '"ev":"REPAIR_FAIL"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "red: REPA
 # --- C: no code edit since last pass -> gate does nothing, push flows ---
 C="$(scratch "exit 1" "tests passed")"
 now=$(python3 -c 'import time;print(int(time.time()*1000))')
-printf '{"lastCodeEdit":10,"lastTestPass":%s,"sessions":{}}' "$now" > "$C/.rabadon/state.json"
+# lastTestVerified, not lastTestPass, and the difference is the whole point.
+# lastTestPass is ALSO stamped from merely watching a Bash result go past, where
+# no exit code reaches the hook at all, so anything that printed green-looking
+# text used to buy the skip below. This fixture now sets the stamp rabadon
+# writes only after running the suite itself. The assertion is unchanged — a
+# genuinely green suite is not re-run — and its twin is F1 in
+# pushgate_forge_test.sh, where an observed-only stamp must NOT skip.
+printf '{"lastCodeEdit":10,"lastTestPass":%s,"lastTestVerified":%s,"sessions":{}}' "$now" "$now" > "$C/.rabadon/state.json"
 RD="$(mktemp -d)"; : > "$RD/enabled"
 pushev "$C" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "tests green since last edit: push flows, suite not re-run" || bad "no-edit push should be exit 0"

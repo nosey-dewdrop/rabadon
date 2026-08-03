@@ -37,7 +37,8 @@
 #include "sha256.h"  // the hash-chained spool (emitter here + rabadon-audit)
 #include "chain.h"    // the ledger's one writer: chained line + .head sidecar
 #include "baseline.h" // the three laws that hold with no guard.json at all
-#include "rules.h"    // guard.json rule parsing + matching — shared with `rabadon exec`
+#include "rules.h"   // guard.json rule parsing + matching — shared with `rabadon exec`
+#include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
 #include "cli_help.h"
@@ -528,7 +529,7 @@ static std::vector<string> parse_str_array(const string& j, const string& key) {
 
 // ---------- session state: .rabadon/state.json, ONE owner ----------
 // Fixed schema, shared with the (retiring) node cold paths:
-//   { lastCodeEdit, lastTestPass, lastTestFail, lastTestRun,
+//   { lastCodeEdit, lastTestPass, lastTestVerified, lastTestFail, lastTestRun,
 //     lastDiagAt, lastDiagSig,
 //     sessions: { "<sid16>": { goalPrompt, goalTs, touchedDirs[],
 //        fanoutWarned, lastCmd, lastCmdTs, cmdRepeat, actionCount,
@@ -595,6 +596,20 @@ struct Sess {
 struct State {
   string path;
   long long lastCodeEdit = 0, lastTestPass = 0, lastTestFail = 0, lastTestRun = 0, lastDiagAt = 0;
+  // The same word meant two different things and only one of them is evidence.
+  //
+  // lastTestPass is stamped from WATCHING a Bash tool result go by: the pattern
+  // matched the text, so the run is called green. The post hook never receives
+  // an exit code — tool_response is a string the session produced — so this is
+  // a claim, and it is the claim of the thing being checked. Kept, because the
+  // handoff and the drift judge need to know what happened.
+  //
+  // lastTestVerified is stamped only where rabadon RAN the suite and read the
+  // real exit code itself. The push gate skips its own run on this one alone.
+  // Before the split, `go test -run TestNothingMatchesThis ./...` printed
+  // `ok vac 0.142s [no tests to run]`, exited 0, refreshed the stamp, and the
+  // next push went out over a red suite.
+  long long lastTestVerified = 0;
   string lastDiagSig;
   // the always-on net: the timestamp of the last verdict we have already acted
   // on, and what that verdict was. Both are needed to spot the TRANSITION —
@@ -616,6 +631,7 @@ struct State {
     if (j.empty()) return;
     lastCodeEdit = get_num(j, "lastCodeEdit");
     lastTestPass = get_num(j, "lastTestPass");
+    lastTestVerified = get_num(j, "lastTestVerified");
     lastTestFail = get_num(j, "lastTestFail");
     lastTestRun  = get_num(j, "lastTestRun");
     lastDiagAt   = get_num(j, "lastDiagAt");
@@ -662,6 +678,7 @@ struct State {
   void save() {
     std::ostringstream o;
     o << "{\"lastCodeEdit\":" << lastCodeEdit << ",\"lastTestPass\":" << lastTestPass
+      << ",\"lastTestVerified\":" << lastTestVerified
       << ",\"lastTestFail\":" << lastTestFail << ",\"lastTestRun\":" << lastTestRun
       << ",\"lastDiagAt\":" << lastDiagAt
       << ",\"lastNetTs\":" << lastNetTs
@@ -749,6 +766,8 @@ static string run_shell(const string& cmd, int timeoutSec, size_t maxBytes, int*
   if (WIFEXITED(st)) *exitCode = WEXITSTATUS(st);
   return out;
 }
+
+using rbtestout::ran_no_tests;
 
 // ---------- the incident brain (opus-class) ----------
 // bounded `claude -p`, 90s / 4MB. Returns a parsed verdict or {ok=false}.
@@ -1326,7 +1345,12 @@ int main(int argc, char** argv) {
         // lastTestRun:0 is what "the net has never run anything" was measured
         // on. From here it is the truth: the net ran, at this instant.
         stt.lastTestRun = netTs;
-        if (verdict == "green")    stt.lastTestPass = netTs;
+        // the net FORKED the suite and read its real exit code (net.cpp), so a
+        // net green is verification in the same sense the push gate's own run
+        // is — and it counts, otherwise every push would re-run a suite rabadon
+        // watched go green a minute ago. An empty run never arrives as "green";
+        // net.cpp calls that inconclusive.
+        if (verdict == "green")    { stt.lastTestPass = netTs; stt.lastTestVerified = netTs; }
         else if (verdict == "red") stt.lastTestFail = netTs;
         stt.save();
 
@@ -1898,7 +1922,12 @@ int main(int argc, char** argv) {
       // on the REAL result — telling is a warning, solving is the product. This
       // was the last thing that delegated to node; it is native now.
       if (rx_test_cmd("\\bgit\\s+push\\b", command) && !rx_test("--dry-run", command) &&
-          guardRaw.find("\"pushGate\"") != string::npos && stt.lastCodeEdit > stt.lastTestPass) {
+          // lastTestVerified, not lastTestPass. The skip is only earned by a
+          // green rabadon ran and read the exit code of itself; a green it
+          // merely watched go past in a tool result is the claim of the thing
+          // being checked, and taking it here is what let a push out over a red
+          // suite after one command that ran no tests.
+          guardRaw.find("\"pushGate\"") != string::npos && stt.lastCodeEdit > stt.lastTestVerified) {
         size_t pg = guardRaw.find("\"pushGate\"");
         const string pgObj = take_obj(guardRaw, guardRaw.find(':', pg));
         const string runCmd = get_str(pgObj, "run");
@@ -1911,11 +1940,19 @@ int main(int argc, char** argv) {
         em.emit("REPAIR_START", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"fixing\":[\"tests-not-green\"]");
         int code = -1;
         const string out = run_shell(runCmd, (int)tsec, 16 * 1024 * 1024, &code);
-        const bool green = (code == 0) && (passPat.empty() ? true : rx_test(passPat, out));
+        const bool vacuous = ran_no_tests(out);
+        const bool green = (code == 0) && (passPat.empty() ? true : rx_test(passPat, out)) && !vacuous;
         if (green) {
-          stt.lastTestPass = now_ms(); stt.lastTestRun = now_ms();
+          // the one place lastTestVerified is written: rabadon ran this and
+          // read the exit code, so the next push may skip the re-run
+          stt.lastTestPass = now_ms(); stt.lastTestRun = now_ms(); stt.lastTestVerified = now_ms();
           em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\"");
           // fall through: the push is now legitimately allowed
+        } else if (vacuous) {
+          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"why\":\"ran no tests\"");
+          block("push-gate", why, "rabadon ran the tests itself (" + runCmd + ") — it exited 0 and RAN NO TESTS.\n" +
+            (out.size() > 400 ? out.substr(out.size() - 400) : out) +
+            "An empty run is not a green run. Point pushGate.run at a command that executes the suite.");
         } else {
           em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"why\":\"tests not green\"");
           string fails; {
