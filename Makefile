@@ -602,6 +602,18 @@ test: all
 # -- go prints `[no test files]` for every package without tests, beside real
 # green lines, on a perfectly healthy run.
 	./native/pushgate_forge_test.sh
+# and the same mistake pointing the other way. the post hook read "the pass
+# pattern did not match" as "the suite failed", and those are different
+# sentences. measured in this repo 3 August 14:24:28: `make test` exited 0 with
+# 2942 ok lines and zero failing assertions, the run was `make test > log 2>&1`,
+# the hook saw `EXIT=0`, and lastTestFail was stamped at that second. that
+# verdict goes into .rabadon/handoff.md, where the next session is told the red
+# IS the open front, so a false red costs a session hunting nothing. a red needs
+# evidence of its own now. the twins are the constraint: a suite that really
+# died does not always own the word fail (make prints *** Error 1, a crash
+# prints Segmentation fault), and a zero count is not evidence -- rabadon caught
+# THAT one in its own passing summary line, "test verdict: 8 ok, 0 fail".
+	./native/testverdict_test.sh
 	./native/drift_test.sh
 	./native/verify_test.sh
 	./native/loop_test.sh

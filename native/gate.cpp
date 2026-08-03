@@ -415,7 +415,19 @@ static JVal jstr(const string& raw) { JVal v; v.t = JVal::STR; v.str = json_esca
 // being repaired. The nearest guard wins, so a nested `.rabadon/` still governs
 // its own subtree.
 static string guard_path_for(const string& cwd) {
-  const string root = rbpath::project_root(cwd);
+  string root = rbpath::project_root(cwd);
+  // project_root() falls back to cwd itself when nothing above holds a `.git`,
+  // so in a directory that is not inside any repository the bound and the start
+  // were the same place and the walk never took a step. The home directory is
+  // the bound there: a guard above HOME is not this operator's project.
+  {
+    const char* h = getenv("HOME");
+    const string home = h ? rbpath::resolve_real(string(h)) : string();
+    const string here = rbpath::resolve_real(rbpath::lexical_abs(cwd, "/"));
+    if (root == here && !home.empty() && here.size() > home.size() &&
+        here.compare(0, home.size(), home) == 0 && here[home.size()] == '/')
+      root = home;
+  }
   string p = rbpath::resolve_real(rbpath::lexical_abs(cwd, "/"));
   for (;;) {
     struct stat st;
@@ -1504,13 +1516,64 @@ int main(int argc, char** argv) {
         else passed = rx_test("100% tests passed|0 failed|all tests passed", out);
       }
 
+      // "the pattern did not match" and "the suite failed" are different
+      // sentences, and reading the first as the second is a measured lie. On
+      // 3 August at 14:24:28 this repo's own `make test` exited 0 with 2942 ok
+      // lines and zero failing assertions, and lastTestFail was stamped at that
+      // second — because the run was `make test > /tmp/log 2>&1` and the only
+      // text reaching the hook was `EXIT=0`. That verdict is not cosmetic: it
+      // is written into .rabadon/handoff.md, and the next session is told the
+      // red IS the open front. A false red costs a session chasing nothing.
+      //
+      // So a red needs evidence of its own, not merely the absence of a green.
+      // The vocabulary is deliberately wider than the word "fail", because a
+      // suite that really died does not always own it — make prints `*** Error
+      // 1`, a crash prints `Segmentation fault`, python prints a traceback.
+      //
+      // A ZERO count is not evidence that anything failed, and rabadon caught
+      // this in its own output while the fix was being written: the line a
+      // PASSING suite prints, "test verdict: 8 ok, 0 fail", carries the word.
+      // Reading the word instead of the number put a green summary straight
+      // back into a red verdict. Both orders occur, count-first and word-first,
+      // so both are neutralised before the vocabulary is consulted.
+      string evid = out;
+      try {
+        static const std::regex zeroCount(
+            "\\b0+\\s*(fail(ed|ure|ures|s|ing)?|errors?)\\b|"
+            "\\b(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*0+\\b",
+            std::regex::ECMAScript | std::regex::icase);
+        evid = std::regex_replace(out, zeroCount, " ");
+      } catch (...) { evid = out; }
+      const bool sawFailure = rx_test(
+          "\\bfail(ed|ure|ures|s|ing)?\\b|\\berrors?\\b|\\*\\*\\*|\\bnot ok\\b|"
+          "\\bassert(ion)?\\b|\\bpanic:|\\btraceback\\b|\\bsegmentation fault\\b|"
+          "\\bexception\\b|\\baborted\\b|\\bkilled\\b|\\btimed out\\b",
+          evid);
+
       stt.lastTestRun = now;
       if (passed) { stt.lastTestPass = now; stt.lastTestFail = 0; }
-      else stt.lastTestFail = now;
+      else if (sawFailure) stt.lastTestFail = now;
       stt.save();
 
       if (passed) {
         em.emit("STEP_OK", "\"step\":\"tests: GREEN\"");
+        return 0;
+      }
+
+      if (!sawFailure) {
+        // Not green, not red. The same third answer net.cpp gives a timeout —
+        // and it is said out loud rather than folded into either one, because
+        // an unreadable result that silently means "red" is how the handoff
+        // started lying.
+        em.emit("TEST_EVIDENCE_MISSING",
+                "\"step\":\"tests\",\"cmd\":\"" + json_escape(utf8_clip(command, 80)) +
+                "\",\"bytes\":" + std::to_string(out.size()));
+        fprintf(stderr,
+          "rabadon: that test command left no readable result (%zu bytes), so the suite was "
+          "neither passed nor failed here.\n"
+          "The verdict is unchanged, not set to RED. If the output went to a file, rabadon "
+          "cannot read it — let the suite print, or let `rabadon net` run it.\n",
+          out.size());
         return 0;
       }
 
@@ -1968,9 +2031,45 @@ int main(int argc, char** argv) {
       }
     }
     if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit" || toolName == "NotebookEdit") {
-      for (const auto& r : parse_rules(guardRaw, "protectedPaths", "match", disabled))
-        if (!filePath.empty() && rx_test(r.pattern, filePath))
-          block(r.id, r.why, "protected file: " + filePath);
+      // A protectedPaths pattern is authored the way a person names a file in
+      // their own repository, anchored and relative: `^.github/workflows/x.yml$`.
+      // The event never carries that string. Measured across 865 transcripts,
+      // 12,948 Edit/Write calls arrived with an ABSOLUTE file_path and 180 with
+      // a `~/` one; project-relative arrived zero times. So an anchored relative
+      // rule was matching against a spelling that has never once been sent, and
+      // 14 of the 16 dead rules on this machine are that one mistake. The ones
+      // that survived had been written `(^|/)` or `^(?:.*/)?` by hand, which is
+      // a spelling convention doing the work a matcher should do.
+      //
+      // Both spellings are offered to the rule now: the path as it arrived, and
+      // the path relative to the project the guard governs. Offering both rather
+      // than replacing one keeps every rule that already fires firing.
+      if (!filePath.empty()) {
+        static const string kGuardTail = "/.rabadon/guard.json";
+        const string groot =
+            guardPath.size() > kGuardTail.size() &&
+            guardPath.compare(guardPath.size() - kGuardTail.size(), kGuardTail.size(), kGuardTail) == 0
+                ? guardPath.substr(0, guardPath.size() - kGuardTail.size())
+                : string();
+        // The guard path is resolved through symlinks and the event's file_path
+        // is not, and on macOS /var is a symlink to /private/var and /tmp to
+        // /private/tmp. So the prefix comparison failed on exactly the paths a
+        // temp fixture uses, and the rule stayed dead while the fix looked like
+        // it worked everywhere else. Both spellings are tried.
+        string relPath;
+        if (!groot.empty()) {
+          if (filePath.rfind(groot + "/", 0) == 0) {
+            relPath = filePath.substr(groot.size() + 1);
+          } else {
+            const string realFile = rbpath::resolve_real(rbpath::lexical_abs(filePath, cwd));
+            if (realFile.rfind(groot + "/", 0) == 0)
+              relPath = realFile.substr(groot.size() + 1);
+          }
+        }
+        for (const auto& r : parse_rules(guardRaw, "protectedPaths", "match", disabled))
+          if (rx_test(r.pattern, filePath) || (!relPath.empty() && rx_test(r.pattern, relPath)))
+            block(r.id, r.why, "protected file: " + filePath);
+      }
     }
   }
 

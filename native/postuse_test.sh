@@ -262,12 +262,44 @@ differential "BR4a 'Failures: 0' string response -> GREEN (the word 'fail' does 
 grep -q '"step":"tests: GREEN"' "$LAST_RDV/spool/$DAY.jsonl" && ok "BR4a GREEN emitted (measured count N=0, not a keyword sighting)" || bad "BR4a expected tests: GREEN"
 python3 -c "import json;d=json.load(open('$LAST_CV/.rabadon/state.json'));import sys;sys.exit(0 if d.get('lastTestPass',0)!=0 and d.get('lastTestFail',1)==0 else 1)" \
   && ok "BR4a lastTestPass SET, lastTestFail=0" || bad "BR4a test state wrong"
-# BR4a2: the SAME 'Failures: 0' as an OBJECT keeps a literal \n after
-# JSON.stringify; the boundary before "Failures" breaks, no count matches, no
-# green phrase -> the oracle reads it RED. The port must agree bit-for-bit.
-differential "BR4a2 'Failures: 0' object response -> RED on both (literal \\n breaks the boundary)" \
-  '{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"g1b","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_response":{"stdout":"Tests: 12 passed\nFailures: 0"}}' \
-  '{"project":"p","testCommand":"npm test"}'
+# BR4a2 — THE ONE DELIBERATE DIVERGENCE FROM THE ORACLE. Read this before
+# turning it back into a differential.
+#
+# The SAME 'Failures: 0' as an OBJECT keeps a literal \n after JSON.stringify.
+# The boundary before "Failures" breaks, no count matches, no green phrase is
+# found, and node concludes RED. BR4a one block up hands node the identical TEXT
+# in the string shape and node calls it GREEN. The oracle returns two opposite
+# verdicts for one suite based on nothing but the delivery shape of the result,
+# and the verdict it gives here is about a run that says, in plain words, twelve
+# tests passed and zero failures.
+#
+# That is a false red, and this case used to freeze it as the required answer.
+# On 3 August this repo measured what a false red costs: `make test` exited 0
+# with 2942 ok lines, the output went to a file, the hook saw only `EXIT=0`,
+# lastTestFail was stamped, and .rabadon/handoff.md told the next session the
+# red WAS the open front. Native now gives the honest third answer, not green
+# and not red, which is what net.cpp has always given a timeout.
+#
+# So this case asserts NATIVE's behaviour instead of equality, and prints what
+# node did so the gap stays visible. hooks/gate.mjs still carries the false red.
+# It is the retiring engine and tonight's devir forbids writing JS, so this is
+# recorded as an open front rather than papered over.
+C4="$(mktemp -d)"; RD4="$(mktemp -d)"; : > "$RD4/enabled"; mkdir -p "$C4/.rabadon"
+CN4="$(mktemp -d)"; RN4="$(mktemp -d)"; : > "$RN4/enabled"; mkdir -p "$CN4/.rabadon"
+echo '{"project":"p","testCommand":"npm test"}' > "$C4/.rabadon/guard.json"
+echo '{"project":"p","testCommand":"npm test"}' > "$CN4/.rabadon/guard.json"
+EV4a2='{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"g1b","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_response":{"stdout":"Tests: 12 passed\nFailures: 0"}}'
+echo "${EV4a2//CWD/$C4}"  | env $DIFF_ENV RABADON_DIR="$RD4" RABADON_NOTIFY=0 "$BIN"        >/dev/null 2>&1; rcv4=$?
+echo "${EV4a2//CWD/$CN4}" | env $DIFF_ENV RABADON_DIR="$RN4" RABADON_NOTIFY=0 node "$GATE" >/dev/null 2>&1; rcn4=$?
+[ "$rcv4" = "0" ] && ok "BR4a2 native: an unreadable 'Failures: 0' is not a failure (exit 0)" \
+                  || bad "BR4a2 native should exit 0, got $rcv4"
+python3 -c "import json,sys;d=json.load(open('$C4/.rabadon/state.json'));sys.exit(0 if d.get('lastTestFail',0)==0 else 1)" \
+  && ok "BR4a2 native: lastTestFail NOT stamped (no false red in the handoff)" \
+  || bad "BR4a2 native stamped a red with no evidence"
+grep -q '"ev":"TEST_EVIDENCE_MISSING"' "$RD4/spool/$DAY.jsonl" \
+  && ok "BR4a2 native: TEST_EVIDENCE_MISSING says it out loud" \
+  || bad "BR4a2 native should emit TEST_EVIDENCE_MISSING"
+echo "    note: hooks/gate.mjs (retiring oracle) exits $rcn4 here — a false red, tracked."
 
 differential "BR4b ctest '100% tests passed, 0 failed' -> GREEN" \
   '{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"g2","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"100% tests passed, 0 tests failed out of 12"}}' \

@@ -88,6 +88,17 @@ want "a traceback still goes RED" fail '{"stdout":"Traceback (most recent call l
 # --- twin: a real green is still green ---
 want "a counted green is still GREEN" pass '{"stdout":"ℹ tests 52\nℹ pass 52\nℹ fail 0"}'
 
+# V8. A ZERO count is not evidence of failure. rabadon caught this one in its
+# own output while this fix was being written: the summary line a passing suite
+# prints, "test verdict: 8 ok, 0 fail", carries the word fail, and reading the
+# word instead of the number turned a green summary back into a red verdict.
+want "'0 fail' in a summary line is not failure evidence" unknown '{"stdout":"test verdict: 8 ok, 0 fail"}'
+want "'failures: 0' is not failure evidence" unknown '{"stdout":"suite done\nfailures: 0"}'
+want "'0 errors' is not failure evidence" unknown '{"stdout":"compiled, 0 errors"}'
+
+# V9. TWIN — a count above zero is still evidence.
+want "'1 fail' in the same shape still goes RED" fail '{"stdout":"test verdict: 7 ok, 1 fail"}'
+
 echo
 echo "test verdict: $PASS ok, $FAIL fail"
 [ $FAIL -eq 0 ]
