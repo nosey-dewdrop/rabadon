@@ -1,3 +1,4 @@
+{"ev": "STOP", "rule": "no-gnu-timeout-on-macos", "project": "youkiddingme", "ts": 1785776418944, "detail": "command matched deny rule: cd /tmp && timeout 180 tectonic marx.tex 2>&1 | tail -5; ls -la /tmp/marx.pdf 2>/dev/null"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757090302, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757062210, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757037840, "detail": "command matched deny rule: git commit -m \"wip\""}
