@@ -1,3 +1,4 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785715166803, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785714427551, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785714276190, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785713965304, "detail": "command matched deny rule: git commit -m \"wip\""}
