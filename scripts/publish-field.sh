@@ -73,7 +73,7 @@ DOMAIN="${RABADON_PUBLISH_DOMAIN:-rabadon.noseydewdrop.com}"
 # somebody else edits, not outputs this job produces.
 ARTIFACTS="site/index.html site/field.html site/catches.html site/benchmarks.html \
 site/patch-notes.html site/pull-requests.html site/measured.json site/field.jsonl \
-site/sitemap.xml site/robots.txt"
+site/sitemap.xml site/robots.txt site/og.png"
 
 mkdir -p "$STATE_DIR"
 TMP="$(mktemp -d)"
@@ -160,6 +160,35 @@ print(json.dumps({k: (v.get("value") if isinstance(v, dict) else v)
                  sort_keys=True, ensure_ascii=False))
 PY
     cat "$REPO/site/field.jsonl" 2>/dev/null
+    # AND the census, which is on the same page and was outside this trigger.
+    # The census answers, for each of the 430 guard rules on this machine,
+    # whether the real gate binary refuses the command that rule was written to
+    # refuse. It was re-run on 3 August and the answer moved from 411 to 425;
+    # the page rendered the new figure and the deploy never fired, because the
+    # trigger only ever looked at field.* and field.jsonl. A number that can
+    # change and can never publish itself is a number nobody can trust the age
+    # of, which is the exact failure this whole script exists to end.
+    #
+    # The HEADLINE and the commit, not the file: rule_census.json also carries
+    # generated_utc and the measurement window, and a re-run that reproduces the
+    # same answer is not news. Same reasoning as the note above, one file over.
+    python3 - "$REPO/site/rule_census.json" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    print("no-census"); sys.exit(0)
+print(json.dumps({"headline": d.get("headline"),
+                  "gate_commit": d.get("gate_commit"),
+                  "by_mechanism": [(m.get("mechanism"), m.get("count"))
+                                   for m in (d.get("by_mechanism") or [])]},
+                 sort_keys=True, ensure_ascii=False))
+PY
+    # and the share card, which build.py now draws from the live values rather
+    # than carrying them baked in. It is deterministic for a given input, so it
+    # moves only when a printed number moves — and when it does, the card is
+    # published content and the deploy is the point.
+    shasum -a 256 "$REPO/site/og.png" 2>/dev/null | cut -d' ' -f1
   } | shasum -a 256 | cut -d' ' -f1
 }
 
@@ -243,10 +272,22 @@ git add -- $STAGE || die commit "git add refused the artefact list"
 
 # and prove it before writing history: anything staged that is not on the list
 # is somebody else's work, and the commit does not happen.
+#
+# THE LIST IS READ FROM $ARTIFACTS, not written out a second time. It used to be
+# a hand-typed regex holding the same ten filenames, and on 3 August at 19:56 the
+# two copies disagreed: build.py had started generating site/og.png, ARTIFACTS
+# had gained it, the regex had not, and the job refused its own output and left
+# the index staged behind it. A guard that has to be updated in two places is a
+# guard that will be updated in one.
 OUTSIDE="$(git diff --cached --name-only | grep -v '^site/' || true)"
 [ -z "$OUTSIDE" ] || die commit "refusing to commit: staged paths outside site/ — $(echo "$OUTSIDE" | tr '\n' ' ')"
-NOTOURS="$(git diff --cached --name-only | grep -vE '^(site/(index|field|catches|benchmarks|patch-notes|pull-requests)\.html|site/measured\.json|site/field\.jsonl|site/sitemap\.xml|site/robots\.txt)$' || true)"
-[ -z "$NOTOURS" ] || die commit "refusing to commit: staged a file this job does not generate — $(echo "$NOTOURS" | tr '\n' ' ')"
+NOTOURS=""
+for f in $(git diff --cached --name-only); do
+  ours=0
+  for a in $ARTIFACTS; do [ "$f" = "$a" ] && ours=1; done
+  [ "$ours" = 1 ] || NOTOURS="$NOTOURS $f"
+done
+[ -z "$NOTOURS" ] || die commit "refusing to commit: staged a file this job does not generate —$NOTOURS"
 
 COMMITTED=none
 if ! git diff --cached --quiet; then

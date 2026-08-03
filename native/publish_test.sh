@@ -278,6 +278,54 @@ else
   bad "the fixture no longer contains the volatile note, so the check above proves nothing"
 fi
 
+# ---------------------------------------------------------------------------
+# 2b. the OTHER number on the same page
+# ---------------------------------------------------------------------------
+# The field page carries two independent measurements. The ledger counts, which
+# this trigger has always watched, and the census: for each of the 430 guard
+# rules on this machine, whether the real gate binary refuses the command that
+# rule was written to refuse. On 3 August the census was re-run against the
+# repaired gate and the answer moved from 411 to 425. The page rendered the new
+# figure and the deploy never fired, because the trigger only ever looked at
+# field.* and field.jsonl. A number that can change and cannot publish itself is
+# a number nobody can trust the age of, which is what this script exists to end.
+#
+# Both directions, because the reason the trigger is narrow is a real one: the
+# census file also carries the moment it was generated, and a re-run that
+# reproduces the same answer is not news.
+echo
+echo "2b. the census on the same page is inside the trigger, and its clock is not"
+CENSUS="$T/repo/site/rule_census.json"
+write_census() {  # write_census <can_fire> <generated_utc>
+  python3 - "$CENSUS" "$1" "$2" <<'PY'
+import json, sys
+json.dump({"generated_utc": sys.argv[3],
+           "gate_commit": "deadbeef",
+           "headline": {"total": 430, "can_fire": int(sys.argv[2]), "cannot_fire": 0},
+           "by_mechanism": [], "rules": []}, open(sys.argv[1], "w"))
+PY
+}
+write_census 411 "2026-08-03T10:00:00Z"
+"$RUN" >/dev/null 2>&1        # publish the state that includes this census
+
+BEFORE_CALLS="$(vercel_calls)"
+write_census 411 "2026-08-03T23:59:59Z"   # same answer, later clock
+"$RUN" >/dev/null 2>&1
+if [ "$(vercel_calls)" = "$BEFORE_CALLS" ]; then
+  ok "re-running the census and getting the same answer does not deploy"
+else
+  bad "the census clock alone triggered a deploy — the trigger is hashing the moment, not the measurement"
+fi
+
+BEFORE_CALLS="$(vercel_calls)"
+write_census 425 "2026-08-03T23:59:59Z"   # the answer actually moved
+OUT="$("$RUN" 2>&1)"
+if [ "$(vercel_calls)" -gt "$BEFORE_CALLS" ]; then
+  ok "the census answer moving from 411 to 425 does deploy"
+else
+  bad "a changed census never reached the page"; echo "$OUT" | sed 's/^/        /'
+fi
+
 echo
 
 # ---------------------------------------------------------------------------

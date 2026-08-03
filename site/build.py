@@ -289,6 +289,110 @@ def group_by_day(rows):
 
 
 # ---------------------------------------------------------------------------
+# lastmod: the day the PAGE changed, not the day the build ran
+# ---------------------------------------------------------------------------
+# This job is started every 30 minutes by launchd. Stamping today's date on all
+# six urls each time tells a crawler the entire site changed 48 times a day,
+# which is both false and the fastest way to get every lastmod on the site
+# ignored. So each url is dated from the thing that actually produces it.
+#
+# The source used per url, and why:
+#
+#   /                the last committed rendering of site/index.html, moved to
+#   /catches         today only when the page this run just rendered differs
+#   /patch-notes     from it. These three read the live ledger under
+#   /benchmarks      ~/.rabadon/spool and the git log, neither of which carries
+#   /pull-requests   a version anybody can commit, so the honest question is
+#                    "does the page say something different than the one that
+#                    was published?" and the byte comparison answers it exactly.
+#                    It also means a build.py edit that changes no page's words
+#                    moves no date, which a source-file commit date would not.
+#
+#   /field           NOT the rendered bytes. Every field.* entry in
+#                    measured.json carries a note ending in the raw line count
+#                    of the ledger, and the gate appends to that ledger
+#                    continuously -- including for the commands this build
+#                    runs. The rendered page therefore changes on every single
+#                    read while saying the same thing, which is the exact lie
+#                    being removed here. Dated instead from the data: the VALUES
+#                    under field.* in site/measured.json, the published records
+#                    in site/field.jsonl, and `generated_utc` inside
+#                    site/rule_census.json, which is the moment that census was
+#                    actually measured rather than the moment it was committed.
+#
+# Two urls share a source: / and /patch-notes are both rendered off the git log
+# (commit count, day count, first commit), so a commit landing moves both. They
+# are still computed independently, because / also carries ledger figures that
+# move without a commit.
+#
+# Everything here is reproducible from a clone: git commit dates, git blobs, and
+# a timestamp inside a checked-in json file. File mtimes were considered and
+# rejected -- a clone has no mtimes worth reading, and measured.json is rewritten
+# every 30 minutes with an unchanged set of values.
+def git_out(args):
+    r = sh(["git"] + args)
+    return r.stdout if r.returncode == 0 else None
+
+
+def git_day(path):
+    """The day the newest commit touching this path landed, or "" if git cannot
+    say (untracked file, no git, not a repository)."""
+    out = git_out(["log", "-1", "--format=%cd", "--date=format:%Y-%m-%d", "--", path])
+    return (out or "").strip()
+
+
+def head_text(path):
+    """The file as it is committed at HEAD, or None if it is not in HEAD."""
+    return git_out(["show", "HEAD:" + path])
+
+
+def rendered_day(path, content, today, trust=True):
+    """`content` is what this run just rendered for `path`. If it differs from
+    the committed copy the content changed today; if it does not, the page has
+    said the same thing since the commit that last touched it.
+
+    trust=False when the render is known to be missing its input (gh could not
+    answer for the pull requests page): a page rendered empty is not a page that
+    changed, and publish-field.sh puts the committed copy back afterwards."""
+    was = head_text(path)
+    if trust and was is not None and content != was:
+        return today
+    return git_day(path) or today
+
+
+def field_day(meas, today):
+    """The field page, dated from its data rather than from its own bytes.
+    See the note above: its bytes move on every read and its numbers do not."""
+    days = []
+
+    def values(d):
+        return {k: (v or {}).get("value") for k, v in (d or {}).items()
+                if k.startswith("field.")}
+
+    was = head_text(MEASURED_PATH)
+    if was is not None:
+        try:
+            same = values(json.loads(was)) == values(meas)
+        except json.JSONDecodeError:
+            same = False
+        days.append(today if not same else (git_day(MEASURED_PATH) or today))
+    else:
+        days.append(git_day(MEASURED_PATH) or today)
+
+    if os.path.exists(FIELD_PATH):
+        recs = open(FIELD_PATH, encoding="utf-8").read()
+        was = head_text(FIELD_PATH)
+        days.append(today if (was is not None and was != recs)
+                    else (git_day(FIELD_PATH) or today))
+
+    c = census() or {}
+    gen = str(c.get("generated_utc") or "")[:10]
+    if len(gen) == 10:
+        days.append(gen)
+    return max(d for d in days if d)
+
+
+# ---------------------------------------------------------------------------
 # the shell. one stylesheet, shared by every page, so a size can only be changed
 # in one place and the pages cannot drift apart.
 # ---------------------------------------------------------------------------
@@ -349,7 +453,10 @@ __BODY__
 SITE = "https://rabadon.noseydewdrop.com"
 
 
-def jsonld(path, title, desc):
+def jsonld(path, title, desc, extra=(), main=None):
+    """extra: further nodes for the graph, for a page that is more than a page.
+    main: the @id of the thing the page is primarily about, which is how a
+    crawler is told the page IS the dataset rather than merely mentioning one."""
     graph = [{
         "@type": "SoftwareApplication",
         "@id": SITE + "/#software",
@@ -383,6 +490,9 @@ def jsonld(path, title, desc):
         "isPartOf": {"@id": SITE + "/#website"},
         "about": {"@id": SITE + "/#software"},
     }]
+    if main:
+        graph[-1]["mainEntity"] = {"@id": main}
+    graph.extend(extra)
     if path != "/":
         label = dict(NAV).get(path, title)
         graph.append({
@@ -395,11 +505,11 @@ def jsonld(path, title, desc):
                       separators=(",", ":"))
 
 
-def page(path, title, desc, body):
+def page(path, title, desc, body, extra=(), main=None):
     nav = "".join(
         '<a href="{}"{}>{}</a>'.format(href, ' class="here"' if href == path else "", label)
         for href, label in NAV)
-    return (SHELL.replace("__LD__", jsonld(path, title, desc))
+    return (SHELL.replace("__LD__", jsonld(path, title, desc, extra, main))
             .replace("__TITLE__", title).replace("__DESC__", desc)
             .replace("__PATH__", path).replace("__NAV__", nav)
             .replace("__BODY__", body).replace("__REPO__", REPO_URL))
@@ -959,8 +1069,132 @@ def census_block(c):
         out.append('<p class="cap">Measured at commit <code>'
                    + html.escape(str(c.get("gate_commit", "?"))[:12]) +
                    "</code>, with no comparison run beside it.</p>")
+    # the census is published as a file, not only as the four numbers above, and
+    # the page has to say so somewhere a reader can click: it is the second
+    # distribution this page declares as a dataset.
+    out.append('<p class="cap">The whole census: <a href="/rule_census.json">rule_census.json</a>, '
+               f'{len(c.get("rules") or [])} rules, each with the probe it was driven with and the '
+               "verdict the gate returned.</p>")
     out.append("</section>")
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# /field is a dataset, and says so in a form a crawler can read
+# ---------------------------------------------------------------------------
+# The page publishes counts computed from a hash-chained ledger plus a per-rule
+# census of every guard rule on this machine, and both underlying files are
+# served from the same origin. Left as prose that is a page about numbers; as
+# schema.org/Dataset it is a dataset, with the two JSON files as its
+# distributions and the figures the page prints as its measured variables.
+#
+# Nothing in here is written by hand. Every value comes out of measured.json or
+# rule_census.json, every description is the sentence that file carries about
+# its own number, and a key that is missing from measured.json produces no
+# variable at all rather than a zero. dateModified is the same date the sitemap
+# publishes for this url, computed by field_day() from the same three sources.
+FIELD_VARS = [
+    # (key in measured.json, the name the page gives it)
+    ("field.would_block",         "commands recorded in watch mode"),
+    ("field.would_block_own",     "of those, in the operator's own repositories"),
+    ("field.stop",                "commands refused outright once the gate was armed"),
+    ("field.wrong_refusals",      "of those refusals, reported wrong by the operator"),
+    ("field.pushes_refused",      "pushes refused on a red tree"),
+    ("field.diagnoses",           "written diagnoses handed back instead of a refusal"),
+    ("field.rules_written",       "rule-authoring events after an incident"),
+    ("field.rules_distinct",      "distinct rules behind those events"),
+    ("field.rules_distinct_live", "of those rules, in a guard file right now"),
+    ("field.days",                "days the ledger has been running"),
+]
+
+# The census counts RULES. The ledger counts VERDICTS. Both headline figures
+# read 430 today and they are not the same 430, so each variable carries the
+# noun it counts in its own name rather than leaving a reader to assume.
+CENSUS_VARS = [
+    ("total",       "guard rules driven through the gate binary",
+     "every guard rule on this machine, each one put through the real gate "
+     "binary with a command it was written to refuse"),
+    ("can_fire",    "of those rules, able to refuse anything at all", ""),
+    ("cannot_fire", "of those rules, structurally unable to ever refuse", ""),
+    ("shadowed",    "of those rules, able to fire but sitting behind a broader rule", ""),
+    ("guards",      "guard files those rules were read from", ""),
+]
+
+
+def _download(name, path, url, fmt, desc):
+    d = {"@type": "DataDownload", "name": name, "description": desc,
+         "contentUrl": SITE + url, "encodingFormat": fmt}
+    if os.path.exists(path):
+        d["contentSize"] = str(os.path.getsize(path))
+    return d
+
+
+def field_dataset(meas, day):
+    c = census() or {}
+    h = c.get("headline") or {}
+
+    variables = []
+    for key, name in FIELD_VARS:
+        e = meas.get(key) or {}
+        v = e.get("value")
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            continue                     # missing is not zero, here either
+        pv = {"@type": "PropertyValue", "name": name, "value": v}
+        if e.get("what"):
+            pv["description"] = e["what"]
+        variables.append(pv)
+    for key, name, desc in CENSUS_VARS:
+        v = h.get(key)
+        if not isinstance(v, int):
+            continue
+        pv = {"@type": "PropertyValue", "name": name, "value": v}
+        if desc:
+            pv["description"] = desc
+        variables.append(pv)
+
+    # the interval the published records actually cover, read off the same
+    # per-day tables the page prints rather than off the calendar
+    days = sorted({d for d, _ in fval(meas, "field.would_block_by_day", [])} |
+                  {d for d, _ in fval(meas, "field.stop_by_day", [])})
+
+    ds = {
+        "@type": "Dataset",
+        "@id": SITE + "/field#dataset",
+        "name": "rabadon field ledger: guard-rail verdicts from real repositories",
+        "description":
+            "Every verdict rabadon's gate recorded while an engineer used it to build other "
+            "things, read out of the hash-chained ledger the gate writes as it runs: commands "
+            "recorded in watch mode, commands refused outright once it was armed, the refusals "
+            "the operator reported as wrong, and the rules the engine wrote for itself after an "
+            "incident. Published alongside a census of every guard rule on the machine, each one "
+            "judged by driving the real gate binary rather than by reading its pattern.",
+        "url": SITE + "/field",
+        "dateModified": day,
+        "isAccessibleForFree": True,
+        "license": "https://opensource.org/licenses/MIT",
+        "creator": {"@type": "Person", "name": "Damla Su Bilge",
+                    "url": "https://www.noseydewdrop.com/"},
+        "isPartOf": {"@id": SITE + "/#website"},
+        "measurementTechnique":
+            "Verdicts are written by the gate binary at the moment it judges a command and "
+            "appended to a hash-chained ledger; home paths are rewritten and records matching a "
+            "sensitive-terms list are dropped and counted before publication. The rule census is "
+            "produced by driving each guard rule through the real gate binary with a command that "
+            "rule was written to refuse.",
+        "distribution": [
+            _download("field.jsonl", FIELD_PATH, "/field.jsonl", "application/x-ndjson",
+                      "One JSON object per published verdict: when, which project, which "
+                      "rule, and the line the ledger wrote."),
+            _download("rule_census.json", CENSUS_PATH, "/rule_census.json", "application/json",
+                      "One record per guard rule on the machine, with the probe it was driven "
+                      "with, the verdict the gate returned, and the mechanism behind it."),
+        ],
+    }
+    if variables:
+        ds["variableMeasured"] = variables
+    if len(days) >= 2:
+        ds["temporalCoverage"] = days[0] + "/" + days[-1]
+    return ds
 
 
 def field_records():
@@ -990,7 +1224,8 @@ def field_headline(meas):
     return html.escape("Most of it was three laws: " + "; ".join(parts) + ".")
 
 
-def field_page(meas):
+def field_page(meas, day=None):
+    day = day or field_day(meas, time.strftime("%Y-%m-%d", time.gmtime()))
     recs = field_records()
     by_rule = fval(meas, "field.would_block_by_rule", [])
     rules = fval(meas, "field.rules_list", [])
@@ -1241,7 +1476,8 @@ def field_page(meas):
                 f"{fval(meas, 'field.would_block'):,} commands rabadon would have refused during real "
                 f"work, {fval(meas, 'field.stop'):,} it refused outright once armed, and {live} laws it "
                 "wrote for itself after an incident, each still in a guard file.",
-                "\n".join(out))
+                "\n".join(out),
+                extra=[field_dataset(meas, day)], main=SITE + "/field#dataset")
 
 
 # ---------------------------------------------------------------------------
@@ -1532,21 +1768,49 @@ def main():
     rows = commits()
     prs = pull_requests()
     meas = measured()
+    built = {}
+    # one date for /field, used by the page's Dataset markup and by the sitemap,
+    # so the two cannot disagree about when the data last moved
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    fday = field_day(meas, today)
     for name, content in (("index", index(rows, meas)),
-                          ("field", field_page(meas)),
+                          ("field", field_page(meas, fday)),
                           ("catches", catches()),
                           ("patch-notes", patch_notes(rows)),
                           ("pull-requests", pull_request_page(prs, rows)),
                           ("benchmarks", benchmarks(rows, meas))):
         with open(f"site/{name}.html", "w", encoding="utf-8") as f:
             f.write(content)
+        built[name] = content
         print(f"site/{name}.html  {len(content):>7} bytes")
+    # the share card, drawn from the same measured.json the pages read. It is
+    # rewritten only when it comes out different, and a card that cannot be
+    # drawn is reported rather than raised: the pages are the deploy, the png is
+    # the poster on the door.
+    try:
+        import og
+        print(og.render(meas))
+    except Exception as e:                      # noqa: BLE001 - never fail a build over a picture
+        print(f"site/og.png  NOT redrawn: {type(e).__name__}: {e}")
     # A crawler should not have to discover this site by following links, and a
     # sitemap somebody maintains by hand goes stale the first time a page is
     # added. Both files are written by the same run that writes the pages.
-    day = time.strftime("%Y-%m-%d", time.gmtime())
+    # url -> the file whose committed copy dates it. /field is absent on
+    # purpose and is dated from its data instead; see the note above field_day.
+    FROM_RENDER = {"/": "index", "/catches": "catches", "/patch-notes": "patch-notes",
+                   "/benchmarks": "benchmarks", "/pull-requests": "pull-requests"}
+    lastmod = {}
+    for path, _ in NAV:
+        if not path.startswith("/"):
+            continue
+        if path == "/field":
+            lastmod[path] = fday
+        else:
+            name = FROM_RENDER[path]
+            lastmod[path] = rendered_day(f"site/{name}.html", built[name], today,
+                                         trust=bool(prs) or path != "/pull-requests")
     urls = "".join(
-        f"<url><loc>{SITE}{path}</loc><lastmod>{day}</lastmod>"
+        f"<url><loc>{SITE}{path}</loc><lastmod>{lastmod[path]}</lastmod>"
         f"<changefreq>{'daily' if path in ('/', '/catches', '/patch-notes') else 'weekly'}</changefreq>"
         f"<priority>{'1.0' if path == '/' else '0.8'}</priority></url>"
         for path, _ in NAV if path.startswith("/"))
@@ -1557,6 +1821,8 @@ def main():
     with open("site/robots.txt", "w", encoding="utf-8") as f:
         f.write("User-agent: *\nAllow: /\n\nSitemap: " + SITE + "/sitemap.xml\n")
     print("site/sitemap.xml  site/robots.txt")
+    print("  lastmod  " + "  ".join(f"{p}={lastmod[p]}" for p, _ in NAV
+                                    if p.startswith("/")))
     print(f"  from {len(rows)} commits, {len(prs)} pull requests, "
           f"{len(group_by_day(rows))} days, {len(SUITES)} suites")
 

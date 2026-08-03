@@ -718,6 +718,21 @@ test: all
 # defeated all three at once, a detail the gate had already clipped mid-path.
 # `/Users/damu` matched none of them and was published twice.
 	./native/field_redaction_test.sh
+# and whether the page gets republished at all. site_claims_test.sh asks whether
+# a number can be walked back to a run; this asks whether the number the public
+# reads is the number the ledger holds. Between 25 July and 3 August the only
+# thing moving those figures onto the page was an operator typing four commands,
+# and the page went on describing a ledger that had grown by 478 events. The job
+# is unattended now, so every one of its refusals is asserted here rather than
+# hoped for: it does not deploy a site that did not change, it does not stage a
+# file it did not write, it does not run beside itself, and it does not trust a
+# deploy that said ok — it fetches the live domain afterwards and compares the
+# page's own numeric fingerprint. 46 cases and it deploys nothing: vercel, gh
+# and git are stubs on PATH and every call is counted. Section 2b is the newest
+# and it came from a real miss — the guard-rule census sits on the same page and
+# was outside the change trigger, so it moved from 411 to 425 and could not
+# publish itself.
+	./native/publish_test.sh
 # and the number that turned out to be counting the wrong thing. the ledger
 # records `new gate: <id>` when the engine authors a rule after an incident, so
 # counting those events answers "how many did it write" — not "how many exist".
