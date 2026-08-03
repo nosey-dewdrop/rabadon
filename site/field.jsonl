@@ -1,3 +1,10 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785782928325, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785782614186, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785782394749, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785782120369, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "push-gate", "project": "stitchu", "ts": 1785781906039, "detail": "code was edited after the last passing test run — run the test suite first"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785781755311, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785781231541, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "no-gnu-timeout-on-macos", "project": "youkiddingme", "ts": 1785781029106, "detail": "command matched deny rule: cd ~/damla_projects_2026/youkiddingme && timeout 300 python3 -m lulumelon.cli draft --site https://marx.finance --floor 0.5 --budget 1.00 --out /tmp/marx_draft."}
 {"ev": "STOP", "rule": "no-exit-code-after-pipe", "project": "youkiddingme", "ts": 1785781021346, "detail": "command matched deny rule: cd ~/damla_projects_2026/youkiddingme && timeout 300 python3 -m lulumelon.cli draft --site https://marx.finance --floor 0.5 --budget 1.00 --out /tmp/marx_draft."}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "pattern-bridge", "ts": 1785779050539, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && core/third_party/garmentcode/.venv/bin/python engine/pattern-bridge/test_seamdeed.py 2>&1 | tail -4; echo \"--- which python "}
