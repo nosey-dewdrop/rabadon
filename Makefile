@@ -564,6 +564,19 @@ test: all
 # either would refuse an honest fix. So a bare `test` stem counts only when the
 # repo repeats it in three directories, which is a convention rather than a stray.
 	./native/discovery_test.sh
+# discovery_test.sh asks whether the walk REACHED the suite. this one asks
+# whether it recognised the suite once it got there, which is a different
+# failure: the language check ran eleven lines above the location rule, so
+# anything off the js/ts/py/c/go/rs/swift/java list hit `continue` before the
+# rule that says a file under tests/ belongs to the suite could run. measured
+# 3 August on three real repos -- redis 229 .tcl, rails 1290 *_test.rb,
+# discourse 3373 *_spec.rb, all with nothing holding them, while redis reported
+# 255 locked files that were C headers out of deps/jemalloc. it also silenced
+# the repo's OWN law: terraform's guard.json names testdata/ and 0 of the 1715
+# .tf fixtures under it were locked. every widening here has a twin, because
+# this is the fix that starts hash-locking source and refusing honest repairs
+# if it goes wrong.
+	./native/discovery_language_test.sh
 	./native/sandbox_test.sh
 	./native/export_test.sh
 	./native/gate_promise_test.sh
