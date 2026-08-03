@@ -183,9 +183,16 @@ done
 [ "$(cat "$CANARY/keep/deep/file.txt" 2>/dev/null)" = "do not lose me" ] || { echo "FAIL: canary file changed"; FAIL=1; }
 [ "$(git -C "$CANARY/repo" rev-parse HEAD)" = "$CANARY_HEAD" ] || { echo "FAIL: canary repo HEAD moved"; FAIL=1; }
 [ "$(git --git-dir="$ROOT/remote.git" rev-parse main)" = "$CANARY_REMOTE" ] || { echo "FAIL: canary remote rewritten"; FAIL=1; }
-# the only thing the gate is allowed to write into a project it judged
+# The only things the gate is allowed to write into a project it judged. The
+# session record is one file per session under .rabadon/sessions/ since 3 August
+# -- it left state.json because the shared map kept the last four entries and a
+# seven-way fan-out evicted its own main session -- and .swept is the marker that
+# throttles the aging of that directory to once every ten minutes. Both live
+# inside .rabadon/ and neither touches the project's own tree, which is what this
+# assertion guards.
 for P in baseline extended none; do
-  STRAY=$(find "$ROOT/$P" -type f ! -name guard.json ! -name state.json ! -name '*.txt' | head -3)
+  STRAY=$(find "$ROOT/$P" -type f ! -name guard.json ! -name state.json ! -name '*.txt' \
+            ! -path '*/.rabadon/sessions/*' | head -3)
   [ -z "$STRAY" ] || { echo "FAIL: $P grew unexpected files: $STRAY"; FAIL=1; }
 done
 echo "canaries intact after judging $TOTAL commands (judging is not running): ok"

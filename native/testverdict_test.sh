@@ -32,10 +32,25 @@ PASS=0; FAIL=0
 ok(){ PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad(){ FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
 
-# verdict <tool_response-json> -> prints "pass" | "fail" | "unknown"
+# verdict <tool_response-json> [testPassPattern] -> "pass" | "fail" | "unknown"
+#
+# The second argument matters more than it looks. A guard with no
+# testPassPattern falls back to reading a `fail(ed|ures): N` count, so a summary
+# line carrying `fail 0` reads as green on its own. A guard that HAS one — which
+# this repo's does — is stricter, and the incident on 3 August happened in
+# exactly that gap: the count said zero failures and the strict pattern still
+# did not match, because the session had narrowed its own output.
 verdict(){
   d="$(mktemp -d)"; mkdir -p "$d/.rabadon"
-  echo '{"project":"p","testCommand":"make test"}' > "$d/.rabadon/guard.json"
+  if [ -n "${2:-}" ]; then
+    PAT="$2" python3 - "$d/.rabadon/guard.json" <<'PYG'
+import json, os, sys
+json.dump({"project": "p", "testCommand": "make test",
+           "testPassPattern": os.environ["PAT"]}, open(sys.argv[1], "w"))
+PYG
+  else
+    echo '{"project":"p","testCommand":"make test"}' > "$d/.rabadon/guard.json"
+  fi
   echo '{"lastCodeEdit":0,"lastTestPass":0,"lastTestFail":0,"sessions":{}}' > "$d/.rabadon/state.json"
   RD="$(mktemp -d)"; : > "$RD/enabled"
   RESP="$1" CWD="$d" python3 - <<'PY' > "$d/ev.json"
@@ -47,17 +62,29 @@ print(json.dumps({
     "tool_response": json.loads(os.environ["RESP"])}))
 PY
   RABADON_DIR="$RD" "$BIN" < "$d/ev.json" >/dev/null 2>&1
+  # The verdict is the SESSION's, and since 3 August it is written where a
+  # session's own claims belong: <project>/.rabadon/sessions/<key>.json, one
+  # writer per file. It left state.json because a red stamped there at 02:18 by
+  # one session was still being read at 04:00 by a session with its own suite
+  # green. Reading the shared file here would find nothing and report `unknown`
+  # for every case, green ones included, which is a harness that measures the
+  # storage layout instead of the classifier.
   python3 -c "
-import json
-s=json.load(open('$d/.rabadon/state.json'))
+import json, glob, os
+s = {}
+for f in sorted(glob.glob('$d/.rabadon/sessions/*.json')):
+    s.update(json.load(open(f)))
 p,f=s.get('lastTestPass',0),s.get('lastTestFail',0)
 print('pass' if p else ('fail' if f else 'unknown'))"
 }
 
-want(){ # <label> <expected> <tool_response-json>
-  got="$(verdict "$3")"
+want(){ # <label> <expected> <tool_response-json> [testPassPattern]
+  got="$(verdict "$3" "${4:-}")"
   [ "$got" = "$2" ] && ok "$1" || bad "$1 — expected $2, got $got"
 }
+# the shape this repo's own guard uses: a green is only a green when the runner
+# prints its own summary line, which is what a narrowed tool result loses.
+STRICT='(^|\n)[ \t]*(#|i)[ \t]*fail[ \t]+0([ \t]|$)'
 
 echo "test verdict — no evidence is not a failing suite"
 echo
@@ -93,11 +120,43 @@ want "a counted green is still GREEN" pass '{"stdout":"ℹ tests 52\nℹ pass 52
 # prints, "test verdict: 8 ok, 0 fail", carries the word fail, and reading the
 # word instead of the number turned a green summary back into a red verdict.
 want "'0 fail' in a summary line is not failure evidence" unknown '{"stdout":"test verdict: 8 ok, 0 fail"}'
-want "'failures: 0' is not failure evidence" unknown '{"stdout":"suite done\nfailures: 0"}'
+# GREEN rather than unknown, and the change is a fix rather than a drift: with
+# no testPassPattern the documented fallback is "a fail(ed|ures): N count exists,
+# so green iff N is zero". It used to answer `unknown` only because the classifier
+# was reading escaped JSON source, where the preceding \n made the word `failures`
+# read as `nfailures` and the count was never found at all.
+want "'failures: 0' is a counted green" pass '{"stdout":"suite done\nfailures: 0"}'
 want "'0 errors' is not failure evidence" unknown '{"stdout":"compiled, 0 errors"}'
 
 # V9. TWIN — a count above zero is still evidence.
 want "'1 fail' in the same shape still goes RED" fail '{"stdout":"test verdict: 7 ok, 1 fail"}'
+
+# V10. A run that STATES its exit status. Recorded as `rabadon wrong test-run`
+# on 3 August: `make test` exited 0 and the summary said `pass 17  fail 0`, but
+# the session had narrowed the output with grep and tail, so the runner's own
+# `ℹ fail 0` line that testPassPattern needs was gone and the only
+# failure-shaped text left was a line a fixture prints ON PURPOSE while proving
+# it can detect a red downstream suite. The session was told its own green suite
+# was red. A stated exit code is the one thing the post hook never sees for
+# itself, and it outranks a failure WORD.
+want "a stated EXIT=0 beside a failure word is UNKNOWN, not red" unknown \
+  '{"stdout":"MAKE_TEST_EXIT=0\n    FAIL testsuite [node --test]: the suite is RED (exit 1)\n  pass 17   fail 0"}' \
+  "$STRICT"
+
+# V11. TWIN — the exit code has to be able to say the other thing too.
+want "a stated EXIT=1 beside the same word still goes RED" fail \
+  '{"stdout":"MAKE_TEST_EXIT=1\n    FAIL testsuite [node --test]: the suite is RED (exit 1)"}' \
+  "$STRICT"
+
+# V12. TWIN — a crash string is a thing that HAPPENED, and outranks the claim.
+# `make test | tail` exits with tail's status, so EXIT=0 there is not the
+# suite's answer, and this is the case that keeps the widening honest.
+want "a crash string outranks a stated EXIT=0" fail \
+  '{"stdout":"EXIT=0\nmake[1]: *** [test] Error 1"}'
+
+# V13. TWIN — so does a counted failure.
+want "a counted failure outranks a stated EXIT=0" fail \
+  '{"stdout":"EXIT=0\n3 failed, 40 passed"}'
 
 echo
 echo "test verdict: $PASS ok, $FAIL fail"

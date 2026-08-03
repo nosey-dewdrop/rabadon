@@ -539,17 +539,60 @@ static std::vector<string> parse_str_array(const string& j, const string& key) {
   return out;
 }
 
-// ---------- session state: .rabadon/state.json, ONE owner ----------
-// Fixed schema, shared with the (retiring) node cold paths:
-//   { lastCodeEdit, lastTestPass, lastTestVerified, lastTestFail, lastTestRun,
-//     lastDiagAt, lastDiagSig,
-//     sessions: { "<sid16>": { goalPrompt, goalTs, touchedDirs[],
-//        fanoutWarned, lastCmd, lastCmdTs, cmdRepeat, actionCount,
-//        offTarget, driftChallenged, recent:[{t,s}], recentEv[],
-//        tsOffset, tokensOut, tokensIn } } }
-// The writer serializes ONLY this schema — which is itself the root fix for
-// the stray top-level "s" key: the old JS writer serialized its session
-// alias next to the sessions map, doubling every session on every save.
+// ---------- session state: one file per session, ONE writer each ----------
+//
+// Everything a session is promised for the length of the session lived in one
+// shared map inside <project>/.rabadon/state.json, and the loader kept the last
+// four entries:
+//
+//     if (sessions.size() > 4) sessions.erase(sessions.begin(), sessions.end() - 4);
+//
+// On 3 August seven sessions ran at once, one main and six agents. The main
+// session's record was evicted, so `promise-off-target` — whose own refusal
+// text reads "fires once per session" — fired three times, and the latch that
+// was supposed to make that sentence true went with it. Twelve concurrent
+// writers left four records behind and eight silently gone: every writer read
+// the whole file, rewrote the whole file, and the last one to finish won.
+//
+// A cap plus last-writer-wins is not a corner case for this program. Fanning
+// out across agents is what it is FOR, and the thing supervising a fan-out
+// cannot degrade the moment the fan-out is wider than four, least of all
+// silently. So a session's own state is now its own file:
+//
+//     <project>/.rabadon/sessions/<key>.json
+//
+// which removes the cap, the eviction and the contention in one move, because
+// two sessions no longer write the same bytes. It is written tmp+rename, so a
+// reader never sees half of one.
+//
+// WHAT STAYS SHARED, AND WHY EACH ONE.
+// state.json keeps only the facts that are about the TREE rather than about a
+// session, and the split is the same one lastTestPass/lastTestVerified already
+// made a layer up:
+//   lastCodeEdit          any session's edit changes the tree for all of them
+//   lastTestVerified      rabadon forked the suite and read exit 0 itself
+//   lastTestVerifiedFail  rabadon forked the suite and read a non-zero exit
+//   lastNetTs/Verdict     the always-on net, one watcher per project
+//   lastDiagAt/lastDiagSig  a rate limit on an expensive call about the tree
+// and lastTestPass / lastTestFail / lastTestRun move INTO the session, because
+// they are stamped from watching a Bash result go past — a claim by one session
+// about a run that session did. Sharing them is what produced the second half
+// of this incident: lastTestFail written at 02:18 by one session, lastTestPass
+// left at 00:48, and a session born hours later told "tests are RED" with its
+// own suite green in front of it. Twice, both filed as `rabadon wrong
+// stale-net-verdict`. A red one session merely watched is not evidence another
+// session may act on; a red rabadon RAN is, and that one is shared.
+//
+// The shared file is still written by everyone, so it is written as a MERGE
+// rather than as a replace: re-read, take the later of each timestamp, keep the
+// string that belongs to the newer stamp. No lock, and correct for monotonic
+// data, which is all that is left in there.
+//
+// BOUNDED BY TIME, NOT BY COUNT. Removing the cap is not a fix if it becomes
+// unbounded growth on a machine that runs this all day, and "keep the newest N"
+// is the very rule that lost the main session. Session files age out: anything
+// untouched for SESSION_TTL_MS is deleted, swept at most once every ten minutes
+// per project so the sweep is not on the hot path.
 
 // the balanced {...} object starting at the first '{' at/after `from`
 static string take_obj(const string& j, size_t from) {
@@ -595,6 +638,49 @@ static std::vector<string> parse_obj_array(const string& j, const string& key) {
   return out;
 }
 
+// how long a session file survives without being touched. A Claude Code
+// session that has said nothing for a day is over; its record is the only
+// thing still holding disk.
+static const long long SESSION_TTL_MS = 24LL * 60 * 60 * 1000;
+static const long long SESSION_SWEEP_EVERY_MS = 10LL * 60 * 1000;
+
+// write, then move into place. A reader that arrives mid-write gets the whole
+// previous file rather than half of the new one, which matters more here than
+// usual: every one of these files is read by a process that did not write it.
+static bool write_atomic(const string& path, const string& body) {
+  const string tmp = path + ".tmp." + std::to_string(getpid());
+  { std::ofstream f(tmp, std::ios::trunc); if (!f) return false; f << body; }
+  if (rename(tmp.c_str(), path.c_str()) != 0) { unlink(tmp.c_str()); return false; }
+  return true;
+}
+
+// The session id becomes a FILENAME, which it never was before, so two things
+// that did not matter now do.
+//
+// It was truncated to 16 characters. For the harness's own uuids that is
+// harmless — the 61 distinct ids on this machine collide 0 times at 16, and
+// two random uuids agreeing on 16 hex characters is not something to plan for.
+// But `sid` is whatever the caller put in the event, the fleet and drill
+// prefixes are deliberately shaped, and a collision here is not a wrong answer,
+// it is two sessions sharing one record, which is the bug this whole file is
+// about. So the readable prefix is kept for anyone looking in the directory and
+// a hash of the WHOLE id is appended, and the collision question stops being a
+// question.
+//
+// And a filename built from untrusted text is a path. `../../etc/x` as a
+// session id would have written outside the project. Everything outside
+// [A-Za-z0-9._-] is replaced before it is used.
+static string session_key(const string& sid) {
+  const string s = sid.empty() ? string("default") : sid;
+  string safe;
+  for (size_t i = 0; i < s.size() && safe.size() < 16; i++) {
+    const char c = s[i];
+    safe += (isalnum((unsigned char)c) || c == '-' || c == '_' || c == '.') ? c : '_';
+  }
+  if (safe.empty() || safe == "." || safe == "..") safe = "s";
+  return safe + "-" + rbsha::hex(s).substr(0, 12);
+}
+
 struct Sess {
   string goalPrompt; long long goalTs = 0;
   std::vector<string> touchedDirs; bool fanoutWarned = false;
@@ -603,25 +689,27 @@ struct Sess {
   std::vector<std::pair<long long, string>> recent;
   std::vector<string> recentEv;
   long long tsOffset = 0, tokensOut = 0, tokensIn = 0;
+  // stamped from WATCHING this session's own Bash result go past. The post hook
+  // never receives an exit code — tool_response is a string the session
+  // produced — so this is a claim, and it is the claim of the thing being
+  // checked. It belongs to the session that made it and to nobody else.
+  long long lastTestPass = 0, lastTestFail = 0, lastTestRun = 0;
 };
 
 struct State {
-  string path;
-  long long lastCodeEdit = 0, lastTestPass = 0, lastTestFail = 0, lastTestRun = 0, lastDiagAt = 0;
-  // The same word meant two different things and only one of them is evidence.
-  //
-  // lastTestPass is stamped from WATCHING a Bash tool result go by: the pattern
-  // matched the text, so the run is called green. The post hook never receives
-  // an exit code — tool_response is a string the session produced — so this is
-  // a claim, and it is the claim of the thing being checked. Kept, because the
-  // handoff and the drift judge need to know what happened.
-  //
-  // lastTestVerified is stamped only where rabadon RAN the suite and read the
-  // real exit code itself. The push gate skips its own run on this one alone.
-  // Before the split, `go test -run TestNothingMatchesThis ./...` printed
-  // `ok vac 0.142s [no tests to run]`, exited 0, refreshed the stamp, and the
-  // next push went out over a red suite.
+  string path;      // <project>/.rabadon/state.json — the shared facts
+  string sessDir;   // <project>/.rabadon/sessions   — one file per session
+  string sessKey;   // the file this process owns in there
+  string legacyKey; // the sid16 this session had inside the old shared map
+  long long lastCodeEdit = 0, lastDiagAt = 0;
+  // rabadon RAN the suite and read the real exit code itself — the push gate's
+  // own fork, or the always-on net's. This is the only test result one session
+  // may act on because another session produced it, and it is shared for
+  // exactly that reason. Before the verified/watched split, `go test -run
+  // TestNothingMatchesThis ./...` printed `ok vac 0.142s [no tests to run]`,
+  // exited 0, refreshed the stamp, and the next push went out over a red suite.
   long long lastTestVerified = 0;
+  long long lastTestVerifiedFail = 0;
   string lastDiagSig;
   // the always-on net: the timestamp of the last verdict we have already acted
   // on, and what that verdict was. Both are needed to spot the TRANSITION —
@@ -629,99 +717,185 @@ struct State {
   // catch the whole product exists for.
   long long lastNetTs = 0;
   string lastNetVerdict;
-  std::vector<std::pair<string, Sess>> sessions; // insertion-ordered, max 4
+  Sess sess;                 // this process's own session, its own file
+  bool sessLoaded = false;
 
-  Sess& session(const string& sid) {
-    for (auto& kv : sessions) if (kv.first == sid) return kv.second;
-    sessions.push_back({ sid, Sess{} });
-    if (sessions.size() > 4) sessions.erase(sessions.begin(), sessions.end() - 4);
-    return sessions.back().second;
-  }
+  string sess_path() const { return sessDir + "/" + sessKey + ".json"; }
 
-  void load() {
-    const string j = read_file(path);
+  Sess& session() { return sess; }
+
+  // ---- the shared file -----------------------------------------------------
+  void load_shared(const string& j) {
     if (j.empty()) return;
     lastCodeEdit = get_num(j, "lastCodeEdit");
-    lastTestPass = get_num(j, "lastTestPass");
     lastTestVerified = get_num(j, "lastTestVerified");
-    lastTestFail = get_num(j, "lastTestFail");
-    lastTestRun  = get_num(j, "lastTestRun");
+    lastTestVerifiedFail = get_num(j, "lastTestVerifiedFail");
     lastDiagAt   = get_num(j, "lastDiagAt");
     lastDiagSig  = get_str(j, "lastDiagSig");
     lastNetTs    = get_num(j, "lastNetTs");
     lastNetVerdict = get_str(j, "lastNetVerdict");
+  }
+
+  static void read_sess(const string& obj, Sess& s) {
+    s.goalPrompt = get_str(obj, "goalPrompt");
+    s.goalTs = get_num(obj, "goalTs");
+    s.touchedDirs = parse_str_array(obj, "touchedDirs");
+    s.fanoutWarned = get_bool(obj, "fanoutWarned");
+    s.lastCmd = get_str(obj, "lastCmd");
+    s.lastCmdTs = get_num(obj, "lastCmdTs");
+    s.cmdRepeat = (int)get_num(obj, "cmdRepeat"); if (s.cmdRepeat < 1) s.cmdRepeat = 1;
+    s.actionCount = (int)get_num(obj, "actionCount");
+    s.offTarget = (int)get_num(obj, "offTarget");
+    s.driftChallenged = (int)get_num(obj, "driftChallenged");
+    for (const auto& r : parse_obj_array(obj, "recent"))
+      s.recent.push_back({ get_num(r, "t"), get_str(r, "s") });
+    s.recentEv = parse_str_array(obj, "recentEv");
+    s.tsOffset = get_num(obj, "tsOffset");
+    s.tokensOut = get_num(obj, "tokensOut");
+    s.tokensIn = get_num(obj, "tokensIn");
+    s.lastTestPass = get_num(obj, "lastTestPass");
+    s.lastTestFail = get_num(obj, "lastTestFail");
+    s.lastTestRun  = get_num(obj, "lastTestRun");
+  }
+
+  static string write_sess(const Sess& s) {
+    std::ostringstream o;
+    o << "{\"goalPrompt\":\"" << json_escape(s.goalPrompt) << "\",\"goalTs\":" << s.goalTs
+      << ",\"touchedDirs\":[";
+    for (size_t i = 0; i < s.touchedDirs.size(); i++)
+      o << (i ? "," : "") << "\"" << json_escape(s.touchedDirs[i]) << "\"";
+    o << "],\"fanoutWarned\":" << (s.fanoutWarned ? "true" : "false")
+      << ",\"lastCmd\":\"" << json_escape(s.lastCmd) << "\",\"lastCmdTs\":" << s.lastCmdTs
+      << ",\"cmdRepeat\":" << s.cmdRepeat << ",\"actionCount\":" << s.actionCount
+      << ",\"offTarget\":" << s.offTarget << ",\"driftChallenged\":" << s.driftChallenged
+      << ",\"lastTestPass\":" << s.lastTestPass << ",\"lastTestFail\":" << s.lastTestFail
+      << ",\"lastTestRun\":" << s.lastTestRun
+      << ",\"recent\":[";
+    for (size_t i = 0; i < s.recent.size(); i++)
+      o << (i ? "," : "") << "{\"t\":" << s.recent[i].first << ",\"s\":\"" << json_escape(s.recent[i].second) << "\"}";
+    o << "],\"recentEv\":[";
+    for (size_t i = 0; i < s.recentEv.size(); i++)
+      o << (i ? "," : "") << "\"" << json_escape(s.recentEv[i]) << "\"";
+    o << "],\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
+      << ",\"tokensIn\":" << s.tokensIn << "}";
+    return o.str();
+  }
+
+  // Sessions that are still recorded inside state.json from before the split.
+  // Read for as long as they exist so nobody's counter resets at upgrade; never
+  // written back, so the map drains rather than lingering.
+  void migrate_from_shared(const string& j, const string& sid16) {
     size_t sp = j.find("\"sessions\"");
     if (sp == string::npos) return;
     const string smap = take_obj(j, j.find(':', sp + 10));
     for (size_t i = 1; i + 1 < smap.size();) {
       size_t q = smap.find('"', i);
       if (q == string::npos) break;
-      string sid;
+      string key;
       size_t q2 = q + 1;
-      for (; q2 < smap.size(); q2++) { if (smap[q2] == '\\') { q2++; continue; } if (smap[q2] == '"') break; sid += smap[q2]; }
+      for (; q2 < smap.size(); q2++) { if (smap[q2] == '\\') { q2++; continue; } if (smap[q2] == '"') break; key += smap[q2]; }
       size_t colon = smap.find(':', q2);
       if (colon == string::npos) break;
       size_t objAt = smap.find('{', colon);
       const string obj = take_obj(smap, colon);
       if (obj.empty() || objAt == string::npos) break;
-      Sess s;
-      s.goalPrompt = get_str(obj, "goalPrompt");
-      s.goalTs = get_num(obj, "goalTs");
-      s.touchedDirs = parse_str_array(obj, "touchedDirs");
-      s.fanoutWarned = get_bool(obj, "fanoutWarned");
-      s.lastCmd = get_str(obj, "lastCmd");
-      s.lastCmdTs = get_num(obj, "lastCmdTs");
-      s.cmdRepeat = (int)get_num(obj, "cmdRepeat"); if (s.cmdRepeat < 1) s.cmdRepeat = 1;
-      s.actionCount = (int)get_num(obj, "actionCount");
-      s.offTarget = (int)get_num(obj, "offTarget");
-      s.driftChallenged = (int)get_num(obj, "driftChallenged");
-      for (const auto& r : parse_obj_array(obj, "recent"))
-        s.recent.push_back({ get_num(r, "t"), get_str(r, "s") });
-      s.recentEv = parse_str_array(obj, "recentEv");
-      s.tsOffset = get_num(obj, "tsOffset");
-      s.tokensOut = get_num(obj, "tokensOut");
-      s.tokensIn = get_num(obj, "tokensIn");
-      sessions.push_back({ sid, s });
+      if (key == sid16) { read_sess(obj, sess); return; }
       i = objAt + obj.size();
     }
-    if (sessions.size() > 4) sessions.erase(sessions.begin(), sessions.end() - 4);
+  }
+
+  // Anything untouched for a day goes. By TIME: "keep the newest N" is the rule
+  // that evicted the main session of a seven-way fan-out, and putting it back
+  // with a bigger N would only move the number the failure starts at. Swept at
+  // most once every ten minutes, tracked by the mtime of a marker, so 400 events
+  // in a row do not each walk the directory.
+  void sweep() const {
+    const string marker = sessDir + "/.swept";
+    struct stat st;
+    const long long now = now_ms();
+    if (stat(marker.c_str(), &st) == 0 &&
+        now - (long long)st.st_mtime * 1000 < SESSION_SWEEP_EVERY_MS) return;
+    { std::ofstream f(marker, std::ios::trunc); if (f) f << now; }
+    DIR* d = opendir(sessDir.c_str());
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+      const string n = e->d_name;
+      if (n.size() < 6 || n.compare(n.size() - 5, 5, ".json") != 0) continue;
+      const string p = sessDir + "/" + n;
+      if (stat(p.c_str(), &st) != 0) continue;
+      if (now - (long long)st.st_mtime * 1000 > SESSION_TTL_MS) unlink(p.c_str());
+    }
+    closedir(d);
+  }
+
+  void load() {
+    const string j = read_file(path);
+    load_shared(j);
+    const string sj = read_file(sess_path());
+    if (!sj.empty()) { read_sess(sj, sess); sessLoaded = true; }
+    else migrate_from_shared(j, legacyKey);
+    sweep();
   }
 
   void save() {
+    mkdir(sessDir.c_str(), 0755);
+    write_atomic(sess_path(), write_sess(sess));
+
+    // The shared file still has many writers, so it is merged rather than
+    // replaced: re-read it, keep the later of every stamp, and let each string
+    // travel with the stamp that owns it. Everything left in here is monotonic,
+    // which is what makes a merge correct without a lock — and a lock is what
+    // this file must not need, because it is written on every single hook event
+    // in every session at once.
+    const string cur = read_file(path);
+    long long fCodeEdit = get_num(cur, "lastCodeEdit");
+    long long fVerified = get_num(cur, "lastTestVerified");
+    long long fVerFail  = get_num(cur, "lastTestVerifiedFail");
+    long long fDiagAt   = get_num(cur, "lastDiagAt");
+    string    fDiagSig  = get_str(cur, "lastDiagSig");
+    long long fNetTs    = get_num(cur, "lastNetTs");
+    string    fNetVerd  = get_str(cur, "lastNetVerdict");
+
+    if (lastDiagAt >= fDiagAt) { fDiagAt = lastDiagAt; fDiagSig = lastDiagSig; }
+    if (lastNetTs  >= fNetTs)  { fNetTs  = lastNetTs;  fNetVerd = lastNetVerdict; }
+    if (lastCodeEdit > fCodeEdit) fCodeEdit = lastCodeEdit;
+    if (lastTestVerified > fVerified) fVerified = lastTestVerified;
+    if (lastTestVerifiedFail > fVerFail) fVerFail = lastTestVerifiedFail;
+
     std::ostringstream o;
-    o << "{\"lastCodeEdit\":" << lastCodeEdit << ",\"lastTestPass\":" << lastTestPass
-      << ",\"lastTestVerified\":" << lastTestVerified
-      << ",\"lastTestFail\":" << lastTestFail << ",\"lastTestRun\":" << lastTestRun
-      << ",\"lastDiagAt\":" << lastDiagAt
-      << ",\"lastNetTs\":" << lastNetTs
-      << ",\"lastNetVerdict\":\"" << json_escape(lastNetVerdict) << "\""
-      << ",\"lastDiagSig\":\"" << json_escape(lastDiagSig) << "\",\"sessions\":{";
-    bool firstS = true;
-    for (const auto& kv : sessions) {
-      const Sess& s = kv.second;
-      if (!firstS) o << ",";
-      firstS = false;
-      o << "\"" << json_escape(kv.first) << "\":{"
-        << "\"goalPrompt\":\"" << json_escape(s.goalPrompt) << "\",\"goalTs\":" << s.goalTs
-        << ",\"touchedDirs\":[";
-      for (size_t i = 0; i < s.touchedDirs.size(); i++)
-        o << (i ? "," : "") << "\"" << json_escape(s.touchedDirs[i]) << "\"";
-      o << "],\"fanoutWarned\":" << (s.fanoutWarned ? "true" : "false")
-        << ",\"lastCmd\":\"" << json_escape(s.lastCmd) << "\",\"lastCmdTs\":" << s.lastCmdTs
-        << ",\"cmdRepeat\":" << s.cmdRepeat << ",\"actionCount\":" << s.actionCount
-        << ",\"offTarget\":" << s.offTarget << ",\"driftChallenged\":" << s.driftChallenged
-        << ",\"recent\":[";
-      for (size_t i = 0; i < s.recent.size(); i++)
-        o << (i ? "," : "") << "{\"t\":" << s.recent[i].first << ",\"s\":\"" << json_escape(s.recent[i].second) << "\"}";
-      o << "],\"recentEv\":[";
-      for (size_t i = 0; i < s.recentEv.size(); i++)
-        o << (i ? "," : "") << "\"" << json_escape(s.recentEv[i]) << "\"";
-      o << "],\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
-        << ",\"tokensIn\":" << s.tokensIn << "}";
-    }
-    o << "}}";
-    std::ofstream f(path, std::ios::trunc);
-    if (f) f << o.str();
+    o << "{\"lastCodeEdit\":" << fCodeEdit
+      << ",\"lastTestVerified\":" << fVerified
+      << ",\"lastTestVerifiedFail\":" << fVerFail
+      << ",\"lastDiagAt\":" << fDiagAt
+      << ",\"lastNetTs\":" << fNetTs
+      << ",\"lastNetVerdict\":\"" << json_escape(fNetVerd) << "\""
+      << ",\"lastDiagSig\":\"" << json_escape(fDiagSig) << "\"}";
+    write_atomic(path, o.str());
+
+    lastCodeEdit = fCodeEdit; lastTestVerified = fVerified;
+    lastTestVerifiedFail = fVerFail; lastDiagAt = fDiagAt; lastDiagSig = fDiagSig;
+    lastNetTs = fNetTs; lastNetVerdict = fNetVerd;
+  }
+
+  // ---- "are the tests red", asked once and answered the same way everywhere --
+  //
+  // A red this session watched go past is this session's business. A red
+  // rabadon RAN is everyone's, until somebody produces a newer verified green.
+  // What is gone is the third case: another session's watched red reaching this
+  // one. lastTestFail sat at 02:18 and lastTestPass at 00:48 while a session
+  // born at 04:00 was told its own green suite was red, twice, both recorded
+  // with `rabadon wrong stale-net-verdict`.
+  long long red_since() const {
+    const long long mine = (sess.lastTestFail > sess.lastTestPass) ? sess.lastTestFail : 0;
+    const long long shared = (lastTestVerifiedFail > lastTestVerified &&
+                              lastTestVerifiedFail > sess.lastTestPass)
+                             ? lastTestVerifiedFail : 0;
+    return mine > shared ? mine : shared;
+  }
+  bool tests_red() const { return red_since() > 0; }
+  long long green_at() const {
+    return sess.lastTestPass > lastTestVerified ? sess.lastTestPass : lastTestVerified;
   }
 };
 
@@ -1308,12 +1482,15 @@ int main(int argc, char** argv) {
   // one state file, one owner. the old parallel state-native-*.txt store is
   // retired — removed on sight so no stale twin survives the migration.
   mkdir((cwd + "/.rabadon").c_str(), 0755);
-  const string sidKey = sid.empty() ? "default" : sid.substr(0, 16);
-  unlink((cwd + "/.rabadon/state-native-" + sidKey + ".txt").c_str());
+  const string sidLegacy = sid.empty() ? "default" : sid.substr(0, 16);
+  unlink((cwd + "/.rabadon/state-native-" + sidLegacy + ".txt").c_str());
   State stt;
   stt.path = cwd + "/.rabadon/state.json";
+  stt.sessDir = cwd + "/.rabadon/sessions";
+  stt.sessKey = session_key(sid);
+  stt.legacyKey = sidLegacy;
   stt.load();
-  Sess& ss = stt.session(sidKey);
+  Sess& ss = stt.session();
 
   // twin-delivery dedupe (same law as the node gate): tool events carry a
   // unique tool_use_id; non-tool events (Stop/SessionStart/prompt) dedupe on
@@ -1366,14 +1543,18 @@ int main(int argc, char** argv) {
         stt.lastNetVerdict = verdict;
         // lastTestRun:0 is what "the net has never run anything" was measured
         // on. From here it is the truth: the net ran, at this instant.
-        stt.lastTestRun = netTs;
+        ss.lastTestRun = netTs;
         // the net FORKED the suite and read its real exit code (net.cpp), so a
         // net green is verification in the same sense the push gate's own run
         // is — and it counts, otherwise every push would re-run a suite rabadon
         // watched go green a minute ago. An empty run never arrives as "green";
-        // net.cpp calls that inconclusive.
-        if (verdict == "green")    { stt.lastTestPass = netTs; stt.lastTestVerified = netTs; }
-        else if (verdict == "red") stt.lastTestFail = netTs;
+        // net.cpp calls that inconclusive. Verified, therefore SHARED: this is
+        // the one kind of test result another session is allowed to act on.
+        if (verdict == "green") {
+          ss.lastTestPass = netTs; ss.lastTestFail = 0; stt.lastTestVerified = netTs;
+        } else if (verdict == "red") {
+          ss.lastTestFail = netTs; stt.lastTestVerifiedFail = netTs;
+        }
         stt.save();
 
         if (verdict == "red" && prev != "red") {
@@ -1500,7 +1681,16 @@ int main(int argc, char** argv) {
     }
 
     if (toolName == "Bash") {
-      const string& out = toolResponse;
+      // A tool_response that arrives as an OBJECT is kept as the raw JSON text,
+      // so every newline in it is still the two characters backslash and n. The
+      // verdict is then read off JSON source rather than off the run's output,
+      // and a word boundary that exists in the output does not exist in the
+      // source: in `...passed\n3 failed...` the `3` is preceded by the letter n,
+      // so a pattern anchored at a boundary before the count never sees it.
+      // Un-escaped once, here, so every reader below judges the text the suite
+      // actually printed.
+      const string out = toolResponse.size() > 1 && toolResponse[0] == '{'
+                       ? json_unescape(toolResponse) : toolResponse;
       bool isTest;
       if (!guardRaw.empty() && guardRaw.find("\"testCommand\"") != string::npos)
         isTest = rx_test(get_str(guardRaw, "testCommand"), command);
@@ -1554,15 +1744,53 @@ int main(int argc, char** argv) {
             std::regex::ECMAScript | std::regex::icase);
         evid = std::regex_replace(out, zeroCount, " ");
       } catch (...) { evid = out; }
-      const bool sawFailure = rx_test(
-          "\\bfail(ed|ure|ures|s|ing)?\\b|\\berrors?\\b|\\*\\*\\*|\\bnot ok\\b|"
-          "\\bassert(ion)?\\b|\\bpanic:|\\btraceback\\b|\\bsegmentation fault\\b|"
-          "\\bexception\\b|\\baborted\\b|\\bkilled\\b|\\btimed out\\b",
-          evid);
+      // The vocabulary is split in two, and the split is what a wrong refusal on
+      // 3 August paid for. A CRASH STRING is a thing that happened: `*** Error`,
+      // a segfault, a panic, a traceback, `not ok`. A bare failure WORD is a
+      // thing that was said, and the thing saying it is not always the suite.
+      const bool hardFailure = rx_test(
+          "\\*\\*\\*|\\bnot ok\\b|\\bpanic:|\\btraceback\\b|"
+          "\\bsegmentation fault\\b|\\baborted\\b|\\bkilled\\b", evid);
+      const bool softFailure = rx_test(
+          "\\bfail(ed|ure|ures|s|ing)?\\b|\\berrors?\\b|\\bassert(ion)?\\b|"
+          "\\bexception\\b|\\btimed out\\b", evid);
+      // A NON-ZERO count is the strongest evidence in the output and outranks
+      // everything, including a stated exit code, because `make test | tail`
+      // exits with tail's status and reports a failure it did not carry.
+      //
+      // Runners write counts in two orders and reading one as the other invents
+      // failures. `2 failed, 5 passed` puts the number first; `pass 17  fail 0`
+      // puts it last, and there the number in front of the word `fail` belongs
+      // to `pass`. Reading that line number-first turns a suite that passed 17
+      // and failed 0 into 17 failures. So the order is decided by the output
+      // itself: if any counter in it is written word-first, every counter in it
+      // is read word-first.
+      const bool wordFirstCounts =
+          rx_test("\\b(pass(ed|es)?|ok|tests?|total)\\s*[:= ]\\s*[0-9]+", out);
+      const bool countedFailure =
+          rx_test("\\b(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*[1-9][0-9]*\\b", out) ||
+          (!wordFirstCounts &&
+           rx_test("\\b[1-9][0-9]*\\s*(fail(ed|ure|ures|s|ing)?|errors?)\\b", out));
+      // and a run that states its own exit status has said the one thing the
+      // post hook never gets to see for itself. This repo already answers
+      // UNKNOWN to a bare `EXIT=0`, because a redirected run proves nothing
+      // either way. It reached RED for the same output the moment any failure
+      // word was standing next to it — and on 3 August that word came from a
+      // line a fixture prints ON PURPOSE, `FAIL testsuite [node --test]`, while
+      // proving it can detect a red downstream suite. `make test` had exited 0,
+      // the summary said `pass 17  fail 0`, and the session was told its own
+      // green suite was red. Recorded as `rabadon wrong test-run`.
+      const bool statedExitZero = rx_test("\\b[A-Z_]*EXIT[A-Z_]*\\s*=\\s*0\\b", out);
+      const bool sawFailure =
+          countedFailure || hardFailure || (!statedExitZero && softFailure);
 
-      stt.lastTestRun = now;
-      if (passed) { stt.lastTestPass = now; stt.lastTestFail = 0; }
-      else if (sawFailure) stt.lastTestFail = now;
+      // This session watched this run go past, so this session is who the
+      // verdict is about. It is not written where another session can read it:
+      // a red one agent saw in its own terminal used to arrive at an agent that
+      // had never run anything, hours later, with its own suite green.
+      ss.lastTestRun = now;
+      if (passed) { ss.lastTestPass = now; ss.lastTestFail = 0; }
+      else if (sawFailure) ss.lastTestFail = now;
       stt.save();
 
       if (passed) {
@@ -1812,9 +2040,9 @@ int main(int argc, char** argv) {
       }
       if (caught.size() > 6) caught.erase(caught.begin(), caught.end() - 6);
     }
-    const string tests = stt.lastTestFail > stt.lastTestPass
-      ? ("RED (since " + hhmmss(stt.lastTestFail) + ")")
-      : stt.lastTestPass ? ("green (last pass " + hhmmss(stt.lastTestPass) + ")")
+    const string tests = stt.tests_red()
+      ? ("RED (since " + hhmmss(stt.red_since()) + ")")
+      : stt.green_at() ? ("green (last pass " + hhmmss(stt.green_at()) + ")")
       : string("not run this cycle");
     std::ostringstream ho;
     {
@@ -2016,9 +2244,13 @@ int main(int argc, char** argv) {
         const bool vacuous = ran_no_tests(out);
         const bool green = (code == 0) && (passPat.empty() ? true : rx_test(passPat, out)) && !vacuous;
         if (green) {
-          // the one place lastTestVerified is written: rabadon ran this and
-          // read the exit code, so the next push may skip the re-run
-          stt.lastTestPass = now_ms(); stt.lastTestRun = now_ms(); stt.lastTestVerified = now_ms();
+          // rabadon ran this and read the exit code, so the result is evidence
+          // rather than a claim, and evidence about the tree is shared: the next
+          // push may skip the re-run even from a different session, but only
+          // until somebody edits the tree, because lastCodeEdit is shared too
+          // and any session's edit moves it past this stamp.
+          ss.lastTestPass = now_ms(); ss.lastTestFail = 0; ss.lastTestRun = now_ms();
+          stt.lastTestVerified = now_ms();
           em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\"");
           // fall through: the push is now legitimately allowed
         } else if (vacuous) {
@@ -2028,6 +2260,11 @@ int main(int argc, char** argv) {
             "An empty run is not a green run. Point pushGate.run at a command that executes the suite.");
         } else {
           em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"why\":\"tests not green\"");
+          // rabadon ran it and read a non-zero exit. That is a red every session
+          // in this tree may act on, unlike one a session merely watched.
+          ss.lastTestFail = now_ms(); ss.lastTestRun = now_ms();
+          stt.lastTestVerifiedFail = now_ms();
+          stt.save();
           string fails; {
             std::istringstream is(out); string ln; std::vector<string> keep;
             while (std::getline(is, ln)) if (rx_test("fail|error|\\*\\*\\*|tests passed", ln)) keep.push_back(ln);
@@ -2211,7 +2448,7 @@ int main(int argc, char** argv) {
 
   // test-tamper: suite red + a test-file edit that weakens it
   if ((toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") && !filePath.empty()) {
-    if (stt.lastTestFail > stt.lastTestPass) {
+    if (stt.tests_red()) {
       bool isTest = false;
       if (guardRaw.find("\"testPaths\"") != string::npos) {
         for (const auto& pat : parse_str_array(guardRaw, "testPaths"))

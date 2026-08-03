@@ -599,6 +599,23 @@ test: all
 	./native/serve_test.sh
 	./native/sigpipe_test.sh
 	./native/session_test.sh
+# session_test.sh asks whether one session is tracked correctly. this one asks
+# what happens to it when six more arrive, which is the ordinary case for the
+# thing that supervises a fan-out. every per-session guarantee lived in one
+# shared map and the loader kept the last four:
+#   if (sessions.size() > 4) sessions.erase(sessions.begin(), sessions.end() - 4);
+# on 3 August seven sessions ran at once, one main and six agents, the main
+# session's record was evicted, and `promise-off-target` -- whose own refusal
+# text reads "fires once per session" -- fired three times. twelve concurrent
+# writers left four records and eight silently gone, because every writer
+# rewrote the whole file and the last one to finish won. the second half is one
+# layer up: lastTestFail and lastTestPass were shared too, so a red one session
+# watched at 02:18 was still being read at 04:00 by a session with its own suite
+# green, twice, both on the ledger as `rabadon wrong stale-net-verdict`. six
+# sections, and section 5 is the one that had to be measured rather than
+# assumed -- a green rabadon RAN does cross sessions, and any session's edit
+# ends it.
+	./native/session_fanout_test.sh
 	./native/budget_test.sh
 	./native/postuse_test.sh
 	./native/pushgate_test.sh

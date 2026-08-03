@@ -31,13 +31,20 @@ EOF
 pushev(){ printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"pg1","tool_use_id":"p%s","tool_name":"Bash","tool_input":{"command":"git push origin main"}}' "$1" "$RANDOM"; }
 day=$(date -u +%Y-%m-%d)
 
-# --- A: green suite -> push ALLOWED (exit 0) + REPAIR_OK + lastTestPass stamped ---
+# --- A: green suite -> push ALLOWED (exit 0) + REPAIR_OK + lastTestVerified stamped ---
 A="$(scratch "echo 100 percent tests passed" "tests passed")"; RD="$(mktemp -d)"; : > "$RD/enabled"
 pushev "$A" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1; rc=$?
 [ $rc -eq 0 ] && ok "green suite: push allowed (exit 0)" || bad "green push should be exit 0 (got $rc)"
 grep -q '"ev":"REPAIR_OK"' "$RD/spool/$day.jsonl" 2>/dev/null && ok "green: REPAIR_OK on the ledger" || bad "green should emit REPAIR_OK"
-lp=$(python3 -c "import json;print(json.load(open('$A/.rabadon/state.json')).get('lastTestPass',0))")
-[ "$lp" != "0" ] && ok "green: lastTestPass stamped so the next push is clean" || bad "green should stamp lastTestPass"
+# lastTestVerified, and it has to be in the SHARED file rather than in this
+# session's own record. It is the one test result another session is allowed to
+# act on, because rabadon forked the suite and read the exit code rather than
+# reading a sentence out of a tool result. The claim stamps moved into
+# <project>/.rabadon/sessions/<key>.json on 3 August; this one deliberately did
+# not, and the next push being clean is what that decision buys.
+lv=$(python3 -c "import json;print(json.load(open('$A/.rabadon/state.json')).get('lastTestVerified',0))")
+[ "$lv" != "0" ] && ok "green: lastTestVerified stamped in the shared file, so the next push is clean" \
+                 || bad "green should stamp lastTestVerified"
 
 # --- B: red suite -> push BLOCKED (exit 2) + REPAIR_FAIL + failing lines ---
 B="$(scratch "echo FAILED 1 test; exit 1" "tests passed")"; RD="$(mktemp -d)"; : > "$RD/enabled"

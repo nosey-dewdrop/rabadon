@@ -55,10 +55,43 @@ chmod +x "$STUBDIR/claude"
 # structure + non-time values are compared.
 norm_state() { # $1=state.json path -> stdout canonical json (or "MISSING")
 python3 - "$1" <<'PY'
-import json,sys
-try:
-    d=json.load(open(sys.argv[1]))
-except Exception:
+import json,sys,os,glob
+# WHERE a fact is stored stopped being the same in the two engines on 3 August.
+# The native gate keeps each session's own record in
+# <project>/.rabadon/sessions/<key>.json, one writer per file, because the shared
+# map capped itself at four and a seven-way fan-out evicted its own main session.
+# The node gate, which is the retiring engine, still writes one map with that cap
+# in it. Comparing the two files byte for byte would now be comparing the bug.
+#
+# So the differential compares WHAT was recorded rather than WHICH FILE it landed
+# in: both sides are flattened into one view, the session records folded in, and
+# the per-session keys dropped because the two engines key them differently. The
+# storage layout is asserted on its own by native/session_fanout_test.sh, which
+# is where it belongs. One file measures parity of meaning, the other measures
+# whether that meaning survives a fan-out.
+def flatten(p):
+    try:
+        d=json.load(open(p))
+    except Exception:
+        d=None
+    sess=[]
+    if isinstance(d,dict):
+        for v in (d.pop("sessions",None) or {}).values():
+            if isinstance(v,dict): sess.append(v)
+    for f in sorted(glob.glob(os.path.join(os.path.dirname(p),"sessions","*.json"))):
+        try: sess.append(json.load(open(f)))
+        except Exception: pass
+    if d is None and not sess: return None
+    out=dict(d or {})
+    for s in sess:
+        for k,v in s.items():
+            if isinstance(v,(int,float)) and isinstance(out.get(k),(int,float)):
+                out[k]=max(out[k],v)      # the later stamp is the one either engine reports
+            else:
+                out.setdefault(k,v)
+    return out
+d=flatten(sys.argv[1])
+if d is None:
     print("MISSING"); sys.exit(0)
 # Volatile time fields: Date.now() differs between the two runs -> SET/UNSET.
 VOL={"lastCodeEdit","lastTestPass","lastTestFail","lastTestRun","lastDiagAt",
@@ -103,6 +136,29 @@ def walk(x):
     return x
 print(json.dumps(walk(d),sort_keys=True))
 PY
+}
+
+# The flattened NATIVE view: the shared file plus every per-session file. A fact
+# that used to sit at the top of state.json (lastTestPass, actionCount) now lives
+# in <project>/.rabadon/sessions/<key>.json, and an assertion that still reads
+# only the shared file measures an empty object and passes for the wrong reason,
+# which is worse than failing.
+nstate() { # $1=project dir -> stdout one flattened json object
+python3 - "$1/.rabadon/state.json" <<'PYEOF'
+import json,sys,os,glob
+d={}
+try: d=json.load(open(sys.argv[1]))
+except Exception: pass
+sess=list((d.pop("sessions",None) or {}).values())
+for f in sorted(glob.glob(os.path.join(os.path.dirname(sys.argv[1]),"sessions","*.json"))):
+    try: sess.append(json.load(open(f)))
+    except Exception: pass
+for s in sess:
+    for k,v in s.items():
+        if isinstance(v,(int,float)) and isinstance(d.get(k),(int,float)): d[k]=max(d[k],v)
+        else: d.setdefault(k,v)
+print(json.dumps(d))
+PYEOF
 }
 
 # strip the volatile envelope (seq, ts, run) from each spool line and keep only
@@ -198,7 +254,7 @@ echo "$en" | grep -q "a, b, c, d, e" && echo "$ev" | grep -q "a, b, c, d, e" \
   && ok "BR2 stderr names all 5 top dirs (a, b, c, d, e) on both" || bad "BR2 dir list missing"
 [ "$en" = "$ev" ] && ok "BR2 stderr frame is byte-identical node==native" || { bad "BR2 stderr differs"; echo "    node: $en"; echo "    nat : $ev"; }
 grep -q '"check":"scope-fanout"' "$RDv/spool/$DAY.jsonl" && ok "BR2 CHECK_FAIL scope-fanout on the ledger" || bad "BR2 spool missing scope-fanout"
-python3 -c "import json;d=json.load(open('$Cv/.rabadon/state.json'));s=d['sessions']['s1'];import sys;sys.exit(0 if s['fanoutWarned'] and d.get('lastCodeEdit',0)!=0 else 1)" \
+nstate "$Cv" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if d.get('fanoutWarned') and d.get('lastCodeEdit',0)!=0 else 1)" \
   && ok "BR2 fanoutWarned latched + lastCodeEdit still SET after fan-out exit" || bad "BR2 latch/lastCodeEdit wrong"
 # 6th off-target edit -> exit 0 (latched)
 EVT6='{"hook_event_name":"PostToolUse","cwd":"'"$Cv"'","session_id":"s1","tool_use_id":"e2","tool_name":"Edit","tool_input":{"file_path":"'"$Cv"'/g/h.js"}}'
@@ -208,7 +264,7 @@ echo "$EVT6" | RABADON_JUDGE=0 RABADON_DIR="$RDv" "$BIN" >/dev/null 2>&1
 Cout="$(mktemp -d)"; RDout="$(mktemp -d)"; mkdir -p "$Cout/.rabadon"
 OUTEVT='{"hook_event_name":"PostToolUse","cwd":"'"$Cout"'","session_id":"s1","tool_use_id":"o1","tool_name":"Edit","tool_input":{"file_path":"/tmp/outside/z.js"}}'
 echo "$OUTEVT" | RABADON_JUDGE=0 RABADON_DIR="$RDout" "$BIN" >/dev/null 2>&1; rco=$?
-python3 -c "import json;d=json.load(open('$Cout/.rabadon/state.json'));s=d['sessions']['s1'];import sys;sys.exit(0 if d.get('lastCodeEdit',0)!=0 and len(s.get('touchedDirs',[]))==0 else 1)" 2>/dev/null
+nstate "$Cout" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if d.get('lastCodeEdit',0)!=0 and len(d.get('touchedDirs',[]))==0 else 1)" 2>/dev/null
 [ $rco = 0 ] && [ $? = 0 ] && ok "BR2 file outside cwd: no top dir, exit 0, lastCodeEdit still SET" || bad "BR2 outside-cwd handling wrong (exit=$rco)"
 
 # =====================================================================
@@ -226,14 +282,14 @@ reanchor() { # $1=actionCount $2=stubjson $3=judgeEnv -> sets RC/STDERR from nat
   RC="${RC##* }"
   STDERR="$(cat /tmp/pt_ra.$$)"
   CALLS="$(cat "$tripwire" 2>/dev/null || echo 0)"
-  RC_STATE="$C/.rabadon/state.json"
+  RC_PROJ="$C"
 }
 # actionCount=12, judge returns off-track -> exit 2 + re-anchor stderr
 reanchor 12 '{"onTrack":false,"anchor":"stop touching web/"}' ""
 [ "$RC" = 2 ] && ok "BR3 12th action + off-track judge -> exit 2" || bad "BR3 expected exit 2 (got $RC)"
 echo "$STDERR" | grep -q 'rabadon re-anchor: the session goal is "build the kernel". stop touching web/' \
   && ok "BR3 re-anchor stderr carries goal + anchor verbatim" || { bad "BR3 stderr wrong"; echo "    $STDERR"; }
-python3 -c "import json;print(json.load(open('$RC_STATE'))['sessions']['s1']['actionCount'])" | grep -qx 12 \
+nstate "$RC_PROJ" | python3 -c "import json,sys;print(json.load(sys.stdin)['actionCount'])" | grep -qx 12 \
   && ok "BR3 actionCount stays 12 (Post must NOT increment)" || bad "BR3 actionCount changed"
 # on-track -> exit 0 + STEP_OK edited
 reanchor 12 '{"onTrack":true}' ""
@@ -260,7 +316,7 @@ differential "BR4a 'Failures: 0' string response -> GREEN (the word 'fail' does 
   '{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"g1","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_response":"Tests: 12 passed\nFailures: 0"}' \
   '{"project":"p","testCommand":"npm test"}'
 grep -q '"step":"tests: GREEN"' "$LAST_RDV/spool/$DAY.jsonl" && ok "BR4a GREEN emitted (measured count N=0, not a keyword sighting)" || bad "BR4a expected tests: GREEN"
-python3 -c "import json;d=json.load(open('$LAST_CV/.rabadon/state.json'));import sys;sys.exit(0 if d.get('lastTestPass',0)!=0 and d.get('lastTestFail',1)==0 else 1)" \
+nstate "$LAST_CV" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if d.get('lastTestPass',0)!=0 and d.get('lastTestFail',1)==0 else 1)" \
   && ok "BR4a lastTestPass SET, lastTestFail=0" || bad "BR4a test state wrong"
 # BR4a2 — THE ONE DELIBERATE DIVERGENCE FROM THE ORACLE. Read this before
 # turning it back into a differential.
@@ -277,8 +333,14 @@ python3 -c "import json;d=json.load(open('$LAST_CV/.rabadon/state.json'));import
 # On 3 August this repo measured what a false red costs: `make test` exited 0
 # with 2942 ok lines, the output went to a file, the hook saw only `EXIT=0`,
 # lastTestFail was stamped, and .rabadon/handoff.md told the next session the
-# red WAS the open front. Native now gives the honest third answer, not green
-# and not red, which is what net.cpp has always given a timeout.
+# red WAS the open front.
+#
+# Native first answered the honest third answer here, not green and not red.
+# That was the right verdict for the wrong reason: the text was never
+# unreadable, the READER was reading JSON source instead of the run's output.
+# An object-shaped tool_response is now un-escaped once, before anything judges
+# it, so the delivery shape stops being a variable and both shapes get the same
+# verdict — GREEN, which is what the run said in plain words.
 #
 # So this case asserts NATIVE's behaviour instead of equality, and prints what
 # node did so the gap stays visible. hooks/gate.mjs still carries the false red.
@@ -291,14 +353,27 @@ echo '{"project":"p","testCommand":"npm test"}' > "$CN4/.rabadon/guard.json"
 EV4a2='{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"g1b","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_response":{"stdout":"Tests: 12 passed\nFailures: 0"}}'
 echo "${EV4a2//CWD/$C4}"  | env $DIFF_ENV RABADON_DIR="$RD4" RABADON_NOTIFY=0 "$BIN"        >/dev/null 2>&1; rcv4=$?
 echo "${EV4a2//CWD/$CN4}" | env $DIFF_ENV RABADON_DIR="$RN4" RABADON_NOTIFY=0 node "$GATE" >/dev/null 2>&1; rcn4=$?
-[ "$rcv4" = "0" ] && ok "BR4a2 native: an unreadable 'Failures: 0' is not a failure (exit 0)" \
+[ "$rcv4" = "0" ] && ok "BR4a2 native: 'Failures: 0' in the object shape is not a failure (exit 0)" \
                   || bad "BR4a2 native should exit 0, got $rcv4"
-python3 -c "import json,sys;d=json.load(open('$C4/.rabadon/state.json'));sys.exit(0 if d.get('lastTestFail',0)==0 else 1)" \
+nstate "$C4" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if d.get('lastTestFail',0)==0 else 1)" \
   && ok "BR4a2 native: lastTestFail NOT stamped (no false red in the handoff)" \
   || bad "BR4a2 native stamped a red with no evidence"
-grep -q '"ev":"TEST_EVIDENCE_MISSING"' "$RD4/spool/$DAY.jsonl" \
-  && ok "BR4a2 native: TEST_EVIDENCE_MISSING says it out loud" \
-  || bad "BR4a2 native should emit TEST_EVIDENCE_MISSING"
+grep -q '"step":"tests: GREEN"' "$RD4/spool/$DAY.jsonl" \
+  && ok "BR4a2 native: the delivery shape no longer changes the verdict — GREEN either way" \
+  || bad "BR4a2 native should read the object shape the same as the string shape"
+[ "$rcn4" = "0" ] \
+  && bad "BR4a2 the oracle stopped diverging — fold this case back into a differential" \
+  || ok "BR4a2 node still calls the same run RED in the object shape (open front, JS side)"
+
+# and the third answer still exists, on a payload that really is unreadable:
+# a suite redirected to a file, where the hook sees an exit line and nothing else.
+C4b="$(mktemp -d)"; RD4b="$(mktemp -d)"; : > "$RD4b/enabled"; mkdir -p "$C4b/.rabadon"
+echo '{"project":"p","testCommand":"npm test"}' > "$C4b/.rabadon/guard.json"
+printf '{"hook_event_name":"PostToolUse","cwd":"%s","session_id":"s1","tool_use_id":"g1c","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_response":{"stdout":"EXIT=0"}}' "$C4b" \
+  | env $DIFF_ENV RABADON_DIR="$RD4b" RABADON_NOTIFY=0 "$BIN" >/dev/null 2>&1; rcv4b=$?
+grep -q '"ev":"TEST_EVIDENCE_MISSING"' "$RD4b/spool/$DAY.jsonl" && [ "$rcv4b" = "0" ] \
+  && ok "BR4a2b a redirected run is still neither green nor red, and says so" \
+  || bad "BR4a2b expected TEST_EVIDENCE_MISSING at exit 0, got $rcv4b"
 echo "    note: hooks/gate.mjs (retiring oracle) exits $rcn4 here — a false red, tracked."
 
 differential "BR4b ctest '100% tests passed, 0 failed' -> GREEN" \
@@ -320,7 +395,7 @@ differential "BR5a RED with JUDGE=0 -> exit 2, CHECK_FAIL test-run, no REPAIR_ST
   '{"project":"p","testCommand":"ctest"}'
 grep -q '"check":"test-run"' "$LAST_RDV/spool/$DAY.jsonl" && ok "BR5a CHECK_FAIL test-run present" || bad "BR5a missing test-run"
 grep -q '"ev":"REPAIR_START"' "$LAST_RDV/spool/$DAY.jsonl" && bad "BR5a REPAIR_START must NOT fire with JUDGE=0" || ok "BR5a no REPAIR_START under JUDGE=0"
-python3 -c "import json;d=json.load(open('$LAST_CV/.rabadon/state.json'));import sys;sys.exit(0 if d.get('lastTestFail',0)!=0 and d.get('lastTestPass',1)==0 else 1)" \
+nstate "$LAST_CV" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if d.get('lastTestFail',0)!=0 and d.get('lastTestPass',1)==0 else 1)" \
   && ok "BR5a lastTestFail SET, lastTestPass untouched" || bad "BR5a red test state wrong"
 grep -q "rabadon: tests are RED. Fix the failure before moving on." /tmp/pt_vs.$$ && ok "BR5a RED stderr (no advice under JUDGE=0)" || bad "BR5a RED stderr wrong"
 
@@ -439,7 +514,7 @@ DIFF_ENV="RABADON_JUDGE=0"
 differential "BR9 'ls -la' -> STEP_OK ran, no state mutation" \
   '{"hook_event_name":"PostToolUse","cwd":"CWD","session_id":"s1","tool_use_id":"n1","tool_name":"Bash","tool_input":{"command":"ls -la"},"tool_response":{"stdout":"files"}}'
 grep -q '"step":"ran: ls -la"' "$LAST_RDV/spool/$DAY.jsonl" && ok "BR9 STEP_OK 'ran: ls -la'" || bad "BR9 ran step missing"
-python3 -c "import json;d=json.load(open('$LAST_CV/.rabadon/state.json'));import sys;sys.exit(0 if d.get('lastCodeEdit',0)==0 and d.get('lastTestRun',0)==0 else 1)" \
+nstate "$LAST_CV" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if d.get('lastCodeEdit',0)==0 and d.get('lastTestRun',0)==0 else 1)" \
   && ok "BR9 no lastTest*/lastCodeEdit mutation on a non-test bash" || bad "BR9 unexpected state mutation"
 
 # =====================================================================

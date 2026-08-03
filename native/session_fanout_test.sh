@@ -28,7 +28,7 @@
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-GATE="$HERE/rabadon-gate"
+GATE="${RABADON_GATE:-$HERE/rabadon-gate}"
 [ -x "$GATE" ] || { echo "  build first: make native/rabadon-gate"; exit 1; }
 
 pass=0; fail=0
@@ -158,6 +158,185 @@ PY
 )
 if [ "$BYTES" -lt 400000 ]; then ok "state is $BYTES bytes after 25 sessions"
 else bad "state grew to $BYTES bytes after 25 sessions"; fi
+
+# and the aging is by CLOCK, not by arrival. A record that has been quiet for
+# longer than the ttl goes; a record from a session that is still working stays,
+# however many newer sessions turn up beside it. Driven through the real gate so
+# it is the shipped sweep being measured and not a re-implementation of it.
+AGED="$T/aged"
+mkdir -p "$AGED/.git" "$AGED/.rabadon"
+cp "$PROJ/.rabadon/promise.json" "$AGED/.rabadon/promise.json"
+aged_edit() {
+  printf '{"hook_event_name":"PreToolUse","session_id":"%s","cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"%s","old_string":"a","new_string":"b"}}' \
+    "$1" "$AGED" "$AGED/native/x.c" | "$GATE" >/dev/null 2>&1
+}
+aged_edit "old-one"
+aged_edit "still-here"
+OLDF=$(ls "$AGED/.rabadon/sessions"/*.json 2>/dev/null | head -1)
+if [ -z "$OLDF" ]; then
+  bad "aging is not by time: there is no per-session store to age"
+else
+  # two days back, past the 24h ttl, and the sweep marker cleared so the
+  # ten-minute throttle does not swallow the one sweep this assertion needs.
+  touch -t "$(date -v-2d +%Y%m%d%H%M 2>/dev/null || date -d '2 days ago' +%Y%m%d%H%M)" "$OLDF"
+  rm -f "$AGED/.rabadon/sessions/.swept"
+  aged_edit "newcomer"
+  if [ ! -f "$OLDF" ] && [ "$(ls "$AGED/.rabadon/sessions"/*.json 2>/dev/null | wc -l | tr -d ' ')" -ge 2 ]; then
+    ok "a record quiet for two days was swept and the live ones were not"
+  else
+    bad "aging is not by time: $(ls "$AGED/.rabadon/sessions" 2>/dev/null | tr '\n' ' ')"
+  fi
+fi
+
+echo
+# ---------------------------------------------------------------------------
+# 4. a red one session watched is not a red another session inherits
+# ---------------------------------------------------------------------------
+# The second half of the same incident, one layer up from the sessions map.
+# lastTestFail and lastTestPass were top-level, so a red stamped at 02:18 by one
+# session sat there while lastTestPass stayed at 00:48, and a session opened
+# hours later was told "tests are RED" with its own suite green in front of it.
+# It happened twice and both are on the ledger as `rabadon wrong
+# stale-net-verdict`.
+#
+# `test-tamper` is the probe because it is the rule that acts on that verdict:
+# suite red plus an edit that puts a skip marker into a test file. If the red
+# leaks, a session that has never run a test refuses an edit on somebody else's
+# evidence.
+echo "4. one session's red is not another session's red"
+LEAK="$T/leak"
+mkdir -p "$LEAK/.git" "$LEAK/.rabadon" "$LEAK/test"
+cat > "$LEAK/.rabadon/guard.json" <<'JSON'
+{ "project": "leak",
+  "testCommand": "run-the-suite",
+  "testPaths": ["test/"],
+  "bash": [], "protectedPaths": [], "disabled": [] }
+JSON
+
+# session R watches its own suite go red
+printf '{"hook_event_name":"PostToolUse","session_id":"sess-R","cwd":"%s","tool_name":"Bash","tool_input":{"command":"run-the-suite"},"tool_response":"FAILED: 3 failed, 7 passed"}' \
+  "$LEAK" | "$GATE" >/dev/null 2>&1
+
+tamper_as() {  # tamper_as <session> -> exit code
+  printf '{"hook_event_name":"PreToolUse","session_id":"%s","cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"%s/test/a_test.js","old_string":"it(\\"x\\", () => { expect(1).toBe(1) })","new_string":"it.skip(\\"x\\", () => { expect(1).toBe(1) })"}}' \
+    "$1" "$LEAK" "$LEAK" | "$GATE" >"$T/out" 2>"$T/err"
+  echo $?
+}
+
+rc=$(tamper_as "sess-R")
+if [ "$rc" -ne 0 ] && grep -q "test-tamper" "$T/err"; then
+  ok "the session that saw the red is still held to it"
+else
+  bad "the session that watched its own suite go red was not held to it (exit $rc)"
+fi
+
+rc=$(tamper_as "sess-Q")
+if [ "$rc" -eq 0 ]; then
+  ok "a session that has run nothing does not inherit that red"
+else
+  bad "sess-Q inherited sess-R's red — refused by $(grep -o 'Rule: [a-z-]*' "$T/err" | head -1)"
+fi
+
+echo
+# ---------------------------------------------------------------------------
+# 5. the push gate, measured across two sessions
+# ---------------------------------------------------------------------------
+# The question the split has to answer out loud: does one agent's green release
+# another agent's push? For a green rabadon RAN and read the exit code of, YES,
+# and deliberately — that is a fact about the tree, and re-running a suite that
+# was verified thirty seconds ago on an untouched tree is a tax, not a check.
+# What makes it safe is that lastCodeEdit is shared too, so ANY session touching
+# the tree puts the tree past the last verified run and the next push re-runs.
+# Both directions are asserted; one without the other is half an answer.
+echo "5. a verified green crosses sessions, and any edit ends it"
+PG="$T/pg"
+mkdir -p "$PG/.git" "$PG/.rabadon" "$PG/src"
+RUNS="$PG/.suite-runs"
+: > "$RUNS"
+cat > "$PG/.rabadon/guard.json" <<JSON
+{ "project": "pg",
+  "pushGate": { "run": "echo x >> $RUNS; echo '12 passed, 0 failed'; exit 0",
+                "why": "tests must be green before push", "timeoutSec": 30 },
+  "bash": [], "protectedPaths": [], "disabled": [] }
+JSON
+
+edit_code() {  # edit_code <session>
+  printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"%s/src/main.c","old_string":"a","new_string":"b"},"tool_response":"ok"}' \
+    "$1" "$PG" "$PG" | "$GATE" >/dev/null 2>&1
+}
+push_as() {    # push_as <session> -> exit code
+  printf '{"hook_event_name":"PreToolUse","session_id":"%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push origin feature-x"}}' \
+    "$1" "$PG" | "$GATE" >"$T/out" 2>"$T/err"
+  echo $?
+}
+runs() { wc -l < "$RUNS" | tr -d ' '; }
+
+edit_code "sess-V"
+rc=$(push_as "sess-V")
+if [ "$rc" -eq 0 ] && [ "$(runs)" = "1" ]; then
+  ok "the session that edited the tree had its suite run before the push"
+else
+  bad "push gate did not run the suite for the editing session (exit $rc, runs $(runs))"
+fi
+
+rc=$(push_as "sess-W")
+if [ "$rc" -eq 0 ] && [ "$(runs)" = "1" ]; then
+  ok "a second session pushing an untouched tree rides the verified green"
+else
+  bad "the verified green did not cross sessions (exit $rc, runs $(runs))"
+fi
+
+edit_code "sess-W"
+rc=$(push_as "sess-V")
+if [ "$(runs)" = "2" ]; then
+  ok "one session's edit put the tree past the green and the suite ran again"
+else
+  bad "an edit by another session did not invalidate the verified green (runs $(runs))"
+fi
+
+echo
+# ---------------------------------------------------------------------------
+# 6. two session ids that begin the same are two sessions
+# ---------------------------------------------------------------------------
+# The record used to be keyed on the first 16 characters of the session id. For
+# the harness's own uuids that collides with nobody, measured rather than
+# assumed. But the id is whatever the caller puts in the event, it is now also a
+# FILENAME, and a collision here is not a wrong answer — it is two sessions
+# sharing one counter, which is the failure this whole file is about.
+#
+# Its own project, and only two sessions in it, so the only thing that can move
+# a counter here is the prefix. Run inside $PROJ it would share a tree with the
+# 25 sessions above and the eviction from section 1 would be measured a second
+# time under a different name.
+echo "6. a shared 16-character prefix is not a shared session"
+PFX="$T/pfx"
+mkdir -p "$PFX/.git" "$PFX/.rabadon" "$PFX/docs"
+cp "$PROJ/.rabadon/promise.json" "$PFX/.rabadon/promise.json"
+edit_pfx() {
+  printf '{"hook_event_name":"PreToolUse","session_id":"%s","cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"%s","old_string":"a","new_string":"b"}}' \
+    "$1" "$PFX" "$2" | "$GATE" >"$T/out" 2>"$T/err"
+  echo $?
+}
+P1="aaaaaaaaaaaaaaaa-one"
+P2="aaaaaaaaaaaaaaaa-two"
+# six edits, three each. Neither id has reached five, so under a correct key
+# nothing fires; sharing one key makes the sixth the combined sixth and the
+# challenge lands inside this loop.
+EARLY=0
+for i in 1 2 3; do [ "$(edit_pfx "$P1" "$PFX/docs/x1$i.md")" -eq 0 ] || EARLY=1; done
+for i in 1 2 3; do [ "$(edit_pfx "$P2" "$PFX/docs/x2$i.md")" -eq 0 ] || EARLY=1; done
+rc=$(edit_pfx "$P1" "$PFX/docs/x14.md")
+if [ "$rc" -eq 0 ] && [ "$EARLY" -eq 0 ]; then
+  ok "seven edits across two ids sharing a prefix challenged neither"
+else
+  bad "the two ids shared one counter — the combined fifth edit was challenged"
+fi
+rc=$(edit_pfx "$P1" "$PFX/docs/x15.md")
+if [ "$rc" -ne 0 ] && grep -q "promise-off-target" "$T/err"; then
+  ok "and each id still reaches its own fifth"
+else
+  bad "the first id never reached its own fifth edit (exit $rc)"
+fi
 
 echo
 echo "  $pass passed, $fail failed"
