@@ -102,9 +102,14 @@ testinin yanında "bloklanmamalı" ikizi olur.
 kendi yollarını tek tek stage'le. Dün gece 6 oturum paralel koştu ve state dosyası
 çakıştı.
 
-Bir adım bir commit. Mesaj lowercase İngilizce, ne kanıtladığını söyler, co-author yok,
-`-F` ile dosyadan verilir. **Ev deposunun uzak sunucusu YOK** (`git remote -v` boş),
-yani push edilemez, kayıt commit'te durur.
+**SIK COMMIT AT, BİRİKTİRME.** Bir adım bir commit değil, bir *hamle* bir commit.
+Kırmızı test yazıldı → commit. Test yeşile döndü → commit. Alt adım kapandı → commit.
+Ölçüm çıktı → commit. Üç saat çalışıp tek commit atmak yasak; Damla ilerlemeyi
+git geçmişinden okuyor ve boş geçmiş "hiçbir şey olmadı" demek. Mesaj lowercase
+İngilizce, ne kanıtladığını söyler, co-author yok, `-F` ile dosyadan verilir.
+Her commit'ten sonra `git push` — **rabadon deposunun uzak sunucusu var**, oraya
+push edilir. Ev deposunun (`~`) uzak sunucusu YOK (`git remote -v` boş), oradaki
+kayıt commit'te durur ve bu normaldir.
 
 Dışarı hiçbir şey: publish yok, tag yok, PR yok, fork yok, force-push yok.
 
