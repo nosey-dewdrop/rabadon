@@ -694,6 +694,12 @@ test: all
 # in a real repository from its engine/ subdirectory: four rules held at the root
 # and zero held there, three of them authored by the engine after real incidents.
 	./native/guard_subdir_test.sh
+# the four ways a rule can lint clean and never fire, as a runnable test rather
+# than a paragraph. an agent ran all 430 guard rules on this machine through the
+# real gate and 16 could not fire; three of those were authored by the engine
+# itself after real incidents, so each named something that had already happened
+# once and was free to happen again.
+	./native/rule_census_test.sh
 
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate

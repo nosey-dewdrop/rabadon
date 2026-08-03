@@ -138,5 +138,37 @@ for d in "$PROJ" "$PROJ/engine/deep"; do
 done
 
 echo
+# ---------------------------------------------------------------------------
+# 6. a project that is not a git repository
+# ---------------------------------------------------------------------------
+# The first fix walked up from cwd to project_root(), and project_root() finds
+# the nearest ancestor holding `.git` and otherwise falls back to cwd itself. So
+# in a directory that is not a git repository the bound and the start were the
+# same place and the walk never took a step -- which is exactly the shape of the
+# three directories that needed it most on this machine, none of which is its own
+# repository. Where there is no git root the walk is bounded by the home
+# directory instead, and it still never leaves it.
+echo "6. a project that is not a git repository at all"
+NOGIT="$T/nogit"
+mkdir -p "$NOGIT/.rabadon" "$NOGIT/sub/deeper"
+cat > "$NOGIT/.rabadon/guard.json" <<'JSON'
+{
+  "project": "nogit",
+  "bash": [{"id": "nogit-no-deploy", "deny": "\\bwrangler\\s+deploy\\b",
+            "why": "deploys do not happen from a session here",
+            "allow": "wrangler tail"}]
+}
+JSON
+for d in "$NOGIT" "$NOGIT/sub" "$NOGIT/sub/deeper"; do
+  short="${d#$NOGIT}"; short="${short:-/}"
+  rc=$(probe "$d" "wrangler deploy")
+  if [ "$rc" -ne 0 ]; then ok "refused in ${short} of a non-git project"
+  else bad "ALLOWED in ${short} of a non-git project — the walk never started"; fi
+done
+rc=$(probe "$NOGIT/sub" "wrangler tail")
+if [ "$rc" -eq 0 ]; then ok "the twin still passes in a non-git project"
+else bad "the twin was refused in a non-git project"; fi
+
+echo
 echo "  $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

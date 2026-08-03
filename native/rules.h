@@ -235,6 +235,53 @@ inline bool rx_test_any(const string& pattern, const std::vector<string>& texts)
 // failing toward more refusals is the safe direction. The caller is expected to
 // record that it happened (gate.cpp emits PARSE_DEGRADED); a silent fallback
 // would hide the one case where the new matcher is not the one deciding.
+// A rule that SPELLS A PIPE is asking about something a segment cannot contain.
+//
+// The surfaces above are one per segment, and cmdtext.h splits on `; && || |`,
+// so a pipe character is never present in any of them. A pattern like
+//
+//   ctest[^|]*\|\s*tail\s+-(n\s*)?[12]\b
+//
+// therefore cannot fire, in any repository, ever. Sixteen rules on one machine
+// were dead and two of these were among them, both authored by the engine itself
+// after a real incident: `no-exit-code-after-pipe` (an `echo exit=$?` after a
+// pipe reports the last stage's status, so a red suite reads as exit=0) and
+// `no-reverse-patch-onto-head`. Each named a thing that had already gone wrong
+// once and was free to go wrong again.
+//
+// The whole line is offered as an extra surface ONLY when the pattern names a
+// pipe explicitly, escaped or inside a character class. A bare `|` in a regex is
+// alternation and means nothing about pipes. Handing every rule the whole line
+// would widen every anchored pattern at once, and a rule that starts refusing
+// work it was never written about costs more than a rule that never fires.
+inline bool pattern_names_a_pipe(const string& pat) {
+  // A NEGATED class is the opposite of naming one. `[^&|;]*` is the single most
+  // common fragment in a real guard -- it means "stay inside this segment" --
+  // and reading it as "this rule is about pipes" handed the whole raw line to
+  // every rule carrying it. The first build did exactly that, and the allow-twin
+  // suite caught it one command later: on the raw line a quote satisfied a
+  // negative lookahead and a repaired rule started refusing its own allow
+  // example. A widening that makes rules refuse honest work is worse than the
+  // narrowness it was meant to repair.
+  bool inClass = false, negated = false;
+  for (size_t i = 0; i < pat.size(); i++) {
+    if (pat[i] == '\\') {
+      if (i + 1 < pat.size() && pat[i + 1] == '|') return true;
+      i++;
+      continue;
+    }
+    if (pat[i] == '[' && !inClass) {
+      inClass = true;
+      negated = (i + 1 < pat.size() && pat[i + 1] == '^');
+    } else if (pat[i] == ']' && inClass) {
+      inClass = false;
+    } else if (pat[i] == '|' && inClass && !negated) {
+      return true;
+    }
+  }
+  return false;
+}
+
 inline std::vector<string> texts_of(const rbtext::Parsed& p, const string& cmd) {
   if (p.degraded) return rbtext::raw_segments(cmd);
   std::vector<string> texts;
@@ -252,7 +299,9 @@ inline std::vector<string> match_texts(const string& cmd, bool* degraded = nullp
 }
 
 inline bool rx_test_cmd(const string& pattern, const string& cmd) {
-  return rx_test_any(pattern, match_texts(cmd));
+  std::vector<string> texts = match_texts(cmd);
+  if (pattern_names_a_pipe(pattern)) texts.push_back(cmd);
+  return rx_test_any(pattern, texts);
 }
 
 // ---------- a deny rule about a PATH is decided by where the path lands ------
@@ -311,6 +360,13 @@ inline bool rule_refuses(const string& pattern, const rbtext::Parsed& p, const s
   // a line the parser could not read is judged the OLD way, whole segments of
   // raw text: no words, so no targets, so nothing to resolve.
   if (p.degraded) return rx_test_any(pattern, rbtext::raw_segments(cmd));
+  // a pattern that spells a pipe is asking about the whole line, and no segment
+  // can ever contain one. see pattern_names_a_pipe for why this is offered only
+  // to the rules that ask for it.
+  if (pattern_names_a_pipe(pattern)) {
+    const std::vector<string> whole(1, cmd);
+    if (rx_test_any(pattern, whole)) return true;
+  }
   const bool pathRule = pattern_names_a_path(pattern);
   const std::vector<string> cwds = rbpath::segment_cwds(p, cwd);
   for (size_t i = 0; i < p.segs.size(); i++) {
