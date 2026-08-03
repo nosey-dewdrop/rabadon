@@ -75,6 +75,18 @@
 </div>
 <div class="cmd"><span class="p">$</span> <span class="c">python3 site/field_stats.py</span></div>
 </section>
+<section><h2>and how many of the laws can fire at all</h2>
+<p class="small dim">A rule that reads correctly to a person, passes <code>rabadon lint</code>, and is structurally incapable of ever refusing anything is the same failure this page is about, one layer in. So every guard rule on this machine was put through the real gate binary with a command it was written to refuse. Not a reading of the pattern, a run of the engine, 430 times.</p>
+<div class="stats">
+<span class="n g" data-to="411" data-show="411">411</span><span class="t">of 430 guard rules on this machine can actually fire, across 61 guard files</span>
+<span class="n r" data-to="16" data-show="16">16</span><span class="t">cannot fire at all, in any repository, ever</span>
+<span class="n y" data-to="3" data-show="3">3</span><span class="t">can fire but sit behind a broader rule in the same guard, so their name never appears</span>
+<span class="n b" data-to="0" data-show="0">0</span><span class="t">undecided, because a claim nobody could construct a probe for is not a measurement</span>
+</div>
+<table class="tt ledger"><thead><tr><th class="n">rules</th><th class="s">mechanism</th><th class="d">what the mechanism is</th></tr></thead><tbody><tr><td class="n p">14</td><td class="s">protectedPaths-absolute</td><td class="d">gate.cpp matches protectedPaths against the raw file_path and a real Edit event carries an ABSOLUTE path (12,948 of 13,128 measured; the other 180 are ~/ home-relative, none project-relative). A rule authored ^-anchored and relative is pinned to the start of a string that never arrives.</td></tr><tr><td class="n p">3</td><td class="s">shadowed</td><td class="d">The rule is capable, but an earlier rule in the same guard catches the same command first, so this id can never appear in a refusal.</td></tr><tr><td class="n p">2</td><td class="s">pipe</td><td class="d">cmdtext.h splits a command line on ; &amp;&amp; || | and rules.h matches one text per segment surface, so no surface a rule is judged against can contain a pipe. A pattern that spells \| is asking to see a character the matcher removed first.</td></tr></tbody></table>
+<p class="cap">20 of these rules were written by the engine itself after a real incident, and 3 of those cannot fire. Each one names something that had already gone wrong once and was free to go wrong again.</p>
+<p class="cap">Measured at commit <code>b384d6a714f1</code>, which is BEFORE the two repairs that closed the largest mechanisms. The number is the state it was found in, not the state it is in, and it stays that way until the census is run again against the repaired gate.</p>
+</section>
 <section><h2>the laws it wrote for itself, after the thing had already happened</h2><p class="small dim">When a check goes red the engine proposes a fix, and where the failure was a way of working rather than a line of code it writes a rule so the same class cannot happen twice. Each one below was authored after a real incident, in the repository the incident happened in. The sentence on the right is the rule&#39;s own, read out of the guard file it lives in rather than retyped here.</p>
 <div class="stats">
 <a class="n p" href="https://github.com/nosey-dewdrop/rabadon/blob/main/site/field_stats.py" data-to="12" data-show="12">12</a><span class="t">distinct laws it wrote for itself after an incident</span>

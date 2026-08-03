@@ -861,6 +861,81 @@ def fval(meas, key, default=0):
     return default if v is None else v
 
 
+# The census of every guard rule on this machine: for each one, whether the real
+# gate binary refuses the command that rule was written to refuse. Produced by
+# driving the gate 430 times rather than by reading 430 regexes, which is the
+# only way the answer is worth anything.
+CENSUS_PATH = "site/rule_census.json"
+
+
+def census():
+    return load_json(CENSUS_PATH, None)
+
+
+def census_block(c):
+    """A rule that lints clean and cannot fire is the failure this whole file is
+    about, one layer in. The page prints the count, the mechanism behind each
+    dead rule, and the fact that the measurement predates the repairs."""
+    h = c.get("headline") or {}
+    out = ["<section><h2>and how many of the laws can fire at all</h2>",
+           '<p class="small dim">A rule that reads correctly to a person, passes '
+           "<code>rabadon lint</code>, and is structurally incapable of ever refusing anything is "
+           "the same failure this page is about, one layer in. So every guard rule on this machine "
+           "was put through the real gate binary with a command it was written to refuse. Not a "
+           "reading of the pattern, a run of the engine, "
+           f'{h.get("total", 0)} times.</p>']
+    out.append('<div class="stats">')
+    out.append(stat("g", h.get("can_fire", 0),
+                    f'of {h.get("total", 0)} guard rules on this machine can actually fire, across '
+                    f'{h.get("guards", 0)} guard files', None))
+    out.append(stat("r" if h.get("cannot_fire") else "g", h.get("cannot_fire", 0),
+                    "cannot fire at all, in any repository, ever", None))
+    out.append(stat("y", h.get("shadowed", 0),
+                    "can fire but sit behind a broader rule in the same guard, so their name never "
+                    "appears", None))
+    out.append(stat("b", h.get("undecided", 0),
+                    "undecided, because a claim nobody could construct a probe for is not a "
+                    "measurement", None))
+    out.append("</div>")
+
+    mech = c.get("by_mechanism") or []
+    if mech:
+        rows = [[(m.get("count", 0), "p"), html.escape(str(m.get("mechanism", ""))),
+                 html.escape(str(m.get("note", ""))[:300])] for m in mech]
+        out.append(table([("rules", "n"), ("mechanism", "s"), ("what the mechanism is", "d")],
+                         rows, "ledger"))
+
+    inc = c.get("incident_authored") or {}
+    if inc:
+        out.append(f'<p class="cap">{inc.get("total", 0)} of these rules were written by the engine '
+                   f'itself after a real incident, and {inc.get("cannot_fire", 0)} of those cannot '
+                   "fire. Each one names something that had already gone wrong once and was free to "
+                   "go wrong again.</p>")
+
+    over = c.get("over_fires") or {}
+    ov = over.get("rules") or over.get("items") or []
+    if ov:
+        rows = []
+        for o in ov[:12]:
+            rows.append([html.escape(str(o.get("project", ""))), html.escape(str(o.get("id", ""))),
+                         html.escape(str(o.get("command", o.get("probe", "")))[:120])])
+        out.append("<h3>and the other direction</h3>"
+                   '<p class="small dim">Rules that refuse work they were never written about. '
+                   "Found by running ordinary commands against every guard, and by running all 193 "
+                   "allow twins on this machine through the gate, an allow twin being a command the "
+                   "rule's own author wrote down as one that must pass.</p>")
+        out.append(table([("project", "s"), ("rule", "s"), ("the command it refused", "d")],
+                         rows, "ledger"))
+
+    out.append('<p class="cap">Measured at commit <code>'
+               + html.escape(str(c.get("gate_commit", "?"))[:12]) +
+               "</code>, which is BEFORE the two repairs that closed the largest mechanisms. The "
+               "number is the state it was found in, not the state it is in, and it stays that way "
+               "until the census is run again against the repaired gate.</p>")
+    out.append("</section>")
+    return "\n".join(out)
+
+
 def field_records():
     out = []
     if not os.path.exists(FIELD_PATH):
@@ -1046,6 +1121,10 @@ def field_page(meas):
         out.append(table([("when", "s"), ("was", "s"), ("became", "s")], rows, "ledger"))
     out.append(cmdline("python3 site/field_stats.py"))
     out.append("</section>")
+
+    c = census()
+    if c:
+        out.append(census_block(c))
 
     # ---- the rules it wrote itself ----------------------------------------
     if rules:
