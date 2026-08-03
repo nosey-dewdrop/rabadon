@@ -1,3 +1,9 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757090302, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757062210, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757037840, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785757020132, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785756916692, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785756899856, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "no-force-push-main", "project": ".reachprobe", "ts": 1785756482538, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "reports", "ts": 1785756482528, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": ".reachprobe", "ts": 1785756482496, "detail": "command matched deny rule: git push --force origin main"}
