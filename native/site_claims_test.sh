@@ -178,6 +178,11 @@ checks = [
     ('distinct laws written',
      first_stat('site/field.html', 'distinct laws it wrote for itself'),
      measured_val('field.rules_distinct')),
+    # the one a vendor has the most reason to shade. it is on two surfaces, so
+    # it gets the same treatment as every other number that is.
+    ('refusals reported wrong',
+     first_stat('site/index.html', 'reported wrong by the operator'),
+     proof_stat('site/field.html', 'reported wrong by the operator')),
     ('pushes refused on a red tree',
      first_stat('site/index.html', 'pushes it refused on a red tree'),
      proof_stat('site/field.html', 'pushes refused on a red tree')),

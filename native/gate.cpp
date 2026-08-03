@@ -388,6 +388,30 @@ static JVal jstr(const string& raw) { JVal v; v.t = JVal::STR; v.str = json_esca
 
 // ---------- spool + socket emit ----------
 
+// ---------- ledger lines written before the session emitter exists ----------
+// `--on`, `--off` and `--wrong` all answer in the argv block at the top of
+// main, before there is a cwd, a run id or a project. They still belong on the
+// chain: a mode change is the most consequential thing anyone does to this
+// tool, and a wrong refusal is the number the whole product is judged on. Both
+// go through rbchain::append like every other line, so `rabadon audit` covers
+// them and neither can be edited without the audit naming the break.
+static string ledger_line(const string& ev, const string& extraJson) {
+  const string rdir = rabadon_home();
+  mkdir(rdir.c_str(), 0755);
+  mkdir((rdir + "/spool").c_str(), 0755);
+  char day[16];
+  { time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
+  const char* who = getenv("USER");
+  string body = "{\"v\":1,\"seq\":1,\"ts\":" + std::to_string(now_ms()) +
+    ",\"run\":\"cli-" + std::to_string(getpid()) + "\",\"pipe\":\"" +
+    json_escape(string(who ? who : "cli")) + ":cli\",\"ev\":\"" + ev + "\"" +
+    (extraJson.empty() ? "" : "," + extraJson);
+  // rbchain::append takes an OPEN body: it appends `,"prev":"..."}` itself, so
+  // closing the object here produced two JSON documents on one line and a chain
+  // the audit correctly called broken.
+  return rbchain::append(rdir + "/spool/" + string(day) + ".jsonl", body);
+}
+
 struct Emitter {
   string spoolPath, sockPath, runId, pipe;
   bool drill;
@@ -792,7 +816,7 @@ int main(int argc, char** argv) {
   //             line wedge every tool call on the machine. Fail OPEN, always.
   if (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
     static const char* kKnownFlags[] = {"--version", "--lint", "--statusline",
-                                        "--on", "--off", "--toggle", "--status", "--silent"};
+                                        "--on", "--off", "--toggle", "--status", "--silent", "--wrong"};
     bool recognised = false;
     for (const char* k : kKnownFlags) if (strcmp(argv[1], k) == 0) recognised = true;
     if (!recognised) {
@@ -1011,6 +1035,40 @@ int main(int argc, char** argv) {
   //                                  and .rabadon/off per project)
   // `rabadon` toggles ENFORCE <-> WATCH, because that is the switch a user flips
   // daily. Going fully dark is deliberate and separate: `rabadon silent`.
+  if (argc > 1 && string(argv[1]) == "--wrong") {
+    // A REFUSAL THAT WAS WRONG. The standing rule when the gate refuses
+    // something it should not have is: do not add the rule to disabled[], do
+    // not route around it, write it down and fix the rule. There was nowhere to
+    // write it down. Three happened on 3 August and all three ended up as prose
+    // in a report, which means the one number this product is actually judged
+    // on lived outside the ledger.
+    //
+    // Anybody can publish how many commands they refused. That number means
+    // nothing on its own; it means something beside the count of refusals that
+    // were wrong, and only a ledger that carries both can be asked for the
+    // second one. So it goes on the same chain as the first.
+    if (argc < 4 || !argv[2][0] || !argv[3][0]) {
+      fprintf(stderr,
+        "usage: rabadon wrong <rule-id> \"why it was wrong\"\n"
+        "\n"
+        "Records a refusal that should not have happened, on the same hash-chained\n"
+        "ledger as the refusal itself. A rule id with no reason is a complaint and\n"
+        "not a record, so the reason is required.\n");
+      return 2;
+    }
+    string why = argv[3];
+    for (int i = 4; i < argc; i++) why += string(" ") + argv[i];
+    ledger_line("WRONG_REFUSAL",
+                "\"rule\":\"" + json_escape(string(argv[2])) + "\",\"why\":\"" +
+                json_escape(why) + "\"");
+    printf("rabadon: recorded a wrong refusal by %s.\n"
+           "  It is on the ledger next to the refusals, which is the only place a\n"
+           "  false-positive count can be read from instead of asserted.\n"
+           "  Now fix the rule -- disabled[] is not the answer to a rule that is wrong.\n",
+           argv[2]);
+    return 0;
+  }
+
   if (argc > 1) {
     string a1 = argv[1];
     if (a1 == "--on" || a1 == "--off" || a1 == "--toggle" || a1 == "--status" || a1 == "--silent") {
@@ -1020,6 +1078,15 @@ int main(int argc, char** argv) {
       const string mute = rhome + "/silent";
       bool on = file_exists(flag), silent = file_exists(mute);
       if (a1 == "--toggle") a1 = on ? "--off" : "--on";
+      // WHAT THE MODE WAS, BEFORE IT IS CHANGED. On 3 August at 02:25 a session
+      // ran `rabadon off` and the machine was unguarded from that moment on,
+      // while four other sessions kept working underneath it with no way to
+      // know. It was reconstructable afterwards only because the TEXT of the
+      // command happened to land in a step record, which is an accident of a
+      // different feature. Supervision going away is the most consequential
+      // thing anybody does to this tool and it was the one action that was not
+      // an event.
+      const string was = silent ? "silent" : (on ? "enforce" : "watch");
       if (a1 == "--on") {
         unlink(mute.c_str()); silent = false;
         std::ofstream f(flag, std::ios::trunc); f << "on\n"; on = true;
@@ -1029,6 +1096,13 @@ int main(int argc, char** argv) {
       } else if (a1 == "--silent") {
         unlink(flag.c_str()); on = false;
         std::ofstream f(mute, std::ios::trunc); f << "silent\n"; silent = true;
+      }
+      // --status asks and changes nothing, so it writes nothing. A mode line
+      // that also appears when somebody merely LOOKS makes the count useless.
+      {
+        const string now = silent ? "silent" : (on ? "enforce" : "watch");
+        if (a1 != "--status" && now != was)
+          ledger_line("MODE", "\"from\":\"" + was + "\",\"to\":\"" + now + "\"");
       }
       printf("rabadon: %s\n",
              silent ? "SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)"

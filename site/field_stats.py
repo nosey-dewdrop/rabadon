@@ -225,6 +225,28 @@ def main():
     ids_live = {r["rule"] for r in rules if r["live"]}
     n_ids, n_ids_live = len(ids), len(ids_live)
 
+    # THE NUMBER THIS IS ALL JUDGED ON. Anybody can publish how many commands
+    # they refused. That figure means nothing on its own; it means something
+    # beside the count of refusals that were WRONG, and a vendor can only publish
+    # the second one if it is on the same tamper-evident ledger as the first.
+    # Until 3 August there was no record type for it, so three wrong refusals
+    # that night ended up as prose in a report.
+    wrong = evs(rows, "WRONG_REFUSAL")
+    wrong_by_rule = collections.Counter(r.get("rule") or "-" for r in wrong)
+
+    # and every time supervision was switched on or off. On 3 August at 02:25 a
+    # session ran `rabadon off`, the machine was unguarded from then on, and four
+    # other sessions kept working underneath it with no way to know.
+    modes = evs(rows, "MODE")
+
+    # which rule did the outright refusing. by_rule above covers watch mode only,
+    # so the armed half of the record had no breakdown at all.
+    stop_by_rule = collections.Counter(r.get("rule") or r.get("reason") or "-" for r in stop)
+
+    # diagnoses: the gate handing back a written account of what broke, which is
+    # the half of the product that is not a refusal.
+    diagnoses = evs(field, "CHECK_FAIL")
+
     # push-gate: the engine ran the suite itself and refused the push until green.
     pg_fail = [r for r in evs(field, "REPAIR_FAIL") if r.get("step") == "push-gate"]
     pg_ok = [r for r in evs(field, "REPAIR_OK") if r.get("step") == "push-gate"]
@@ -250,6 +272,12 @@ def main():
     print()
     print("push-gate: %d pushes refused on a red tree, %d released once the suite was green"
           % (len(pg_fail), len(pg_ok)))
+    print()
+    print("WRONG REFUSALS reported by the operator: %d" % len(wrong))
+    for r in wrong:
+        print("    %-34s %s" % (r.get("rule", "-"), clean(r.get("why", ""))[:110]))
+    print("SUPERVISION SWITCHED: %d time(s)" % len(modes))
+    print("DIAGNOSES handed back: %d" % len(diagnoses))
 
     if "--write" not in sys.argv:
         return
@@ -303,11 +331,32 @@ def main():
         # total with the age of the file invites a rate that never existed.
         ("field.days_watch", len(wb_days), "days that carry a recorded watch-mode verdict"),
         ("field.days_enforce", len(stop_days), "days that carry an outright refusal"),
+        ("field.wrong_refusals", len(wrong),
+         "refusals reported wrong by the operator, on the same chain as the refusals"),
+        ("field.diagnoses", len(diagnoses),
+         "written accounts of what broke, handed back instead of a refusal"),
+        ("field.mode_changes", len(modes), "times supervision was switched on or off"),
     ):
         d[key] = {"value": val, "cmd": "python3 site/field_stats.py", "what": what, "note": note}
     d["field.rules_list"] = {"value": rules, "cmd": "python3 site/field_stats.py",
                              "what": "the rules, with the repository each incident happened in",
                              "note": note}
+    d["field.wrong_by_rule"] = {"value": wrong_by_rule.most_common(12),
+                                "cmd": "python3 site/field_stats.py",
+                                "what": "which rule was wrong, how many times", "note": note}
+    d["field.wrong_list"] = {"value": [{"rule": r.get("rule", ""), "why": clean(r.get("why", "")),
+                                        "ts": r.get("ts", 0)} for r in sorted(
+                                            wrong, key=lambda x: x.get("ts", 0), reverse=True)],
+                             "cmd": "python3 site/field_stats.py",
+                             "what": "each wrong refusal with the reason it was wrong", "note": note}
+    d["field.stop_by_rule"] = {"value": stop_by_rule.most_common(12),
+                               "cmd": "python3 site/field_stats.py",
+                               "what": "which rule refused outright, how many times", "note": note}
+    d["field.mode_list"] = {"value": [{"from": r.get("from", ""), "to": r.get("to", ""),
+                                       "ts": r.get("ts", 0)} for r in sorted(
+                                           modes, key=lambda x: x.get("ts", 0), reverse=True)][:20],
+                            "cmd": "python3 site/field_stats.py",
+                            "what": "when supervision was switched on or off", "note": note}
     d["field.stop_by_day"] = {"value": stop_days, "cmd": "python3 site/field_stats.py",
                               "what": "refusals per day, so a total cannot be read as a rate",
                               "note": note}

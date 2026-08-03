@@ -642,6 +642,13 @@ test: all
 # /var/folders are exempt by design, and the first version of this file was
 # measuring that carve-out rather than the rule.
 	./native/fd_dup_test.sh
+# the two events the ledger was not keeping. a session ran `rabadon off` at
+# 02:25 on 3 August and the machine was unguarded from then on while four other
+# sessions kept working under it, and nothing recorded that. and three refusals
+# that night were wrong, and all three ended up as prose in a report because
+# there was no record type for them -- which put the one number this product is
+# judged on outside the ledger.
+	./native/mode_wrong_test.sh
 
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate

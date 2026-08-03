@@ -1,3 +1,5 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785753966369, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "no-blind-inplace-source-rewrite", "project": "rabadon", "ts": 1785753777628, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && rabadon wrong no-blind-inplace-source-rewrite \"the \\\\.h alternative has no boundary so it also matches .html and .hpp; it re"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785715166803, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785714427551, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785714276190, "detail": "command matched deny rule: git commit -m \"wip\""}

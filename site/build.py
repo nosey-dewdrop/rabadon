@@ -966,6 +966,87 @@ def field_page(meas):
         out.append(cmdline("python3 site/field_stats.py"))
         out.append("</section>")
 
+    # ---- the refusals that were wrong -------------------------------------
+    # The number a guardrail vendor has the most reason not to publish, next to
+    # the number every guardrail vendor publishes. A refusal count on its own is
+    # not a measurement of anything; it is a measurement beside the count of
+    # refusals that should not have happened, and that second figure can only be
+    # read off a ledger that carries both. Until 3 August there was no record
+    # type for it here either, and the wrong refusals from that night were
+    # sitting in prose in a report.
+    wrong = fval(meas, "field.wrong_list", [])
+    wrong_n = fval(meas, "field.wrong_refusals")
+    stop_n = fval(meas, "field.stop")
+    out.append("<section><h2>and the refusals that were wrong</h2>"
+               '<p class="small dim">A refusal count on its own measures nothing. It measures '
+               "something beside the count of refusals that should not have happened, and that "
+               "second number can only be read off a ledger that holds both, which is why it is "
+               "here and not in a footnote. <code>rabadon wrong &lt;rule&gt; &lt;why&gt;</code> writes "
+               "it onto the same hash-chained ledger as the refusal itself, so it is covered by "
+               "<code>rabadon audit</code> and cannot be quietly edited down.</p>")
+    out.append('<div class="stats">')
+    out.append(stat("p", stop_n, "commands refused outright", src))
+    out.append(stat("r" if wrong_n else "g", wrong_n,
+                    "of those, reported wrong by the operator and written onto the same chain",
+                    src))
+    out.append("</div>")
+    if wrong:
+        rows = [[html.escape(w.get("rule", "")), html.escape((w.get("why") or "")[:320])]
+                for w in wrong]
+        out.append(table([("rule", "s"), ("why the refusal was wrong", "d")], rows, "ledger"))
+        out.append('<p class="cap">Every one of these was found by being on the receiving end of '
+                   "the gate rather than by reading its source. The rule that matched an in-place "
+                   "editor example also refused the report saying so, because the example was in "
+                   "the report as quoted text. None of the three was answered by switching the "
+                   "rule off.</p>")
+    out.append(cmdline("python3 site/field_stats.py"))
+    out.append("</section>")
+
+    # ---- which rule did the refusing, once it was armed --------------------
+    stop_rules = fval(meas, "field.stop_by_rule", [])
+    if stop_rules:
+        rows = [[(f"{n:,}", "y"), html.escape(rule),
+                 html.escape(RULE_TEXT.get(rule) or why.get(rule) or "")]
+                for rule, n in stop_rules]
+        out.append("<section><h2>which law did the refusing, once it was armed</h2>"
+                   '<p class="small dim">The table further up counts recorded verdicts, which is '
+                   "watch mode. This one counts commands that did not run.</p>")
+        out.append(table([("times", "n"), ("rule", "s"), ("what that law is about", "d")],
+                         rows, "ledger"))
+        out.append(cmdline("python3 site/field_stats.py"))
+        out.append("</section>")
+
+    # ---- when supervision was on at all ------------------------------------
+    # Absence of a file means unguarded, and nothing announced it. On 3 August a
+    # session ran `rabadon off` at 02:25 and the machine stayed unguarded while
+    # four other sessions kept working under it, with no event anywhere.
+    modes = fval(meas, "field.mode_list", [])
+    diag = fval(meas, "field.diagnoses")
+    out.append("<section><h2>when it was switched on, and when it was not</h2>"
+               '<p class="small dim">Supervision lives in one file for the whole machine and the '
+               "absence of that file means unguarded. A session switched it off at 02:25 on "
+               "3 August, it stayed off while four other sessions kept working underneath it, and "
+               "no event recorded that anywhere. A mode change is a line on the ledger now. The "
+               "count below starts the day that line started being written, which is why it is "
+               "small.</p>")
+    out.append('<div class="stats">')
+    out.append(stat("b", fval(meas, "field.mode_changes"),
+                    "times supervision was switched on or off since the ledger began recording it",
+                    src))
+    out.append(stat("g", diag,
+                    "written accounts of what broke, handed back instead of a refusal", src))
+    out.append("</div>")
+    if modes:
+        rows = []
+        for m in modes:
+            ts = m.get("ts", 0)
+            when = ("%04d-%02d-%02d %02d:%02d" % time.gmtime(ts / 1000)[:5]) if ts else "?"
+            rows.append([html.escape(when), html.escape(m.get("from", "")),
+                         html.escape(m.get("to", ""))])
+        out.append(table([("when", "s"), ("was", "s"), ("became", "s")], rows, "ledger"))
+    out.append(cmdline("python3 site/field_stats.py"))
+    out.append("</section>")
+
     # ---- the rules it wrote itself ----------------------------------------
     if rules:
         rows = []
@@ -1297,6 +1378,11 @@ def index(rows, meas):
                  "/field"),
             stat("b", fval(meas, "field.stop"),
                  "commands it refused outright once it was armed, so they never ran", "/field"),
+            stat("r" if fval(meas, "field.wrong_refusals") else "g",
+                 fval(meas, "field.wrong_refusals"),
+                 "of those, reported wrong by the operator and written onto the same "
+                 'hash-chained ledger as the refusals. <a href="/field">each one, with the reason '
+                 "it was wrong</a>", "/field"),
         ]),
         "field.headline": field_headline(meas),
 "seo.desc": (f"Guardrails and a verifiable record for AI coding agents. {total:,} commands refused "
