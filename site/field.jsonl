@@ -1,3 +1,4 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785836788198, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "baseline-force-push", "project": "stranger", "ts": 1785836144850, "detail": "force-push to shared branch 'main' — use --force-with-lease, or push to your own branch"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785787972438, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785787166085, "detail": "command matched deny rule: git commit -m \"wip\""}
