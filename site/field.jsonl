@@ -1,3 +1,5 @@
+{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785866258308, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && echo \"=== KAPI: third_party in drawing path ===\" && grep -n \"third_party/garmentcode\" engine/pattern-bridge/material.py engi"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785865348040, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785841059699, "detail": "command matched deny rule: rm -rf /tmp/seamly && git clone --depth 1 --filter=blob:none --sparse https://github.com/FashionFreedom/Seamly2D.git /tmp/seamly 2>&1 | tail -3 && cd /tmp/seaml"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785840790963, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785836788198, "detail": "command matched deny rule: git commit -m \"wip\""}
