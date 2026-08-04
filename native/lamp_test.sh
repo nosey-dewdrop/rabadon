@@ -21,8 +21,8 @@ frame(){ printf '%s' "$EV" | RABADON_LAMP_MS="$1" "$BIN" --statusline; }
 seq_out=""
 for i in 0 1 2 3 4 5 6 7; do
   f="$(frame $((i*750)))"
-  # the SECOND colour in the segment is the word's; the first is the star
-  c="$(printf '%s' "$f" | grep -o '38;5;[0-9]*m rabadon' | sed 's/.*38;5;\([0-9]*\)m rabadon/\1/')"
+  # one colour for the whole lamp, mark and word together
+  c="$(printf '%s' "$f" | grep -o '38;5;[0-9]*m\* rabadon' | sed 's/.*38;5;\([0-9]*\)m\* rabadon/\1/')"
   seq_out="$seq_out $c"
 done
 [ "$seq_out" = " 97 104 141 183 189 183 141 104" ] \
@@ -37,11 +37,24 @@ done
 [ "$(frame 0)" != "$(frame 750)" ] && ok "consecutive frames differ — the lamp is alive" \
   || bad "two consecutive frames are identical"
 
-# ---- 4: the star leads the word (pilot light, not a flat block) ----
-star="$(frame 0 | grep -o '38;5;[0-9]*m\*' | sed 's/.*38;5;\([0-9]*\)m\*/\1/')"
-word="$(frame 0 | grep -o '38;5;[0-9]*m rabadon' | sed 's/.*38;5;\([0-9]*\)m rabadon/\1/')"
-[ -n "$star" ] && [ "$star" != "$word" ] && ok "the star runs ahead of the word (star=$star word=$word)" \
-  || bad "star should lead the word (star=$star word=$word)"
+# ---- 4: the mark and the word are ONE colour ----
+# The star used to run two steps ahead of the word, as a pilot light. The idea
+# reads fine in a comment and wrong on a screen: at every sampled moment the
+# mark and the name are two different colours, so the lamp looks mismatched
+# rather than alive. Damla, 4 August, looking at it: "yıldızla yazı farklı
+# renklerde o hoş değil". The breath is what carries "this can act on you right
+# now" and it stays; the mark breathes with the word it belongs to.
+codes="$(frame 0 | grep -o '38;5;[0-9]*m' | sed 's/38;5;\([0-9]*\)m/\1/' | tail -1)"
+pair="$(frame 0 | grep -c '38;5;[0-9]*m\* rabadon')"
+[ "$pair" = "1" ] && ok "the mark and the word share one colour ($codes)" \
+  || bad "the lamp is still painting the star and the word separately"
+# and it stays one colour through the whole breath, not just at t=0
+mismatch=0
+for i in 0 1 2 3 4 5 6 7; do
+  frame $((i*750)) | grep -q '38;5;[0-9]*m\* rabadon' || mismatch=1
+done
+[ "$mismatch" = "0" ] && ok "and at every phase of the breath" \
+  || bad "the mark and the word drift apart somewhere in the cycle"
 
 # ---- 5: OFF is dead and static — a dormant supervisor must look dormant ----
 o1="$(printf '%s' "$EV" | RABADON_OFF=1 RABADON_LAMP_MS=0    "$BIN" --statusline)"

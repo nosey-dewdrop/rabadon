@@ -1332,9 +1332,13 @@ int main(int argc, char** argv) {
     { const char* fake = getenv("RABADON_LAMP_MS"); if (fake && *fake) nowms = atoll(fake); }
     int ph = (int)((nowms / STEP_MS) % STEPS);
     char lamp[80];
-    snprintf(lamp, sizeof lamp, "\033[38;5;%dm*\033[38;5;%dm rabadon\033[0m",
-             RAMP[(ph + 2) % STEPS],   // the star runs ahead: a pilot light
-             RAMP[ph]);
+    // ONE colour for the whole lamp. The star used to run two steps ahead of
+    // the word, as a pilot light, and that idea reads fine in a comment and
+    // wrong on a screen: at every sampled moment the mark and the name are two
+    // different colours, so it looks mismatched rather than alive. The breath
+    // is the part that carries "this can act on you right now" and it survives.
+    // The mark just breathes with the word it belongs to.
+    snprintf(lamp, sizeof lamp, "\033[38;5;%dm* rabadon\033[0m", RAMP[ph]);
     // Three states, three readings, and the breath means one specific thing:
     // rabadon can act on you right now. WATCH is deliberately still — awake and
     // recording, but with its hands behind its back. SILENT is grey and says so.
