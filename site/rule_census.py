@@ -75,13 +75,32 @@ WHAT THE NUMBER COUNTS
     checkouts on this machine each carry a rule called `no-force-push-main`,
     and keying on the project name silently merges 16 of the 430 away.
 
+WHAT IS MEASURED IS NOT WHAT IS PUBLISHED
+    The census is taken on this machine, over this machine's guard files, so
+    every record it builds carries an absolute path and the name of the
+    repository the rule governs.  That is the correct input and a disclosure as
+    output: site/rule_census.json is served at
+    https://rabadon.noseydewdrop.com/rule_census.json, and it went out with 1058
+    absolute home paths and the names of eleven private repositories, one of
+    which discloses a health context by its name alone.  So the file is written
+    through site/redact.py — the same module site/field_stats.py publishes
+    field.jsonl through — and the write path is the ONLY way out: publish()
+    sanitizes, then re-reads its own output and refuses to leave it on disk if
+    anything survived.  The unredacted census is still needed (it is the
+    baseline the next run repeats), so it is kept OUTSIDE the repository, in
+    ~/.rabadon/census/, next to the ledger, where nothing deploys from.
+
 USAGE
     python3 site/rule_census.py                 # measure, write JSON + report
     python3 site/rule_census.py --dry-run       # print the plan, drive nothing
     python3 site/rule_census.py --baseline P    # read the baseline census from P
     python3 site/rule_census.py --keep          # leave the worktrees in place
+    python3 site/rule_census.py --republish     # re-emit the published file
+                                                # through the redactor, without
+                                                # re-measuring anything
 """
 
+import collections
 import json
 import os
 import re
@@ -92,10 +111,18 @@ import sys
 import tempfile
 import time
 
+import redact
+
 HOME = os.path.expanduser("~")
 REPO = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 CENSUS_IN = os.path.join(REPO, "site", "rule_census.json")
 CENSUS_OUT = CENSUS_IN
+# the census as measured: absolute paths, every project, nothing dropped. It is
+# the baseline the next run reads (a probe is only repeatable if the record that
+# holds it survives), and it is exactly what may not be published — so it lives
+# beside the ledger in ~/.rabadon, outside the repository and outside the
+# directory `vercel deploy` uploads.
+FULL_OUT = os.path.join(HOME, ".rabadon", "census", "rule_census.full.json")
 REPORT_OUT = os.path.join(HOME, "damla_projects_2026", "reports",
                           time.strftime("%Y-%m-%d", time.gmtime()) + "-kural-sayimi-yeniden.txt")
 
@@ -224,18 +251,148 @@ def load_census():
     already filled in, the probe=null repair silently does nothing, and the
     bookkeeping quietly stops being true. The committed blob is the fixed
     point. `--baseline <path>` overrides it.
+
+    ~/.rabadon/census/rule_census.full.json comes FIRST, because the committed
+    blob is now the redacted one: the rules whose project is withheld are not in
+    it, and a baseline that has lost those rules produces a census that has lost
+    them too, one run after another, with nothing anywhere saying so. The full
+    file is what the previous run measured, it never leaves this machine, and it
+    is the only honest baseline. If it is absent (a fresh clone), the published
+    file is used and the run covers what the published file still holds.
     """
     for i, a in enumerate(sys.argv):
         if a == "--baseline" and i + 1 < len(sys.argv):
             with open(sys.argv[i + 1], encoding="utf-8") as f:
                 return json.load(f)
+    if os.path.exists(FULL_OUT):
+        with open(FULL_OUT, encoding="utf-8") as f:
+            return json.load(f)
     try:
         blob = subprocess.check_output(
-            ["git", "-C", NEW_TREE, "show", "HEAD:site/rule_census.json"])
+            ["git", "-C", NEW_TREE, "show", "HEAD:site/rule_census.json"],
+            stderr=subprocess.DEVNULL)
         return json.loads(blob.decode("utf-8"))
     except Exception:
         with open(CENSUS_IN, encoding="utf-8") as f:
             return json.load(f)
+
+
+# ---------------------------------------------------------------------------
+# what leaves the machine
+# ---------------------------------------------------------------------------
+def sanitize(census):
+    """The measured census in, the publishable census out, plus the tally.
+
+    Two operations, and they are not interchangeable:
+
+      REWRITE for paths.  `/Users/<account>/damla_projects_2026/x` becomes
+      `~/damla_projects_2026/x`.  The record survives; only the machine it was
+      taken on stops being identifiable.  redact.unhome handles the truncated
+      spelling too, which is the one that walked past the last redactor.
+
+      DROP for names.  A record whose project or path names a repository on the
+      withheld list is removed whole, because there is no rewrite that keeps it:
+      the name IS the disclosure, and a census row carrying it says this person
+      has a repository about that.  Damla's standing rule is that health
+      material never reaches a public surface.  The terms themselves are not in
+      this repository; see site/redact.py.
+
+    Every drop is counted, keyed by the section it came out of, and the counts
+    are written into the published file.  A census that quietly holds records
+    back is a different lie from the one it was fixing: it still reads as "every
+    guard rule on this machine", and it no longer is.
+
+    The walk is generic on purpose.  The census has eleven nested record lists
+    today and the last three were added by two different repairs; a sanitizer
+    that names the lists it knows about is a sanitizer that misses the next one,
+    which is precisely how this file came to publish 1058 home paths while the
+    page beside it claimed otherwise."""
+    withheld = collections.Counter()
+
+    # Depth first, and the order matters. A record is dropped for what IT says,
+    # not for what something nested three levels inside it says: the entry for
+    # `guard reach from a subdirectory` carries a list of the project roots the
+    # fixture walked, one of which is on the withheld list, and checking the
+    # outer record first threw away a whole measured mechanism to hide one row
+    # of a table inside it. So the inner list is pruned first and the outer
+    # record is judged on what is left of it — which is how a redaction stays a
+    # redaction instead of quietly becoming a deletion.
+    def walk(node, where):
+        if isinstance(node, dict):
+            return {redact.clean(k, 0): walk(v, where + "." + str(k)) for k, v in node.items()}
+        if isinstance(node, list):
+            out = []
+            for item in node:
+                if isinstance(item, (dict, list)):
+                    item = walk(item, where)
+                    if redact.withhold_reason(json.dumps(item, ensure_ascii=False)):
+                        withheld[where.lstrip(".")] += 1
+                        continue
+                    out.append(item)
+                else:
+                    out.append(walk(item, where))
+            return out
+        if isinstance(node, str):
+            # no length clip here: unlike a ledger label, a census field is a
+            # pattern or a probe, and half a regex is not a shorter regex.
+            return redact.clean(node, 0)
+        return node
+
+    clean = walk(census, "")
+    total = sum(withheld.values())
+    clean["withheld_from_publication"] = {
+        "records": total,
+        "by_section": dict(sorted(withheld.items())),
+        "note": ("This file is the census as PUBLISHED, and it is smaller than the census as "
+                 "measured. Absolute home paths are rewritten to ~. Records naming a repository "
+                 "whose name is itself private information — a health context, or unreleased work "
+                 "unrelated to this one — are dropped whole rather than path-rewritten, because "
+                 "the name is the disclosure. %d record(s) were withheld on those grounds; the "
+                 "headline counts above are the counts as MEASURED, so headline minus withheld is "
+                 "what this file lists. The terms are not printed here: printing them would "
+                 "publish exactly what withholding them protects. They are in site/redact.py, "
+                 "which is also the redactor site/field_stats.py publishes field.jsonl through, "
+                 "and native/publish_redaction_test.sh fails if either file ever carries one "
+                 "again." % total),
+        "terms": len(redact.SENSITIVE_PROJECTS),
+        "generator": "site/rule_census.py -> site/redact.py",
+    }
+    return clean, withheld
+
+
+def publish(census):
+    """Write both files: the measured one where nothing deploys from, the
+    redacted one where everything does. There is no third path — a caller that
+    wants the census on disk gets it through here, so a new section cannot be
+    added to the JSON and reach the site unfiltered.
+
+    The refusal at the end reads the bytes that were actually written rather
+    than the object that was meant to be written. A redactor that is asked
+    whether it redacted is not evidence."""
+    os.makedirs(os.path.dirname(FULL_OUT), exist_ok=True)
+    with open(FULL_OUT, "w", encoding="utf-8") as f:
+        json.dump(census, f, ensure_ascii=False, indent=1)
+    os.chmod(FULL_OUT, 0o600)
+
+    pub, withheld = sanitize(census)
+    blob = json.dumps(pub, ensure_ascii=False, indent=1)
+    why = redact.leaks(blob)
+    if why:
+        raise SystemExit("REFUSING TO PUBLISH site/rule_census.json: " + why)
+    tmp = CENSUS_OUT + ".tmp.%d" % os.getpid()
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(blob)
+    os.replace(tmp, CENSUS_OUT)
+    with open(CENSUS_OUT, encoding="utf-8") as f:
+        why = redact.leaks(f.read())
+    if why:
+        os.unlink(CENSUS_OUT)
+        raise SystemExit("REFUSING TO PUBLISH site/rule_census.json: " + why + " (file removed)")
+    print("wrote %s (%d bytes, unredacted, mode 600)" % (FULL_OUT, os.path.getsize(FULL_OUT)))
+    print("wrote %s (%d bytes, %d record(s) withheld: %s)"
+          % (CENSUS_OUT, len(blob), sum(withheld.values()),
+             ", ".join("%s=%d" % kv for kv in sorted(withheld.items())) or "none"))
+    return pub
 
 
 def repair_missing_probes(old):
@@ -696,12 +853,7 @@ def main():
         },
     }
 
-    blob = json.dumps(census, ensure_ascii=False, indent=1)
-    tmp = CENSUS_OUT + ".tmp.%d" % os.getpid()
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(blob)
-    os.replace(tmp, CENSUS_OUT)
-    print("wrote %s (%d bytes)" % (CENSUS_OUT, len(blob)))
+    publish(census)
 
     write_report(census, results, out_rules, old, over, over_abs, reach, anomalies,
                  filled, twins, twins_withheld)
@@ -841,5 +993,26 @@ def write_report(census, results, out_rules, old, over, over_abs, reach, anomali
         f.write("\n".join(L) + "\n")
 
 
+def republish():
+    """Re-emit the census that is already on disk through publish().
+
+    Nothing is measured and nothing is repaired: same records, same verdicts,
+    same numbers, run through the write path a full census run uses. It exists
+    because the leak is in the file that is being served RIGHT NOW, and the
+    honest fix for that cannot be "wait for the next census" — a census takes
+    two builds and several thousand probes, and the file stays public the whole
+    time.
+
+    The baseline it reads is the same one load_census() reads, so the FIRST
+    republish on this machine reads the unredacted file that was published (and
+    keeps it, at ~/.rabadon/census/, as the baseline for the next real run),
+    and every one after that reads that private copy."""
+    census = load_census()
+    publish(census)
+
+
 if __name__ == "__main__":
-    main()
+    if "--republish" in sys.argv:
+        republish()
+    else:
+        main()

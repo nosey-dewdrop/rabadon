@@ -829,7 +829,6 @@
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785502862055, "detail": "attempt to edit the promise itself: ~/damla_projects_2026/rabadon/.rabadon/promise.json"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785502768465, "detail": "attempt to edit the promise itself: ~/damla_projects_2026/rabadon/.rabadon/promise.json"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785501150244, "detail": "hooks/install.mjs matches anti-path '\\.mjs$'"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "maya-case", "ts": 1785369805546, "detail": "looping on: mkdir -p ~/damla_projects_2026/reports/2026-07-30-maya-b2b && echo ok"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785301964264, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && rm -f /tmp/ppc*.png && for f in flat frontback \"\"; do n=\"peter-pan-collar-puff-sleeve-babydoll-dress${f:+-$f}\"; qlmanage -t "}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rbd-toggle.IZCtM2", "ts": 1785280041014, "detail": "command matched deny rule: rm -rf /tmp/x"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785277382711, "detail": "star: rabadon is a serious C++ systems project: the deterministic supervision core moves to a native binary, new features are written in C++ not JS, and the flagship missing guarantee — measured direction-drift caught at session end — actually fires on real work — latest off-target file: HANDOFF.md (fires once per session; if this work is intended, update .rabadon/promise.json areas)"}
@@ -866,7 +865,6 @@
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785173912833, "detail": "code was edited after the last passing test run — run: ctest (from engine/ build; engine-check harness = full draft matrix, must be FULLY green) first"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "home", "ts": 1785172788843, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785159876358, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu/backend && npx wrangler deploy 2>&1 | tail -6"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "home", "ts": 1785159562225, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026/03_graveyard/gymgyme && echo \"silindi\" && echo \"--- graveyard kalanlar ---\" && ls ~/damla_projects_2026/03_graveyard/ 2>/dev/null &"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rbd-do", "ts": 1785156021636, "detail": "s1 would not pass its contract; repair budget spent"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785153792428, "detail": "protected file: ~/damla_projects_2026/stitchu/web/signature.html"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785153692987, "detail": "protected file: ~/damla_projects_2026/stitchu/web/signature.html"}
@@ -884,17 +882,10 @@
 {"ev": "STOP", "rule": "BLOCKED", "project": "snailmail-web", "ts": 1785080667989, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "shortstorylong", "ts": 1785080601882, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "seviyorsevmiyor", "ts": 1785080545194, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "muayenehane", "ts": 1785080395223, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "moonlight", "ts": 1785080347090, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "missingsemicolon", "ts": 1785080299129, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "lingolingo", "ts": 1785080245138, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "kisalafinuzunu", "ts": 1785080244922, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "gymgyme", "ts": 1785080068448, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "guttik", "ts": 1785080027797, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "calicocat", "ts": 1785079990602, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "braindot", "ts": 1785079936847, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "arnica", "ts": 1785079880046, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "airband", "ts": 1785079813812, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "wildflower.dev", "ts": 1785079738831, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu-showcase", "ts": 1785079701417, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785079701205, "detail": "command matched deny rule: git push --force origin main"}
@@ -912,12 +903,9 @@
 {"ev": "STOP", "rule": "BLOCKED", "project": "ladybug", "ts": 1785079137473, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "just-ballet", "ts": 1785079063339, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "ir-globe-showcase", "ts": 1785079001485, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "inkbee", "ts": 1785079001282, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "idea-parking", "ts": 1785078919703, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "idea-garden", "ts": 1785078919465, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "houndhub", "ts": 1785078861401, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "gymgyme-showcase", "ts": 1785078816252, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "BLOCKED", "project": "dewbrain", "ts": 1785078816011, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "damla_portfolio", "ts": 1785078670516, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "creator-books", "ts": 1785078638245, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "blog", "ts": 1785078582245, "detail": "command matched deny rule: git push --force origin main"}

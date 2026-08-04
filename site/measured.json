@@ -407,6 +407,12 @@
     ],
     "what": "which rule refused outright, how many times"
   },
+  "field.withheld": {
+    "cmd": "python3 site/field_stats.py",
+    "note": "12 of these were withheld when site/field.jsonl was re-emitted through site/redact.py (12 sensitive project name); the rest were withheld at generation.",
+    "value": 12,
+    "what": "records withheld from the published file: sensitive content, or a repository whose NAME is itself the disclosure"
+  },
   "field.would_block": {
     "cmd": "python3 site/field_stats.py",
     "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
