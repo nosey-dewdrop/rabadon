@@ -25,7 +25,19 @@
 # and whatever the operator typed. Home is rewritten to `~`, and any record
 # matching the sensitive-terms list is dropped from the published file — with
 # the number of drops printed, never silently.
-import collections, glob, json, os, re, sys, time
+#
+# That redactor now lives in site/redact.py rather than here. It was written in
+# this file and it worked in this file: field.jsonl went out clean. The census
+# in site/rule_census.json is written by a different script, that script had no
+# redactor, and it went out with 1058 absolute home paths — while the page
+# linking both files claimed the rule held for the whole dataset. A rule that
+# protects the file it happens to be written inside is not a rule, so it is a
+# module now, and both generators import it.
+import collections, glob, json, os, sys, time
+
+import redact
+from redact import (SENSITIVE, USER, clean, leaks, project_of,  # noqa: F401
+                    unhome, withhold_reason)
 
 HOME = os.path.expanduser("~")
 SPOOL = os.path.join(HOME, ".rabadon", "spool", "*.jsonl")
@@ -39,78 +51,10 @@ LAB_PREFIX = ("tmp.", "rabadon-", "test-", "scratch")
 # BE measured, so they are reported separately from the operator's own work.
 FIXTURE = {"express:session", "goose:session", "crush:session"}
 
-SENSITIVE = re.compile(
-    r"kanser|onkolo|kemoterapi|biyopsi|tan[ıi]\s*kondu|hasta(l[ıi]k|ne)|"
-    r"tc\s*kimlik|iban|password|passwd|secret|api[_-]?key|token=|bearer\s",
-    re.I)
-
-
 def is_lab(pipe):
     if pipe in LAB_EXACT:
         return True
     return any(pipe.startswith(p) for p in LAB_PREFIX)
-
-
-USER = os.path.basename(HOME)
-HOMES = os.path.dirname(HOME)   # the directory home directories live in
-
-# somebody else's home, in output this machine merely relayed: a CI log from a
-# foreign repository carries /home/runner, a foreign macOS path carries
-# /Users/<name>. Neither is this operator's, and neither belongs on the page.
-FOREIGN_HOME = re.compile(r"/(?:Users|home)/[^/\s'\"]*")
-
-# how much of an account name has to survive before it counts as leaked. Four
-# characters is enough to search on, so four characters is a leak.
-PREFIX = 4
-
-
-def unhome(s):
-    """Rewrite every absolute home path to `~`, INCLUDING a truncated one.
-
-    The details being redacted here were already clipped by the gate that wrote
-    them, and a clip lands wherever the byte budget ran out — often in the
-    middle of the account name. `replace(HOME, "~")` matches a whole string and
-    a half of a path is not that string, so `/Users/damu` walked past the
-    rewrite, past the account-name replacement, and past the check that was
-    supposed to refuse the write, because the name that check searches for had
-    been cut in half two steps earlier. Two records shaped exactly like that
-    were published.
-
-    So the longest prefix of HOME that is actually present is what gets
-    replaced, down to the directory homes live in; then anything else shaped
-    like somebody's home directory goes the same way."""
-    s = s.replace(HOME, "~")
-    for n in range(len(HOME) - 1, len(HOMES), -1):
-        if HOME[:n] in s:
-            s = s.replace(HOME[:n], "~")
-    return FOREIGN_HOME.sub("~", s)
-
-
-def leaks(blob):
-    """What must never appear in the published file. Returns the reason, or ""
-    — the write is refused on any of these rather than trimmed, because a rule
-    that quietly edits its way out of a leak cannot be checked."""
-    if HOMES + "/" in blob:
-        return "an absolute home path survived redaction"
-    for n in range(len(USER), PREFIX - 1, -1):
-        if USER[:n] in blob:
-            return "the account name survives redaction (%d of %d characters)" % (n, len(USER))
-    return ""
-
-
-def clean(s):
-    if not s:
-        return ""
-    s = unhome(s).replace(USER, "home")
-    return s[:400]
-
-
-def project_of(pipe):
-    # sessions started in the home directory are named after the DIRECTORY,
-    # which is the operator's account name, not a project. Project names are
-    # published on purpose; an account name is not one.
-    p = (pipe or "-").split(":")[0]
-    return "home" if p == USER else p
 
 
 def live_rules():
@@ -283,19 +227,34 @@ def main():
         return
 
     # the published records. anything sensitive is dropped and counted.
-    pub, dropped = [], 0
+    #
+    # "Sensitive" is now two things, and the second one is the one this file
+    # used to publish. Sensitive CONTENT is what the command said. A sensitive
+    # PROJECT NAME is what the repository is called, and a name is data about
+    # its author on its own: a repository named after a condition discloses a
+    # health context with no path around it and no command text beside it, and
+    # the name outlives the path. Rewriting the path under
+    # such a record leaves the disclosure standing, so the record is dropped —
+    # and counted by reason, because two different withholdings collapsed into
+    # one number cannot be argued with.
+    pub, withheld = [], collections.Counter()
     for r in wb + stop:
-        blob = json.dumps(r, ensure_ascii=False)
-        if SENSITIVE.search(blob):
-            dropped += 1
-            continue
-        pub.append({
+        p = {
             "ev": r.get("ev"),
             "rule": r.get("rule") or r.get("reason") or "",
             "project": project_of(r.get("pipe")),
             "ts": r.get("ts", 0),
             "detail": clean(r.get("detail", "")),
-        })
+        }
+        # the raw record catches what the ledger held; the rendered one catches
+        # what would actually have gone out.
+        why = (withhold_reason(json.dumps(r, ensure_ascii=False))
+               or withhold_reason(json.dumps(p, ensure_ascii=False)))
+        if why:
+            withheld[why] += 1
+            continue
+        pub.append(p)
+    dropped = sum(withheld.values())
     pub.sort(key=lambda x: x["ts"], reverse=True)
     leak = [(p, leaks(json.dumps(p, ensure_ascii=False))) for p in pub]
     leak = [(p, why) for p, why in leak if why]
@@ -314,8 +273,9 @@ def main():
             "exercise the engine are excluded by name and the excluded count is "
             "printed; the three proving-ground repositories are reported separately. "
             "home paths are rewritten to ~ and %d record(s) matching the sensitive-terms "
-            "list were dropped from the published file."
-            % (len(rows), len(files), dropped))
+            "list were dropped from the published file (%s)."
+            % (len(rows), len(files), dropped,
+               ", ".join("%d %s" % (n, k) for k, n in sorted(withheld.items())) or "none"))
     for key, val, what in (
         ("field.would_block", len(wb), "commands watch mode recorded a verdict on and let through"),
         ("field.would_block_own", len(wb_own), "of those, in the operator's own repositories"),
@@ -336,6 +296,12 @@ def main():
         ("field.diagnoses", len(diagnoses),
          "written accounts of what broke, handed back instead of a refusal"),
         ("field.mode_changes", len(modes), "times supervision was switched on or off"),
+        # the size of the filter, published beside what the filter let through.
+        # a drop nobody can count is indistinguishable from a record that never
+        # existed, and that is a different untruth from the one redaction fixes.
+        ("field.withheld", dropped,
+         "records withheld from the published file: sensitive content, or a repository whose "
+         "NAME is itself the disclosure"),
     ):
         d[key] = {"value": val, "cmd": "python3 site/field_stats.py", "what": what, "note": note}
     d["field.rules_list"] = {"value": rules, "cmd": "python3 site/field_stats.py",
@@ -373,4 +339,69 @@ def main():
           % (len(pub), dropped))
 
 
-main()
+def rewrite_published():
+    """Apply today's rule to the file that went out under yesterday's.
+
+    The rule itself lives in main()'s publish loop, which is the point of
+    generation and the only place a NEW record can be born. This is the other
+    half of closing a leak that has already happened: site/field.jsonl on disk
+    was written before project names counted as identifying, and waiting for
+    the next `--write` means the file stays wrong until then. Same filter, same
+    module, applied to the records already published — nothing is re-measured,
+    so no field number moves.
+
+        python3 site/field_stats.py --rewrite-published
+    """
+    fp = os.path.join(REPO, "site", "field.jsonl")
+    keep, withheld = [], collections.Counter()
+    n = 0
+    with open(fp, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            n += 1
+            why = withhold_reason(line)
+            if why:
+                withheld[why] += 1
+                continue
+            r = json.loads(line)
+            r["detail"] = clean(r.get("detail", ""))
+            r["project"] = project_of(r.get("project"))
+            keep.append(r)
+    dropped = sum(withheld.values())
+    bad = [(p, leaks(json.dumps(p, ensure_ascii=False))) for p in keep]
+    bad = [(p, why) for p, why in bad if why]
+    if bad:
+        print("REFUSING TO WRITE: %s, in %d record(s)" % (bad[0][1], len(bad)))
+        print("  first:", json.dumps(bad[0][0], ensure_ascii=False)[:300])
+        sys.exit(1)
+    with open(fp, "w", encoding="utf-8") as f:
+        for p in keep:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+
+    mp = os.path.join(REPO, "site", "measured.json")
+    d = json.load(open(mp, encoding="utf-8")) if os.path.exists(mp) else {}
+    prev = (d.get("field.withheld") or {}).get("value", 0)
+    d["field.withheld"] = {
+        "value": prev + dropped,
+        "cmd": "python3 site/field_stats.py",
+        "what": ("records withheld from the published file: sensitive content, or a repository "
+                 "whose NAME is itself the disclosure"),
+        "note": ("%d of these were withheld when site/field.jsonl was re-emitted through "
+                 "site/redact.py (%s); the rest were withheld at generation." % (
+                     dropped,
+                     ", ".join("%d %s" % (c, k) for k, c in sorted(withheld.items())) or "none")),
+    }
+    with open(mp, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, sort_keys=True)
+        f.write("\n")
+    print("site/field.jsonl: %d records in, %d published, %d withheld (%s)"
+          % (n, len(keep), dropped,
+             ", ".join("%d %s" % (c, k) for k, c in sorted(withheld.items())) or "none"))
+
+
+if "--rewrite-published" in sys.argv:
+    rewrite_published()
+else:
+    main()

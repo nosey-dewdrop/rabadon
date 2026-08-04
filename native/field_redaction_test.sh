@@ -40,6 +40,10 @@ trap 'rm -rf "$T"' EXIT
 FAKEHOME="$T/alicewonder"
 mkdir -p "$FAKEHOME/.rabadon/spool" "$T/repo/site"
 cp "$REPO/site/field_stats.py" "$T/repo/site/field_stats.py"
+# the redactor moved out of field_stats.py into site/redact.py so the census
+# generator could publish through the same one; the isolated site/ needs both
+# files or the script under test cannot import itself into existence.
+cp "$REPO/site/redact.py" "$T/repo/site/redact.py"
 
 # the record the gate really wrote, with the home path cut mid-account-name.
 # `alicewond` is what is left of `$FAKEHOME` after a clip, the same shape as the

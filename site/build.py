@@ -19,6 +19,11 @@ import time
 import sys
 from collections import Counter, OrderedDict
 
+# the one redactor. site/field_stats.py publishes field.jsonl through it and
+# site/rule_census.py publishes the census through it; the pages are built
+# from the same ledger and must not be redacted by a different rule.
+import redact
+
 REPO_URL = "https://github.com/nosey-dewdrop/rabadon"
 SEP = "\x1f"  # unit separator: safe inside a commit subject, unlike | or tab
 
@@ -710,7 +715,6 @@ def ledger():
     """Read the gate's own spool. A drill is a rehearsal the test suite fired,
     and counting one as a catch would be the exact dishonesty this tool exists
     to refuse, so drills are separated and reported separately."""
-    home = os.path.expanduser("~")
     real, drill, ev = Counter(), Counter(), Counter()
     sample, projects = {}, Counter()
     per = {}          # project -> Counter(rule)
@@ -733,11 +737,19 @@ def ledger():
                 drill[rule] += 1
                 continue
             real[rule] += 1
-            proj = str(d.get("pipe", "?")).split(":")[0]
+            # THE SAME REDACTOR THE DATA FILES USE, not a third spelling of it.
+            # These two lines used to be `replace(home, "~")` and a `/Users/...`
+            # regex written here, which is a second redactor living beside the
+            # one in site/redact.py — and two redactors means the weaker one
+            # decides what the site publishes. It was the weaker one: it did not
+            # catch a home path the gate had clipped mid-account-name, and it
+            # left the account name standing in the project column, because a
+            # session started in the home directory is named after the DIRECTORY
+            # and that directory is the operator's account.
+            proj = redact.project_of(str(d.get("pipe", "?")))
             projects[proj] += 1
             per.setdefault(proj, Counter())[rule] += 1
-            det = str(d.get("detail", "")).replace(home, "~")
-            det = re.sub(r"/Users/[^/ ]+", "~", det)
+            det = redact.clean(str(d.get("detail", "")), 0)
             det = re.sub(r"^command matched deny rule: ", "", det)
             det = det.replace("\n", " ").strip()
             if rule not in sample and det:
@@ -790,7 +802,11 @@ def catches():
     # what a buyer actually asks: which project, and what was it about to do.
     # every count opens onto the ledger lines behind it, so no number on this
     # page has to be taken on trust.
-    NICE = {"damummyphus": "the home directory itself",
+    # keyed on what redact.project_of RETURNS, not on the account name it maps
+    # away: a session started in the home directory used to arrive here spelled
+    # as the operator's account, and this table was the last place on the site
+    # that spelling was written down by hand.
+    NICE = {"home": "the home directory itself",
             "damla_projects_2026": "the projects root",
             "icerik": "the writing repository",
             "p": "a scratch repository"}

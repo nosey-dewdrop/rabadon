@@ -28,6 +28,10 @@ trap 'rm -rf "$T"' EXIT
 FAKEHOME="$T/censushome"
 mkdir -p "$FAKEHOME/.rabadon/spool" "$T/repo/site"
 cp "$REPO/site/field_stats.py" "$T/repo/site/field_stats.py"
+# the redactor moved out of field_stats.py into site/redact.py so the census
+# generator could publish through the same one; the isolated site/ needs both
+# files or the script under test cannot import itself into existence.
+cp "$REPO/site/redact.py" "$T/repo/site/redact.py"
 
 # three rules the ledger says were authored after an incident
 python3 - "$FAKEHOME/.rabadon/spool/2026-08-03.jsonl" <<'PY'
