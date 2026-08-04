@@ -1,0 +1,22 @@
+# what `vercel deploy` must NOT upload from this directory.
+#
+# scripts/publish-field.sh deploys by running `cd site && vercel deploy --prod`,
+# which uploads this directory as it stands — every file in it, not the list in
+# $ARTIFACTS. That list names what gets COMMITTED; it has never controlled what
+# gets SERVED. https://rabadon.noseydewdrop.com/build.py answers 200 today,
+# which is how this was found.
+#
+# Three things in here carry the operator's absolute home path and none of them
+# are part of the site:
+#   .rabadon/       this project's own gate state and handoff notes
+#   __pycache__/    a .pyc records the absolute path of the source it compiled
+#   .env.local      a deploy token
+#
+# native/publish_redaction_test.sh scans everything under site/ that is NOT
+# matched here, so deleting a line from this file does not quietly widen what
+# is published — it widens what the test reads, and the test goes red.
+.rabadon/
+__pycache__/
+*.pyc
+.env*
+.vercel

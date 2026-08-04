@@ -718,6 +718,24 @@ test: all
 # defeated all three at once, a detail the gate had already clipped mid-path.
 # `/Users/damu` matched none of them and was published twice.
 	./native/field_redaction_test.sh
+# field_redaction_test.sh asks whether the redactor in site/field_stats.py holds
+# for the file site/field_stats.py writes. this asks the question one level up,
+# which is the level the leak was on: whether it holds for everything the domain
+# serves. It did not. site/rule_census.json is written by a SECOND generator
+# that had no redactor at all, and it went out — 391KB, linked from /field as a
+# dataset download — carrying 1058 occurrences of the absolute home path and the
+# names of eleven private repositories, one class of which discloses a health
+# context by the name alone. The page declared over BOTH files, in schema.org,
+# that home paths are rewritten and sensitive records are dropped and counted;
+# one of the two files made that true and the other made it false. So the
+# redactor is a module now (site/redact.py) and this file checks the PROPERTY
+# rather than the generator: every file under site/ that .vercelignore does not
+# exclude is read, whatever wrote it. It also asserts the drop is COUNTED in
+# both published files, because a filter that hides its own size turns "here is
+# everything" into "here is what was chosen". The terms are not in this
+# repository — it is public — so sections 1-4 write their own list and are as
+# red on a runner as they are here.
+	./native/publish_redaction_test.sh
 # and whether the page gets republished at all. site_claims_test.sh asks whether
 # a number can be walked back to a run; this asks whether the number the public
 # reads is the number the ledger holds. Between 25 July and 3 August the only
