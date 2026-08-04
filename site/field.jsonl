@@ -1,3 +1,5 @@
+{"ev": "STOP", "rule": "push-gate", "project": "stitchu", "ts": 1785876238470, "detail": "code was edited after the last passing test run — run the test suite first"}
+{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785876228460, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && git worktree remove /tmp/k2/wt --force 2>&1 | tail -2; git add contract/figure-bands.json contract/preview-truth.json && git"}
 {"ev": "STOP", "rule": "push-gate", "project": "stitchu", "ts": 1785874033581, "detail": "code was edited after the last passing test run — run the test suite first"}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "pattern-bridge", "ts": 1785873845422, "detail": "command matched deny rule: cd ~/damla_projects_2026/icerik && grep -n \"^## GİRDİ\\|^### \\|^---$\" dewrites.md | tail -20 && echo \"=== son girdi ===\" && sed -n \"$(grep -n '^## ' dewrites.m"}
 {"ev": "STOP", "rule": "push-gate", "project": "pattern-bridge", "ts": 1785873843863, "detail": "code was edited after the last passing test run — run the test suite first"}
