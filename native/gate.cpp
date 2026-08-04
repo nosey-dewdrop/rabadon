@@ -473,6 +473,25 @@ static string ledger_line(const string& ev, const string& extraJson) {
 
 struct Emitter {
   string spoolPath, sockPath, runId, pipe;
+  // Who this event belongs to. Both answers were already in the gate's hands
+  // on every invocation and neither one reached the disk.
+  //
+  // `call` is Claude Code's tool_use_id, which arrives on both the PreToolUse
+  // and the PostToolUse hook for one tool call. Every hook invocation is its
+  // own process, so `run` is unique per EVENT and correlates nothing —
+  // measured on the live spool, 75.126 events carried 75.126 distinct run ids,
+  // zero reuse. STEP_START and STEP_OK are the two ends of one tool call and
+  // nothing written down said so. Pairing them by "the next OK in the same
+  // pipe" closes 58,5% of the starts and joins unrelated work in 17,6% of even
+  // those, giving a p99 of 15,5 minutes and one pair five days wide. Duration
+  // is not missing from this ledger, it is unjoinable, and this id is the join.
+  //
+  // `sess` is the session id. `pipe` is spelled "<project>:session" and is not
+  // one — it is the directory, so every session and every subagent that has
+  // ever run in stitchu/ shares a single pipe spanning 214 hours across nine
+  // days. rabadon-export turns a pipe into a TRACE id, which means a trace is
+  // currently the entire history of a folder.
+  string call, sess;
   bool drill;
   int seq = 0;
   int sockFd = -1;
@@ -493,6 +512,11 @@ struct Emitter {
     string body = "{\"v\":1,\"seq\":" + std::to_string(++seq) +
       ",\"ts\":" + std::to_string(now_ms()) +
       ",\"run\":\"" + runId + "\",\"pipe\":\"" + json_escape(pipe) + "\",\"ev\":\"" + ev + "\"" +
+      // Absent rather than empty. A hook that carries no tool_use_id (Stop,
+      // SessionStart) is not part of a tool call, and writing "" would make
+      // every one of them look like members of the same nameless call.
+      (call.empty() ? "" : ",\"call\":\"" + json_escape(call) + "\"") +
+      (sess.empty() ? "" : ",\"sess\":\"" + json_escape(sess) + "\"") +
       (extraJson.empty() ? "" : "," + extraJson) +
       (drill ? ",\"drill\":true" : "");
     // hash-chained ledger: every event carries prev = SHA-256 of the previous
@@ -1538,6 +1562,8 @@ int main(int argc, char** argv) {
   em.sockPath = rdir + "/rabadon.sock";
   em.pipe = project + ":session";
   em.runId = "ng-" + std::to_string(now_ms() % 100000000) + "-" + std::to_string(getpid());
+  em.call = toolUseId;   // read at the top of main and, until now, used only to dedupe twin deliveries
+  em.sess = sid;
   em.drill = sid.rfind("fleet-", 0) == 0 || sid.rfind("doctor-", 0) == 0 || sid.rfind("drill-", 0) == 0;
   { const char* de = getenv("RABADON_DRILL"); if (de && strcmp(de, "1") == 0) em.drill = true; }
   em.open_sock();
