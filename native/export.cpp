@@ -337,7 +337,28 @@ static string jesc(const string& s) {
   }
   return o;
 }
-static string nanos(double ms) { char b[32]; snprintf(b, sizeof b, "%.0f", ms * 1e6); return b; }
+// Milliseconds to nanoseconds, in integers, because this multiplication does
+// not fit in the type it used to be done in. A millisecond epoch is ~1.79e12;
+// times 1e6 that is ~1.79e18, and a double holds consecutive integers only up
+// to 2^53 (~9.0e15). Past there the product is rounded to the nearest
+// REPRESENTABLE double, so `"%.0f"` printed a number the ledger never said:
+// measured on a real spool line, ts 1785841746341 left as ...340999936, 64ns
+// short. Every timestamp this exporter ever shipped was wrong by up to ~128ns.
+// Nothing downstream noticed because span ordering survives it — the gap is a
+// millionth of the millisecond that separates two events — but the document
+// claims to be the ledger, and a document that quietly rewrites the last nine
+// digits of every timestamp is not the ledger.
+//
+// The whole millisecond goes through as an integer; a sub-millisecond fraction
+// (which no rabadon producer writes, but a stranger's serializer may) is
+// carried separately, where it is small enough for a double to be exact.
+static string nanos(double ms) {
+  if (!(ms > 0)) return "0";
+  long long whole = (long long)ms;
+  double frac = ms - (double)whole;
+  long long n = whole * 1000000LL + (long long)(frac * 1e6 + 0.5);
+  return std::to_string(n);
+}
 static string attr_str(const string& k, const string& v) { return "{\"key\":\"" + jesc(k) + "\",\"value\":{\"stringValue\":\"" + jesc(v) + "\"}}"; }
 static string attr_int(const string& k, long long v) { return "{\"key\":\"" + k + "\",\"value\":{\"intValue\":\"" + std::to_string(v) + "\"}}"; }
 // Money is booked in micro-dollars (integer, exact). It leaves as both: the
@@ -349,6 +370,13 @@ struct Ev {
   double ts = 0, seq = 0;
   string pipe, run, ev, rule, detail, model;
   long long tin = 0, tout = 0, usd_e6 = 0;
+  // How long the thing this line reports actually took. The ledger writes its
+  // `ts` when the event is APPENDED, which for every producer of dur_ms is
+  // after the work returned — loop.cpp calls attempt_metrics() on the proposer
+  // that just finished, net.cpp's finish() stamps now_ms() with the elapsed
+  // time beside it. So the line describes the interval [ts - dur_ms, ts], and
+  // the span it becomes is that interval rather than its final instant.
+  long long dur_ms = 0;
   string extra;
   // what the READER knows about the line, as opposed to what the line says
   string src;              // "<file>:<lineno>", so a damaged line can be found
@@ -528,7 +556,7 @@ int main(int argc, char** argv) {
       // the two readers cannot disagree about what a line says.
       bool gTs = false, gSeq = false, gPipe = false, gRun = false, gEv = false, gRule = false;
       bool gDetail = false, gModel = false, gIn = false, gOut = false, gTin = false;
-      bool gTout = false, gTok = false, gUsd = false;
+      bool gTout = false, gTok = false, gUsd = false, gDur = false;
       double ts = 0; bool tsOk = false;
       long long v_in = 0, v_out = 0, v_tin = 0, v_tout = 0, v_tok = 0;
       string failsRaw;
@@ -549,6 +577,7 @@ int main(int argc, char** argv) {
         else if (k == "tokensOut") { if (!gTout) { gTout = true; if (!fl.is_string && is_jnum(fl.val)) v_tout = (long long)num(fl); } }
         else if (k == "tokens") { if (!gTok) { gTok = true; if (!fl.is_string && is_jnum(fl.val)) v_tok = (long long)num(fl); } }
         else if (k == "usd_e6") { if (!gUsd) { gUsd = true; if (!fl.is_string && is_jnum(fl.val)) e.usd_e6 = (long long)num(fl); } }
+        else if (k == "dur_ms") { if (!gDur) { gDur = true; if (!fl.is_string && is_jnum(fl.val)) e.dur_ms = (long long)num(fl); } }
         if (k == "fails" && failsRaw.empty() && !fl.is_string) failsRaw = fl.val;
       }
 
@@ -715,10 +744,30 @@ int main(int argc, char** argv) {
     string status;
     if (isCatch) status = ",\"status\":{\"code\":2,\"message\":\"" + jesc(e.rule.empty() ? e.ev : e.rule) + "\"}";
     else if (!e.readable) status = ",\"status\":{\"code\":2,\"message\":\"" + jesc("unreadable ledger line: " + e.why) + "\"}";
-    // point-in-time event: start == end (trace viewers render a marker)
+    // A span is an interval, and rabadon knew the interval all along. Every
+    // span this exporter ever shipped had start == end, so a whole rabadon run
+    // rendered in a trace viewer as a row of zero-width marks: the one thing a
+    // person opens a trace to see, which of these steps was slow, was the one
+    // thing the document could not answer. loop.cpp has written dur_ms beside
+    // the token count since the proposer sidecar landed and nothing read it.
+    //
+    // The direction is measured, not assumed. `ts` is stamped by the appender
+    // (Emitter::ev, and net.cpp's finish()), and both stamp it after the work
+    // returns with the elapsed time in hand, so the line's instant is the END
+    // of its interval and the span runs [ts - dur_ms, ts]. Getting this
+    // backwards would have put every span in the future.
+    //
+    // Three refusals, because a wrong interval is worse than an honest point:
+    // a duration longer than the epoch instant it is subtracted from is not a
+    // duration, a negative one is not either, and an UNDATED line's ts is the
+    // day its file is named for rather than a moment, so widening it would
+    // invent an interval out of a filename. Those stay point-in-time and still
+    // carry the raw dur_ms as an attribute, like every unmapped field.
+    double t_end = e.ts, t_start = e.ts;
+    if (e.dur_ms > 0 && e.dated && (double)e.dur_ms <= e.ts) t_start = e.ts - (double)e.dur_ms;
     string span = string("{\"traceId\":\"") + tid + "\",\"spanId\":\"" + sid +
-      "\",\"name\":\"" + jesc(name) + "\",\"kind\":1,\"startTimeUnixNano\":\"" + nanos(e.ts) +
-      "\",\"endTimeUnixNano\":\"" + nanos(e.ts) + "\",\"attributes\":[" + attrs + "]" + status + "}";
+      "\",\"name\":\"" + jesc(name) + "\",\"kind\":1,\"startTimeUnixNano\":\"" + nanos(t_start) +
+      "\",\"endTimeUnixNano\":\"" + nanos(t_end) + "\",\"attributes\":[" + attrs + "]" + status + "}";
     if (!firstSpan) out += ",";
     out += span; firstSpan = false;
     (void)curPipe; (void)firstPipe;

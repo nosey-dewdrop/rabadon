@@ -436,5 +436,93 @@ assert abs(float(a["rabadon.cost_usd"]) - 0.012345) < 1e-9, a
 assert not any(k.startswith("gen_ai") and "cost" in k for k in a), a
 PY
 
+# 12. a span is an INTERVAL, and the ledger knew the interval all along.
+#
+#     Every span this exporter shipped had startTimeUnixNano == endTimeUnixNano,
+#     so a rabadon run rendered in a trace viewer as a row of zero-width marks.
+#     The question a person opens a trace to answer — which step was slow — was
+#     the one thing the document could not say, while loop.cpp had been writing
+#     dur_ms beside the token count the whole time and nothing read it.
+#
+#     Same generated fixture as arm 11: the stub proposer leaves a sidecar with
+#     duration_ms 2500, the loop fuses it in as dur_ms, and the export is asked
+#     what the span's width is. The DIRECTION is the part that can silently
+#     invert — `ts` is stamped when the line is appended, which is after the
+#     work returned, so the span must END at the ledger's instant and start
+#     2500ms earlier. A reader that got this backwards would put every span in
+#     the future and no width check alone would notice.
+python3 - <<'PY' && pass "the priced attempt is 2500ms WIDE, and it ends at the ledger's instant" || fail "the span is still zero-width, or the interval runs the wrong way"
+import glob, json, os
+sp = json.load(open(os.environ["LOOP_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+def attrs(s): return {a["key"]: list(a["value"].values())[0] for a in s["attributes"]}
+priced = [s for s in sp if "rabadon.usd_e6" in attrs(s)]
+assert priced, [(s["name"], sorted(attrs(s))) for s in sp]
+s = priced[0]
+width_ms = (int(s["endTimeUnixNano"]) - int(s["startTimeUnixNano"])) / 1e6
+assert width_ms == 2500, ("span width", width_ms, s["name"])
+# the producer's own line says when it was appended; the span ends there.
+lines = []
+for p in glob.glob(os.path.join(os.environ["LOOP_SPOOL_DIR"], "*.jsonl")):
+    lines += [json.loads(l) for l in open(p) if l.strip()]
+src = [e for e in lines if e.get("usd_e6") and e.get("dur_ms") == 2500][0]
+assert int(s["endTimeUnixNano"]) == src["ts"] * 10**6, (s["endTimeUnixNano"], src["ts"])
+assert int(s["startTimeUnixNano"]) == (src["ts"] - 2500) * 10**6, s["startTimeUnixNano"]
+# mapping a field must not delete it: dur_ms still rides along raw, like every
+# other unmapped key, so a reader that wants the producer's own number has it.
+assert attrs(s).get("rabadon.dur_ms") == "2500", attrs(s)
+# and an event that never had a duration is still an honest point in time
+for other in sp:
+    if "rabadon.dur_ms" in attrs(other):
+        continue
+    assert other["startTimeUnixNano"] == other["endTimeUnixNano"], (other["name"], "widened without a duration")
+PY
+
+#     The three refusals, because a wrong interval is worse than an honest
+#     point. A duration bigger than the epoch instant it would be subtracted
+#     from is not a duration; a negative one is not either; and an UNDATED
+#     line's ts is the day its FILE is named for, not a moment, so widening it
+#     would invent an interval out of a filename. All three stay point-in-time
+#     and all three keep the raw value, so nothing is hidden from the reader.
+export DUR_DIR="$TMP/rd-dur"; mkdir -p "$DUR_DIR/spool"
+python3 - <<'PY'
+import json, os
+now = int(os.environ["RABADON_NOW"]); ts = now - 3600000
+p = os.path.join(os.environ["DUR_DIR"], "spool", "2026-01-10.jsonl")
+with open(p, "w") as f:
+    w = lambda o: f.write(json.dumps(o) + "\n")
+    base = {"v": 1, "run": "r1", "pipe": "delta:session"}
+    w({**base, "seq": 1, "ts": ts, "ev": "STEP_TRY", "step": "sane", "dur_ms": 1500})
+    w({**base, "seq": 2, "ts": ts, "ev": "STEP_TRY", "step": "negative", "dur_ms": -5})
+    w({**base, "seq": 3, "ts": ts, "ev": "STEP_TRY", "step": "absurd", "dur_ms": ts + 1})
+    w({**base, "seq": 4, "ev": "STEP_TRY", "step": "undated", "dur_ms": 1500})
+    w({**base, "seq": 5, "ts": ts, "ev": "STEP_TRY", "step": "string", "dur_ms": "1500"})
+PY
+export DUR_OUT="$TMP/out-dur.json"
+RABADON_DIR="$DUR_DIR" "$EXPORT" --otlp --days 7 > "$DUR_OUT"
+python3 - <<'PY' && pass "a duration that is not one leaves the span a point, and keeps its raw value" || fail "export widened a span off a nonsense or undated duration"
+import json, os
+sp = json.load(open(os.environ["DUR_OUT"]))["resourceSpans"][0]["scopeSpans"][0]["spans"]
+def attrs(s): return {a["key"]: list(a["value"].values())[0] for a in s["attributes"]}
+by = {attrs(s)["rabadon.step"]: s for s in sp}
+assert len(by) == 5, sorted(by)
+def width(n): return int(by[n]["endTimeUnixNano"]) - int(by[n]["startTimeUnixNano"])
+# POSITIVE first: the sane one in this same file really does widen, otherwise
+# "everything is a point" would pass this arm for the wrong reason.
+assert width("sane") == 1500 * 10**6, width("sane")
+for n in ("negative", "absurd", "undated", "string"):
+    assert width(n) == 0, (n, width(n))
+    assert "rabadon.dur_ms" in attrs(by[n]), (n, "the refused duration was also swallowed")
+# the undated span still says its time came from the filename
+assert attrs(by["undated"]).get("rabadon.export.dated") == "no", attrs(by["undated"])
+# EXACTNESS, pinned in its own right. ms -> ns used to be a double multiply,
+# and ~1.79e18 is far past the 2^53 where a double still holds consecutive
+# integers, so every timestamp shipped rounded to the nearest representable
+# one — ts 1785841746341 left as ...340999936. Assert the full nine digits,
+# not a tolerance: this document claims to BE the ledger.
+ts = int(os.environ["RABADON_NOW"]) - 3600000
+assert int(by["negative"]["startTimeUnixNano"]) == ts * 10**6, by["negative"]["startTimeUnixNano"]
+assert by["negative"]["startTimeUnixNano"].endswith("000000"), by["negative"]["startTimeUnixNano"]
+PY
+
 echo "export: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]
