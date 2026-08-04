@@ -1,6 +1,9 @@
 *.log
 .DS_Store
-.env
+# `.env` on its own matches only that exact name, so a root `.env.local` or
+# `.env.production` was never ignored. site/.gitignore already used `.env*`;
+# the root was the half that could still commit a key.
+.env*
 .parked/
 CLAUDE.md
 HISTORY.md
@@ -62,3 +65,13 @@ native/gate_bench
 # python bytecode from site/build.py and its imports
 __pycache__/
 *.pyc
+
+# editor and OS leftovers. None of these were ignored, so a stray swap file or
+# an .idea/ directory from opening the tree in another editor would have shown
+# up as untracked noise in every `git status` and been easy to sweep in.
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+._*
