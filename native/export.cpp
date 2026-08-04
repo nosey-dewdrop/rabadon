@@ -9,8 +9,23 @@
 // EXPORTS instead of reinventing a dashboard.
 //
 // Mapping:
-//   - one TRACE per session pipe (traceId = 128-bit hash of the pipe name);
-//   - one SPAN per event — EVERY event, spanId = 64-bit hash of run+seq+ts.
+//   - one TRACE per SESSION (traceId = 128-bit hash of the session id the hook
+//     was handed). This used to key off `pipe`, which is spelled
+//     "<project>:session" and is NOT one — it is the directory. 227 pipes cover
+//     nine days of this machine and stitchu:session alone spans 214.1 hours:
+//     every session and every subagent that has ever run in that folder wrote
+//     into one trace, 24,056 spans deep. No viewer renders that as anything.
+//     A line with no session id still falls back to its pipe and a line with
+//     neither to the file it was read from, and the span says which of the
+//     three it got (rabadon.export.trace_basis) — a trace that is a folder's
+//     whole history must not pass for a session;
+//   - one SPAN per event — EVERY event, spanId = 64-bit hash of run+seq+ts;
+//   - one tool call is ONE row. STEP_START and STEP_OK are the two ends of a
+//     single Claude Code tool call and both carry its tool_use_id as `call`, so
+//     the OK becomes the interval [START.ts, OK.ts] and the START becomes its
+//     CHILD (parentSpanId) instead of a second top-level row. Neither is
+//     dropped: nothing in SPEC §2 lets this reader delete an event, and the
+//     nesting is what a viewer needs to draw one row per call anyway;
 //     SPEC §2's ten `ev` values keep their shaping; anything else (a verb a
 //     stranger's agent invented, or a line with no `ev`) renders generically
 //     with its own fields carried as rabadon.<key> attributes, because §2 says
@@ -83,6 +98,7 @@
 #include <cstring>
 #include <ctime>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -266,7 +282,7 @@ static uint64_t fnv(const string& s, uint64_t seed) {
   return h;
 }
 static string hex64(uint64_t v) { char b[17]; snprintf(b, sizeof b, "%016llx", (unsigned long long)v); return b; }
-static string trace_id(const string& pipe) { return hex64(fnv(pipe, 1469598103934665603ULL)) + hex64(fnv(pipe, 1099511628211ULL)); }
+static string trace_id(const string& seed) { return hex64(fnv(seed, 1469598103934665603ULL)) + hex64(fnv(seed, 1099511628211ULL)); }
 static string span_id(const string& s) { return hex64(fnv(s, 0xcbf29ce484222325ULL)); }
 
 // Length of the well-formed UTF-8 sequence starting at i, or 0 when the bytes
@@ -369,6 +385,18 @@ static string attr_dbl(const string& k, double v) { char b[40]; snprintf(b, size
 struct Ev {
   double ts = 0, seq = 0;
   string pipe, run, ev, rule, detail, model;
+  // Who this line belongs to, both answers written by gate.cpp's Emitter.
+  //   `sess` is the session id -> the TRACE this line joins.
+  //   `call` is Claude Code's tool_use_id, the same value on the PreToolUse and
+  //          the PostToolUse hook of one tool call -> the two ends of one span.
+  // `run` cannot do either job: every hook invocation is its own process, and
+  // 75,126 live events carried 75,126 distinct run ids with zero reuse.
+  // Neither field is listed in is_mapped_field, deliberately — this reader
+  // CONSUMES them (into a trace id and an interval) but does not own them, and
+  // a join a stranger cannot re-derive from the same document is a claim. They
+  // ride along as rabadon.call / rabadon.sess like any other unmapped key, so
+  // the pairing this file does can be checked by hand against the ledger.
+  string call, sess;
   long long tin = 0, tout = 0, usd_e6 = 0;
   // How long the thing this line reports actually took. The ledger writes its
   // `ts` when the event is APPENDED, which for every producer of dur_ms is
@@ -425,7 +453,16 @@ static const char* kHelp =
   "micro-dollars) and rabadon.cost_usd — OTel's GenAI conventions derive money\n"
   "from token counts and define no cost attribute, so rabadon names its own.\n"
   "Those keys are read off what the shipped binaries write, not off names only\n"
-  "the reader knew. Drills never leave the\n"
+  "the reader knew.\n"
+  "\n"
+  "One trace per SESSION, and one row per TOOL CALL: a STEP_START and the\n"
+  "STEP_OK that closes it carry the same tool_use_id, so the OK spans the\n"
+  "interval between them and the START hangs under it. Neither is dropped.\n"
+  "A line written before the gate recorded those ids keys its trace off the\n"
+  "pipe instead — which is a DIRECTORY, not a session — and every span says\n"
+  "which it got in rabadon.export.trace_basis.\n"
+  "\n"
+  "Drills never leave the\n"
   "machine, by the same four rules `rabadon usage` excludes them with: the emit\n"
   "tag, a fleet/doctor/drill session id, rabadon's own bench and demo pipes, and\n"
   "events inside a drill's 2-minute window. The count you read here and the count\n"
@@ -556,7 +593,7 @@ int main(int argc, char** argv) {
       // the two readers cannot disagree about what a line says.
       bool gTs = false, gSeq = false, gPipe = false, gRun = false, gEv = false, gRule = false;
       bool gDetail = false, gModel = false, gIn = false, gOut = false, gTin = false;
-      bool gTout = false, gTok = false, gUsd = false, gDur = false;
+      bool gTout = false, gTok = false, gUsd = false, gDur = false, gCall = false, gSess = false;
       double ts = 0; bool tsOk = false;
       long long v_in = 0, v_out = 0, v_tin = 0, v_tout = 0, v_tok = 0;
       string failsRaw;
@@ -578,6 +615,8 @@ int main(int argc, char** argv) {
         else if (k == "tokens") { if (!gTok) { gTok = true; if (!fl.is_string && is_jnum(fl.val)) v_tok = (long long)num(fl); } }
         else if (k == "usd_e6") { if (!gUsd) { gUsd = true; if (!fl.is_string && is_jnum(fl.val)) e.usd_e6 = (long long)num(fl); } }
         else if (k == "dur_ms") { if (!gDur) { gDur = true; if (!fl.is_string && is_jnum(fl.val)) e.dur_ms = (long long)num(fl); } }
+        else if (k == "call") { if (!gCall) { gCall = true; if (fl.is_string) e.call = fl.val; } }
+        else if (k == "sess") { if (!gSess) { gSess = true; if (fl.is_string) e.sess = fl.val; } }
         if (k == "fails" && failsRaw.empty() && !fl.is_string) failsRaw = fl.val;
       }
 
@@ -674,12 +713,93 @@ int main(int argc, char** argv) {
   }
   std::stable_sort(events.begin(), events.end(), [](const Ev& a, const Ev& b) { return a.ts != b.ts ? a.ts < b.ts : a.seq < b.seq; });
 
-  // group spans by pipe (= trace)
-  string spansJoined;
-  string curPipe; bool firstPipe = true;
+  // ---- identity, once, for every event: which trace it joins and what its
+  // span id is. Both used to be computed inside the emit loop, which is fine
+  // for a document where no span refers to another one. A parent link is a
+  // reference, so the ids have to exist before the first span is written.
+  //
+  // The trace ladder, in order: the SESSION id the hook was handed; failing
+  // that the pipe, which is a directory and says so on the span; failing that
+  // the file the line was read from, which is at least a real place a human can
+  // open. The session seed is namespaced so a session id and a pipe that happen
+  // to spell the same string cannot land in the same trace.
+  vector<string> tids(events.size()), sids(events.size());
+  long long n_tr_sess = 0, n_tr_pipe = 0, n_tr_file = 0;
+  {
+    std::map<string, char> seenTrace;
+    for (size_t i = 0; i < events.size(); i++) {
+      const Ev& e = events[i];
+      string seed;
+      if (!e.sess.empty()) seed = "rabadon:sess:" + e.sess;
+      else if (!e.pipe.empty()) seed = e.pipe;
+      else seed = "rabadon:no-pipe:" + e.file;
+      tids[i] = trace_id(seed);
+      if (!seenTrace.count(tids[i])) {
+        seenTrace[tids[i]] = 1;
+        if (!e.sess.empty()) n_tr_sess++; else if (!e.pipe.empty()) n_tr_pipe++; else n_tr_file++;
+      }
+      // run+seq+ts identifies an event only while the line is readable enough
+      // to have them. A torn line has neither, and three torn lines in a row
+      // would have collided on one span id (OTLP: a span id is unique within a
+      // trace), so the source position — which IS unique — completes the seed.
+      sids[i] = span_id(e.run.empty()
+        ? e.src + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts)
+        : e.run + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts));
+    }
+  }
+
+  // ---- the join. STEP_START and STEP_OK are the two ends of ONE tool call and
+  // the ledger never said so: `run` is per-process, `seq` is 95.6% the literal
+  // 1, and `prev` is a write-order chain that crosses pipes. Pairing on "the
+  // next OK in the same pipe" closed 58.5% of the starts, joined unrelated work
+  // in 17.6% of even those, and produced a p99 of 15.5 minutes and one pair
+  // five days wide. `call` is the tool_use_id both hooks are handed, so this is
+  // the identity itself rather than a heuristic over it.
+  //
+  // The OK carries the interval and the START becomes its child. Dropping the
+  // START would have been the cheaper way to get one row per call, and this
+  // exporter is not allowed to buy anything with a deleted event — SPEC §2 has
+  // no clause for it, and the START is the only line that says the gate ADMITTED
+  // the call, which for a product whose subject is refusal is the half a reader
+  // came for. parentSpanId costs nothing and says more: a viewer nests the
+  // point inside the interval, so the top level is one row per call anyway.
+  //
+  // Four refusals, the same standard the dur_ms widening is held to — a wrong
+  // interval is worse than an honest point:
+  //   - either end undated: an undated line's ts is the day its FILE is named
+  //     for, so pairing on it would invent an interval out of a filename;
+  //   - the OK older than the START: that is not an interval;
+  //   - the two in different traces: OTLP says a parent and its child share a
+  //     trace id, and a link across traces is a dangling reference;
+  //   - a missing counterpart: an open START and an orphan OK both stay points.
+  // First occurrence wins on each side, so a twin delivery that reached the
+  // disk cannot widen a call by however long the duplicate took to arrive.
+  struct CallPair { long long start = -1, ok = -1; };
+  vector<long long> pairStart(events.size(), -1), pairEnd(events.size(), -1);
+  long long n_paired = 0, n_ok = 0, n_ok_nocall = 0;
+  {
+    std::map<string, CallPair> calls;
+    for (size_t i = 0; i < events.size(); i++) {
+      const Ev& e = events[i];
+      if (e.ev == "STEP_OK") { n_ok++; if (e.call.empty()) n_ok_nocall++; }
+      if (e.call.empty()) continue;
+      if (e.ev == "STEP_START") { CallPair& p = calls[e.call]; if (p.start < 0) p.start = (long long)i; }
+      else if (e.ev == "STEP_OK") { CallPair& p = calls[e.call]; if (p.ok < 0) p.ok = (long long)i; }
+    }
+    for (const auto& kv : calls) {
+      long long a = kv.second.start, b = kv.second.ok;
+      if (a < 0 || b < 0) continue;
+      if (!events[a].dated || !events[b].dated) continue;
+      if (events[b].ts < events[a].ts) continue;
+      if (tids[a] != tids[b]) continue;
+      pairStart[b] = a; pairEnd[a] = b; n_paired++;
+    }
+  }
+
   string out = "{\"resourceSpans\":[{\"resource\":{\"attributes\":[" + attr_str("service.name", "rabadon") + "," + attr_str("telemetry.sdk.name", "rabadon-export") + "]},\"scopeSpans\":[{\"scope\":{\"name\":\"rabadon\"},\"spans\":[";
   bool firstSpan = true;
-  for (const Ev& e : events) {
+  for (size_t i = 0; i < events.size(); i++) {
+    const Ev& e = events[i];
     // A line with no `ev` at all is not in the vocabulary and not outside it
     // either — but it is still something that happened, and dropping it is the
     // silence this exporter just stopped committing. It ships under a name a
@@ -693,16 +813,8 @@ int main(int argc, char** argv) {
     // came from. Two of those shipped out of eighteen lines in
     // export_drop_test's fixture, into the trace id of the literal string "?".
     string evName = e.ev.empty() ? (e.readable ? "UNKNOWN" : "UNREADABLE") : e.ev;
-    // A pipeless line cannot join a session trace; it joins the file it was
-    // read from, which is a real place a human can go and look. "?" was not.
-    string tid = trace_id(e.pipe.empty() ? ("rabadon:no-pipe:" + e.file) : e.pipe);
-    // run+seq+ts identifies an event only while the line is readable enough to
-    // have them. A torn line has neither, and three torn lines in a row would
-    // have collided on one span id (OTLP: a span id is unique within a trace),
-    // so the source position — which IS unique — completes the seed.
-    string sid = span_id(e.run.empty()
-      ? e.src + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts)
-      : e.run + ":" + std::to_string((long long)e.seq) + ":" + std::to_string((long long)e.ts));
+    const string& tid = tids[i];
+    const string& sid = sids[i];
     bool isCatch = (e.ev == "STOP" || e.ev == "CHECK_FAIL" || e.ev == "WOULD_BLOCK" || e.ev == "REPAIR_FAIL");
     string name = evName;
     if (!e.rule.empty()) name += ":" + e.rule;
@@ -711,6 +823,15 @@ int main(int argc, char** argv) {
     if (!e.detail.empty()) attrs += "," + attr_str("rabadon.detail", e.detail);
     attrs += "," + attr_str("rabadon.pipe", e.pipe);
     attrs += "," + attr_str("rabadon.export.source", e.src);
+    // What this span's TRACE actually is. "session" is the thing the word trace
+    // means to whoever opens the viewer; the other two are fallbacks and the
+    // reader is entitled to know it got one. Said on every span rather than
+    // only where it degrades, because "the attribute is missing" is not a
+    // statement a stranger can read, and the whole 86,881-line spool on this
+    // machine predates the session id: every one of those spans says "pipe",
+    // which is the honest label for a trace that is a folder's entire history.
+    attrs += "," + attr_str("rabadon.export.trace_basis",
+      !e.sess.empty() ? "session" : (!e.pipe.empty() ? "pipe" : "file"));
     if (!e.dated) {
       // said on the span, not only in the summary: whoever queries this trace
       // by time is entitled to know the time is the file's, not the line's.
@@ -763,14 +884,31 @@ int main(int argc, char** argv) {
     // day its file is named for rather than a moment, so widening it would
     // invent an interval out of a filename. Those stay point-in-time and still
     // carry the raw dur_ms as an attribute, like every unmapped field.
+    //
+    // A matched START/OK pair OUTRANKS dur_ms when a line somehow has both.
+    // The pair is two instants this ledger stamped itself, on one clock, both
+    // on disk and both re-derivable by anyone holding the same bytes; dur_ms is
+    // a number the producer wrote about its own runtime. Where they disagree,
+    // the document should say what the ledger recorded.
     double t_end = e.ts, t_start = e.ts;
-    if (e.dur_ms > 0 && e.dated && (double)e.dur_ms <= e.ts) t_start = e.ts - (double)e.dur_ms;
-    string span = string("{\"traceId\":\"") + tid + "\",\"spanId\":\"" + sid +
-      "\",\"name\":\"" + jesc(name) + "\",\"kind\":1,\"startTimeUnixNano\":\"" + nanos(t_start) +
+    string basis;
+    if (pairStart[i] >= 0) { t_start = events[pairStart[i]].ts; basis = "pair"; }
+    else if (e.dur_ms > 0 && e.dated && (double)e.dur_ms <= e.ts) { t_start = e.ts - (double)e.dur_ms; basis = "dur_ms"; }
+    // Where the width came from, whenever a rule widened it, so nobody has to
+    // guess whether a duration was measured or self-reported. A point needs no
+    // explanation and gets no attribute.
+    if (!basis.empty()) attrs += "," + attr_str("rabadon.span.basis", basis);
+    if (pairStart[i] >= 0) attrs += "," + attr_str("rabadon.span.start_source", events[pairStart[i]].src);
+    // The START of a matched call hangs under its OK. Written only when the
+    // pair passed every refusal above, so this id always names a span that is
+    // in this document and in this trace.
+    string parent;
+    if (pairEnd[i] >= 0) parent = ",\"parentSpanId\":\"" + sids[pairEnd[i]] + "\"";
+    string span = string("{\"traceId\":\"") + tid + "\",\"spanId\":\"" + sid + "\"" + parent +
+      ",\"name\":\"" + jesc(name) + "\",\"kind\":1,\"startTimeUnixNano\":\"" + nanos(t_start) +
       "\",\"endTimeUnixNano\":\"" + nanos(t_end) + "\",\"attributes\":[" + attrs + "]" + status + "}";
     if (!firstSpan) out += ",";
     out += span; firstSpan = false;
-    (void)curPipe; (void)firstPipe;
   }
   out += "]}]}]}\n";
   fwrite(out.data(), 1, out.size(), stdout);
@@ -792,6 +930,18 @@ int main(int argc, char** argv) {
          "-day window";
     if (n_old_file) m += " (" + std::to_string(n_old_file) + " of them by file date, having no readable ts)";
     m += ", " + std::to_string(drills) + " drill event(s)\n";
+    // The two numbers that decide whether this document is readable at all: how
+    // many traces it is cut into, and how many tool calls have a width. Both
+    // were silent while one folder's nine days shipped as a single 24,056-span
+    // trace and every span in it was zero-width.
+    m += "  traces: " + std::to_string(n_tr_sess + n_tr_pipe + n_tr_file) +
+         " (" + std::to_string(n_tr_sess) + " keyed by session id, " +
+         std::to_string(n_tr_pipe) + " by pipe name, " + std::to_string(n_tr_file) + " by file)\n";
+    m += "  tool calls: " + std::to_string(n_paired) + " joined start->ok by call id";
+    if (n_ok_nocall)
+      m += ", " + std::to_string(n_ok_nocall) + " of " + std::to_string(n_ok) +
+           " STEP_OK carry no call id and stay points (the gate began writing it 4 August 2026)";
+    m += "\n";
     if (n_unreadable || n_undated || n_badutf8) {
       m += "  shipped, and damaged:";
       string parts;

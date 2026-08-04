@@ -138,9 +138,26 @@ local unix socket to any attached viewer. Nothing leaves the machine.
 ```json
 { "v": 1, "seq": 3, "ts": 1785072099611, "run": "<run id>",
   "pipe": "<project>:session", "ev": "CHECK_FAIL",
+  "sess": "<session id>", "call": "<tool call id>",
   "step": "Bash", "fails": [{ "check": "<rule id>", "why": "<reason>" }],
   "prev": "<sha256 of the previous event line in this day-file>" }
 ```
+
+**Identity: `sess` and `call`.** Neither is decoration and neither can be
+reconstructed from the rest of the line. `run` is per *process* — 75,126 live
+events carried 75,126 distinct run ids, zero reuse — and `pipe` is spelled
+`<project>:session` but is the *directory*, so it holds every session and every
+subagent that has ever run there. `sess` is the session id and is what a reader
+must key a trace off; `call` is the id of the tool call an event belongs to, the
+same value on the event that opens it and the event that closes it, and it is
+the only thing that says a `STEP_START` and a `STEP_OK` are two ends of one
+call. Both are OPTIONAL and both are ABSENT rather than empty when a producer
+has no answer — an event outside any tool call (a session start, a stop) is not
+a member of a nameless call, and `""` would make all of them look like one.
+A reader MUST tolerate their absence and say so rather than guess: rabadon's own
+exporter falls back to the pipe for a trace and marks the span
+`rabadon.export.trace_basis: pipe`, and leaves an unpaired event a point in time
+rather than inventing a width for it.
 
 `ev` vocabulary (fixed): `RUN_START`, `STEP_START`, `STEP_OK`, `CHECK_FAIL`,
 `WOULD_BLOCK`, `REPAIR_START`, `REPAIR_OK`, `REPAIR_FAIL`, `STOP`, `RUN_DONE`.

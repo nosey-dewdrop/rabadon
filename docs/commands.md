@@ -317,9 +317,38 @@ Apply a held patch yourself: `patch -p1 < .rabadon/repair-<ts>.patch`.
 ## `rabadon export --otlp [--days N]`   [stable]
 
 Emit the ledger as OpenTelemetry OTLP/JSON traces on stdout: one trace per
-session, refusals as ERROR spans, GenAI semantic-convention token attributes
-where token counts exist. Drop it into Jaeger, Grafana Tempo, Honeycomb, or
-Langfuse's OTLP endpoint.
+session, one row per tool call, refusals as ERROR spans, GenAI
+semantic-convention token attributes where token counts exist. Drop it into
+Jaeger, Grafana Tempo, Honeycomb, or Langfuse's OTLP endpoint.
+
+**What a trace is.** The session id the hook was handed, which the gate writes
+as `sess`. It used to be `pipe` — spelled `<project>:session` and not one: it is
+the *directory*. 227 of them cover nine days of the author's machine and
+`stitchu:session` alone spans 214.1 hours, because every session and every
+subagent that ever ran in that folder wrote into it. That shipped as a single
+24,056-span "trace", which no viewer renders as anything. A line with no session
+id still falls back to its pipe, and one with neither to the file it was read
+from; every span says which of the three it got in
+`rabadon.export.trace_basis`, so a trace that is a folder's history cannot pass
+for a session.
+
+**What a span is.** One event — every event. A tool call, though, is *two*
+events: `STEP_START` when the gate admits it and `STEP_OK` when it returns. Both
+hooks are handed the same `tool_use_id`, which the gate writes as `call`, so the
+`STEP_OK` becomes the interval `[START.ts, OK.ts]` and the `STEP_START` becomes
+its child (`parentSpanId`) — one top-level row per call, with nothing deleted to
+get it. The interval is *gate-admitted to returned*, so a call that waited on a
+human approval carries that wait: it is how long the call held the session, not
+how long the tool computed. A pair is refused, and both ends stay honest points,
+when either end is undated, when the OK predates the START, when the two ends
+are in different sessions, or when one end never arrived. `rabadon.span.basis`
+says `pair` or `dur_ms` on anything that got a width, and
+`rabadon.span.start_source` names the ledger line the start was read off, so
+the join is checkable against the bytes.
+
+This only works forward: the ids arrived on 4 August 2026 and no earlier line
+has them. On the 86,881 lines already on disk, zero carry `call`, so those spans
+are exactly what they were.
 
 Attributes on a priced event:
 
