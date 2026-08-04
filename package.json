@@ -49,15 +49,14 @@
     "hooks/",
     "repair/",
     "ui/",
-    "packs/",
-    "demo/",
-    "scripts/",
+    "scripts/build.mjs",
     "native/*.cpp",
     "native/*.h",
     "native/rabadon-cli.sh",
     "Makefile",
     "README.md",
     "SPEC.md",
-    "LICENSE"
+    "LICENSE",
+    "!**/*.test.mjs"
   ]
 }
