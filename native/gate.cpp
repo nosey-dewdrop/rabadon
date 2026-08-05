@@ -119,6 +119,34 @@ static string read_file(const string& p) {
 
 static bool file_exists(const string& p) { struct stat st; return stat(p.c_str(), &st) == 0; }
 
+// stat() collapses two different answers into one false: "the flag is not
+// there" and "I am not allowed to look". The first is a user who never ran
+// `rabadon on`. The second is a supervisor that has lost sight of its own
+// switch, and reading that as watch mode is how an installed, enabled gate
+// goes quiet. Measured 5 August: an unset HOME, a RABADON_DIR pointing at a
+// regular file, a home at mode 000, and a home on a read-only volume each
+// produced exit 0 with zero bytes on stdout for `rm -rf`, which from the
+// user's seat is indistinguishable from "rabadon looked and it was fine".
+// Every storage failure in the same run fell closed, including a genuinely
+// full disk. The ledger was hard and the switch was not.
+enum FlagState { FLAG_PRESENT, FLAG_ABSENT, FLAG_UNKNOWN };
+static FlagState flag_state(const string& p) {
+  struct stat st;
+  errno = 0;
+  if (stat(p.c_str(), &st) == 0) return FLAG_PRESENT;
+  return errno == ENOENT ? FLAG_ABSENT : FLAG_UNKNOWN;
+}
+
+// The home is an answer only if somebody named it. With neither RABADON_DIR
+// nor HOME set, "./.rabadon" is a guess about whatever directory the agent
+// happens to be standing in.
+static bool rabadon_home_known() {
+  const char* rd = getenv("RABADON_DIR");
+  if (rd && rd[0]) return true;
+  const char* h = getenv("HOME");
+  return h && h[0];
+}
+
 // Three rules answer to the operator alone: disabled[] in guard.json does not
 // switch them off, and the refusal must not offer a door that is welded shut.
 // They are named here rather than at the decision site because the refusal
@@ -1493,8 +1521,17 @@ int main(int argc, char** argv) {
   const string rhome = rabadon_home();
   if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")
       || file_exists(rhome + "/silent")) return 0;
-  g_mode = (file_exists(rhome + "/enabled") || file_exists(cwd + "/.rabadon/on"))
+  // WATCH is a decision the user made by not turning the gate on. It is not a
+  // place to land when the switch cannot be read at all, because the whole
+  // promise is that nothing dangerous passes silently. An unreadable switch
+  // enforces and says so; a switch that is simply absent still watches.
+  const FlagState homeFlag = flag_state(rhome + "/enabled");
+  const bool blind = !rabadon_home_known() || homeFlag == FLAG_UNKNOWN;
+  g_mode = (homeFlag == FLAG_PRESENT || file_exists(cwd + "/.rabadon/on") || blind)
              ? MODE_ENFORCE : MODE_WATCH;
+  if (blind && homeFlag != FLAG_PRESENT)
+    fprintf(stderr, "rabadon: cannot read its own switch at %s — enforcing rather than allowing\n",
+            rhome.c_str());
 
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
   // re-anchor — the LLM stays off the hot path (bounded `claude -p`).

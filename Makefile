@@ -622,6 +622,7 @@ test: all
 # arithmetic reconciles: lines read == spans + drills + held back.
 	./native/export_drop_test.sh
 	./native/gate_promise_test.sh
+	./native/blind_switch_test.sh
 	./native/lamp_test.sh
 	./native/watch_test.sh
 	./native/serve_test.sh
