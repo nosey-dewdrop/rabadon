@@ -39,7 +39,7 @@ mkdir -p "$HOME" "$RABADON_DIR"
 CANARY="$HOME/CANARY-do-not-touch"
 echo "canary" > "$CANARY"
 
-pass=0; fail=0
+pass=0; fail=0; skipped=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
@@ -107,6 +107,17 @@ NEUTER='printf "def test_add():\n    assert True\n" > tests/unit/test_the_failin
 echo "lock coverage — repair must lock what truth discovers"
 echo
 
+# Cases 1 and 3 drive a real pytest suite through the arbiter. On a box without
+# pytest the arbiter is red for a reason that has nothing to do with the locks,
+# and both cases report a verdict they never measured. That is how v0.2.1 died
+# on native/harness_lock_test.sh and v0.2.2 died on native/heldout_test.sh; this
+# is the third file carrying the same assumption, and it was found by running
+# the whole suite against a python with no pytest instead of fixing the one file
+# the last release log happened to name. Case 2 needs no pytest and still runs.
+HAVE_PYTEST=1
+python3 -m pytest --version >/dev/null 2>&1 || HAVE_PYTEST=0
+skip() { skipped=$((skipped+1)); echo "  SKIP  $1 — no pytest on this box, the lock was not judged here"; }
+
 # ---------- 0. the premise, measured rather than asserted --------------------
 BIG="$ROOT/big"; mk_big "$BIG"
 TJSON=$("$TRUTH" "$BIG" --json 2>/dev/null)
@@ -121,6 +132,7 @@ fi
 echo
 
 # ---------- 1. repair locks what truth discovered ----------------------------
+if [ "$HAVE_PYTEST" -eq 0 ]; then skip "repair locks what truth discovered"; else
 P1="$ROOT/case1"; cp -R "$BIG" "$P1"
 mk_proposer "$ROOT/honest.sh" "$HONEST"
 OUT=$(cd "$P1" && RABADON_CLAUDE_BIN="$ROOT/honest.sh" "$REPAIR" "$P1" \
@@ -131,6 +143,7 @@ if [ "$RC" -eq 0 ] && [ "$LOCKED" = "$TN" ]; then
 else
   bad "repair locked $LOCKED of truth's $TN (exit $RC)"
   printf '%s\n' "$OUT" | sed 's/^/        /' | tail -8
+fi
 fi
 
 # ---------- 2. an empty repo still says UNVERIFIED ---------------------------
@@ -149,6 +162,7 @@ else
 fi
 
 # ---------- 3. what the missing locks were costing ---------------------------
+if [ "$HAVE_PYTEST" -eq 0 ]; then skip "a test-neutering proposal is rejected on the large suite"; else
 P3="$ROOT/case3"; cp -R "$BIG" "$P3"
 mk_proposer "$ROOT/neuter.sh" "$NEUTER"
 OUT3=$(cd "$P3" && RABADON_CLAUDE_BIN="$ROOT/neuter.sh" "$REPAIR" "$P3" \
@@ -159,10 +173,15 @@ else
   bad "a test-neutering proposal was not rejected on the large suite (exit $RC3)"
   printf '%s\n' "$OUT3" | sed 's/^/        /' | tail -10
 fi
+fi
 
 echo
 [ -f "$CANARY" ] && [ "$(cat "$CANARY")" = canary ] && echo "  canary intact: $CANARY" || { echo "  CANARY DAMAGED"; fail=$((fail+1)); }
 echo
-echo "  pass $pass   fail $fail"
-[ "$fail" -eq 0 ] && echo "  lock coverage: GREEN" || echo "  lock coverage: RED"
+echo "  pass $pass   fail $fail   skip $skipped"
+# The two cases that carry the claim are the two that need pytest. Saying GREEN
+# after skipping both is reporting coverage this box never had.
+if [ "$fail" -ne 0 ]; then echo "  lock coverage: RED"
+elif [ "$skipped" -ge 2 ]; then echo "  lock coverage: NOT JUDGED — both locking cases were skipped for a missing toolchain"
+else echo "  lock coverage: GREEN${skipped:+$( [ "$skipped" -gt 0 ] && printf ' (%s case(s) not judged here)' "$skipped" )}"; fi
 exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)
