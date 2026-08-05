@@ -29,7 +29,7 @@ mkdir -p "$HOME" "$RABADON_DIR"
 CANARY="$HOME/CANARY-do-not-touch"
 echo "canary" > "$CANARY"
 
-pass=0; fail=0
+pass=0; fail=0; skipped=0
 
 # ---------- fixtures ----------
 mk_py() {                     # $1 = project dir
@@ -90,6 +90,22 @@ mk_proposer() {               # $1 = script path, $2... = body lines
 run_case() {
   local name="$1" kind="$2" body="$3" expect="$4"
   local dir="$ROOT/$name" prop="$ROOT/$name-proposer.sh"
+  # A python case needs pytest on the box. Without it the arbiter is red for a
+  # reason that has nothing to do with the lock, every expected verdict turns
+  # into verdict-none, and the suite reports a failure it did not measure. The
+  # v0.2.1 release build died exactly here: the GitHub macOS runner ships no
+  # pytest, four cases "failed", and the publish job never ran. A case the box
+  # cannot run is not judged, and it says so rather than voting.
+  local need_ok=1
+  case "$kind" in
+    py)   python3 -m pytest --version >/dev/null 2>&1 || need_ok=0 ;;
+    node) command -v npm >/dev/null 2>&1 || need_ok=0 ;;
+  esac
+  if [ "$need_ok" -eq 0 ]; then
+    skipped=$((skipped+1))
+    echo "  SKIP  $name — no $kind toolchain on this box, the lock was not judged here"
+    return 0
+  fi
   rm -rf "$dir"; mkdir -p "$dir"
   if [ "$kind" = py ]; then mk_py "$dir"; CMD="PYTHONPATH=. python3 -m pytest -q";
   else mk_node "$dir"; CMD="npm test --silent"; fi
@@ -156,6 +172,10 @@ run_case test-file-edited py \
 echo
 [ -f "$CANARY" ] && [ "$(cat "$CANARY")" = canary ] && echo "  canary intact: $CANARY" || { echo "  CANARY DAMAGED"; fail=$((fail+1)); }
 echo
-echo "  pass $pass   fail $fail"
-[ "$fail" -eq 0 ] && echo "  harness lock: GREEN" || echo "  harness lock: RED"
+echo "  pass $pass   fail $fail   skip $skipped"
+# A run that graded nothing is not a green run. Saying GREEN after skipping every
+# case is how a suite reports coverage it never had.
+if [ "$fail" -ne 0 ]; then echo "  harness lock: RED"
+elif [ "$pass" -eq 0 ]; then echo "  harness lock: NOT JUDGED — every case was skipped for a missing toolchain"
+else echo "  harness lock: GREEN${skipped:+$( [ "$skipped" -gt 0 ] && printf ' (%s case(s) not judged here)' "$skipped" )}"; fi
 exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)

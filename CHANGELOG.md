@@ -2,6 +2,11 @@
 
 All notable changes to rabadon. Dates are the day the tag was pushed.
 
+## 0.2.2 — 2026-08-05
+
+- The lock's python cases assumed pytest was on the machine. On a runner without it the arbiter went red for a missing interpreter, four graded verdicts collapsed into no verdict at all, and the suite reported failures it had never measured. Each case now checks for the toolchain it needs, says which cases it did not judge, and refuses to print GREEN when it judged nothing.
+- A repair the arbiter could not grade the same way twice no longer writes REPAIR_OK. The screen already refused to certify it while the ledger recorded it as a success, so the held-repair counter included a coin flip. That run now carries its own event.
+
 ## 0.2.1 — 2026-08-05
 
 - The v0.2.0 release build failed on the macOS runner and took the publish job with it. A test that stands up a throwaway git remote let the host name the branch, so a box configured for `master` produced `src refspec main does not match any` while the same test passed here. The lab now names its own branch. Reproduced with the host forced to `master`: 144 passed and 2 failed before, 146 passed and 0 failed after.
