@@ -406,6 +406,38 @@ static bool skip_dir(const string& n) {
          n == ".cache" || n == ".gradle";
 }
 
+// A check command is mostly words, but some of those words are files in this
+// tree — ./check.sh, ci/test, bin/ci, scripts/verify. Those decide what the
+// check does, so they belong to the harness in the only sense that matters.
+// Absolute paths and anything reaching outside the tree are left alone: they
+// are not ours to hash, and pretending otherwise would claim a protection the
+// copy cannot give.
+static std::vector<string> cmd_paths(const string& root, const string& cmd) {
+  std::vector<string> out;
+  string tok;
+  auto flush = [&]() {
+    if (tok.empty()) return;
+    string t = tok; tok.clear();
+    while (t.size() >= 2 && ((t.front() == '"' && t.back() == '"') ||
+                             (t.front() == '\'' && t.back() == '\''))) t = t.substr(1, t.size() - 2);
+    if (t.empty() || t[0] == '-' || t[0] == '/') return;
+    if (t.rfind("./", 0) == 0) t = t.substr(2);
+    if (t.empty() || t.find("..") != string::npos) return;
+    const size_t eq = t.find('=');
+    const size_t sl = t.find('/');
+    if (eq != string::npos && (sl == string::npos || sl > eq)) return;  // VAR=value
+    struct stat st;
+    if (stat((root + "/" + t).c_str(), &st) == 0 && S_ISREG(st.st_mode)) out.push_back(t);
+  };
+  for (char c : cmd) {
+    if (isspace((unsigned char)c) || c == '|' || c == ';' || c == '&' ||
+        c == '(' || c == ')' || c == '<' || c == '>') flush();
+    else tok += c;
+  }
+  flush();
+  return out;
+}
+
 // no cap: repair already shipped one silent cap (the hash-lock list stopped at 32)
 // and a foreign repo sailed through as VERIFIED because of it
 static void scan_harness(const string& absDir, const string& rel,
@@ -647,6 +679,18 @@ int main(int argc, char** argv) {
   for (const string& f : testFiles) locks.push_back({f, rbsha::hex(read_file(base + "/" + f))});
   std::vector<std::pair<string, string>> harness; // harness file -> sha256, base side
   scan_harness(base, "", harness);
+  // The lock covered the tests and the files that configure the runner, and it
+  // left out the one file that decides what "the check" even is: the script the
+  // command itself invokes. Measured 5 August, a proposer replaced the body of
+  // the project's own ci/check.sh with `exit 0`, the arbiter ran it, saw green,
+  // and the run earned the full VERIFIED headline while the real suite never
+  // executed a line. Every word of the command that resolves to a regular file
+  // in this tree is now locked exactly like the harness.
+  for (const string& p : cmd_paths(base, cmd)) {
+    bool already = false;
+    for (const auto& h : harness) if (h.first == p) { already = true; break; }
+    if (!already) harness.push_back({p, rbsha::hex(read_file(base + "/" + p))});
+  }
   std::sort(harness.begin(), harness.end());
 
   // ---- 4. the proposer, bounded, in the WORK copy ----
@@ -725,6 +769,16 @@ int main(int argc, char** argv) {
   {
     std::vector<std::pair<string, string>> after_h;
     scan_harness(work, "", after_h);
+    // The same augmentation as the base side, or the two lists are not
+    // comparable: the command's script is not a harness FILENAME, so a plain
+    // rescan can never contain it and an untouched script reads as deleted.
+    // Both cases then refuse, and the refusal that looks right is right for the
+    // wrong reason, which is worse than the hole it replaced.
+    for (const string& p : cmd_paths(work, cmd)) {
+      bool already = false;
+      for (const auto& h : after_h) if (h.first == p) { already = true; break; }
+      if (!already) after_h.push_back({p, rbsha::hex(read_file(work + "/" + p))});
+    }
     std::sort(after_h.begin(), after_h.end());
     string rel, verdict, was, found;
     size_t i = 0, j = 0;

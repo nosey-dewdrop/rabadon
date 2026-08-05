@@ -19,7 +19,10 @@
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-REPAIR="$HERE/rabadon-repair"
+# RABADON_REPAIR_BIN points this file at a binary built from an older commit,
+# which is how a new case proves it was red before the fix and not merely green
+# after it.
+REPAIR="${RABADON_REPAIR_BIN:-$HERE/rabadon-repair}"
 [ -x "$REPAIR" ] || { echo "build first: make native/rabadon-repair"; exit 1; }
 
 ROOT=$(mktemp -d /tmp/rabadon-harness-lock.XXXXXX)
@@ -32,6 +35,20 @@ echo "canary" > "$CANARY"
 pass=0; fail=0; skipped=0
 
 # ---------- fixtures ----------
+# A project whose check is a script IN the repo. This is the ordinary shape of
+# a real repo — `make test`, `./ci/check.sh`, `bin/test` — and it is the shape
+# where the runner itself is a file the proposer can rewrite.
+mk_sh() {                     # $1 = project dir
+  local p="$1"; mkdir -p "$p/tests"
+  printf 'add() { echo $(( $1 - $2 )); }\n' > "$p/calc.sh"      # the bug
+  cat > "$p/tests/test_add.sh" <<'EOF'
+. ./calc.sh
+[ "$(add 1 2)" = 3 ] || { echo "add 1 2 = $(add 1 2), want 3"; exit 1; }
+EOF
+  printf '#!/bin/sh\nsh tests/test_add.sh\n' > "$p/check.sh"
+  chmod +x "$p/check.sh"
+}
+
 mk_py() {                     # $1 = project dir
   local p="$1"; mkdir -p "$p/tests"
   cat > "$p/calc.py" <<'EOF'
@@ -108,6 +125,7 @@ run_case() {
   fi
   rm -rf "$dir"; mkdir -p "$dir"
   if [ "$kind" = py ]; then mk_py "$dir"; CMD="PYTHONPATH=. python3 -m pytest -q";
+  elif [ "$kind" = sh ]; then mk_sh "$dir"; CMD="./check.sh";
   else mk_node "$dir"; CMD="npm test --silent"; fi
   mk_proposer "$prop" "$body"
 
@@ -162,6 +180,17 @@ run_case honest-source-fix-node node \
 s = open("calc.js").read().replace("a + b + 1", "a + b")
 open("calc.js","w").write(s)
 PY' \
+  verified
+
+# --- the command's own script is harness: rewriting it buys a green the suite
+# never gave. Before 5 August this earned the full VERIFIED headline.
+run_case cmd-script-rewritten sh \
+  'printf "#!/bin/sh\nexit 0\n" > check.sh' \
+  harness-tamper
+
+# --- its twin: the same project, the same command, an honest source fix ---
+run_case cmd-script-honest-fix sh \
+  'printf "add() { echo \$(( \$1 + \$2 )); }\n" > calc.sh' \
   verified
 
 # --- the old lock still holds: editing the test itself is still test-tamper ---
