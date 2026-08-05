@@ -106,61 +106,61 @@
   },
   "field.days": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 11,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 12,
     "what": "days the ledger has been running"
   },
   "field.days_enforce": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 9,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 10,
     "what": "days that carry an outright refusal"
   },
   "field.days_watch": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": 3,
     "what": "days that carry a recorded watch-mode verdict"
   },
   "field.diagnoses": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 1544,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 1602,
     "what": "written accounts of what broke, handed back instead of a refusal"
   },
   "field.mode_changes": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": 0,
     "what": "times supervision was switched on or off"
   },
   "field.mode_list": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [],
     "what": "when supervision was switched on or off"
   },
   "field.pushes_refused": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 12,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 14,
     "what": "pushes refused on a red tree until the suite was green"
   },
   "field.rules_distinct": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 13,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 14,
     "what": "distinct rules behind those events; one was authored twice"
   },
   "field.rules_distinct_live": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 12,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 13,
     "what": "distinct rules that are in a guard file right now"
   },
   "field.rules_list": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       {
         "in": "stitchu",
@@ -287,31 +287,40 @@
         "rule": "no-scripted-inplace-test-rewrite",
         "ts": 1785781931774,
         "why": "Blind bulk regex rewrites of test scripts silently corrupt expected fixtures; test edits must go through reviewable per-case edits."
+      },
+      {
+        "in": "home",
+        "kind": "rule",
+        "live": true,
+        "project": "youkiddingme",
+        "rule": "no-heredoc-source-writes",
+        "ts": 1785885383293,
+        "why": "Source files written by shell heredoc skip the Write gate, so nothing reads them back and a broken new file first surfaces as an opaque build failure."
       }
     ],
     "what": "the rules, with the repository each incident happened in"
   },
   "field.rules_live": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 13,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 14,
     "what": "of those, in a guard file on this machine right now"
   },
   "field.rules_written": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 14,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 15,
     "what": "rules the engine wrote itself after an incident"
   },
   "field.stop": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
-    "value": 509,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 549,
     "what": "commands enforce mode refused outright"
   },
   "field.stop_by_day": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       [
         "2026-07-26",
@@ -347,6 +356,10 @@
       ],
       [
         "2026-08-04",
+        40
+      ],
+      [
+        "2026-08-05",
         16
       ]
     ],
@@ -354,7 +367,7 @@
   },
   "field.stop_by_rule": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       [
         "BLOCKED",
@@ -362,7 +375,7 @@
       ],
       [
         "semantic-commit-required",
-        31
+        46
       ],
       [
         "no-force-push-main",
@@ -373,24 +386,28 @@
         17
       ],
       [
-        "baseline-truncating-redirect",
-        13
+        "push-gate",
+        17
       ],
       [
-        "push-gate",
-        13
+        "ctest-tail-hides-verdict",
+        15
+      ],
+      [
+        "baseline-truncating-redirect",
+        14
       ],
       [
         "no-rm-rf-outside-project",
         10
       ],
       [
-        "ctest-tail-hides-verdict",
-        10
-      ],
-      [
         "loop-stop",
         9
+      ],
+      [
+        "promise-off-target",
+        8
       ],
       [
         "no-unproven-speed-claim-in-commit",
@@ -399,29 +416,25 @@
       [
         "proof-table-must-not-be-erased",
         8
-      ],
-      [
-        "no-host-pytest-python-airflow",
-        8
       ]
     ],
     "what": "which rule refused outright, how many times"
   },
   "field.withheld": {
     "cmd": "python3 site/field_stats.py",
-    "note": "12 of these were withheld when site/field.jsonl was re-emitted through site/redact.py (12 sensitive project name); the rest were withheld at generation.",
-    "value": 12,
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
+    "value": 15,
     "what": "records withheld from the published file: sensitive content, or a repository whose NAME is itself the disclosure"
   },
   "field.would_block": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": 430,
     "what": "commands watch mode recorded a verdict on and let through"
   },
   "field.would_block_by_day": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       [
         "2026-07-31",
@@ -440,7 +453,7 @@
   },
   "field.would_block_by_rule": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       [
         "no-force-push-main",
@@ -495,13 +508,13 @@
   },
   "field.would_block_own": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": 405,
     "what": "of those, in the operator's own repositories"
   },
   "field.wrong_by_rule": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       [
         "baseline-truncating-redirect",
@@ -532,7 +545,7 @@
   },
   "field.wrong_list": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": [
       {
         "rule": "no-scripted-inplace-test-rewrite",
@@ -569,7 +582,7 @@
   },
   "field.wrong_refusals": {
     "cmd": "python3 site/field_stats.py",
-    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 88963 lines over 11 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 2 record(s) matching the sensitive-terms list were dropped from the published file.",
+    "note": "read from the hash-chained ledger the gate writes as it runs (~/.rabadon/spool/*.jsonl, 92237 lines over 12 day files). runs made to exercise the engine are excluded by name and the excluded count is printed; the three proving-ground repositories are reported separately. home paths are rewritten to ~ and 15 record(s) matching the sensitive-terms list were dropped from the published file (2 sensitive content, 13 sensitive project name).",
     "value": 6,
     "what": "refusals reported wrong by the operator, on the same chain as the refusals"
   },
