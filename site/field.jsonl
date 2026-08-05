@@ -1,3 +1,6 @@
+{"ev": "STOP", "rule": "no-delete-native-binaries", "project": "rabadon", "ts": 1785912541553, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && python3 - <<'PY'\np=\"native/stale_cache_test.sh\"\ns=open(p,encoding=\"utf-8\").read()\nold='''  if [ \"$RC\" -ne 0 ] && grep -q \"ha"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785905628075, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785902722547, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785898735763, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785894676048, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "no-exit-code-after-pipe", "project": "youkiddingme", "ts": 1785893430646, "detail": "command matched deny rule: cd /tmp && ~/damla_projects_2026/youkiddingme/.venv/bin/lulu --help 2>&1 | head -40; echo \"EXIT=$?\""}
