@@ -30,6 +30,33 @@
 #      surface. A record naming one of these is DROPPED, not rewritten, and the
 #      number dropped is published, because a silent drop is its own untruth:
 #      it turns "here is everything" into "here is everything we chose".
+#   4. The PROJECT KEY, which is number 1 written in an alphabet the rewrite in
+#      number 1 does not read. See below.
+#
+# A PROJECT KEY IS AN ABSOLUTE PATH IN ANOTHER ENCODING
+#   The agent names a session after its working directory with every run of
+#   non-alphanumerics collapsed to a single dash:
+#
+#       /Users/<account>/damla_projects_2026/rabadon
+#         ->  -Users-<account>-damla-projects-2026-rabadon
+#
+#   The gate copies that key onto the records it writes, and 300 records in this
+#   ledger carry one. Every rule above walked past them. `unhome` searches for a
+#   slash and there is no slash. The account-name replacement in `clean` would
+#   have caught it and is only ever applied to free text. `project_of` passed the
+#   field through untouched, because a key is not a path as far as it could tell.
+#
+#   What stopped the publish was the refusal at the end — it read the account
+#   name, whole, in the field a reader sees first, and would not write the file.
+#   That is the check working with nothing behind it: a refusal with no rewrite
+#   to fall back on halts the deploy every time it runs. This is the rewrite.
+#
+#   The encoding is LOSSY and the label here is honest about it. A directory
+#   called `my-app` and a path `my/app` produce the same key, so the last segment
+#   of a stripped key is a label, not a name. It is the right label anyway,
+#   because it is the one the same project carries on its other 25,000 records
+#   (`rabadon`, never `damla-projects-2026-rabadon`), and a project column that
+#   spells one repository two ways is counting two projects.
 #
 # THE LIST IS NOT IN THIS FILE, AND THAT IS THE POINT.
 #   This repository is public and `vercel deploy` uploads the whole of site/ —
@@ -59,6 +86,31 @@ HOMES = os.path.dirname(HOME)   # the directory home directories live in
 # foreign repository carries /home/runner, a foreign macOS path carries
 # /Users/<name>. Neither is this operator's, and neither belongs on the page.
 FOREIGN_HOME = re.compile(r"/(?:Users|home)/[^/\s'\"]*")
+
+# the same home directory, dash-encoded (see A PROJECT KEY, above).
+_KEY_RUN = re.compile(r"[^A-Za-z0-9]+")
+
+
+def encode_key(path):
+    """A path spelled the way a project key spells it."""
+    return _KEY_RUN.sub("-", path)
+
+
+# anybody's encoded home, this machine's included, and a truncated one with it:
+# `[A-Za-z0-9]+` stops at the next dash, so it matches the account name whether
+# the label was clipped mid-name or not.
+#
+# The lookbehind is the difference between a redaction and a corruption. Without
+# it `-home-` matches inside `my-home-dir` and inside any rule id that has the
+# word in the middle, and free text starts coming out mangled. A key stands
+# alone or follows a path separator; it never begins mid-word.
+FOREIGN_KEY = re.compile(r"(?<![A-Za-z0-9])-(?:Users|home)-[A-Za-z0-9]+")
+
+ENCODED_HOME = encode_key(HOME)     # -Users-<account>, on this machine
+
+# a project key that is an encoded ABSOLUTE path: a leading dash, then a name.
+# `-` on its own is a record with no project, not a path, and it stays that way.
+_ENCODED_KEY = re.compile(r"^-[A-Za-z0-9]")
 
 # what a rewritten home path is spelled as in every published file.
 PLACEHOLDER = "~"
@@ -118,6 +170,31 @@ SENSITIVE_PROJECTS = load_terms()
 _PROJECT_RE = (re.compile("|".join(re.escape(p) for p in SENSITIVE_PROJECTS), re.I)
                if SENSITIVE_PROJECTS else None)
 
+# the same names as a project key spells them. A term written `some_name` does
+# not appear anywhere in `-Users-<account>-some-name`, because the encoding
+# rewrote the very separator the term was written with — so the list is compiled
+# a second time in the key alphabet and matched against the text in that
+# alphabet. The operator writes a name the way the directory is named; the
+# redactor is what has to know about the other spelling.
+#
+# The examples in this file are placeholders on purpose. site/redact.py is
+# served from the directory it guards (the domain answers 200 for it), so a
+# withheld name written here as an illustration is published twice over —
+# on the domain and in the public repository — annotated with the reason it
+# was withheld. That is the disclosure the list was moved off the tree to
+# avoid, arriving through the door marked documentation.
+_PROJECT_KEY_RE = (re.compile("|".join(re.escape(encode_key(p)) for p in SENSITIVE_PROJECTS), re.I)
+                   if SENSITIVE_PROJECTS else None)
+
+
+def _project_hit(blob):
+    """The withheld name this text carries, in either spelling, or None."""
+    m = _PROJECT_RE.search(blob) if _PROJECT_RE else None
+    if m:
+        return m.group(0)
+    m = _PROJECT_KEY_RE.search(encode_key(blob)) if _PROJECT_KEY_RE else None
+    return m.group(0) if m else None
+
 
 def unhome(s):
     """Rewrite every absolute home path to `~`, INCLUDING a truncated one.
@@ -138,7 +215,13 @@ def unhome(s):
     for n in range(len(HOME) - 1, len(HOMES), -1):
         if HOME[:n] in s:
             s = s.replace(HOME[:n], PLACEHOLDER)
-    return FOREIGN_HOME.sub(PLACEHOLDER, s)
+    s = FOREIGN_HOME.sub(PLACEHOLDER, s)
+    # and the same path dash-encoded, which is how it reaches free text too:
+    # a record's detail can quote ~/.claude/projects/-Users-<account>/…, and
+    # that spelling was surviving into published bytes with the account name
+    # intact while the slash spelling two characters away was being rewritten.
+    s = s.replace(ENCODED_HOME, PLACEHOLDER)
+    return FOREIGN_KEY.sub(PLACEHOLDER, s)
 
 
 def leaks(blob):
@@ -150,16 +233,24 @@ def leaks(blob):
     for n in range(len(USER), PREFIX - 1, -1):
         if USER[:n] in blob:
             return "the account name survives redaction (%d of %d characters)" % (n, len(USER))
-    hit = _PROJECT_RE.search(blob) if _PROJECT_RE else None
+    # a home path in the key alphabet. This one refuses on ANY account name, not
+    # only this machine's: a foreign key relayed through this ledger (a CI log,
+    # a transcript from another laptop) names somebody who never agreed to be
+    # named, and the account-name loop above cannot see them because it only
+    # knows one name.
+    key = FOREIGN_KEY.search(blob)
+    if key:
+        return "an absolute home path survived redaction, in project-key form (%s)" % key.group(0)
+    hit = _project_hit(blob)
     if hit:
-        return "a withheld project name survived the drop (%d characters)" % len(hit.group(0))
+        return "a withheld project name survived the drop (%d characters)" % len(hit)
     return ""
 
 
 def names_a_sensitive_project(blob):
     """True when this text names a repository whose NAME is the disclosure.
     Used to DROP a record; there is no rewrite that keeps it."""
-    return bool(_PROJECT_RE and _PROJECT_RE.search(blob))
+    return _project_hit(blob) is not None
 
 
 def withhold_reason(blob):
@@ -183,8 +274,36 @@ def clean(s, limit=400):
 
 
 def project_of(pipe):
-    # sessions started in the home directory are named after the DIRECTORY,
-    # which is the operator's account name, not a project. Project names are
-    # published on purpose; an account name is not one.
+    """The project label on a record, with nothing identifying left in it.
+
+    Three spellings arrive here and only the first was ever handled.
+
+      `rabadon`            a basename, which is what the gate writes when the
+                           session tells it one.
+      `<account>`          a session started in the home DIRECTORY, named after
+                           the directory, which is the account name and not a
+                           project. Project names are published on purpose; an
+                           account name is not one.
+      `-Users-<account>`   the working directory dash-encoded, whole, account
+      `-Users-<account>-   name and all. 300 records in this ledger. This is
+       work-rabadon`       the spelling that reached the refusal check with the
+                           name intact and stopped the deploy.
+
+    This file is served from the same directory it redacts, so the examples
+    above are written with a placeholder and not with the name on this machine.
+
+    The third is rewritten the way the first two are, because it is a path and
+    paths are rewritten here; the encoded home comes off and the last segment
+    of what remains is the label. What is left of an encoded home is nothing,
+    so a home-directory session lands on `home` from either spelling — which is
+    the point: the two were the same session all along.
+    """
     p = (pipe or "-").split(":")[0]
+    # `-` is what a record with no project recorded carries, and it is not an
+    # encoded path. Folding it into `home` would turn "not known" into a place,
+    # which is the one thing a redaction may never do — it is free to hide a
+    # fact and never free to invent one.
+    if _ENCODED_KEY.match(p):
+        rest = FOREIGN_KEY.sub("", p.replace(ENCODED_HOME, ""), count=1).strip("-")
+        p = rest.rsplit("-", 1)[-1] if rest else USER
     return "home" if p == USER else p
