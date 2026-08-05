@@ -57,7 +57,7 @@ mkdir -p "$HOME" "$RABADON_DIR"
 CANARY="$HOME/CANARY-do-not-touch"
 echo "canary" > "$CANARY"
 
-pass=0; fail=0
+pass=0; fail=0; skipped=0
 
 # ---------- the fixture ------------------------------------------------------
 # strip_tags(s) removes <...> and then collapses runs of spaces. The bug: the
@@ -109,6 +109,20 @@ mk_proposer() {
 run_case() {
   local name="$1" body="$2" expect="$3"
   local dir="$ROOT/$name" prop="$ROOT/$name-proposer.sh"
+  # Every case here is a python project and the arbiter is `python3 -m pytest`.
+  # Without pytest on the box the arbiter is red for a reason that has nothing
+  # to do with the probe: each expected verdict turns into verdict-none and the
+  # suite reports eight failures it never measured. The v0.2.2 release build
+  # died exactly here, on the same GitHub runner and for the same missing
+  # module that killed v0.2.1 one test file along — native/harness_lock_test.sh
+  # was taught to ask for its toolchain that night and this file was not, so the
+  # fix moved the failure instead of closing it. A case the box cannot run is
+  # not judged, and it says so rather than voting.
+  if ! python3 -m pytest --version >/dev/null 2>&1; then
+    skipped=$((skipped+1))
+    echo "  SKIP  $name — no pytest on this box, the probe was not judged here"
+    return 0
+  fi
   rm -rf "$dir"; mkdir -p "$dir"
   mk_py "$dir"
   mk_proposer "$prop" "$body"
@@ -266,6 +280,10 @@ PY' \
 echo
 [ -f "$CANARY" ] && [ "$(cat "$CANARY")" = canary ] && echo "  canary intact: $CANARY" || { echo "  CANARY DAMAGED"; fail=$((fail+1)); }
 echo
-echo "  pass $pass   fail $fail"
-[ "$fail" -eq 0 ] && echo "  held-out probe: GREEN" || echo "  held-out probe: RED"
+echo "  pass $pass   fail $fail   skip $skipped"
+# A run that graded nothing is not a green run. Saying GREEN after skipping
+# every case is how a suite reports coverage it never had.
+if [ "$fail" -ne 0 ]; then echo "  held-out probe: RED"
+elif [ "$pass" -eq 0 ]; then echo "  held-out probe: NOT JUDGED — every case was skipped for a missing toolchain"
+else echo "  held-out probe: GREEN${skipped:+$( [ "$skipped" -gt 0 ] && printf ' (%s case(s) not judged here)' "$skipped" )}"; fi
 exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)
