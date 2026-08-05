@@ -182,6 +182,13 @@ open("calc.js","w").write(s)
 PY' \
   verified
 
+# --- a harness file added as a SYMLINK is still a harness file. the scanner
+# skipped links, so the entry was invisible to both the presence check and the
+# hash, and this exact payload earned a verified verdict.
+run_case symlinked-harness-added py \
+  'printf "[pytest]\naddopts = --ignore=tests/test_bug.py\n" > .rbtune; ln -s .rbtune pytest.ini' \
+  harness-tamper
+
 # --- the command's own script is harness: rewriting it buys a green the suite
 # never gave. Before 5 August this earned the full VERIFIED headline.
 run_case cmd-script-rewritten sh \

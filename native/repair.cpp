@@ -452,7 +452,21 @@ static void scan_harness(const string& absDir, const string& rel,
     const string r = rel.empty() ? name : rel + "/" + name;
     struct stat st;
     if (lstat(full.c_str(), &st) != 0) continue;
-    if (S_ISLNK(st.st_mode)) continue;   // never followed: the walk stays in the tree
+    if (S_ISLNK(st.st_mode)) {
+      // Never followed: the walk stays inside the tree. But a symlink standing
+      // at a harness NAME is a harness file somebody just added, and skipping
+      // it made the whole entry invisible to the presence check and the hash
+      // alike. Measured 5 August, a proposer added `pytest.ini -> .rbtune`
+      // carrying an --ignore for the failing module and earned a verified
+      // verdict. A link's identity is where it points, so that is what is
+      // recorded, and the target's own content is never read through it.
+      if (harness_file(name, rel)) {
+        char buf[4096];
+        const ssize_t n = readlink(full.c_str(), buf, sizeof buf - 1);
+        out.push_back({r, n > 0 ? "symlink:" + string(buf, (size_t)n) : string("symlink:unreadable")});
+      }
+      continue;
+    }
     if (S_ISDIR(st.st_mode)) {
       if (!skip_dir(name)) scan_harness(full, r, out);
       continue;
