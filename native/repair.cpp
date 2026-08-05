@@ -852,7 +852,14 @@ int main(int argc, char** argv) {
     }
     std::ofstream pf(patchPath, std::ios::trunc); pf << patch;
   }
-  em.emit("REPAIR_OK", "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()) +
+  // The screen has said for a while that a flaky run certifies nothing, and the
+  // ledger went on writing REPAIR_OK underneath it, so `rabadon stats` counted a
+  // coin flip as a held repair. Measured 5 August: one flaky session printed
+  // "nothing here is certified" and the counter still read `repairs held
+  // (locked): 1`. The counter is the number this product is sold on, so the
+  // uncertified case gets its own event and the word OK stops covering it.
+  em.emit(flakyArbiter ? "REPAIR_FLAKY" : "REPAIR_OK",
+          "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()) +
           ",\"harnessLocks\":" + std::to_string(harness.size()) +
           (flakyArbiter ? ",\"why\":\"flaky check: arbiter samples disagree (exit " + std::to_string(firstArbiterExit) + ", then green)\",\"samples\":2" : ""));
   // grade the evidence out loud: "hash-locked" is only a claim when there WAS

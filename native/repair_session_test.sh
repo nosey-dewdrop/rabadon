@@ -276,6 +276,15 @@ else pass "arbiter flake: the word VERIFIED is not spent on an ungradeable run";
 if grep -q '"why":"flaky check: arbiter samples disagree' "$L8/spool/"*.jsonl 2>/dev/null; then
   pass "arbiter flake: the ledger says FLAKY, in its own words"
 else fail "arbiter flake left no flaky reason on the ledger"; fi
+# The screen refuses the word VERIFIED on this run, and the ledger went on
+# writing REPAIR_OK underneath it — so `rabadon stats` counted a coin flip among
+# the held repairs, which is the one number this product is sold on.
+if grep -q '"ev":"REPAIR_FLAKY"' "$L8/spool/"*.jsonl 2>/dev/null; then
+  pass "arbiter flake: the ledger event is REPAIR_FLAKY, not an OK"
+else fail "arbiter flake: no REPAIR_FLAKY event on the ledger"; fi
+if grep '"step":"session-repair"' "$L8/spool/"*.jsonl 2>/dev/null | grep -q '"ev":"REPAIR_OK"'; then
+  fail "an ungradeable run still wrote REPAIR_OK — the held counter counts a coin flip"
+else pass "arbiter flake: the word OK never reaches the counter"; fi
 if grep -q '"why":"check still red after proposal"' "$L8/spool/"*.jsonl 2>/dev/null; then
   fail "the ledger recorded 'check still red after proposal' for a fix that went green"
 else pass "the false sentence never reached the hash-chained ledger"; fi
