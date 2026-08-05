@@ -2,6 +2,11 @@
 
 All notable changes to rabadon. Dates are the day the tag was pushed.
 
+## 0.2.1 — 2026-08-05
+
+- The v0.2.0 release build failed on the macOS runner and took the publish job with it. A test that stands up a throwaway git remote let the host name the branch, so a box configured for `master` produced `src refspec main does not match any` while the same test passed here. The lab now names its own branch. Reproduced with the host forced to `master`: 144 passed and 2 failed before, 146 passed and 0 failed after.
+- Published site data is written through a redactor rather than beside one. Absolute home paths are rewritten and records matching a private-project list are dropped and counted, so a published file states how many records it withheld instead of quietly shrinking. A test reads what the domain would serve and fails if either ever reappears.
+
 ## 0.2.0 — 2026-08-05
 
 First published release. `npm i -g rabadon`.

@@ -179,6 +179,13 @@ export GIT_CONFIG_SYSTEM=/dev/null
 build_lab() {
   local L; L=$(mktemp -d "$LAB/git.XXXXXX")
   git init -q --bare "$L/remote.git" || return 1
+  # The bare repo's HEAD comes from init.defaultBranch, which is the machine's
+  # opinion and not ours. This box says main, a GitHub runner says master, and
+  # the clone below then checks out an unborn master while `push origin main`
+  # dies with "src refspec main does not match any". The v0.2.0 release build
+  # failed here on darwin-arm64 and took the publish job down with it, so the
+  # branch this lab pushes to is now named by the lab, not by the host.
+  git -C "$L/remote.git" symbolic-ref HEAD refs/heads/main || return 1
   git init -q "$L/a" || return 1
   git -C "$L/a" config user.email t@t; git -C "$L/a" config user.name t
   git -C "$L/a" symbolic-ref HEAD refs/heads/main
