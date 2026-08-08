@@ -1,6 +1,6 @@
 {
   "name": "@rabadon/linux-arm64",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "rabadon prebuilt native core for linux-arm64 — installed automatically by the 'rabadon' package on this platform.",
   "license": "MIT",
   "repository": {

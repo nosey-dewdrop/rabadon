@@ -1,6 +1,6 @@
 {
   "name": "rabadon",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "The reliability runtime for AI coding agents. Stands between a live agent session and the world: refuses the force-push before it rewrites history, stops the loop on its third identical spin, holds untested pushes, and keeps a tamper-evident ledger of everything it caught.",
   "type": "module",
   "engines": {
@@ -15,10 +15,10 @@
   },
   "exports": "./index.mjs",
   "optionalDependencies": {
-    "@rabadon/darwin-arm64": "0.2.2",
-    "@rabadon/darwin-x64": "0.2.2",
-    "@rabadon/linux-x64": "0.2.2",
-    "@rabadon/linux-arm64": "0.2.2"
+    "@rabadon/darwin-arm64": "0.2.3",
+    "@rabadon/darwin-x64": "0.2.3",
+    "@rabadon/linux-x64": "0.2.3",
+    "@rabadon/linux-arm64": "0.2.3"
   },
   "scripts": {
     "postinstall": "node scripts/build.mjs",

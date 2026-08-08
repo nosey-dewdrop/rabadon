@@ -43,6 +43,27 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Give the suite the toolchain it grades with (best effort)
+        # Twelve cases in `make test` drive a real python project through the
+        # arbiter. A runner with no pytest cannot grade them, and until 5 August
+        # it did not say so: v0.2.1 died on four of them in harness_lock_test.sh
+        # and v0.2.2 died on eight in heldout_test.sh, both reporting a verdict
+        # they never measured. Both files now ask for their toolchain and count
+        # what they skipped, so a missing pytest costs coverage and no longer
+        # costs the release.
+        #
+        # Which is exactly why this step may not fail the job. It buys back the
+        # twelve cases when it can, and `make test` prints how many went ungraded
+        # when it cannot. A publish pipeline that a pip mirror can take down is a
+        # worse trade than twelve cases marked NOT JUDGED in the log.
+        continue-on-error: true
+        run: |
+          set -u
+          python3 -m pip install --quiet --disable-pip-version-check pytest \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pytest \
+            || true
+          python3 -m pytest --version \
+            || echo "no pytest on this runner — those cases will report as NOT JUDGED, by design"
       - name: Build the native core (reproducible)
         env:
           SOURCE_DATE_EPOCH: "1"
@@ -106,3 +127,86 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
+
+  smoke:
+    name: install from the registry on ${{ matrix.os }}
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Wait for the registry to serve this version
+        run: |
+          set -euo pipefail
+          V="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 30); do
+            if npm view "rabadon@$V" version >/dev/null 2>&1; then
+              echo "the registry serves rabadon@$V"; exit 0
+            fi
+            echo "attempt $i — rabadon@$V is not on the registry yet"; sleep 10
+          done
+          echo "rabadon@$V never appeared on the registry"; exit 1
+      - name: Install it the way a stranger would
+        run: |
+          set -euo pipefail
+          V="${GITHUB_REF_NAME#v}"
+          npm i -g "rabadon@$V"
+          command -v rabadon
+      - name: The installed thing has to refuse something
+        # The publish job proves a tarball reached the registry. It proves
+        # nothing about whether the prebuilt binary for this platform came down
+        # with it, is executable, and enforces. Until 5 August that half was
+        # UNMEASURED for every platform: the package was not on the registry at
+        # all, so the only path anyone had ever run was a local tarball.
+        #
+        # The guard is written here by hand on purpose. `rabadon init` authors
+        # rules with a model, and a release gate that needs a model to pass is a
+        # release gate that fails when the model is slow.
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/smoke"
+          mkdir -p "$P/.rabadon"
+          cat > "$P/.rabadon/guard.json" <<'JSON'
+          {
+            "project": "smoke",
+            "bash": [
+              { "id": "no-force-push-main",
+                "deny": "git\\s+push[^|;&]*(--force|-f)\\b[^|;&]*\\b(main|master)\\b",
+                "why": "post-publish smoke: force-pushing a shared branch destroys history",
+                "catches": ["git push --force origin main"] }
+            ],
+            "protectedPaths": [],
+            "disabled": []
+          }
+          JSON
+          rabadon on
+          GATE="$(npm root -g)/rabadon/hooks/gate.mjs"
+          [ -f "$GATE" ] || { echo "the installed package has no hooks/gate.mjs at $GATE"; exit 1; }
+
+          ev() { printf '{"hook_event_name":"PreToolUse","session_id":"smoke-%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" "$P" "$2"; }
+
+          set +e
+          ev danger "git push --force origin main" | node "$GATE" > "$RUNNER_TEMP/danger.out" 2>&1
+          DANGER=$?
+          ev safe "git status --short" | node "$GATE" > "$RUNNER_TEMP/safe.out" 2>&1
+          SAFE=$?
+          set -e
+
+          echo "--- what an agent would have been shown ---"
+          cat "$RUNNER_TEMP/danger.out"
+          echo "--- dangerous exit $DANGER (want 2), safe exit $SAFE (want 0) ---"
+
+          # both halves. A gate that refuses everything is not a gate, it is an
+          # outage, and it passes any check that only ever sends it a bad command.
+          [ "$DANGER" -eq 2 ] || { echo "the installed gate did NOT refuse a force-push"; exit 1; }
+          [ "$SAFE" -eq 0 ]   || { echo "the installed gate refused an ordinary command"; exit 1; }
+          grep -q "rabadon BLOCKED this action" "$RUNNER_TEMP/danger.out"
+
+          # and the path the README sells, which is the one a stranger types.
+          cd "$P" && rabadon drill | tee "$RUNNER_TEMP/drill.out"
+          grep -q "the gate REFUSED it (exit 2)" "$RUNNER_TEMP/drill.out"
