@@ -520,6 +520,22 @@ static const char* kHelp =
   "  rabadon-repair ~/src/express --cmd \"npx mocha --reporter dot\"\n";
 
 int main(int argc, char** argv) {
+  // ORDER IS PART OF THE OUTPUT, and it was being lost the moment anyone stopped
+  // watching on a terminal.
+  //
+  // The narration goes to stdout and the verdicts go to stderr. On a tty stdout
+  // is line-buffered and the two interleave in the order they happened. Into a
+  // pipe — a CI log, `| tee`, a recording, anything a stranger reads later —
+  // stdout switches to block buffering and does not flush until the process
+  // ends, so every verdict arrives BEFORE the run it belongs to. Caught by
+  // rasterising the recording and reading it: the frame showed REJECTED with the
+  // sha mismatch, and only after it "check: python3 test_calc.py / RED — caught /
+  // proposing a fix in an isolated copy…".
+  //
+  // Backwards is worse than terse. A reader who sees the refusal first has to
+  // reconstruct which proposal it refused, and this tool's entire job is to be
+  // read by somebody who was not there.
+  setvbuf(stdout, nullptr, _IOLBF, 0);
   rb_help(argc, argv, kHelp);
 
   string dir = ".";
