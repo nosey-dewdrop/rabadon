@@ -581,6 +581,18 @@ test: all
 # is the one that costs: on a 161-file suite a proposal that neutered the failing
 # test was HELD instead of rejected.
 	./native/lock_coverage_test.sh
+# every check above hunts the MISS: a fake fix that buys a green. this one hunts
+# the opposite, and the opposite is the expensive one. measured on a three-line
+# fixture, nine correct fixes refused out of twelve -- the isolated copy carried
+# __pycache__ for the source the proposal had just replaced, and CPython
+# validates a .pyc on the source's mtime and SIZE at one second of resolution,
+# `cp -R` preserves mtime, and `a - b` -> `a + b` is the same byte count, so
+# every field the cache checks still agreed. the arbiter re-ran the bug and
+# called an honest fix a fake one. second class, same family: the proposer
+# inherited fd 0, so one that reads stdin hung until the wall clock and reached
+# the ledger as a failed repair -- and the SAME proposal passed when the caller's
+# stdin was closed, which made the verdict a function of how rabadon was invoked.
+	./native/false_reject_test.sh
 # and one question further back: the lock covers what discovery found, so what
 # was discovery missing. Three silent bounds. The walk stopped at depth 4, and
 # zod keeps its suite six directories down, so 170 test files were on disk and 2

@@ -151,6 +151,28 @@ static RunResult run_shell(const string& cmd, const string& cwd, int timeoutSec,
   if (pid == 0) {
     setpgid(0, 0); // own process group: the timeout kill reaps grandchildren too
     if (!cwd.empty() && chdir(cwd.c_str()) != 0) _exit(126);
+    // stdout and stderr go to the pipe. STDIN GOES NOWHERE, and that is a
+    // verdict, not tidiness.
+    //
+    // The prompt is passed to the proposer as an ARGUMENT, so nothing here ever
+    // needs the parent's stdin — but fd 0 was inherited, and a proposer that
+    // reads it blocks until the wall clock fires. rabadon then records
+    // REPAIR_FAIL with why="proposer timed out". Measured: a proposer whose
+    // first line is `cat >/dev/null` hangs for the whole timeout and is written
+    // to the ledger as a failed repair.
+    //
+    // The verdict is wrong twice over. Nothing was proposed, so nothing was
+    // rejected — and the same proposal SUCCEEDS when the caller happens to have
+    // a closed stdin, which is how this hid: run it from a script and it works,
+    // run it from a terminal and the identical repair is refused. A judgement
+    // that depends on how its caller was invoked is not deterministic, and
+    // deterministic is the whole claim.
+    //
+    // The check and the arbiter get the same treatment, for the same reason: a
+    // suite that waits on input should fail in the first second rather than eat
+    // the timeout and be reported as red.
+    int devnull = open("/dev/null", O_RDONLY);
+    if (devnull >= 0) { dup2(devnull, 0); if (devnull > 2) close(devnull); }
     dup2(pfd[1], 1); dup2(pfd[1], 2);
     close(pfd[0]); close(pfd[1]);
     for (const string& e : extraEnv) { putenv(strdup(e.c_str())); }
@@ -683,10 +705,43 @@ int main(int argc, char** argv) {
   const string tmp = tp;
   const string base = tmp + "/base", work = tmp + "/work";
   {
-    RunResult c1 = run_shell("mkdir -p " + shell_quote(base) + " " + shell_quote(work) +
+    // A COPY THAT CARRIES A CACHE OF THE SOURCE IT IS ABOUT TO REPLACE IS NOT AN
+    // ISOLATED COPY.
+    //
+    // Measured 5 August, read out of the work directory of a run that had just
+    // been rejected: work/calc.py held the CORRECT fix, and `import calc` in that
+    // same directory returned the buggy answer. Deleting __pycache__ and importing
+    // again returned the right one. The arbiter had re-run the interpreter's
+    // bytecode for the source the proposer had already replaced, watched it fail,
+    // and called an honest fix a fake fix.
+    //
+    // The mechanism needs three things at once, which is why it stayed hidden.
+    // CPython validates a .pyc against the source mtime and SIZE, at one second
+    // of resolution. `cp -R` preserves mtime, so the copy inherits exactly the
+    // timestamp the .pyc recorded. And a fix like `a - b` -> `a + b` is the same
+    // number of bytes. Land that write inside the same second and every field the
+    // cache checks still agrees.
+    //
+    // Rate on a three-line fixture: 7 rejections in 12 runs. 0 in 12 when the fix
+    // changed the byte count, 0 in 12 with bytecode writing turned off. It is a
+    // FALSE REPAIR_FAIL, which costs more than a miss: the product's claim is that
+    // a held repair really was verified, and a judge that refuses correct work at
+    // random is not stricter, it is noisier.
+    //
+    // Only derived bytecode goes. node_modules, target/ and build/ are derived too
+    // and are left alone — the check command needs them, and none of them answers
+    // a question about the source with an answer computed from an older one. That
+    // property is what is being removed here, not "generated files".
+    const string purge =
+        " ; for d in " + shell_quote(base) + " " + shell_quote(work) + "; do"
+        " find \"$d\" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null;"
+        " find \"$d\" -type f \\( -name '*.pyc' -o -name '*.pyo' \\) -delete 2>/dev/null;"
+        " done; true";
+    RunResult c1 = run_shell("{ mkdir -p " + shell_quote(base) + " " + shell_quote(work) +
                              " && cp -R " + shell_quote(dir) + "/. " + shell_quote(base) +
                              " && cp -R " + shell_quote(dir) + "/. " + shell_quote(work) +
-                             " && rm -rf " + shell_quote(base + "/.rabadon") + " " + shell_quote(work + "/.rabadon"), "", 120);
+                             " && rm -rf " + shell_quote(base + "/.rabadon") + " " + shell_quote(work + "/.rabadon") +
+                             "; } || exit 1" + purge, "", 120);
     if (c1.exit_code != 0) { fprintf(stderr, "rabadon repair: could not copy the repo\n"); return 1; }
   }
   std::vector<std::pair<string, string>> locks; // testFile -> sha256
