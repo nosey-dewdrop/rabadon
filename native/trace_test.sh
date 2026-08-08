@@ -53,7 +53,13 @@ echo "trace: a refusal is a caught step"
 BOX=$(mktemp -d /tmp/rabadon-refusal-box.XXXXXX)
 REPO=$(mktemp -d /tmp/rabadon-refusal-repo.XXXXXX)
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_TERMINAL_PROMPT=0
-git -C "$REPO" init -q .
+# the branch is NAMED, because the probe below pushes `main` and a fixture that
+# inherits the machine's default gets `master` on a GitHub runner. git then dies
+# on the refspec before it ever looks for the remote, and the check that wanted
+# to prove "no remote, so a missed block reaches nothing" proves nothing at all.
+# v0.2.0 died on this same inheritance one file along.
+git -C "$REPO" init -q -b main . 2>/dev/null \
+  || { git -C "$REPO" init -q . && git -C "$REPO" symbolic-ref HEAD refs/heads/main; }
 git -C "$REPO" commit -q --allow-empty -m base --author="t <t@t>" 2>/dev/null \
   || GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
      git -C "$REPO" commit -q --allow-empty -m base
