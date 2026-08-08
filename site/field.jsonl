@@ -1,3 +1,4 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786192398082, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786191651477, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1786191382858, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && git status --short | grep -v \"^??\" ; echo \"--- mandal durumu ---\"; node engine/tools/one-figure-lint.mjs 2>&1 | tail -2; nod"}
 {"ev": "STOP", "rule": "no-heredoc-source-writes", "project": "youkiddingme", "ts": 1785965583002, "detail": "command matched deny rule: cd ~/damla_projects_2026/youkiddingme && cat >> lulumelon/tests/test_typography.py <<'PY'\n\n\n# -- the pages in the repository -----------------------------------"}
