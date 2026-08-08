@@ -1,3 +1,9 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786195285610, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "engine", "ts": 1786195130541, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && python3 -c \"import svgpathtools; print('found', svgpathtools.__file__)\" 2>&1 | tail -1; ls -d .venv* 2>/dev/null; echo \"--- "}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786194993167, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786194647657, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786194291706, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "no-gnu-timeout-on-macos", "project": "rabadon", "ts": 1786194249980, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && timeout 550 make test > /tmp/rabadon-make-test.log 2>&1; echo \"EXIT=$?\"; tail -25 /tmp/rabadon-make-test.log"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786192398082, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786191651477, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1786191382858, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && git status --short | grep -v \"^??\" ; echo \"--- mandal durumu ---\"; node engine/tools/one-figure-lint.mjs 2>&1 | tail -2; nod"}
