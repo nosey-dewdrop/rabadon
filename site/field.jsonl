@@ -1,3 +1,4 @@
+{"ev": "STOP", "rule": "no-rm-rf-outside", "project": "home", "ts": 1786289659796, "detail": "command matched deny rule: cd ~/.claude\necho \"=== SILINMEDEN ONCE ===\"; du -sh . 2>/dev/null\nrm -rf file-history paste-cache cache shell-snapshots debug backups 2>/dev/null\nrm -f CLAUDE.m"}
 {"ev": "STOP", "rule": "loop-stop", "project": "reports", "ts": 1786285956913, "detail": "looping on: open -a TextEdit ~/damla_projects_2026/reports/LEAD21-16-21.txt"}
 {"ev": "STOP", "rule": "no-rm-rf-outside", "project": ".claude", "ts": 1786285426002, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026/reports/LEAD21 && echo silindi"}
 {"ev": "STOP", "rule": "promise-tamper", "project": "rabadon", "ts": 1786281194311, "detail": "attempt to edit the promise itself: ~/damla_projects_2026/rabadon/.rabadon/promise.json"}
