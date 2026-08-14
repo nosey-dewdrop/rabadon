@@ -194,5 +194,51 @@ RC=$(run "$PROJ" "deploy --prod"); [ "$RC" = "2" ] && pass "guard.json extends t
 # ...and the baseline still holds underneath that same guard
 RC=$(run "$PROJ" "rm -rf /"); [ "$RC" = "2" ] && pass "the baseline holds under a guard that never mentions it" || fail "baseline under guard: rc=$RC"
 
+# --- the switch and the ledger are the tool's own throat -------------------
+# Measured before this law existed: enforce refused `git push --force origin
+# main` with exit 2, `rm -f $RABADON_DIR/enabled` was ALLOWED with exit 0, and
+# the identical force-push then returned exit 0. Supervision was removed through
+# the one surface rabadon mediates, and nothing here saw it.
+echo "the switch and the ledger"
+while IFS='|' read -r desc cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run "$PROJ" "$cmd")
+  [ "$RC" = "2" ] && pass "refused: $desc" || fail "NOT refused ($RC): $cmd"
+done <<EOF
+the enforce switch itself|rm -f $RABADON_DIR/enabled
+the whole supervision directory|rm -rf $RABADON_DIR
+one day of the hash-chained ledger|rm $RABADON_DIR/spool/2026-01-01.jsonl
+the mode marker that detects an out-of-band change|rm -f $RABADON_DIR/mode.last
+EOF
+RC=$(run "$PROJ" "rm -f $RABADON_DIR/enabled")
+[ -n "$(spool_has baseline-supervision-tamper)" ] \
+  && pass "the refusal is on the ledger under its own rule id" \
+  || fail "no baseline-supervision-tamper record on the spool"
+
+# THE TWINS THAT MUST STILL PASS. The first spelling of this law compared a bare
+# prefix, so "<dir>foo" was read as a child of "<dir>" and ordinary work was
+# refused — the trap baseline.h names forty lines above the law itself.
+while IFS='|' read -r desc cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run "$PROJ" "$cmd")
+  [ "$RC" = "0" ] && pass "allowed: $desc" || fail "WRONGLY refused ($RC): $cmd"
+done <<EOF
+a sibling file sharing the prefix|rm -f ${RABADON_DIR}-backup
+the project's own build output|rm -rf $PROJ/build
+node_modules|rm -rf $PROJ/node_modules
+EOF
+
+# The recursive sibling is refused by baseline-rm-rf-outside, which is correct
+# and has nothing to do with this law — it lives outside the project tree. So the
+# question here is not whether it was refused, it is WHICH law refused it. A
+# prefix bug would answer baseline-supervision-tamper.
+run "$PROJ" "rm -rf ${RABADON_DIR}foo/x" >/dev/null
+LAST=$(grep -h '"ev":"STOP"' "$RABADON_DIR/spool/"*.jsonl 2>/dev/null | tail -1)
+case "$LAST" in
+  *baseline-supervision-tamper*)
+    fail "a sibling sharing the prefix was charged to the supervision law: $LAST" ;;
+  *) pass "a sibling directory sharing the prefix is not charged to this law" ;;
+esac
+
 echo "baseline: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

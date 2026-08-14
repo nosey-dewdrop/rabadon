@@ -1106,6 +1106,55 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
   if (!disabled_has(disabled, "baseline-rm-rf-outside")) {
     const rbpath::Delete d = rbpath::delete_of(t);
     if (!d.isDelete || !rbtext::name_is(name, "rm")) return false;
+
+    // THE SWITCH AND THE LEDGER, before anything else here gets a say.
+    //
+    // Measured in an isolated lab: enforce mode refused `git push --force origin
+    // main` with exit 2; `rm -f <rabadon home>/enabled` returned exit 0 and was
+    // allowed; the identical force-push then returned exit 0. `rm -rf <rabadon
+    // home>` was allowed too, which is the whole ledger — every refusal, every
+    // wrong-refusal record, every hash chain — in one line. Nothing in this file
+    // saw any of it.
+    //
+    // It sits ABOVE the recursive test because the switch is a single file and
+    // `rm -f` on it needs no -r, and OUTSIDE the temp carve-out because
+    // RABADON_DIR legitimately points into a temp tree during tests and a law
+    // that waives itself there is a law an agent can arrange to be waived.
+    //
+    // This does not make the switch unremovable. An operator who owns the disk
+    // owns it, and the tool says so. It makes the AGENT unable to reach it
+    // through the one surface rabadon actually mediates, which is the surface
+    // that removed it in the first place.
+    if (!disabled_has(disabled, "baseline-supervision-tamper")) {
+      const string rdir = rbpath::norm_dir(rbpath::rabadon_dir());
+      for (size_t i = 0; i < d.targets.size(); i++) {
+        const string abs = rbpath::lexical_abs(d.targets[i], cwd);
+        if (abs.empty()) continue;
+        const string absDir = rbpath::norm_dir(abs);
+        // The directory itself, or something UNDER it — and "under" means the
+        // next character is a separator. norm_dir drops the trailing slash, so
+        // a bare prefix test made `<home>foo/x` a child of `<home>`, and the
+        // twin that had to pass was refused. This file's own comment names the
+        // trap forty lines up: a prefix is where an escape hides. It is also
+        // where a false refusal hides, which is the same mistake pointing the
+        // other way.
+        const bool self = absDir == rdir;
+        const bool under = absDir.size() > rdir.size() &&
+                           absDir.compare(0, rdir.size(), rdir) == 0 &&
+                           absDir[rdir.size()] == '/';
+        if (!self && !under) continue;
+        hit = {"baseline-supervision-tamper",
+               "this deletes rabadon's own switch or ledger, which is the record that would "
+               "have shown the deletion",
+               "rm on '" + d.targets[i] + "' resolves inside " + rdir +
+               " — that tree holds the enforce switch and the hash-chained ledger. Turning "
+               "supervision off is `rabadon off`, which writes the change down; removing the "
+               "file does the same thing with no record. Silence baseline-supervision-tamper "
+               "by id if this is really what you meant."};
+        return true;
+      }
+    }
+
     if (!d.recursive) return false;
 
     // The repository's own .git, which the delete law above cannot see because

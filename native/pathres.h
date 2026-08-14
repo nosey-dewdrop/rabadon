@@ -176,6 +176,21 @@ inline string real_home() {
   return norm_dir(resolve_real(lexical_abs(h, "/")));
 }
 
+// WHERE THE SUPERVISION LIVES — the switch, the mode marker and the ledger.
+//
+// This is the one definition. gate.cpp's rabadon_home() calls it, and so does
+// the baseline law that refuses a delete aimed at it, because a law protecting
+// a directory and a program choosing that directory must not be able to
+// disagree about which directory it is. The same file already carries the
+// lesson twice over: two spellings of one path is how the encoded project key
+// walked past three checks in a row.
+inline string rabadon_dir() {
+  const char* rd = getenv("RABADON_DIR");
+  if (rd && rd[0]) return string(rd);
+  const char* h = getenv("HOME");
+  return string(h && h[0] ? h : ".") + "/.rabadon";
+}
+
 inline void add_root(vector<string>& roots, const string& p) {
   const string d = norm_dir(p);
   if (d.size() < 2 || d[0] != '/') return;

@@ -151,12 +151,10 @@ static bool sealed_rule(const string& id) {
 // The rabadon home: RABADON_DIR when set (test isolation, multi-tenant), else
 // $HOME/.rabadon. ONE rule for the mode flags AND the spool — a split home
 // means `rabadon on` and the ledger disagree about which machine they live on.
-static string rabadon_home() {
-  const char* rd = getenv("RABADON_DIR");
-  if (rd && rd[0]) return string(rd);
-  const char* h = getenv("HOME");
-  return string(h ? h : ".") + "/.rabadon";
-}
+// ONE definition, in pathres.h, because baseline.h must refuse a delete aimed
+// at this directory and a law that computes the path itself can disagree with
+// the program that uses it.
+static string rabadon_home() { return rbpath::rabadon_dir(); }
 
 static long long now_ms() {
   struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
@@ -504,6 +502,46 @@ static string ledger_line(const string& ev, const string& extraJson) {
   // closing the object here produced two JSON documents on one line and a chain
   // the audit correctly called broken.
   return rbchain::append(rdir + "/spool/" + string(day) + ".jsonl", body);
+}
+
+// SUPERVISION THAT WENT AWAY WITHOUT SAYING SO.
+//
+// `rabadon --off` writes a MODE line, and that was taken to mean mode changes
+// are on the chain. They are not. The switch IS a file, `<rabadon home>/enabled`,
+// and `rm` on that file is the same change with none of the record: measured in
+// an isolated lab, enforce refused `git push --force origin main` with exit 2,
+// the file was removed with rm, the identical command returned exit 0, and the
+// MODE count on the ledger went from 1 to 1. The comment at the toggle already
+// says supervision going away is the most consequential thing anybody does to
+// this tool. It was still the one thing that could happen silently.
+//
+// So the mode is not trusted to announce itself: it is COMPARED, on every hook
+// invocation, against the last mode this machine recorded. A difference with no
+// MODE line between them is written down as one, marked out-of-band, naming both
+// ends. This does not stop the removal — an operator who owns the disk owns the
+// switch, and pretending otherwise would be the lie this tool exists to refuse —
+// it makes the removal leave a mark on the same hash-chained ledger as the
+// refusals it silenced.
+//
+// The marker file lives beside the switch and is written only when the mode
+// actually differs, so the hot path pays one small read and nothing else.
+static void note_mode(const string& now) {
+  const string rdir = rabadon_home();
+  const string markPath = rdir + "/mode.last";
+  string was;
+  { std::ifstream f(markPath); if (f) std::getline(f, was); }
+  while (!was.empty() && (was.back() == '\n' || was.back() == '\r' || was.back() == ' '))
+    was.pop_back();
+  if (was == now) return;
+  // A machine that has never recorded a mode is not a machine whose supervision
+  // changed. Recording the first observation as a transition would put a fake
+  // MODE line on every fresh install.
+  if (!was.empty())
+    ledger_line("MODE", "\"from\":\"" + json_escape(was) + "\",\"to\":\"" +
+                        json_escape(now) + "\",\"outOfBand\":true");
+  mkdir(rdir.c_str(), 0755);
+  std::ofstream f(markPath, std::ios::trunc);
+  if (f) f << now << "\n";
 }
 
 struct Emitter {
@@ -1487,6 +1525,14 @@ int main(int argc, char** argv) {
         const string now = silent ? "silent" : (on ? "enforce" : "watch");
         if (a1 != "--status" && now != was)
           ledger_line("MODE", "\"from\":\"" + was + "\",\"to\":\"" + now + "\"");
+        // The CLI just said what it did, so the comparison marker moves with it.
+        // Without this the next hook run would read the change as out-of-band and
+        // report the same transition twice, once honestly and once as an
+        // accusation. --status changes nothing and therefore records nothing.
+        if (a1 != "--status") {
+          std::ofstream mf(rhome + "/mode.last", std::ios::trunc);
+          if (mf) mf << now << "\n";
+        }
       }
       printf("rabadon: %s\n",
              silent ? "SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)"
@@ -1540,6 +1586,10 @@ int main(int argc, char** argv) {
   if (blind && homeFlag != FLAG_PRESENT)
     fprintf(stderr, "rabadon: cannot read its own switch at %s — enforcing rather than allowing\n",
             rhome.c_str());
+  // The mode this run resolved to, against the mode this machine last recorded.
+  // A switch removed with rm instead of `rabadon off` lands here, and lands on
+  // the ledger. See note_mode.
+  note_mode(mode_tag());
 
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
   // re-anchor — the LLM stays off the hot path (bounded `claude -p`).
