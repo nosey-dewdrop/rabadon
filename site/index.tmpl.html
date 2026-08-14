@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>rabadon, guardrails and a verifiable record for coding agents</title>
-<meta name="description" content="Guardrails and a verifiable record for coding agents. {{catches.total}} commands refused before they ran, {{corpus.defects}} real defects found in {{corpus.projectnames}}, 0 fake repairs ever accepted.">
+<meta name="description" content="Guardrails and a verifiable record for coding agents. {{catches.refused}} commands refused outright so they never ran, {{corpus.defects}} real defects found in {{corpus.projectnames}}, 0 fake repairs ever accepted.">
 <meta name="author" content="Damla Su Bilge">
 <link rel="canonical" href="https://rabadon.noseydewdrop.com/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="rabadon, run your coding agent without watching it">
-<meta property="og:description" content="{{catches.total}} commands refused before they ran. {{corpus.defects}} real defects found in {{corpus.projects_word}} open-source projects. 0 fake repairs accepted.">
+<meta property="og:description" content="{{catches.refused}} commands refused outright so they never ran. {{corpus.defects}} real defects found in {{corpus.projects_word}} open-source projects. 0 fake repairs accepted.">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com/">
 <meta property="og:site_name" content="rabadon">
 <meta property="og:image" content="https://rabadon.noseydewdrop.com/og.png">
@@ -59,7 +59,8 @@
 
   <div class="side hero">
     <div class="col">
-      <p>On this machine it has refused {{catches.total}} commands, and it has found {{corpus.defects}} real
+      <p>On this machine it has refused {{catches.refused}} commands outright, recorded a further
+      {{catches.total}} verdicts in watch mode where nothing was blocked, and found {{corpus.defects}} real
       defects in {{corpus.projectnames}}.</p>
       <p class="cta"><a href="https://github.com/nosey-dewdrop/rabadon">read the source</a><a href="/catches">see what it caught</a></p>
     </div>

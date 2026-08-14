@@ -780,23 +780,65 @@ def ledger_dirs():
     return dirs
 
 
-def catches():
+def repairs_held():
+    """REPAIR_OK split into work and laboratory, using field_stats' own list
+    rather than a second one written here. Two exclusion lists means the weaker
+    one decides what the site publishes, which is the lesson ledger() already
+    carries about the redactor. Returns (real, lab)."""
+    import field_stats
+    real = lab = 0
+    for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
+        for line in open(f, encoding="utf-8", errors="replace"):
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get("ev") != "REPAIR_OK":
+                continue
+            if field_stats.is_lab(str(d.get("pipe", ""))):
+                lab += 1
+            else:
+                real += 1
+    return real, lab
+
+
+def catches(meas):
     real, drill, ev, sample, projects, per, per_ex, raw = ledger()
     total = sum(real.values())
+    # WHAT THIS PAGE COUNTS, and the correction that had to be made here.
+    # ledger() reads WOULD_BLOCK and nothing else. WOULD_BLOCK is watch mode:
+    # gate.cpp:2320 records the verdict, prints "Nothing was stopped", and
+    # exits 0 — THE COMMAND THEN RUNS. This page called that number "commands
+    # refused before they ran" and said each one "did not run", which is the
+    # opposite of what the event means. trace.cpp:507 had already written the
+    # warning against exactly this mislabeling, and the landing page committed
+    # it anyway. The enforce-mode number, where the command genuinely did not
+    # run, is field.stop, and it comes from field_stats.py rather than from a
+    # second count written here — one exclusion list, not two.
+    refused = mval(meas, "field.stop")
+    # The same correction, applied to the repair counter. ev["REPAIR_OK"] is the
+    # whole spool, and the whole spool includes the demo and the repair harness's
+    # own scratch tree. Counting a harness's accepted repairs as repairs held on
+    # real work is the drill-padding this page condemns two paragraphs up.
+    held, held_lab = repairs_held()
     mine = projects.get("rabadon", 0)
     others = len([p for p in projects if p != "rabadon"])
 
     out = ['<div class="intro">', "<h1>what it actually caught.</h1>",
            '<p class="lede small dim">Read straight out of the gate\'s own spool when this page was built. '
-           "Every line below is a command that was about to run on a real machine, during real work, and did "
-           "not run. Rehearsals fired by the test suite are counted separately and left out of the total, "
-           "because a tool that pads its own numbers with its own drills has no business judging anyone "
-           "else's proof.</p>",
+           "Every line below is a command that was about to run on a real machine, during real work, and that "
+           "the gate ruled against. The lines on this page are watch-mode verdicts, which means the ruling was "
+           "recorded and the command ran anyway; enforce mode is the column where it did not run, and that "
+           "number is counted separately below. Rehearsals fired by the test suite are counted separately too "
+           "and left out of both, because a tool that pads its own numbers with its own drills has no business "
+           "judging anyone else's proof.</p>",
            '<div class="proof">',
-           f'<div><span class="n p">{total}</span><span class="t">commands refused before they ran</span></div>',
-           f'<div><span class="n b">{others + 1}</span><span class="t">repositories they were refused in</span></div>',
-           f'<div><span class="n g">{ev.get("REPAIR_OK", 0)}</span><span class="t">repairs held after the proof survived</span></div>',
-           f'<div><span class="n y">{sum(drill.values())}</span><span class="t">drills, excluded from the total</span></div>',
+           f'<div><span class="n p">{refused}</span><span class="t">commands refused in enforce mode, where the command did not run</span></div>',
+           f'<div><span class="n y">{total}</span><span class="t">verdicts recorded in watch mode, where nothing was blocked and the command ran</span></div>',
+           f'<div><span class="n b">{others + 1}</span><span class="t">repositories those watch-mode verdicts happened in</span></div>',
+           f'<div><span class="n g">{held}</span><span class="t">repairs held after the proof survived, on work that was real</span></div>',
+           f'<div><span class="n y">{sum(drill.values())}</span><span class="t">drills, excluded from both totals</span></div>',
+           f'<div><span class="n y">{held_lab}</span><span class="t">further repairs held inside the demo and the repair harness, excluded for the same reason</span></div>',
            "</div></div>"]
 
     # what a buyer actually asks: which project, and what was it about to do.
@@ -811,9 +853,10 @@ def catches():
             "icerik": "the writing repository",
             "p": "a scratch repository"}
     out.append("<section><h2>project by project</h2>"
-               '<p class="small dim">Each line is the sentence the ledger wrote at the moment the command '
-               "was refused, with the home path stripped and nothing else changed. Open any rule to read the "
-               "raw entries behind the count.</p>")
+               '<p class="small dim">Each line is the sentence the ledger wrote at the moment the gate ruled '
+               "against the command, with the home path stripped and nothing else changed. These are "
+               "watch-mode verdicts, so the command then ran. Open any rule to read the raw entries behind "
+               "the count.</p>")
     for proj, count in projects.most_common():
         if count < 2 and proj not in per_ex:
             continue
@@ -822,8 +865,8 @@ def catches():
         for rule, n in per.get(proj, Counter()).most_common():
             rows.append([(n, "p"), html.escape(rule),
                          html.escape(per_ex.get(proj, {}).get(rule, ""))])
-        out.append(f'<h3>{html.escape(title)} <span class="c">{count} refused</span></h3>')
-        out.append(table([("refused", "n"), ("rule", "s"),
+        out.append(f'<h3>{html.escape(title)} <span class="c">{count} ruled against</span></h3>')
+        out.append(table([("verdicts", "n"), ("rule", "s"),
                           ("the line the ledger wrote", "d")], rows, "ledger"))
 
     out.append('<p class="cap">The delete law reads a resolved path, not the text of the command, which is '
@@ -844,9 +887,9 @@ def catches():
             continue
         rows = [[html.escape(f"{day} {clock}"), html.escape(proj), html.escape(det)]
                 for day, clock, proj, det in entries]
-        out.append("<details><summary>" + html.escape(rule) + f", {count} refused, "
+        out.append("<details><summary>" + html.escape(rule) + f", {count} ruled against, "
                    f'showing {len(entries)}</summary><div class="body">' +
-                   table([("when", "s"), ("project", "s"), ("what it refused", "d")],
+                   table([("when", "s"), ("project", "s"), ("what it ruled against", "d")],
                          rows, "ledger") + "</div></details>")
 
     out.append("</section>")
@@ -953,8 +996,9 @@ def catches():
                            "</div></div></details>")
         out.append("</section>")
 
-    return page("/catches", "what rabadon caught — every refused command, from its own ledger",
-                f"{total} commands refused before they ran, read out of the gate's own ledger.",
+    return page("/catches", "what rabadon caught — every command the gate ruled against, from its own ledger",
+                f"{refused} commands refused outright in enforce mode and {total} verdicts recorded in "
+                "watch mode, read out of the gate's own ledger.",
                 "\n".join(out))
 
 
@@ -1701,7 +1745,12 @@ def index(rows, meas):
     projectnames = ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else "".join(names)
 
     vals = {
+        # catches.total is the WATCH-mode count and is named so on every page it
+        # reaches. catches.refused is the enforce-mode count, the one where the
+        # command did not run. They were the same token until now, and the
+        # smaller of the two was wearing the stronger sentence.
         "catches.total": f"{total:,}",
+        "catches.refused": mval(meas, "field.stop"),
         "catches.repos": str(refused_in),
         "ledger.repos": str(ran_in),
         "corpus.defects": str(o.get("totalCases", 0)),
@@ -1717,8 +1766,10 @@ def index(rows, meas):
         "corpus.table": defect_rows(mine),
         "corpus.proof_block": proof,
         "hero.stats": "\n".join([
-            stat("p", total, f'commands refused before they ran, across {refused_in} repositories. '
-                 f'<a href="/catches">the ledger entry behind every one</a>', "/catches"),
+            stat("p", fval(meas, "field.stop"),
+                 'commands refused outright in enforce mode, so they never ran. '
+                 f'<a href="/catches">a further {total:,} verdicts were recorded in watch mode across '
+                 f'{refused_in} repositories, where nothing was blocked</a>', "/catches"),
             stat("g", mval(meas, "gate.precision"),
                  f'precision over the {block + allow} cases lifted out of real sessions, recall '
                  f'{mval(meas, "gate.recall")}. On this machine&#39;s whole ledger the same binary reads '
@@ -1772,8 +1823,9 @@ def index(rows, meas):
                  "it was wrong</a>", "/field"),
         ]),
         "field.headline": field_headline(meas),
-"seo.desc": (f"Guardrails and a verifiable record for AI coding agents. {total:,} commands refused "
-                     f"before they ran, {o.get('totalCases', 0)} real defects found in "
+"seo.desc": (f"Guardrails and a verifiable record for AI coding agents. "
+                     f"{mval(meas, 'field.stop')} commands refused outright so they never ran, "
+                     f"{o.get('totalCases', 0)} real defects found in "
                      f"{o.get('totalRepos', 0)} open-source projects, 0 fake repairs accepted."),
         "seo.jsonld": jsonld("/", "rabadon, run your coding agent without watching it",
                              "Guardrails and a verifiable record for AI coding agents."),
@@ -1821,7 +1873,7 @@ def main():
     fday = field_day(meas, today)
     for name, content in (("index", index(rows, meas)),
                           ("field", field_page(meas, fday)),
-                          ("catches", catches()),
+                          ("catches", catches(meas)),
                           ("patch-notes", patch_notes(rows)),
                           ("pull-requests", pull_request_page(prs, rows)),
                           ("benchmarks", benchmarks(rows, meas))):

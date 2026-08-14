@@ -45,7 +45,12 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # runs made to exercise the engine. `<name>:session` is a real session in a repo
 # called <name>; everything here is a harness, a demo or a scratch tree.
-LAB_EXACT = {"vibecoded-demo", "llm-repair-live", "do-test:do", "do-test"}
+# "A:session" is the scratch repository the repair harness builds: 50 REPAIR_OK
+# in a single day (2026-08-05), every one with an empty detail, interleaved with
+# REPAIR_FAIL — the shape of a suite walking its cases, not of work. It was not
+# on this list, so /catches counted those 50 as repairs held on real work and
+# published 102 where the honest number is a fraction of it.
+LAB_EXACT = {"vibecoded-demo", "llm-repair-live", "do-test:do", "do-test", "A:session"}
 LAB_PREFIX = ("tmp.", "rabadon-", "test-", "scratch")
 # the fixtures the engine was proven against. real repositories, but visited to
 # BE measured, so they are reported separately from the operator's own work.
