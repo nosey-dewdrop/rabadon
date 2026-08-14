@@ -380,7 +380,23 @@ else if (hookEvent === 'PostToolUse') {
     // bounded, skipped entirely with RABADON_JUDGE=0.
     if (process.env.RABADON_JUDGE !== '0' && state.s.goalPrompt && (state.s.actionCount || 0) > 0 && state.s.actionCount % 12 === 0) {
       try {
-        const verdict = await driftJudge(state.s.goalPrompt, (state.s.recent || []).slice(-12));
+        // caught here, not by the outer handler — see the diagnose call below:
+        // a judge that failed still spent the wall-clock, and the native twin
+        // records it, so this one has to as well or the two ledgers disagree.
+        const t0 = Date.now();
+        let verdict = null;
+        try { verdict = await driftJudge(state.s.goalPrompt, (state.s.recent || []).slice(-12)); }
+        catch { verdict = null; }
+        // twin of the LLM_CALL in native/gate.cpp: the ledger says money was
+        // spent and how long the session waited, never an invented USD — the
+        // -p text stream carries no usage, so cost comes from the transcript in
+        // `rabadon lens`, where it is measured instead of guessed.
+        emit('LLM_CALL', {
+          purpose: 'drift',
+          model: process.env.RABADON_JUDGE_MODEL || 'claude-haiku-4-5',
+          ms: Date.now() - t0,
+          ok: !!verdict,
+        });
         if (verdict && verdict.onTrack === false && verdict.anchor) {
           emit('CHECK_FAIL', { step: 'goal', fails: [{ check: 'goal-drift', why: verdict.anchor.slice(0, 200) }] });
           await flush();
@@ -424,11 +440,25 @@ else if (hookEvent === 'PostToolUse') {
         state.lastDiagSig = failSig; state.lastDiagAt = now; saveState(state);
         emit('REPAIR_START', { step: 'diagnose', attempt: 1, fixing: ['red-tests'] });
         try {
-          const diag = await diagnose({
+          // The call is caught HERE, not by the outer handler, so a timed-out
+          // or missing `claude` still lands one LLM_CALL with ok:false. The
+          // native twin returns an empty verdict on the same failure and emits
+          // either way; if this one only recorded successes, the two engines
+          // would write different ledgers for an identical incident, and the
+          // spend a user most wants to see is the spend that bought nothing.
+          const diagT0 = Date.now();
+          let diag = null;
+          try { diag = await diagnose({
             goal: state.s.goalPrompt || '(no goal captured)',
             recent: (state.s.recent || []).slice(-15),
             failOutput: out.slice(-4000),
             cmd,
+          }); } catch { diag = null; }
+          emit('LLM_CALL', {
+            purpose: 'diagnose',
+            model: process.env.RABADON_DIAGNOSE_MODEL || '(account default)',
+            ms: Date.now() - diagT0,
+            ok: !!diag,
           });
           if (diag) {
             advice = `\nrabadon diagnosis:\n  where: ${diag.where}\n  cause: ${diag.cause}\n  fix:   ${diag.fix}\n`;

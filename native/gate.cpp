@@ -1798,7 +1798,18 @@ int main(int argc, char** argv) {
         std::vector<string> bullets;
         size_t from = ss.recent.size() > 12 ? ss.recent.size() - 12 : 0;
         for (size_t k = from; k < ss.recent.size(); k++) bullets.push_back(ss.recent[k].second);
+        const string judgeModel = env_or("RABADON_JUDGE_MODEL", "claude-haiku-4-5");
+        const long long t0 = now_ms();
         Verdict v = driftJudge(ss.goalPrompt, bullets);
+        // A supervisor that spends the operator's money has to say so in the
+        // same ledger it judges them with. Wall-clock and the model name, no
+        // USD: `claude -p --output-format text` prints no usage, so the tokens
+        // are not known here and a number invented at this line would be the
+        // exact failure this repository keeps writing about. Cost arrives from
+        // the transcript, in `rabadon lens`, where it is measured.
+        em.emit("LLM_CALL", "\"purpose\":\"drift\",\"model\":\"" + json_escape(judgeModel) +
+                            "\",\"ms\":" + std::to_string(now_ms() - t0) +
+                            ",\"ok\":" + (v.ok ? "true" : "false"));
         if (v.ok && !v.onTrack && !v.anchor.empty()) {
           em.emit("CHECK_FAIL", "\"step\":\"goal\",\"fails\":[{\"check\":\"goal-drift\",\"why\":\"" +
             json_escape(utf8_clip(v.anchor, 200)) + "\"}]");
@@ -1975,7 +1986,14 @@ int main(int argc, char** argv) {
         for (size_t k = from; k < ss.recent.size(); k++) bullets.push_back(ss.recent[k].second);
         const string goal = ss.goalPrompt.empty() ? "(no goal captured)" : ss.goalPrompt;
         const string failTail = out.size() > 4000 ? out.substr(out.size() - 4000) : out;
+        const long long diagT0 = now_ms();
         Diag diag = diagnose(goal, bullets, command, failTail);
+        // Same contract as the drift judge above: the ledger records that money
+        // was spent and how long the session waited for it, never a made-up USD.
+        em.emit("LLM_CALL", "\"purpose\":\"diagnose\",\"model\":\"" +
+                            json_escape(env_or("RABADON_DIAGNOSE_MODEL", "(account default)")) +
+                            "\",\"ms\":" + std::to_string(now_ms() - diagT0) +
+                            ",\"ok\":" + (diag.ok ? "true" : "false"));
         if (!diag.ok) {
           em.emit("REPAIR_FAIL", "\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\",\"why\":\"diagnosis unavailable\"");
         } else {

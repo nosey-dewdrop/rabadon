@@ -623,6 +623,40 @@ judgemodel() { # $1=engine (native|node) $2=env value ('' = unset) -> echoes the
   fi
   grep -A1 -x -- '--model' "$argv" 2>/dev/null | tail -1
 }
+# BR12b — the ledger records the spend, on both engines, success AND failure.
+# A supervisor that calls a model on the operator's account has to say so in the
+# same ledger it judges them with; the spend most worth seeing is the one that
+# bought nothing, so a judge that timed out still has to leave a line.
+llmcall() { # $1=engine $2=stub json ('' = judge returns nothing) -> echoes the LLM_CALL line
+  local C RD
+  C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
+  python3 -c "import json;json.dump({'sessions':{'s1':{'goalPrompt':'build the kernel','actionCount':12,'recent':[{'t':1,'s':'m'}]}}},open('$C/.rabadon/state.json','w'))"
+  local E='{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"lc1","tool_name":"Edit","tool_input":{"file_path":"'"$C"'/src/x.js"}}'
+  if [ "$1" = node ]; then
+    echo "$E" | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON="$2" RABADON_DIR="$RD" node "$GATE" >/dev/null 2>&1
+  else
+    echo "$E" | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON="$2" RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
+  fi
+  grep '"ev":"LLM_CALL"' "$RD/spool/$DAY.jsonl" 2>/dev/null | tail -1
+}
+for eng in native node; do
+  line="$(llmcall "$eng" '{"onTrack":true}')"
+  echo "$line" | grep -q '"purpose":"drift"' && echo "$line" | grep -q '"ok":true' \
+    && ok "BR12b $eng drift judge writes LLM_CALL ok:true" \
+    || { bad "BR12b $eng LLM_CALL missing/wrong on success"; echo "    $line"; }
+  echo "$line" | grep -q '"model":"claude-haiku-4-5"' \
+    && ok "BR12b $eng LLM_CALL names the model that was actually called" \
+    || bad "BR12b $eng LLM_CALL model wrong"
+  echo "$line" | grep -qE '"ms":[0-9]+' \
+    && ok "BR12b $eng LLM_CALL carries the wall-clock the session waited" \
+    || bad "BR12b $eng LLM_CALL has no ms"
+  # unparseable answer = the judge bought nothing; the line must still exist
+  line="$(llmcall "$eng" 'not json at all')"
+  echo "$line" | grep -q '"ok":false' \
+    && ok "BR12b $eng a judge that answered nothing STILL leaves a spend line" \
+    || { bad "BR12b $eng no LLM_CALL on a failed judge"; echo "    $line"; }
+done
+
 for eng in native node; do
   got="$(judgemodel "$eng" '')"
   [ "$got" = "claude-haiku-4-5" ] \
