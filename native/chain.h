@@ -63,6 +63,36 @@ namespace rbchain {
 
 using std::string;
 
+// --- clipping operator text so the line stays JSON -------------------------
+// Every label in the ledger is a cut of text the operator typed, and a cut at a
+// byte offset can land inside a multi-byte character. The dangling bytes are not
+// text, json_escape hands them through, and the line stops being JSON — RFC 8259
+// requires valid UTF-8, so a strict reader rejects the whole event while the
+// chain still verifies it. Walk back to the last complete character instead.
+//
+// This lives beside the writer because the writer is the only place that can
+// guarantee it. It was defined inside gate.cpp instead, where five call sites
+// used it and seven kept a plain `substr` — and a helper that half its callers
+// ignore is a bug with documentation. One of those seven, the RUN_START goal
+// label clipped to 100 bytes, cut a Turkish `ı` (\xc4\xb1) in half on
+// 2026-08-05 and left `\xc4` dangling before the closing quote.
+//
+// What that cost, measured rather than assumed: line 738 of that day file is
+// rejected by any strict UTF-8 reader — `json.loads` on the decoded bytes, Go's
+// encoding/json, anything holding to RFC 8259 — while `rabadon audit` still
+// reports the day `chain OK · head verified (1782 line(s))`, because the chain
+// hashes bytes and bytes are exactly what it got. Both are behaving correctly
+// and they disagree, which is the worst shape a proof can take. SPEC.md §2
+// promises a stranger's agent can read this ledger with a stock parser, and one
+// clipped `ı` is enough to break that promise for a whole day. One definition,
+// at the writer, so no future call site can opt out of it.
+inline string utf8_clip(const string& s, size_t maxBytes) {
+  if (s.size() <= maxBytes) return s;
+  size_t end = maxBytes;
+  while (end > 0 && ((unsigned char)s[end] & 0xC0) == 0x80) --end;
+  return s.substr(0, end);
+}
+
 // --- the cross-language mutex ---------------------------------------------
 // flock(2) below guards the native writers against each other, and it is the
 // stronger lock: the kernel releases it when the holder dies. It cannot be the

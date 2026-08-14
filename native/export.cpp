@@ -698,6 +698,10 @@ int main(int argc, char** argv) {
       c.pipe = e.pipe; c.ts = e.ts;
       c.tag = rb_drill_tag(line);
       c.marker = rb_drill_marker(line);
+      c.run = e.run;                            // rule 5
+      c.repair_start = rb_repair_start(line);   // rule 5
+      c.repair_end = rb_repair_end(line);       // rule 5
+      c.gated = rb_gated_action(line);          // rule 5
       classify.push_back(std::move(c));
       parsed.push_back(std::move(e));
     }

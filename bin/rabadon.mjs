@@ -103,27 +103,26 @@ if (cmd === 'guard') {
   process.exit(0);
 }
 
-if (cmd === 'stats') {
-  // The catch ledger: numbers from the spool, not claims — via the SAME store
-  // the dashboard reads, so the terminal and the ui can never disagree.
-  // Drills and demo/self runs are excluded by the store and reported apart.
-  const { SPOOL_DIR } = await import('../core/bus.mjs');
-  const { readEvents, aggregate } = await import('../core/store.mjs');
-  const days = Number(process.argv[process.argv.indexOf('--days') + 1]) || 7;
-  const { events } = readEvents({ days });
-  const { totals, projects } = aggregate(events);
-  process.stdout.write(`rabadon stats — last ${days} day(s), source: ${SPOOL_DIR}\n\n`);
-  if (!projects.length) process.stdout.write('  (no events yet)\n');
-  for (const s of projects) {
-    process.stdout.write(`  ${s.project}\n`);
-    process.stdout.write(`    actions gated:            ${s.gated}\n`);
-    process.stdout.write(`    caught before happening:  ${s.blocked}\n`);
-    for (const { rule, n } of s.blockedRules) process.stdout.write(`      ${n}x  ${rule.slice(0, 60)}\n`);
-    process.stdout.write(`    checks failed (caught):   ${s.checkFails}${s.loopsStopped ? `  (loops stopped: ${s.loopsStopped})` : ''}\n`);
-    process.stdout.write(`    repairs accepted:         ${s.repairsOk}\n\n`);
+if (cmd === 'stats' || cmd === 'usage') {
+  // The catch ledger. This used to read the spool HERE, through core/store.mjs
+  // — a FOURTH reader beside rabadon-stats, rabadon-export and rabadon-trace,
+  // with its own drill logic and its own arithmetic. drill.h says in as many
+  // words that a fourth reader either calls the shared predicate or it is a bug,
+  // and this one was: it printed `repairs accepted`, the single bucket
+  // BENCHMARK.md §3 retired for holding four different events under one name, so
+  // `rabadon usage` and `node bin/rabadon.mjs stats` told different stories
+  // about the same bytes — and bench/reproduce.sh was calling THIS one to
+  // reproduce a page that cites the other. It also did not answer to `usage` at
+  // all, the name README and docs/commands.md give it. One reader, native; the
+  // JS engine is retired (CLAUDE.md, EMEKLİLİK KURALI).
+  const { spawnSync } = await import('node:child_process');
+  const statsBin = path0.join(path0.dirname(new URL(import.meta.url).pathname), '..', 'native', 'rabadon-stats');
+  if (!fs.existsSync(statsBin)) {
+    console.error('rabadon usage: native engine not built — run `make` in the rabadon repo first.');
+    process.exit(1);
   }
-  if (totals.drills) process.stdout.write(`  (${totals.drills} event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)\n`);
-  process.exit(0);
+  const r = spawnSync(statsBin, process.argv.slice(3), { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
 }
 
 if (cmd === 'init') {

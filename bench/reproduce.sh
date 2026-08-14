@@ -12,6 +12,15 @@ set -u
 
 export RABADON_NOTIFY=0
 
+# The suites below stub `claude` and assert the judge path runs. RABADON_JUDGE=0
+# switches that path off, and it is a perfectly ordinary thing to have exported
+# — this repo's own ~/.claude/settings.json sets it, so the maintainer's shell
+# carries it. Inherited here it turned 17 passing cases into failures and this
+# page reported `44 ok, 17 fail` on a tree whose gate was fine. A reproduction
+# script that reads the environment is not reproducing anything; the harness
+# owns this variable, so it is cleared for the whole run.
+unset RABADON_JUDGE
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -33,10 +42,10 @@ RABADON_NOTIFY=0 make bench
 # 2. node==native parity + native suites. postuse pipes identical hook JSON into
 #    BOTH node oracle and native gate and asserts same verdict+state+spool
 #    (13 node==native differential cases). pushgate is a native-only push proof.
-line "2a. postuse suite  (node==native differential; expect 53 ok, 0 fail)"
+line "2a. postuse suite  (node==native differential; expect 61 ok, 0 fail)"
 RABADON_NOTIFY=0 ./native/postuse_test.sh | tail -1
 
-line "2b. pushgate suite (native-only push proof; expect 9 ok, 0 fail)"
+line "2b. pushgate suite (native-only push proof; expect 11 ok, 0 fail)"
 RABADON_NOTIFY=0 ./native/pushgate_test.sh | tail -1
 
 line "2c. pushgate node invocations  (expect 0 — it is native-only)"
@@ -46,8 +55,10 @@ printf 'node invocations in pushgate_test.sh: %s\n' \
 # 3. The ledger. Read-only aggregation of ~/.rabadon/spool. The tool already
 #    excludes its own self-drills/demos at emit; this prints the full report so
 #    the reader can see stitchu/rabadon (real) vs rabadon-bench-* (synthetic).
-line "3. ledger  (rabadon stats --days 30; repairs-accepted must read 0)"
-RABADON_NOTIFY=0 node bin/rabadon.mjs stats --days 30
+#    This said `stats`, which routed to a retired JS reader printing a counter
+#    BENCHMARK.md no longer has — reproducing a page against a different engine.
+line "3. ledger  (rabadon usage --days 30; repairs HELD must read 2 — express, 91 files locked)"
+RABADON_NOTIFY=0 node bin/rabadon.mjs usage --days 30
 
 line "done"
 printf 'BENCHMARK.md holds the figures these commands reproduce.\n'

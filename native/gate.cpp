@@ -98,17 +98,10 @@ static string json_escape(const string& s) {
   return out;
 }
 
-// Every label in the ledger is a cut of text the operator typed, and a cut at a
-// byte offset can land inside a multi-byte character. The dangling bytes are not
-// text, json_escape hands them through, and the line stops being JSON — RFC 8259
-// requires valid UTF-8, so a strict reader rejects the whole event while the
-// chain still verifies it. Walk back to the last complete character instead.
-static string utf8_clip(const string& s, size_t maxBytes) {
-  if (s.size() <= maxBytes) return s;
-  size_t end = maxBytes;
-  while (end > 0 && ((unsigned char)s[end] & 0xC0) == 0x80) --end;
-  return s.substr(0, end);
-}
+// utf8_clip lives in chain.h now, beside the ledger's one writer — it was
+// defined here, five call sites used it, and the seven that kept a raw substr
+// wrote the corrupt day this comment used to describe.
+using rbchain::utf8_clip;
 
 static string read_file(const string& p) {
   std::ifstream f(p, std::ios::binary);
@@ -1795,7 +1788,7 @@ int main(int argc, char** argv) {
           em.emit("CHECK_FAIL", "\"step\":\"goal\",\"fails\":[{\"check\":\"goal-drift\",\"why\":\"" +
             json_escape(utf8_clip(v.anchor, 200)) + "\"}]");
           fprintf(stderr, "rabadon re-anchor: the session goal is \"%s\". %s\n",
-            ss.goalPrompt.substr(0, 120).c_str(), v.anchor.c_str());
+            utf8_clip(ss.goalPrompt, 120).c_str(), v.anchor.c_str());
           return refuse_code();
         }
         // null / onTrack / no anchor / judge unavailable -> fall through
@@ -1955,7 +1948,7 @@ int main(int argc, char** argv) {
           if (rx_test("fail", line)) { if (!failSig.empty()) failSig += "|"; failSig += line; }
           ls = le + 1;
         }
-        if (failSig.size() > 300) failSig = failSig.substr(0, 300);
+        failSig = utf8_clip(failSig, 300);
       }
       const bool sameIncident = stt.lastDiagSig == failSig && (now - stt.lastDiagAt) < 15LL * 60000;
 
@@ -2083,12 +2076,12 @@ int main(int argc, char** argv) {
     const bool recursive = prompt.rfind("You are rabadon", 0) == 0;
     if (!recursive && !prompt.empty() &&
         (ss.goalPrompt.empty() || now_ms() - ss.goalTs > 6LL * 3600 * 1000)) {
-      ss.goalPrompt = prompt.substr(0, 400);
+      ss.goalPrompt = utf8_clip(prompt, 400);
       ss.goalTs = now_ms();
       // a new goal resets the drift trackers — a new task may live elsewhere
       ss.touchedDirs.clear();
       ss.fanoutWarned = false;
-      em.emit("RUN_START", "\"steps\":[\"goal: " + json_escape(ss.goalPrompt.substr(0, 100)) + "\"],\"bound\":{}");
+      em.emit("RUN_START", "\"steps\":[\"goal: " + json_escape(utf8_clip(ss.goalPrompt, 100)) + "\"],\"bound\":{}");
     }
     stt.save();
     return 0;
@@ -2199,7 +2192,7 @@ int main(int argc, char** argv) {
           string d = get_str(line, "detail");
           size_t nl = d.find('\n');
           if (nl != string::npos) d = d.substr(0, nl);
-          caught.push_back(d.substr(0, 90));
+          caught.push_back(utf8_clip(d, 90));
         }
         ls = le + 1;
       }
@@ -2367,7 +2360,7 @@ int main(int argc, char** argv) {
     if (parsed.degraded)
       em.emit("PARSE_DEGRADED", "\"why\":\"" + json_escape(parsed.why) +
               "\",\"fallback\":\"whole-line match\",\"cmd\":\"" +
-              json_escape(command.substr(0, 160)) + "\"");
+              json_escape(utf8_clip(command, 160)) + "\"");
     // Where reading ONE command line stops. `echo '<text>' | sh` is decided
     // here because the text is in the line; `curl <url> | sh` is not, and no
     // amount of parsing will put it there. Allowing it is the right call — the
@@ -2378,7 +2371,7 @@ int main(int argc, char** argv) {
     // handed lands here, not every pipe.
     for (size_t li = 0; li < parsed.limits.size(); li++)
       em.emit("PARSE_LIMIT", "\"limit\":\"" + json_escape(parsed.limits[li]) +
-              "\",\"cmd\":\"" + json_escape(command.substr(0, 160)) + "\"");
+              "\",\"cmd\":\"" + json_escape(utf8_clip(command, 160)) + "\"");
     if (verdict.refused) block(verdict.id, verdict.why, verdict.detail);
   }
 
@@ -2647,13 +2640,13 @@ int main(int argc, char** argv) {
     ss.lastCmdTs = now_ms();
     if (ss.cmdRepeat >= 3)
       block("loop-stop", "the same command has now run 3x with no code change in between — a loop, not progress",
-        "looping on: " + command.substr(0, 120));
+        "looping on: " + utf8_clip(command, 120));
   }
 
   // the trail: a diagnosis needs to know WHERE the session is, not just that
   // it crashed — same law as the node gate's remember()
   string label = toolName == "Bash" ? ("bash: " + utf8_clip(command, 80)) : (toolName + ": " + filePath.substr(filePath.rfind('/') + 1));
-  ss.recent.push_back({ now_ms(), label.substr(0, 120) });
+  ss.recent.push_back({ now_ms(), utf8_clip(label, 120) });
   if (ss.recent.size() > 30) ss.recent.erase(ss.recent.begin(), ss.recent.end() - 30);
   ss.actionCount++;
   em.emit("STEP_START", "\"step\":\"" + json_escape(label) + "\"");

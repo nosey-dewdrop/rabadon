@@ -22,6 +22,15 @@ set -u
 # the real HOME passes or fails on whether the developer happens to have rabadon
 # switched on — which is not a test. Give this run its own HOME with the flag set.
 export HOME="$(mktemp -d)"; mkdir -p "$HOME/.rabadon"; : > "$HOME/.rabadon/enabled"
+# Same reasoning, one variable further. RABADON_JUDGE=0 switches off the bounded
+# LLM path (diagnose + re-anchor), and 17 cases below exist to prove that path
+# runs — they stub `claude` and count its calls. It is an ordinary thing to have
+# exported: this repo's own ~/.claude/settings.json sets it, so the maintainer's
+# every shell carried it, `make test` and bench/reproduce.sh both inherited it,
+# and the suite reported `44 ok, 17 fail` against a gate that was fine. A test
+# that reads this variable is testing the shell it was launched from. The suite
+# owns it; the cases that want it off pass it per-invocation.
+unset RABADON_JUDGE
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 BIN="$HERE/rabadon-gate"

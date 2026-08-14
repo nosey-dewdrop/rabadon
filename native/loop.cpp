@@ -280,9 +280,9 @@ int main(int argc,char** argv){
         if(rc==0) break;
         em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"tier\":"+std::to_string(ti+1)
               +(model.empty()?"":",\"tier_name\":\""+json_escape(model)+"\"")
-              +",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,600))+"\"}]");
+              +",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(rbchain::utf8_clip(reason,600))+"\"}]");
         if(ti+1<tiers.size()){
-          em.ev("ESCALATE","\"step\":\""+json_escape(id)+"\",\"from\":\""+json_escape(tiers[ti])+"\",\"to\":\""+json_escape(tiers[ti+1])+"\",\"why\":\""+json_escape(reason.substr(0,300))+"\"");
+          em.ev("ESCALATE","\"step\":\""+json_escape(id)+"\",\"from\":\""+json_escape(tiers[ti])+"\",\"to\":\""+json_escape(tiers[ti+1])+"\",\"why\":\""+json_escape(rbchain::utf8_clip(reason,300))+"\"");
           fprintf(stderr,"rabadon: %s failed the arbiter on %s — escalating to %s\n",id.c_str(),tiers[ti].c_str(),tiers[ti+1].c_str());
         } else {
           ti=tiers.size()-1; break;   // top tier failed: the repair budget takes over
@@ -299,7 +299,7 @@ int main(int argc,char** argv){
     int attempt=0;
     while(rc!=0 && attempt<maxRepairs){
       attempt++;
-      if(!failReported) em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(reason.substr(0,600))+"\"}]");
+      if(!failReported) em.ev("CHECK_FAIL","\"step\":\""+json_escape(id)+"\",\"fails\":[{\"check\":\"contract\",\"why\":\""+json_escape(rbchain::utf8_clip(reason,600))+"\"}]");
       failReported=false;
       em.ev("REPAIR_START","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)+(topTier.empty()?"":",\"tier_name\":\""+json_escape(topTier)+"\""));
       fprintf(stderr,"rabadon: gate %s failed — repairing (attempt %d/%d)\n  %s",id.c_str(),attempt,maxRepairs,reason.c_str());
@@ -329,7 +329,7 @@ int main(int argc,char** argv){
   string accept=extract_array(plan,"accept"); string reason;
   int arc=verify_contract(accept,reason);
   if(arc!=0){
-    em.ev("STOP","\"reason\":\"CHECK_FAILED\",\"detail\":\""+json_escape("acceptance: "+reason.substr(0,150))+"\"");
+    em.ev("STOP","\"reason\":\"CHECK_FAILED\",\"detail\":\""+json_escape("acceptance: "+rbchain::utf8_clip(reason,150))+"\"");
     em.ev("RUN_DONE","\"verdict\":\"CHECK_FAILED\"");
     fprintf(stderr,"rabadon: steps passed but ACCEPTANCE failed (fail-closed):\n%s\n",reason.c_str());
     return 1;

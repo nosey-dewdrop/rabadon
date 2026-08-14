@@ -92,12 +92,21 @@ print("ok")
 EOF
 }
 
-mkfake() { # a fake `claude` bin whose behavior is the argument
+# A fake `claude` bin whose behavior is the argument. Each one sleeps past
+# drill.h's kRbStubProposerMs floor before answering. This suite drives
+# rabadon-repair directly, so no action is ever gated on its pipe — which is
+# rule 5's other half — and a proposer that returns in 40ms then satisfies both
+# halves and the run is classified a fixture. It IS a fixture; the point is that
+# case 6 asserts on the ledger AFTER the drill filter, so without this the test
+# reads `0 repairs held` and fails for being right. Sleeping is not a workaround,
+# it is the one property of a real proposer this stub was missing.
+mkfake() {
   local kind="$1"
   local bin="$TMP/bin-$kind"; mkdir -p "$bin"
   case "$kind" in
     honest) cat > "$bin/claude" <<'EOF'
 #!/bin/bash
+sleep 2.5   # see mkfake's note: drill.h rule 5
 # real fix, in cwd (= the isolated work copy)
 printf 'def add(a, b):\n    return a + b\n' > calc.py
 echo done
@@ -105,6 +114,7 @@ EOF
 ;;
     cheat) cat > "$bin/claude" <<'EOF'
 #!/bin/bash
+sleep 2.5   # see mkfake's note: drill.h rule 5
 # fake fix: neuter the test instead of fixing the code
 printf 'print("ok")\n' > test_calc.py
 echo done
@@ -112,6 +122,7 @@ EOF
 ;;
     useless) cat > "$bin/claude" <<'EOF'
 #!/bin/bash
+sleep 2.5   # see mkfake's note: drill.h rule 5
 echo "i looked at it"
 EOF
 ;;

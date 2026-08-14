@@ -188,8 +188,73 @@ struct Promise {
   vector<string> anti_paths;   // path regexes: work that betrays the star
   vector<string> keywords;     // north-star vocabulary (coverage measured)
   vector<string> off_keywords; // drift/bikeshed vocabulary (presence measured)
+  vector<string> generated;    // path regexes: OUTPUT of this repo, not session work
   bool ok() const { return !north_star.empty(); }
 };
+
+// ---------- what this repository GENERATES ----------
+//
+// A verdict about a session has to be built from what the operator wrote. git
+// cannot tell that apart from what a build step emitted, and this check was
+// reading git. In a repository that commits its own output, every publish run
+// pushes the on-target ratio down until the verdict flips — and the session it
+// then accuses may have been entirely on the star. Measured 8 August in this
+// repository: 18 changed files, 8 written by hand and all 8 on target, 10 under
+// site/ and not one of them typed by anybody. `site/build.py` wrote the HTML,
+// `field_stats.py` wrote the JSON, and the publish script committed them. The
+// verdict was DRIFT at 47 percent on-target, and the 47 percent was arithmetic
+// over files nobody chose to change.
+//
+// It is the same defect that was closed in the arbiter this morning one layer
+// down: judging a source by an artifact some generator emitted from it.
+//
+// TWO DECLARATIONS ARE READ, NEITHER IS INVENTED HERE.
+//   .gitattributes  `linguist-generated` is git's own way to say "this file is
+//                   output". GitHub already collapses those diffs. A repository
+//                   that marks them gets a correct verdict with no rabadon-
+//                   specific configuration at all.
+//   promise.json    an optional `generated` list of regexes, for a repo that
+//                   would rather say it in the contract. The contract wins.
+// Neither present means nothing is excluded, which is exactly today's behaviour,
+// so this cannot make an existing verdict worse.
+static string glob_to_rx(const string& g) {
+  // git attribute patterns, in the subset that appears in real .gitattributes:
+  // a pattern with no slash matches the BASENAME at any depth; one with a slash
+  // is anchored at the repository root. `*` stops at a slash, `**` does not.
+  string out;
+  bool anchored = g.find('/') != string::npos;
+  string p = (!g.empty() && g[0] == '/') ? g.substr(1) : g;
+  out += anchored ? "^" : "(^|/)";
+  for (size_t i = 0; i < p.size(); i++) {
+    char c = p[i];
+    if (c == '*' && i + 1 < p.size() && p[i + 1] == '*') { out += ".*"; i++; }
+    else if (c == '*') out += "[^/]*";
+    else if (c == '?') out += "[^/]";
+    else if (strchr(".^$+(){}[]|\\", c)) { out += '\\'; out += c; }
+    else out += c;
+  }
+  out += "$";
+  return out;
+}
+
+static vector<string> generated_patterns(const string& dir, const Promise& pr) {
+  vector<string> pats = pr.generated;             // the contract, if it speaks
+  std::istringstream is(read_file(dir + "/.gitattributes"));
+  string line;
+  while (std::getline(is, line)) {
+    size_t h = line.find('#');
+    if (h != string::npos) line = line.substr(0, h);
+    if (line.find("linguist-generated") == string::npos) continue;
+    // `-linguist-generated` and `linguist-generated=false` UNSET it; a file
+    // marked that way is being declared hand-written and must keep counting.
+    if (line.find("-linguist-generated") != string::npos) continue;
+    if (line.find("linguist-generated=false") != string::npos) continue;
+    std::istringstream ls(line);
+    string pat;
+    if (ls >> pat && !pat.empty()) pats.push_back(glob_to_rx(pat));
+  }
+  return pats;
+}
 
 static const char* kHelp =
   "rabadon-drift — is this session still working on what it said it would?\n"
@@ -265,6 +330,7 @@ int main(int argc, char** argv) {
   pr.anti_paths  = json_str_array(praw, "anti_paths");
   pr.keywords    = json_str_array(praw, "keywords");
   pr.off_keywords= json_str_array(praw, "off_keywords");
+  pr.generated   = json_str_array(praw, "generated");
   if (!pr.ok()) {
     if (!quietOnTrack)
       fprintf(stderr,

@@ -605,12 +605,23 @@ int main(int argc, char** argv) {
     return a.seq < b.seq;
   });
 
-  // ---- markDrills ---- rules 1-4, from drill.h, the same code rabadon-export
-  // runs so the local number and the exported spans cannot disagree.
+  // ---- markDrills ---- rules 1-5, from drill.h, the same code rabadon-export
+  // runs so the local number and the exported spans cannot disagree. rule 5's
+  // facts come off the parsed `ev` here rather than the raw line; the verb names
+  // are the ones drill.h matches.
   {
     std::vector<RbDrillEv> dv;
     dv.reserve(events.size());
-    for (const Event& e : events) dv.push_back({e.has_pipe, e.pipe, e.ts, e.drill_emit, e.marker_hit});
+    for (const Event& e : events) {
+      RbDrillEv d;
+      d.has_pipe = e.has_pipe; d.pipe = e.pipe; d.ts = e.ts;
+      d.tag = e.drill_emit; d.marker = e.marker_hit;
+      d.run = e.run;
+      d.repair_start = (e.ev == "REPAIR_START");
+      d.repair_end = (e.ev == "REPAIR_OK" || e.ev == "REPAIR_FAIL" || e.ev == "REPAIR_FLAKY");
+      d.gated = (e.ev == "STEP_START");
+      dv.push_back(std::move(d));
+    }
     std::vector<char> marked = rb_mark_drills(dv);
     for (size_t i = 0; i < events.size(); i++) events[i].drill = marked[i] != 0;
   }
