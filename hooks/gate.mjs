@@ -60,6 +60,15 @@ if (guard) {
   guard.protectedPaths = (guard.protectedPaths || []).filter((r) => !disabled.has(r.id));
 }
 
+// Is a model allowed to answer at all? DEFAULT: NO. Twin of the resolution in
+// native/gate.cpp — see the long note there for what this used to cost and what
+// survives without it. RABADON_JUDGE=0 meant off before and still means off;
+// saying yes takes RABADON_JUDGE=1 for a shell, or "judge": true in guard.json
+// for a project that wants it every session.
+const llmOn = process.env.RABADON_JUDGE !== undefined
+  ? process.env.RABADON_JUDGE === '1'
+  : !!(guard && guard.judge === true);
+
 const SID = String(ev.session_id || 'default').slice(0, 16);
 
 // Drill events (rabadon's own synthetic checks: fleet verification, doctor
@@ -378,7 +387,7 @@ else if (hookEvent === 'PostToolUse') {
     // if the session is drifting, the anchor is fed back (non-blocking — the
     // edit already happened, the NEXT move gets the correction). Fast model,
     // bounded, skipped entirely with RABADON_JUDGE=0.
-    if (process.env.RABADON_JUDGE !== '0' && state.s.goalPrompt && (state.s.actionCount || 0) > 0 && state.s.actionCount % 12 === 0) {
+    if (llmOn && state.s.goalPrompt && (state.s.actionCount || 0) > 0 && state.s.actionCount % 12 === 0) {
       try {
         // caught here, not by the outer handler — see the diagnose call below:
         // a judge that failed still spent the wall-clock, and the native twin
@@ -436,7 +445,7 @@ else if (hookEvent === 'PostToolUse') {
       let advice = '';
       const failSig = out.split('\n').filter((l) => /fail/i.test(l)).join('|').slice(0, 300);
       const sameIncident = state.lastDiagSig === failSig && (now - (state.lastDiagAt || 0)) < 15 * 60000;
-      if (process.env.RABADON_JUDGE !== '0' && !sameIncident) {
+      if (llmOn && !sameIncident) {
         state.lastDiagSig = failSig; state.lastDiagAt = now; saveState(state);
         emit('REPAIR_START', { step: 'diagnose', attempt: 1, fixing: ['red-tests'] });
         try {
@@ -485,6 +494,10 @@ else if (hookEvent === 'PostToolUse') {
       // exit 2 on PostToolUse = feedback to the agent (the action already ran);
       // the diagnosis lands in the session the moment the red is seen
       process.stderr.write(`rabadon: tests are RED.${advice || ' Fix the failure before moving on.'}\n`);
+      // twin of the native footer: name what is switched off, once per incident
+      if (!llmOn && !sameIncident)
+        process.stderr.write('  (no model was called: rabadon does not spend on your account unless asked. '
+          + 'RABADON_JUDGE=1, or "judge": true in .rabadon/guard.json, buys a diagnosis here.)\n');
       process.exit(2);
     } else {
       await done('STEP_OK', { step: `ran: ${cmd.slice(0, 80)}` });

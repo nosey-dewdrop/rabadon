@@ -12,14 +12,16 @@ set -u
 
 export RABADON_NOTIFY=0
 
-# The suites below stub `claude` and assert the judge path runs. RABADON_JUDGE=0
-# switches that path off, and it is a perfectly ordinary thing to have exported
-# — this repo's own ~/.claude/settings.json sets it, so the maintainer's shell
-# carries it. Inherited here it turned 17 passing cases into failures and this
-# page reported `44 ok, 17 fail` on a tree whose gate was fine. A reproduction
-# script that reads the environment is not reproducing anything; the harness
-# owns this variable, so it is cleared for the whole run.
-unset RABADON_JUDGE
+# The suites below stub `claude` and assert the judge path runs. Inherited from
+# the maintainer's shell this variable once turned 17 passing cases into
+# failures and this page reported `44 ok, 17 fail` on a tree whose gate was
+# fine. A reproduction script that reads the environment is not reproducing
+# anything.
+#
+# `unset` was the right fix while the judge defaulted to ON. It defaults to OFF
+# now, so unset would mean those cases quietly assert nothing — the same bug
+# with the sign flipped. State the value, in both directions.
+export RABADON_JUDGE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"

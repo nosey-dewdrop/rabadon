@@ -22,15 +22,20 @@ set -u
 # the real HOME passes or fails on whether the developer happens to have rabadon
 # switched on — which is not a test. Give this run its own HOME with the flag set.
 export HOME="$(mktemp -d)"; mkdir -p "$HOME/.rabadon"; : > "$HOME/.rabadon/enabled"
-# Same reasoning, one variable further. RABADON_JUDGE=0 switches off the bounded
-# LLM path (diagnose + re-anchor), and 17 cases below exist to prove that path
-# runs — they stub `claude` and count its calls. It is an ordinary thing to have
-# exported: this repo's own ~/.claude/settings.json sets it, so the maintainer's
-# every shell carried it, `make test` and bench/reproduce.sh both inherited it,
-# and the suite reported `44 ok, 17 fail` against a gate that was fine. A test
-# that reads this variable is testing the shell it was launched from. The suite
-# owns it; the cases that want it off pass it per-invocation.
-unset RABADON_JUDGE
+# Same reasoning, one variable further. RABADON_JUDGE decides whether a model is
+# called at all, and the cases below exist to prove that path runs — they stub
+# `claude` and count its calls. A test that reads this variable from the outside
+# is testing the shell it was launched from: this repo's own settings.json set
+# it once, the maintainer's every shell carried it, `make test` and
+# bench/reproduce.sh both inherited it, and the suite reported `44 ok, 17 fail`
+# against a gate that was fine.
+#
+# It used to say `unset` here, which was right while the default was ON. The
+# default is OFF now, so unset means the paid path never runs and every case
+# below would pass by not testing anything — the same silent failure wearing the
+# other face. EXPORT, never unset: the suite owns the variable in both
+# directions, and the cases that want it off pass RABADON_JUDGE=0 per-invocation.
+export RABADON_JUDGE=1
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 BIN="$HERE/rabadon-gate"
@@ -623,6 +628,69 @@ judgemodel() { # $1=engine (native|node) $2=env value ('' = unset) -> echoes the
   fi
   grep -A1 -x -- '--model' "$argv" 2>/dev/null | tail -1
 }
+# =====================================================================
+# BR13 — DEFAULT OFF: nothing is bought unless somebody asked
+# =====================================================================
+# The headline claim of this build. Installing rabadon used to sign you up for
+# two `claude -p` calls on your own account from inside a hook. The counter
+# below is the whole proof: a red suite, no RABADON_JUDGE anywhere, no guard
+# key — and the stub must never be executed. The refusal itself is untouched,
+# so exit 2 still has to hold.
+echo "BR13 default off: a red suite calls nobody"
+# Runs one red-suite incident and leaves its evidence in files, not variables:
+# the assertions below need the spool and the stderr as well as the exit code,
+# and a function called in $(...) is a subshell whose variables never come back.
+DEFOFF_SPOOL=""; DEFOFF_ERR=""
+defoff() { # $1=engine $2=guard json $3=env ('' = unset) -> echoes "rc calls"
+  local C RD K rc
+  C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
+  printf '%s' "$2" > "$C/.rabadon/guard.json"
+  K="$C/calls"; echo 0 > "$K"
+  local E='{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"do1","tool_name":"Bash","tool_input":{"command":"ctest"},"tool_response":{"stdout":"2 failed\nboom"}}'
+  if [ "$1" = node ]; then
+    echo "$E" | env -u RABADON_JUDGE PATH="$STUBDIR:$PATH" RABADON_STUB_JSON='{"where":"w","cause":"c","fix":"f"}' \
+      RABADON_STUB_CALLS="$K" ${3:+RABADON_JUDGE=$3} RABADON_DIR="$RD" node "$GATE" >/tmp/pt_do.$$ 2>&1; rc=$?
+  else
+    echo "$E" | env -u RABADON_JUDGE PATH="$STUBDIR:$PATH" RABADON_STUB_JSON='{"where":"w","cause":"c","fix":"f"}' \
+      RABADON_STUB_CALLS="$K" ${3:+RABADON_JUDGE=$3} RABADON_DIR="$RD" "$BIN" >/tmp/pt_do.$$ 2>&1; rc=$?
+  fi
+  printf '%s' "$RD/spool/$DAY.jsonl" > /tmp/pt_do_spool.$$
+  printf '%s %s' "$rc" "$(cat "$K")" > /tmp/pt_do_rc.$$
+}
+# Sets DEFOFF_RC / DEFOFF_SPOOL / DEFOFF_ERR. Called plainly, NEVER as
+# $(defoff_run ...) — command substitution is a subshell and every assignment
+# inside it dies with the child. Same mistake twice in one function while writing
+# this, so it is written down rather than rediscovered.
+DEFOFF_RC=""
+defoff_run() {
+  defoff "$@"
+  DEFOFF_RC="$(cat /tmp/pt_do_rc.$$)"
+  DEFOFF_SPOOL="$(cat /tmp/pt_do_spool.$$)"
+  DEFOFF_ERR="$(cat /tmp/pt_do.$$)"
+}
+G_PLAIN='{"project":"p","testCommand":"ctest"}'
+G_JUDGE='{"project":"p","testCommand":"ctest","judge":true}'
+for eng in native node; do
+  defoff_run "$eng" "$G_PLAIN" ''; r="$DEFOFF_RC"
+  [ "$r" = "2 0" ] \
+    && ok "BR13 $eng nothing set: red still refuses (exit 2) and calls claude ZERO times" \
+    || bad "BR13 $eng expected '2 0' (rc calls), got '$r'"
+  grep -q '"ev":"REPAIR_START"' "$DEFOFF_SPOOL" 2>/dev/null \
+    && bad "BR13 $eng REPAIR_START emitted with no model call" \
+    || ok "BR13 $eng no REPAIR_START without a model — the ledger claims no diagnosis"
+  echo "$DEFOFF_ERR" | grep -q 'does not spend on your account unless asked' \
+    && ok "BR13 $eng names the switch it is not using (no silent capability loss)" \
+    || { bad "BR13 $eng silent about the disabled judge"; echo "    $DEFOFF_ERR"; }
+  # the two ways to say yes
+  defoff_run "$eng" "$G_PLAIN" 1; r="$DEFOFF_RC"
+  [ "$r" = "2 1" ] && ok "BR13 $eng RABADON_JUDGE=1 opts in (one call)" || bad "BR13 $eng env opt-in failed, got '$r'"
+  defoff_run "$eng" "$G_JUDGE" ''; r="$DEFOFF_RC"
+  [ "$r" = "2 1" ] && ok "BR13 $eng guard.json \"judge\":true opts in (one call)" || bad "BR13 $eng guard opt-in failed, got '$r'"
+  # and the old spelling still means off
+  defoff_run "$eng" "$G_JUDGE" 0; r="$DEFOFF_RC"
+  [ "$r" = "2 0" ] && ok "BR13 $eng RABADON_JUDGE=0 still wins over the guard key (backwards compatible)" || bad "BR13 $eng =0 no longer off, got '$r'"
+done
+
 # BR12b — the ledger records the spend, on both engines, success AND failure.
 # A supervisor that calls a model on the operator's account has to say so in the
 # same ledger it judges them with; the spend most worth seeing is the one that

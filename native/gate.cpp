@@ -1647,8 +1647,33 @@ int main(int argc, char** argv) {
   const string guardRaw = read_file(guardPath);
   const auto disabled = parse_disabled(guardRaw);
 
+  // ---------- is a model allowed to answer at all? DEFAULT: NO ----------
+  // This used to be opt-OUT. Installing rabadon signed you up for two `claude
+  // -p` calls on your own account, from inside a hook, that nothing announced:
+  // the drift judge every 12th action, and the incident brain the moment your
+  // suite went red — 30 and 90 seconds of wall clock with the agent stopped
+  // dead, waiting. The refusals themselves are cheap and always were: measured
+  // over this machine's whole ledger, 2,789 refusal texts total 410,342
+  // characters, a median of 68 each. The cost was never the gate. It was the
+  // gate quietly hiring a second model.
+  //
+  // What survives the flip is the part that was never a model's opinion:
+  // rabadon-drift measures against .rabadon/promise.json and writes the same
+  // goal-drift verdict with no LLM at all (drift.cpp, installed on Stop by
+  // hooks/install.mjs), and a red suite still terminates the turn with exit 2.
+  // Nothing that refuses gets weaker; only the paid second opinion is now asked
+  // for rather than assumed.
+  //
+  // Backwards compatible in the only direction anyone has used: RABADON_JUDGE=0
+  // meant off and still means off. Two ways to say yes — the env for a shell,
+  // and "judge": true in .rabadon/guard.json for a project that wants it every
+  // session. guardRaw is already in memory three lines up, so asking costs
+  // nothing.
   const char* judgeEnv = getenv("RABADON_JUDGE");
-  const bool judgeOff = judgeEnv && string(judgeEnv) == "0";
+  const bool llmOn = judgeEnv ? (string(judgeEnv) == "1")
+                              : (guardRaw.find("\"judge\"") != string::npos &&
+                                 rx_test("\"judge\"\\s*:\\s*true", guardRaw));
+  const bool judgeOff = !llmOn;
 
   // ---------- PostToolUse: observe + track session state ----------
   // The action already ran; exit 2 here is FEEDBACK to the agent, not a block.
@@ -2089,8 +2114,16 @@ int main(int argc, char** argv) {
           }
         }
       }
+      // Say what is switched off, once per incident, by name. A capability that
+      // disappears without a word reads as a product that got worse; the same
+      // capability behind a named flag reads as a choice the operator now owns.
+      // Only on the first red of an incident — sameIncident already dedupes the
+      // diagnosis, and a footer on every red would become noise inside a minute.
       fprintf(stderr, "rabadon: tests are RED.%s\n",
         advice.empty() ? " Fix the failure before moving on." : advice.c_str());
+      if (judgeOff && !sameIncident)
+        fprintf(stderr, "  (no model was called: rabadon does not spend on your account unless asked. "
+                        "RABADON_JUDGE=1, or \"judge\": true in .rabadon/guard.json, buys a diagnosis here.)\n");
       return refuse_code();
     }
 
