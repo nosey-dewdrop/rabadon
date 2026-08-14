@@ -133,6 +133,35 @@ account = os.path.basename(home.rstrip("/"))
 if not account:                 # "" counts once per character; a scan that
     account = "\0"              # reports every byte reports nothing.
 
+# A CI runner's account is a dictionary word. GitHub's macOS image is
+# /Users/runner, so this scan counted every "runner" in published PROSE as a
+# leaked account name — "the node runner's own 'i fail 0' line", and six more
+# like it — and CI went red on every push with seven findings that were all the
+# same English noun. None of the artifacts are even generated on the runner;
+# they are built on the operator's machine and committed, so the name this check
+# exists to catch is never the name the runner is called.
+#
+# That is worse than a missing check. A red that is always red is a red nobody
+# reads, and a real leak would have arrived into the same seven lines of noise
+# and been shipped. So the scan says out loud when it has nothing to look for,
+# the way the withheld-terms branch below already does, instead of inventing a
+# finding to look busy.
+#
+# THE GAP THIS LEAVES, stated rather than papered over: CI cannot check for an
+# operator name it does not know, and the name must not be written into a public
+# repository to teach it. So the bare-name check has teeth only where the name is
+# real, which is the operator's own `make test` before the commit that publishes.
+# CI still holds the two path checks, and those are what catch a raw /Users/<x>/
+# string no matter whose it is.
+GENERIC_ACCOUNTS = {"runner", "root", "ubuntu", "user", "admin", "build", "ci",
+                    "vsts", "vagrant", "docker", "home"}
+account_is_generic = account.lower() in GENERIC_ACCOUNTS
+if account_is_generic:
+    print("        (the account this runs as is %r, a generic CI account name that\n"
+          "         occurs in ordinary prose. Counting it would report the word, not a\n"
+          "         leak. The absolute-path and project-key checks below still hold, and\n"
+          "         they are the ones that would catch a real operator path.)" % account)
+
 found = 0
 for dirpath, dirnames, filenames in os.walk(root):
     for fn in sorted(filenames):
@@ -152,7 +181,7 @@ for dirpath, dirnames, filenames in os.walk(root):
         if k:
             print("%s: %d project key(s) carrying the home path" % (rel, k))
             found += 1
-        a = blob.count(account) - n - k
+        a = 0 if account_is_generic else blob.count(account) - n - k
         if a > 0:
             print("%s: %d bare account name(s)" % (rel, a))
             found += 1
@@ -553,6 +582,42 @@ sys.exit(0 if isinstance((d.get('field.withheld') or {}).get('value'), int) else
 else
   ok "site/field.html makes no drop-and-count claim (nothing to back)"
 fi
+
+echo "7. a CI account name is a dictionary word, and is not a leak"
+# This section exists because CI was red on every push for seven findings that
+# were all the English noun "runner". GitHub's macOS image is /Users/runner, the
+# artifacts under site/ are generated on the operator's machine and committed,
+# and the scan counted the word in published prose as the account name. A check
+# that is always red is a check nobody reads.
+CIHOME="$T/home/runner"
+mkdir -p "$CIHOME"
+CIDIR="$T/ci-artifacts"
+mkdir -p "$CIDIR"
+# the exact shape of the false positive: the word in prose, no path anywhere
+printf 'the node runner\x27s own line was not in it, so the runner is blamed\n' \
+  > "$CIDIR/prose.txt"
+OUT="$(scan "$CIDIR" "$CIHOME" "")"; RC=$?
+if [ $RC -eq 0 ]; then ok "the word 'runner' in prose is not reported as an account name"
+else bad "a generic CI account name still reports prose as a leak: $OUT"; fi
+
+# THE TWIN THAT MUST STILL BLOCK. Same directory, same scan, but the home path
+# itself is present — the finding CI must never lose while the noun is ignored.
+printf 'built at %s/work/x\n' "$CIHOME" > "$CIDIR/leaky.txt"
+OUT="$(scan "$CIDIR" "$CIHOME" "")"; RC=$?
+if [ $RC -ne 0 ]; then ok "the absolute home path is still reported under a generic account"
+else bad "a real home path was missed because the account name was generic"; fi
+case "$OUT" in *"leaky.txt: 1 absolute home path"*) ok "and the file carrying it is still named";;
+  *) bad "the home path finding lost its filename: $OUT";; esac
+rm -f "$CIDIR/leaky.txt"
+
+# and the check must keep its teeth where the name is real, which is the
+# operator's own machine — a distinctive account is still counted in prose.
+REALHOME="$T/home/qzvtester2"
+mkdir -p "$REALHOME"
+printf 'a note that names qzvtester2 with no path at all\n' > "$CIDIR/bare.txt"
+OUT="$(scan "$CIDIR" "$REALHOME" "")"; RC=$?
+if [ $RC -ne 0 ]; then ok "a distinctive account name on its own is still a finding"
+else bad "the bare-account-name check lost its teeth entirely: $OUT"; fi
 
 echo
 echo "publish redaction: $pass passed, $fail failed"
