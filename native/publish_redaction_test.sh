@@ -157,10 +157,16 @@ GENERIC_ACCOUNTS = {"runner", "root", "ubuntu", "user", "admin", "build", "ci",
                     "vsts", "vagrant", "docker", "home"}
 account_is_generic = account.lower() in GENERIC_ACCOUNTS
 if account_is_generic:
-    print("        (the account this runs as is %r, a generic CI account name that\n"
-          "         occurs in ordinary prose. Counting it would report the word, not a\n"
-          "         leak. The absolute-path and project-key checks below still hold, and\n"
-          "         they are the ones that would catch a real operator path.)" % account)
+    # STDERR, and this is load-bearing. Section 6 decides by whether this
+    # scanner printed anything at all, not by its exit code, so a note on
+    # stdout IS a finding as far as that caller is concerned — the first
+    # version of this went red with a FAIL header and an empty list of files
+    # underneath it, which is the check reporting its own explanation.
+    sys.stderr.write(
+        "        (the account this runs as is %r, a generic CI account name that\n"
+        "         occurs in ordinary prose. Counting it would report the word, not a\n"
+        "         leak. The absolute-path and project-key checks below still hold, and\n"
+        "         they are the ones that would catch a real operator path.)\n" % account)
 
 found = 0
 for dirpath, dirnames, filenames in os.walk(root):
