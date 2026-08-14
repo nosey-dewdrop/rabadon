@@ -1,3 +1,8 @@
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786743663867, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786743319780, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786743078038, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786742721300, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786742276188, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786741918157, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "WOULD_BLOCK", "rule": "no-gnu-timeout-on-macos", "project": "rabadon", "ts": 1786741587770, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && ls redteam/ && echo \"=== try replay ===\" && timeout 300 python3 redteam/ledger_replay.py 2>&1 | tail -25"}
 {"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786741423260, "detail": "command matched deny rule: git commit -m \"wip\""}
