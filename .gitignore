@@ -75,3 +75,7 @@ __pycache__/
 .idea/
 .vscode/
 ._*
+
+# personal session notes — the archive lives outside the repo
+NOTES-FOR-DAMLA.md
+docs/internal/

@@ -646,7 +646,7 @@
     "commit": "0665561",
     "display": "26.3%",
     "measuredAt": "2026-08-02",
-    "note": "every real refusal in ~/.rabadon/spool, 2026-07-31 16:10 to 2026-08-02 02:57, replayed through the current gate with the command text recovered from the transcripts because the ledger truncates at 160 characters. 215 refusals with a command in them: 15 real dangers still stopped, 0 real dangers let through, 42 pieces of legitimate work still cut. 41 of those 42 are rabadon's own red-team labs. full method in NOTES-FOR-DAMLA.md.",
+    "note": "every real refusal in ~/.rabadon/spool, 2026-07-31 16:10 to 2026-08-02 02:57, replayed through the current gate with the command text recovered from the transcripts because the ledger truncates at 160 characters. 215 refusals with a command in them: 15 real dangers still stopped, 0 real dangers let through, 42 pieces of legitimate work still cut. 41 of those 42 are rabadon's own red-team labs. the replay itself is redteam/ledger_replay.py, named in cmd above and runnable from a clone.",
     "value": 26.3,
     "what": "precision on this machine's own ledger"
   },
