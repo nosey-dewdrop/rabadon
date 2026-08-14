@@ -1,3 +1,10 @@
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786727392837, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786727193079, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786718807059, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786711475677, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786710291519, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786710023499, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "WOULD_BLOCK", "rule": "anti-path-frozen", "project": "rabadon", "ts": 1786709982708, "detail": "protected file: ~/damla_projects_2026/rabadon/bin/rabadon.mjs"}
 {"ev": "WOULD_BLOCK", "rule": "no-gnu-timeout-on-macos", "project": "rabadon", "ts": 1786708792859, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && timeout 900 python3 redteam/redteam.py 2>&1 | tail -60"}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1786559441582, "detail": "command matched deny rule: cd ~ && cat >> damla_projects_2026/reports/2026-08-12-tek-yuzey-motora-indi.txt <<'EOF'\n\n=========================================\n2. VARDİYA (aynı gün, \"eve"}
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "pattern-bridge", "ts": 1786539231308, "detail": "command matched deny rule: cd ~/damla_projects_2026/stitchu && ./engine-check/harness/run-all.sh 2>&1 | grep -E \"^==|ok |FAIL|HARNESS\" && git add engine/pattern-bridge/gen-size-table.py e"}
