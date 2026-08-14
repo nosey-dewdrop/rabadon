@@ -212,11 +212,19 @@ rabadon trace --run ms92w639 --days 30
 Verify the hash-chained spool. Every event carries `prev` = the SHA-256 of the
 previous line in its day file. This re-walks the chain and answers one question:
 was the ledger edited after the fact? A broken link is named by file and line.
-Unchained lines (legacy writers) are tolerated, counted, reported.
+
+Beside each day file sits a `.head` sidecar committing two facts under the same
+lock: the last hash **and how many chained lines the file must have**. A file
+carrying lines but no sidecar — a legacy writer, or a day older than chaining —
+is UNVERIFIABLE and reported as such, never folded into the clean count. "I do
+not know" must not read as "clean", which is why there are three exits and not
+two. (This page said "tolerated" and listed two exits for a fortnight after the
+code stopped doing that.)
 
 Flags: `--days N` (window, default 7).
 
-Exit: `0` every chained link intact · `1` at least one broken link (tamper).
+Exit: `0` every file verified against its sidecar · `1` at least one broken link
+(tamper) · `2` nothing broken, but at least one file cannot be verified.
 
 ```
 rabadon audit --days 30
@@ -486,3 +494,30 @@ real reporting today.
 ```
 rabadon ui
 ```
+
+---
+
+## Environment
+
+rabadon is deterministic by default: no variable below needs to be set for any
+law to hold, and with none of them set nothing calls a model.
+
+| variable | default | effect |
+|---|---|---|
+| `RABADON_JUDGE` | unset = off | `1` enables the drift judge and the red-suite diagnosis. `0` disables both and wins over the guard key. Also settable per project as `"judge": true` in `.rabadon/guard.json`. |
+| `RABADON_JUDGE_MODEL` | `claude-haiku-4-5` | model for the drift verdict |
+| `RABADON_DIAGNOSE_MODEL` | account default | model for the red-suite diagnosis |
+| `RABADON_MODEL` | unset | proposer model for `do` / `loop` / `repair`. **Not** read by the gate — one name for two jobs sends the judge somewhere nobody asked for. |
+| `RABADON_TIERS` | unset | cheap-first tier ladder for `loop`, e.g. `haiku,opus` |
+| `RABADON_CLAUDE_BIN` | `claude` | proposer binary for `repair` |
+| `RABADON_DIR` | `~/.rabadon` | spool + state root |
+| `RABADON_LENS_DIR` | `~/.claude/projects` | transcript source for `lens` |
+| `RABADON_NOTIFY` | on | `0` silences desktop notifications |
+| `RABADON_OFF` | unset | `1` makes the gate a no-op for this process and its children (set on every model subprocess rabadon spawns, so the supervisor never supervises itself) |
+| `RABADON_DRILL` | unset | `1` tags emitted events as self-test, excluded from every count |
+
+When the judge or the diagnosis does run, each call writes one `LLM_CALL` event
+carrying `purpose`, `model`, `ms` and `ok` — failures included. There is no USD
+on that event on purpose: `claude -p --output-format text` reports no usage, so
+the cost is not knowable at that line. It comes from the transcripts instead,
+via `rabadon lens`.

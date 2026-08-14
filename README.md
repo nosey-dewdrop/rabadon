@@ -76,6 +76,24 @@ On every session, no configuration:
 
 Plus your own laws, authored into `.rabadon/guard.json` (deny rules, protected paths, budgets) — see [docs/guard.md](docs/guard.md). Escape hatches are first-class: `rabadon off` pauses everything, and every refusal names its rule id so you can disable exactly that one (`"disabled": ["rule-id"]`).
 
+## What it costs to run
+
+**By default, nothing calls a model.** Every law above is deterministic C++: pattern matching, path resolution, exit codes, hashes. The gate adds ~2.3 ms to a tool call and, when it refuses, a short sentence to the agent's context — measured across this machine's entire ledger, 2,789 refusal texts totalling 410,342 characters, a median of 68 each. Roughly 5k tokens a day.
+
+That was not always true, and it is worth saying plainly, because a supervision tool doing this quietly is the thing it exists to prevent. Until this release, installing rabadon signed you up for two `claude -p` calls on your own account from inside a hook: a drift judge every 12th action, and an incident diagnosis the moment your suite went red — up to 30 and 90 seconds of wall clock with your agent stopped dead, waiting, and a second bill beside the one you were already paying. Nothing announced either.
+
+Both are opt-in now, and nothing that *refuses* got weaker: a red suite still ends the turn, and goal drift still gets a verdict from `rabadon-drift`, which measures against your `promise.json` and asks no model anything.
+
+| variable | default | what it buys |
+|---|---|---|
+| `RABADON_JUDGE=1` | off | the drift judge + the red-suite diagnosis, for this shell |
+| `"judge": true` in `.rabadon/guard.json` | off | the same, for this project, every session |
+| `RABADON_JUDGE_MODEL` | `claude-haiku-4-5` | which model gives the drift verdict |
+| `RABADON_DIAGNOSE_MODEL` | your account default | which model diagnoses a red suite |
+| `RABADON_JUDGE=0` | — | off, and it wins over the guard key |
+
+When a model *is* called, the ledger records it: `LLM_CALL` carrying the purpose, the model, and the milliseconds your session waited — including calls that came back empty, because the spend most worth seeing is the one that bought nothing. No USD on that line: `claude -p` reports no usage, so the number is not knowable there, and inventing one is exactly the sort of claim this project refuses. Cost comes from the transcripts, in `rabadon lens`, where it is measured — and lens prices what it recognises and *names* what it does not, so a new model family reads as `(no rate for: <name>)` with the token counts still exact.
+
 ## What makes it more than a hook
 
 **Kernel enforcement — `rabadon exec`.** `exec` is a strict superset of the hook: it applies every rule the hook applies — your `guard.json` deny rules and the three laws compiled into the binary — and refuses with exit 2 before anything runs, writing the refusal into the same hash-chained ledger. On top of that, protected paths and network denies compile into an OS sandbox (macOS Seatbelt, Linux bubblewrap), so a forbidden write is refused by the kernel with `EPERM` even when nothing consulted rabadon first — a subprocess, an MCP tool, a shell one-liner that dodged the matcher. A shell wrapper is unwrapped before judging, so `exec -- sh -c "..."` is judged as the command it actually runs. If a fence is asked for and no backend can actually start, `exec` refuses to run rather than run unprotected — and it distinguishes "not installed" from "installed but the kernel will not let it start" (Ubuntu 24.04+ restricts unprivileged user namespaces by default, which stops `bwrap` dead; `rabadon doctor` names the sysctl). This is the hard boundary a hook alone cannot draw. Scope and bypass vectors are stated plainly in [docs/threat-model.md](docs/threat-model.md).

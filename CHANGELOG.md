@@ -14,7 +14,13 @@ All notable changes to rabadon. Dates are the day the tag was pushed.
 
 ## 0.2.0 — 2026-08-05
 
-First published release. `npm i -g rabadon`.
+Tagged, and **not** published. This line used to read "First published release.
+`npm i -g rabadon`", which the registry disagrees with: `npm view rabadon`
+returns 404, and the release workflow failed on the darwin-arm64 build for
+v0.2.0, v0.2.1 and v0.2.2, taking the publish job with it each time. The
+workflow and its provenance attestation are wired and have never once run to
+completion. A changelog announcing a release nobody can install is the same
+class of error as a benchmark citing a file that does not exist.
 
 ### The gate
 - Deny decisions are made in native C++ before a command is produced, not after it runs. Force-push to a protected branch, recursive deletes outside a project, and untested pushes are refused at emit time.
