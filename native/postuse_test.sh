@@ -46,11 +46,13 @@ DAY="$(date -u +%Y-%m-%d)"
 STUBDIR="$(mktemp -d)"
 cat > "$STUBDIR/claude" <<'STUB'
 #!/usr/bin/env bash
-# rabadon test stub for `claude`. Ignores stdin/args except that a real claude
+# rabadon test stub for `claude`. Ignores stdin except that a real claude
 # would; records the inherited RABADON_OFF (the recursion root-fix the native
-# port MUST set on the child), bumps a call-count file, optionally hangs, then
-# prints the canned JSON from $RABADON_STUB_JSON.
+# port MUST set on the child), records argv when asked (which model was picked
+# is an argv fact, not a log line), bumps a call-count file, optionally hangs,
+# then prints the canned JSON from $RABADON_STUB_JSON.
 if [ -n "${RABADON_STUB_SENTINEL:-}" ]; then printf '%s' "${RABADON_OFF:-unset}" > "$RABADON_STUB_SENTINEL"; fi
+if [ -n "${RABADON_STUB_ARGV:-}" ]; then printf '%s\n' "$@" > "$RABADON_STUB_ARGV"; fi
 if [ -n "${RABADON_STUB_CALLS:-}" ]; then n=$(cat "$RABADON_STUB_CALLS" 2>/dev/null || echo 0); echo $((n+1)) > "$RABADON_STUB_CALLS"; fi
 if [ -n "${RABADON_STUB_SLEEP:-}" ]; then sleep "$RABADON_STUB_SLEEP"; fi
 cat >/dev/null   # drain stdin so the writer's pipe closes cleanly
@@ -595,6 +597,42 @@ twincheck() { # $1=engine ($BIN or 'node GATE') $2=label
 tn="$(twincheck node n)"; tv="$(twincheck "$BIN" v)"
 [ "$tn" = "$tv" ] && ok "BR11 twin dedupe: node==native ($tv = r1 r2 STEP_OK-count)" || bad "BR11 node='$tn' native='$tv'"
 echo "$tv" | grep -qx "0 0 1" && ok "BR11 first STEP_OK + lastCodeEdit, twin swallowed (exit 0, one STEP_OK)" || bad "BR11 expected '0 0 1', got '$tv'"
+
+# =====================================================================
+# BR12 — WHICH MODEL the judge is sent to, on both engines
+# =====================================================================
+# The drift judge used to carry `claude-haiku-4-5` as a literal in two source
+# files. Nobody running rabadon could say which model saw their session goal and
+# their last moves, and nobody could point it somewhere else. It is env now, and
+# the default is the same literal — so the first case here is the OLD behaviour,
+# asserted, and the second is the new lever. Read off argv, because which model
+# was picked is an argv fact; a log line could agree with a wrong flag.
+echo "BR12 judge model is sayable from outside"
+judgemodel() { # $1=engine (native|node) $2=env value ('' = unset) -> echoes the --model argument
+  local C RD argv
+  C="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"; mkdir -p "$C/.rabadon"
+  argv="$C/argv"
+  python3 -c "import json;json.dump({'sessions':{'s1':{'goalPrompt':'build the kernel','actionCount':12,'recent':[{'t':1,'s':'m'}]}}},open('$C/.rabadon/state.json','w'))"
+  local E='{"hook_event_name":"PostToolUse","cwd":"'"$C"'","session_id":"s1","tool_use_id":"jm1","tool_name":"Edit","tool_input":{"file_path":"'"$C"'/src/x.js"}}'
+  if [ "$1" = node ]; then
+    echo "$E" | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON='{"onTrack":true}' RABADON_STUB_ARGV="$argv" \
+      ${2:+RABADON_JUDGE_MODEL=$2} RABADON_DIR="$RD" node "$GATE" >/dev/null 2>&1
+  else
+    echo "$E" | env PATH="$STUBDIR:$PATH" RABADON_STUB_JSON='{"onTrack":true}' RABADON_STUB_ARGV="$argv" \
+      ${2:+RABADON_JUDGE_MODEL=$2} RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
+  fi
+  grep -A1 -x -- '--model' "$argv" 2>/dev/null | tail -1
+}
+for eng in native node; do
+  got="$(judgemodel "$eng" '')"
+  [ "$got" = "claude-haiku-4-5" ] \
+    && ok "BR12 $eng default judge model is claude-haiku-4-5 (what used to be compiled in)" \
+    || bad "BR12 $eng default model wrong (got '$got')"
+  got="$(judgemodel "$eng" 'some-other-model')"
+  [ "$got" = "some-other-model" ] \
+    && ok "BR12 $eng RABADON_JUDGE_MODEL overrides it" \
+    || bad "BR12 $eng override ignored (got '$got')"
+done
 
 # ---------------- cleanup + verdict ----------------
 rm -f /tmp/pt_*.$$ 2>/dev/null

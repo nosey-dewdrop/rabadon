@@ -96,6 +96,16 @@ function remember(state, summary) {
   state.s.actionCount = (state.s.actionCount || 0) + 1;
 }
 
+// which model answers, when one is asked at all. Twin of env_or + the two call
+// sites in native/gate.cpp — both names default to what used to be hard-coded
+// here, so this moves no behaviour by itself. RABADON_MODEL is NOT reused: it
+// belongs to the per-tier proposer, and one name for two jobs sends the judge
+// to the wrong model without saying so.
+function modelArgs(envName, fallback) {
+  const m = process.env[envName] || fallback;
+  return m ? ['--model', m] : [];
+}
+
 // the incident brain: local Claude Code CLI, bounded, structured verdict.
 // Runs ONLY on an incident (red tests) — never in the per-action hot path.
 async function diagnose({ goal, recent, failOutput, cmd }) {
@@ -115,7 +125,7 @@ async function diagnose({ goal, recent, failOutput, cmd }) {
     `## failing output (tail)\n${failOutput}`,
   ].join('\n');
   const out = await new Promise((resolve, reject) => {
-    const child = execFile('claude', ['-p', '--output-format', 'text'],
+    const child = execFile('claude', ['-p', '--output-format', 'text', ...modelArgs('RABADON_DIAGNOSE_MODEL', '')],
       { timeout: 90000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => err ? reject(new Error((stderr || err.message).slice(0, 200))) : resolve(String(stdout).trim()));
     child.stdin.write(prompt);
@@ -135,7 +145,7 @@ async function driftJudge(goal, recent) {
     `## the last moves\n${recent.map((r) => `- ${r.s}`).join('\n')}`,
   ].join('\n');
   const out = await new Promise((resolve, reject) => {
-    const child = execFile('claude', ['-p', '--output-format', 'text', '--model', 'claude-haiku-4-5'],
+    const child = execFile('claude', ['-p', '--output-format', 'text', ...modelArgs('RABADON_JUDGE_MODEL', 'claude-haiku-4-5')],
       { timeout: 30000, maxBuffer: 1024 * 1024 },
       (err, stdout, stderr) => err ? reject(new Error((stderr || err.message).slice(0, 150))) : resolve(String(stdout).trim()));
     child.stdin.write(prompt);

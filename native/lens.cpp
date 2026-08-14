@@ -266,7 +266,7 @@ int main(int argc, char** argv) {
   out += line;
 
   long long totTok = 0, totTools = 0;
-  double totUsd = 0; bool anyUnpriced = false;
+  double totUsd = 0; std::vector<string> unpriced;
 
   if (sessions.empty()) out += "  (no sessions in the last " + std::to_string((long long)days) + " day(s))\n";
 
@@ -278,7 +278,15 @@ int main(int argc, char** argv) {
       totUsd += usd;
       char c[32]; snprintf(c, sizeof c, "$%.4f", usd);
       cost = c;
-    } else { cost = "?"; anyUnpriced = true; }
+    } else {
+      cost = "?";
+      // Naming the model is the whole point of the "?" . A new family ships and
+      // this meter goes quiet about the money while staying exact about the
+      // tokens — correct, but "some models unpriced" gives the reader nothing to
+      // act on. The name is the one thing that turns it into a five-second fix.
+      if (std::find(unpriced.begin(), unpriced.end(), s.model) == unpriced.end())
+        unpriced.push_back(s.model);
+    }
 
     long long cache = s.usage.cacheCreate + s.usage.cacheRead;
     string id8 = s.id.size() > 8 ? s.id.substr(0, 8) : s.id;
@@ -297,9 +305,16 @@ int main(int argc, char** argv) {
   if (!sessions.empty()) {
     out += "\n";
     char tot[256];
-    if (anyUnpriced)
-      snprintf(tot, sizeof tot, "  TOTAL  %zu session(s) · %lld tokens · $%.4f+ (some models unpriced) · %lld tool calls\n",
-               sessions.size(), totTok, totUsd, totTools);
+    if (!unpriced.empty()) {
+      string names;
+      for (size_t i = 0; i < unpriced.size() && i < 3; i++) {
+        if (i) names += ", ";
+        names += unpriced[i].empty() ? "<no model in transcript>" : unpriced[i];
+      }
+      if (unpriced.size() > 3) names += ", +" + std::to_string(unpriced.size() - 3) + " more";
+      snprintf(tot, sizeof tot, "  TOTAL  %zu session(s) · %lld tokens · $%.4f+ (no rate for: %s) · %lld tool calls\n",
+               sessions.size(), totTok, totUsd, names.c_str(), totTools);
+    }
     else
       snprintf(tot, sizeof tot, "  TOTAL  %zu session(s) · %lld tokens · $%.4f · %lld tool calls\n",
                sessions.size(), totTok, totUsd, totTools);

@@ -113,9 +113,13 @@ else pass "fixture: iterations + toolUseResult traps correctly ignored"; fi
 # unknown model -> cost "?"
 has "$OUT" '^  bbbb2222 +other +mystery-9 +50 +5 +0 +55 +\? +1 ' \
     "fixture: unknown model renders \$cost as ? (tokens still counted)"
-# TOTAL line: 2 sessions, 14385 tokens, unpriced note present
-has "$OUT" '^  TOTAL  2 session\(s\) · 14385 tokens · \$0\.0265\+ \(some models unpriced\) · 4 tool calls' \
-    "fixture: TOTAL aggregates tokens/cost/tools + flags unpriced"
+# TOTAL line: 2 sessions, 14385 tokens, and the unpriced model NAMED. It used to
+# read "(some models unpriced)", which is true and useless: the reader learns the
+# money is short but not which name to add a rate for. The whole cost of a new
+# model family shipping is one line in model_rate(), and this is where you find
+# out you owe it.
+has "$OUT" '^  TOTAL  2 session\(s\) · 14385 tokens · \$0\.0265\+ \(no rate for: claude-mystery-9\) · 4 tool calls' \
+    "fixture: TOTAL aggregates tokens/cost/tools + NAMES the unpriced model"
 
 # ---------- 2. single-file mode + empty/missing sources ----------
 RABADON_LENS_DIR="$FIX/proj-a/aaaa1111-known.jsonl" $NATIVE --days 100000 >"$TMP/one.out" 2>/dev/null

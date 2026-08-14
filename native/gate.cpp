@@ -185,6 +185,20 @@ static double get_double(const string& j, const string& key) {
 // usage the SAME way — one meter, not two. See usage.h for the disambiguation
 // and the 571M-token byte-exact proof.
 
+// ---------- which model answers, when one is asked at all ----------
+// The two model names below were compiled in: the drift judge always spoke to
+// claude-haiku-4-5 by literal, and the incident brain always took whatever the
+// account defaults to. That is a supervisor picking someone else's vendor. Both
+// are env now, both default to exactly what was hard-coded, so this change moves
+// no behaviour on its own — it only makes the choice sayable from outside.
+// RABADON_MODEL is deliberately NOT reused: loop.cpp and llm-proposer.sh own it
+// as the per-tier proposer model, the gate inherits the session's environment,
+// and one name for two jobs would silently send the judge to the wrong model.
+static string env_or(const char* name, const char* fallback) {
+  const char* v = getenv(name);
+  return (v && *v) ? string(v) : string(fallback);
+}
+
 // ---------- bounded claude subprocess (the incident brain / drift judge) ----------
 // fork/exec `claude -p --output-format text [--model M]`, write the prompt to
 // the child's stdin, read its stdout with a wall-clock deadline, SIGKILL on
@@ -1034,7 +1048,7 @@ static Diag diagnose(const string& goal, const std::vector<string>& recentBullet
   for (const auto& r : recentBullets) p << "- " << r << "\n";
   p << "## the test command\n" << cmd << "\n"
     << "## failing output (tail)\n" << failOutputTail << "\n";
-  const string raw = run_claude(p.str(), 90, "", 4 * 1024 * 1024);
+  const string raw = run_claude(p.str(), 90, env_or("RABADON_DIAGNOSE_MODEL", ""), 4 * 1024 * 1024);
   if (raw.empty()) return {};
   const string body = strip_fences(raw);
   JParser jp(body); JVal v = jp.parse();
@@ -1050,7 +1064,8 @@ static Diag diagnose(const string& goal, const std::vector<string>& recentBullet
 }
 
 // ---------- the fast drift judge (haiku-class) ----------
-// bounded `claude -p --model claude-haiku-4-5`, 30s / 1MB. Fail-open.
+// bounded `claude -p --model $RABADON_JUDGE_MODEL`, 30s / 1MB. Fail-open.
+// Default is claude-haiku-4-5, the name that used to be compiled in here.
 struct Verdict { bool ok = false; bool onTrack = true; string anchor; };
 static Verdict driftJudge(const string& goal, const std::vector<string>& recentBullets) {
   std::ostringstream p;
@@ -1060,7 +1075,7 @@ static Verdict driftJudge(const string& goal, const std::vector<string>& recentB
     << "## the session goal\n" << goal << "\n"
     << "## the last moves\n";
   for (const auto& r : recentBullets) p << "- " << r << "\n";
-  const string raw = run_claude(p.str(), 30, "claude-haiku-4-5", 1024 * 1024);
+  const string raw = run_claude(p.str(), 30, env_or("RABADON_JUDGE_MODEL", "claude-haiku-4-5"), 1024 * 1024);
   if (raw.empty()) return {};
   const string body = strip_fences(raw);
   JParser jp(body); JVal v = jp.parse();
