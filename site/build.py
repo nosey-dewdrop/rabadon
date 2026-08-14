@@ -1228,6 +1228,35 @@ def field_records():
     return out
 
 
+def live_pulse():
+    """When the last refusal actually happened, said on the page itself.
+
+    A page that prints totals and nothing else cannot be told apart from a page
+    whose numbers stopped moving a month ago, and that difference is the whole
+    claim. `342 refused` reads as a brochure. `the last one was two hours ago`
+    is the same file saying the machine is still running.
+
+    Read off site/field.jsonl, the file the page already links to, so the
+    sentence cannot drift away from the data standing behind it."""
+    stamps = [r.get("ts") for r in field_records()
+              if isinstance(r.get("ts"), (int, float))]
+    if not stamps:
+        return ""
+    newest = max(stamps) / 1000.0
+    secs = max(0.0, time.time() - newest)
+    if secs < 5400:
+        ago = "%d minutes ago" % max(1, int(secs // 60))
+    elif secs < 172800:
+        ago = "%d hours ago" % int(secs // 3600)
+    else:
+        ago = "%d days ago" % int(secs // 86400)
+    return ('<p class="cap">The last command it refused was %s, at %s. This page '
+            'is rebuilt from that same file every 30 minutes, so the counts above '
+            'are what the machine had done by then.</p>'
+            % (html.escape(ago),
+               html.escape(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(newest)))))
+
+
 def field_headline(meas):
     """The three rules that did the most, in a sentence, with the counts read off
     the same file the page reads. Typed as prose it would be a sentence that goes
@@ -1769,6 +1798,7 @@ def index(rows, meas):
         "suites.count": str(len(SUITES)),
         "repo.commits": str(len(rows)),
         "repo.days": word(days) if days <= 12 else str(days),
+        "live.pulse": live_pulse(),
     }
 
     s = open(INDEX_TMPL, encoding="utf-8").read()
