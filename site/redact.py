@@ -83,8 +83,16 @@ USER = os.path.basename(HOME)
 HOMES = os.path.dirname(HOME)   # the directory home directories live in
 
 # somebody else's home, in output this machine merely relayed: a CI log from a
-# foreign repository carries /home/runner, a foreign macOS path carries
-# /Users/<name>. Neither is this operator's, and neither belongs on the page.
+# foreign repository carries a Linux home under the CI account, a foreign macOS
+# path carries /Users/<name>. Neither is this operator's, and neither belongs on
+# the page.
+#
+# The example on that first line used to be spelled out literally, and on a
+# Linux CI runner that spelling IS the runner's own home directory, so
+# publish_redaction_test.sh read this comment as a leaked absolute home path and
+# failed the build on the file that does the redacting. The check was right: a
+# comment in this file is served at /redact.py exactly like a JSON record is.
+# Naming the shape instead of the path costs the reader nothing.
 FOREIGN_HOME = re.compile(r"/(?:Users|home)/[^/\s'\"]*")
 
 # the same home directory, dash-encoded (see A PROJECT KEY, above).
