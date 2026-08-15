@@ -1,3 +1,5 @@
+{"ev": "STOP", "rule": "no-exit-code-after-pipe", "project": "home", "ts": 1786835750639, "detail": "command matched deny rule: LAB=$(cat /tmp/stranger.txt)\necho \"### rabadon çalışıyor mu\"\nenv -u RABADON_DIR HOME=\"$LAB/home\" \"$LAB/pfx/bin/rabadon\" --version 2>&1 | head -5; echo \"exit"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786835211575, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786754435883, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786754153336, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786753616537, "detail": "command matched deny rule: git commit -m \"wip\""}
