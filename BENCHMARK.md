@@ -113,7 +113,7 @@ Biggest signal, by project:
 |-------------|---------------|-------------------------|---------------|---------------|
 | stitchu     | 4,196         | 43                      | 107           | 2             |
 | rabadon     | 3,640         | 12                      | 112           | 0             |
-| damummyphus | 2,162         | 3                       | 27            | 0             |
+| (home)      | 2,162         | 3                       | 27            | 0             |
 
 What was caught on stitchu (verbatim rule ids from the ledger): `push-gate` 14x
 (code edited after the last passing test run), `no-rm-rf-outside-project` 9x,

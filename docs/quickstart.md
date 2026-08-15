@@ -149,6 +149,7 @@ rabadon usage — last 7 day(s) · local, nothing leaves this machine
 source: ~/.rabadon/spool
 
   3 refused before they happened · 41 actions gated · 0 repairs held
+  (EXAMPLE OUTPUT from a fresh install — your numbers start at zero and grow.)
 
   my-project                                          last event: 2026-07-31 14:22:07
         2x  no-force-push-main

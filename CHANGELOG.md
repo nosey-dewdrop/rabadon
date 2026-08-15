@@ -24,7 +24,7 @@ class of error as a benchmark citing a file that does not exist.
 
 ### The gate
 - Deny decisions are made in native C++ before a command is produced, not after it runs. Force-push to a protected branch, recursive deletes outside a project, and untested pushes are refused at emit time.
-- Three laws are compiled into the binary and cannot be disabled from a project file. Everything else lives in a project's `.rabadon/guard.json`, and a rule born from a real incident carries `authoredBy: incident`.
+- Eleven laws are compiled into the binary and hold with no configuration at all. Any of them can be switched off by id in a project's `disabled[]` — none is sealed, and the README says the same. Everything else lives in a project's `.rabadon/guard.json`, and a rule born from a real incident carries `authoredBy: incident`.
 - `rabadon drill` produces a real refusal on a throwaway command so a new user sees the mechanism in one step. Drills are tagged at emit and excluded from the ledger, so they never inflate `rabadon usage`.
 
 ### The repair loop
