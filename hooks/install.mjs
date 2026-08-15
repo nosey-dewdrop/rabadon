@@ -237,6 +237,50 @@ export function installHooks(dir, { gateCmd = GATE_BIN, driftCmd = DRIFT_BIN, st
 }
 
 /**
+ * Merge the rabadon gate into <dir>/.cursor/hooks.json.
+ *
+ * Neither the laws nor the binary change between agents: the same
+ * `rabadon-gate` reads Cursor's payload, because hookev.h normalises it before
+ * a single rule runs. What changes is where the editor looks for its hook
+ * config, and that is the whole of Cursor support on the install side.
+ *
+ * Cursor is wired to the events it actually has. It has no beforeFileEdit, so an
+ * agent's edit is observed after it lands rather than refused before; shell
+ * writes still go through beforeShellExecution and are refused pre-spend. That
+ * gap is written down in docs/agent-contract.md instead of being papered over.
+ *
+ * An existing hooks.json is backed up and everybody else's entries are kept.
+ * @returns {{ hooksPath: string, changed: boolean, backedUp: boolean }}
+ */
+export function installCursorHooks(dir, { gateCmd = GATE_BIN } = {}) {
+  const hooksPath = path.join(dir, '.cursor', 'hooks.json');
+  const EVENTS = ['beforeShellExecution', 'beforeMCPExecution', 'afterFileEdit',
+                  'beforeSubmitPrompt', 'stop'];
+  let cfg = { version: 1, hooks: {} };
+  let existed = false;
+  try { cfg = JSON.parse(fs.readFileSync(hooksPath, 'utf8')); existed = true; }
+  catch { /* absent, or unparseable — an unreadable file is replaced, not merged */ }
+  cfg.version = 1;
+  cfg.hooks = cfg.hooks || {};
+
+  const mine = (c) => typeof c === 'string' && /rabadon-gate/.test(c);
+  const healthy = EVENTS.every((ev) => (cfg.hooks[ev] || []).some((h) => mine(h.command)))
+                  && fs.existsSync(gateCmd.split(' ')[0]);
+  if (healthy) return { hooksPath, changed: false, backedUp: false };
+
+  let backedUp = false;
+  if (existed) { fs.copyFileSync(hooksPath, hooksPath + '.bak-rabadon'); backedUp = true; }
+  else fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
+
+  for (const ev of EVENTS) {
+    const others = (cfg.hooks[ev] || []).filter((h) => !mine(h.command));
+    cfg.hooks[ev] = [...others, { command: gateCmd }];
+  }
+  fs.writeFileSync(hooksPath, JSON.stringify(cfg, null, 2) + '\n');
+  return { hooksPath, changed: true, backedUp };
+}
+
+/**
  * Strip every rabadon-owned hook and statusLine from <dir>/.claude/settings.json.
  * Pass os.homedir() as dir to target the user-global settings.
  * @returns {{ settingsPath: string, changed: boolean, removed: string[] }}

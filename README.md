@@ -12,6 +12,8 @@ A hook is advice. rabadon is the layer that also makes the advice **hold**: the 
 
 Everything is local, by law: events append to `~/.rabadon/spool/` on your machine with `write(2)` under an exclusive lock, and are mirrored to a unix socket for the live cockpit when one is listening. No account, no upload, nothing leaves.
 
+**Your agent, not just mine.** `rabadon init` wires Claude Code *and* Cursor, and any other agent supervises itself through a documented contract — pipe one small JSON object to `rabadon-gate`, read exit 2 as a refusal, with no change to rabadon at all. The laws never depended on an editor; only the binding did, and it now lives in one file ([`native/hookev.h`](native/hookev.h)). Where an agent can do less, that is written down rather than glossed: Cursor has no *before*-file-edit hook, so on Cursor an agent's edit is recorded after it lands while shell writes are still refused before they run. Full table and the contract: [docs/agent-contract.md](docs/agent-contract.md).
+
 ## Install
 
 ```sh

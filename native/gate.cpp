@@ -38,6 +38,7 @@
 #include "chain.h"    // the ledger's one writer: chained line + .head sidecar
 #include "baseline.h" // the three laws that hold with no guard.json at all
 #include "rules.h"   // guard.json rule parsing + matching — shared with `rabadon exec`
+#include "hookev.h"  // ONE place that turns any agent's event into rabadon's event
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -50,6 +51,10 @@ using std::string;
 // is that the action is allowed to proceed. See the three-state block in main().
 enum { MODE_SILENT = 0, MODE_WATCH = 1, MODE_ENFORCE = 2 };
 static int g_mode = MODE_SILENT;
+// Which agent sent this event. Set once from hookev.h, read only where a
+// refusal has to be SPOKEN, because that is the one thing the agents disagree
+// about: the laws are identical, the way you tell the agent "no" is not.
+static rbhook::Dialect g_dialect = rbhook::DIALECT_UNKNOWN;
 // argv[0], so the gate can find its sibling binaries (rabadon-net) wherever the
 // install lives — a symlinked /opt/homebrew/bin must not break the net.
 static string g_self;
@@ -1555,8 +1560,14 @@ int main(int argc, char** argv) {
   { char buf[65536]; size_t n; while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) raw.append(buf, n); }
   if (raw.empty()) return 0;
 
-  const string hook = get_str(raw, "hook_event_name");
-  string cwd = get_str(raw, "cwd");
+  // ONE parse, for every agent. Which editor sent this is decided in hookev.h
+  // and nowhere else; everything below reads E. The five separate readings of
+  // Claude Code's field names that used to live in this function are the reason
+  // a second agent was a day of work instead of one function.
+  const rbhook::HookEvent E = rbhook::parse(raw);
+  g_dialect = E.dialect;
+  const string hook = E.hook;
+  string cwd = E.cwd;
   if (cwd.empty()) { const char* c = getenv("PWD"); cwd = c ? c : "."; }
 
   // ---------- THREE STATES, and the middle one is the whole adoption ramp -----
@@ -1596,13 +1607,11 @@ int main(int argc, char** argv) {
   if (hook != "PreToolUse" && hook != "PostToolUse" && hook != "UserPromptSubmit" &&
       hook != "SessionStart" && hook != "Stop") return 0;
 
-  const string toolName = get_str(raw, "tool_name");
-  size_t ti = raw.find("\"tool_input\"");
-  const string command = ti == string::npos ? "" : get_str(raw, "command", ti);
-  string filePath = ti == string::npos ? "" : get_str(raw, "file_path", ti);
-  if (filePath.empty() && ti != string::npos) filePath = get_str(raw, "notebook_path", ti);
-  const string sid = get_str(raw, "session_id");
-  const string toolUseId = get_str(raw, "tool_use_id");
+  const string toolName = E.toolName;
+  const string command = E.command;
+  string filePath = E.filePath;
+  const string sid = E.sessionId;
+  const string toolUseId = E.toolUseId;
 
   // PostToolUse test analysis reads the command's output. tool_response is
   // either a string OR an object; mirror the JS EXACTLY:
@@ -1616,8 +1625,10 @@ int main(int argc, char** argv) {
   // see (it flipped "Failures: 0" from GREEN to RED in an early port). For the
   // string path, JSON.parse already turned \n into real newlines and the
   // replace stays a no-op, so get_str's unescaped value matches node.
-  string toolResponse;
-  {
+  // Dialects that normalise the output in hookev.h hand it over directly; only
+  // Claude Code's string-or-object shape needs the walk below.
+  string toolResponse = E.toolResponse;
+  if (toolResponse.empty()) {
     size_t tr = raw.find("\"tool_response\"");
     if (tr != string::npos) {
       size_t colon = raw.find(':', tr + 15);
@@ -2185,7 +2196,7 @@ int main(int argc, char** argv) {
 
   // ---------- UserPromptSubmit: pin the session's goal ----------
   if (hook == "UserPromptSubmit") {
-    const string prompt = get_str(raw, "prompt");
+    const string prompt = E.prompt;
     // root fix for goal poisoning: the gate's own recursive prompts (the
     // diagnose/judge children run `claude -p` from inside a hook) must
     // never be mistaken for the builder's goal
@@ -2267,7 +2278,7 @@ int main(int argc, char** argv) {
   if (hook == "Stop") {
     // token ledger — REAL usage from the transcript, read incrementally from
     // the last byte offset, never the whole file twice
-    const string tp = get_str(raw, "transcript_path");
+    const string tp = E.transcriptPath;
     struct stat tst;
     if (!tp.empty() && stat(tp.c_str(), &tst) == 0) {
       const long long size = tst.st_size;
@@ -2362,9 +2373,22 @@ int main(int argc, char** argv) {
           ".rabadon/promise.json or .rabadon/guard.json by hand, can change what it protects.)"
         : "(user override: add \"" + ruleId + "\" to disabled[] in .rabadon/guard.json, or "
           "`rabadon off` to pause supervision)";
-      fprintf(stderr,
-        "rabadon BLOCKED this action.\nRule: %s — %s\n%s\nAdjust the approach instead of retrying the same action.\n%s\n",
-        ruleId.c_str(), why.c_str(), detail.c_str(), override_line.c_str());
+      const string msg = "rabadon BLOCKED this action.\nRule: " + ruleId + " — " + why + "\n" +
+                         detail + "\nAdjust the approach instead of retrying the same action.\n" +
+                         override_line + "\n";
+      // The verdict is identical for every agent. Only the channel differs, and
+      // that is the whole of what porting a guardrail costs. Cursor treats exit
+      // 2 as a block by itself, but what it SHOWS the operator and hands back to
+      // the model is the permission object on stdout — so a refusal that only
+      // wrote stderr would stop the command and tell nobody why, which is most
+      // of what a refusal is for.
+      if (g_dialect == rbhook::DIALECT_CURSOR) {
+        printf("{\"permission\":\"deny\",\"user_message\":\"%s\",\"agent_message\":\"%s\"}\n",
+               json_escape("rabadon: " + ruleId + " — " + why).c_str(),
+               json_escape(msg).c_str());
+        fflush(stdout);
+      }
+      fprintf(stderr, "%s", msg.c_str());
       exit(2);
     }
     // WATCH: the verdict is real and it is recorded — it is simply not enforced.
@@ -2399,7 +2423,7 @@ int main(int argc, char** argv) {
       const long long capTok = (long long)get_double(braw, "tokens");
       const double capUsd = get_double(braw, "usd");
       if (capTok > 0 || capUsd > 0) {
-        const string tp = get_str(raw, "transcript_path");
+        const string tp = E.transcriptPath;
         struct stat tst;
         if (!tp.empty() && stat(tp.c_str(), &tst) == 0) {
           const string all = read_file(tp);
@@ -2643,11 +2667,11 @@ int main(int argc, char** argv) {
     if (!before.empty()) {
       string after; bool known = false;
       if (toolName == "Write") {
-        after = ti == string::npos ? "" : get_str(raw, "content", ti);
+        after = E.content;
         known = true;
       } else if (toolName == "Edit") {
-        const string oldS = ti == string::npos ? "" : get_str(raw, "old_string", ti);
-        const string newS = ti == string::npos ? "" : get_str(raw, "new_string", ti);
+        const string oldS = E.oldString;
+        const string newS = E.newString;
         const size_t at = oldS.empty() ? string::npos : before.find(oldS);
         if (at != string::npos) { after = before; after.replace(at, oldS.size(), newS); known = true; }
       }
@@ -2729,9 +2753,9 @@ int main(int argc, char** argv) {
           if (rx_test(pat, filePath)) { isTest = true; break; }
       } else isTest = rx_test("test", filePath);
       if (isTest) {
-        const string oldS = ti == string::npos ? "" : get_str(raw, "old_string", ti);
-        string newS = ti == string::npos ? "" : get_str(raw, "new_string", ti);
-        if (newS.empty() && ti != string::npos) newS = get_str(raw, "content", ti);
+        const string oldS = E.oldString;
+        string newS = E.newString;
+        if (newS.empty()) newS = E.content;
         const string SKIP = "\\b(it|test|describe)\\.(skip|todo)\\b|\\bxit\\(|\\bxdescribe\\(|DISABLED_|GTEST_SKIP|@unittest\\.skip|pytest\\.mark\\.skip";
         auto countAsserts = [](const string& s) {
           static const std::regex re("\\b(assert|expect|require)(\\.\\w+)?\\s*\\(|\\b(EXPECT_|ASSERT_|assert_eq)\\w*!?\\s*\\(", std::regex::ECMAScript);

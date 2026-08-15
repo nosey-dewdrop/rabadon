@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, RABADON_CMD_RE } from './install.mjs';
+import { installHooks, installCursorHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, RABADON_CMD_RE } from './install.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, '..');
@@ -111,6 +111,17 @@ async function cmdInit(args) {
     process.exit(1);
   }
 
+  // 3b) Cursor, when this is a project rather than the global target. Wiring an
+  // agent the operator may not use costs one small file and removes the single
+  // most common reason somebody closes the tab: looking for their own editor and
+  // not finding it. Nothing here is Cursor-specific below the config — the same
+  // binary reads both payloads.
+  let cur = null;
+  if (!global) {
+    try { cur = installCursorHooks(dir); }
+    catch { /* an unwritable .cursor must not fail an otherwise good install */ }
+  }
+
   // 4) the closing block — what got wired, how to see it, how to stop it
   const where = r.settingsPath;
   console.log('');
@@ -119,6 +130,7 @@ async function cmdInit(args) {
   console.log('  wired in:');
   console.log(`    ${guardFile}   — the law, REVIEW it (deny rules + protected paths)`);
   console.log(`    ${where}   — gate hooks merged${r.backedUp ? ` (original: ${path.basename(where)}.bak-rabadon)` : ''}${r.repaired ? ' [repaired a stale install]' : ''}`);
+  if (cur && cur.changed) console.log(`    ${cur.hooksPath}   — the same gate, for Cursor${cur.backedUp ? ' (original: hooks.json.bak-rabadon)' : ''}`);
   console.log('');
   console.log('  see it work in 30 seconds:');
   console.log('    rabadon drill        one tagged test event through the real gate');
