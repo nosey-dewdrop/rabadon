@@ -112,6 +112,32 @@ def load():
 
 def main():
     rows, files, bad = load()
+
+    # DRILLS ARE NOT FIELD EVENTS, and this file was the one that forgot.
+    #
+    # The gate stamps `"drill": true` on every event a test suite fires, and
+    # site/build.py has counted those separately from the start, on the page
+    # that says "a tool that pads its own numbers with its own drills has no
+    # business judging anyone else's proof". This file, which writes the
+    # PUBLISHED site/field.jsonl and every field.* number in measured.json, had
+    # no drill filter at all — is_lab() screens by PIPE NAME, and a drill fired
+    # inside a real project carries a real project's pipe.
+    #
+    # Measured: 206 drill-flagged STOP/WOULD_BLOCK events in the ledger, and all
+    # 206 were published in site/field.jsonl with the flag stripped — 19.5% of
+    # the 1058 published records. Among them a `test-tamper` STOP against
+    # discourse, rendered on the live site as a field catch in somebody else's
+    # repository. It was a rehearsal.
+    #
+    # The count is printed rather than quietly applied, the same way the
+    # laboratory exclusion prints its own size, because a filter that hides how
+    # much it removed is the thing this whole page refuses.
+    drills = [r for r in rows if r.get("drill")]
+    rows = [r for r in rows if not r.get("drill")]
+    _drill_verdicts = sum(1 for r in drills if r.get("ev") in ("STOP", "WOULD_BLOCK"))
+    print("excluded as drills fired by the test suites: %d line(s), %d of them verdicts"
+          % (len(drills), _drill_verdicts))
+
     lab = [r for r in rows if is_lab(r.get("pipe", ""))]
     field = [r for r in rows if not is_lab(r.get("pipe", ""))]
     own = [r for r in field if r.get("pipe", "") not in FIXTURE]

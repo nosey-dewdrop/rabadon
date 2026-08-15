@@ -1,3 +1,4 @@
+{"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786753279881, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "WOULD_BLOCK", "rule": "no-silenced-ctest-stderr", "project": "rabadon", "ts": 1786752280757, "detail": "command matched deny rule: ls ~/damla_projects_2026/stitchu/.rabadon/ 2>&1; echo \"====\"; grep -rn \"ctest-tail-hides-verdict\" ~/damla_projects_2026/stitchu/.rabadon/ ~/.rabadon/*.json ~/.r"}
 {"ev": "WOULD_BLOCK", "rule": "no-silenced-ctest-stderr", "project": "rabadon", "ts": 1786752273532, "detail": "command matched deny rule: grep -rn \"ctest-tail-hides-verdict\" . 2>/dev/null | head -20"}
 {"ev": "WOULD_BLOCK", "rule": "baseline-supervision-tamper", "project": "tmp", "ts": 1786752075145, "detail": "rm on '~/.rabadon/enabled' resolves inside ~/.rabadon — that tree holds the enforce switch and the hash-chained ledger. Turning supervision off is `rabadon off`, which writes the change down; removing the file does the same thing with no record. Silence baseline-supervision-tamper by id if this is really what you meant."}
@@ -146,7 +147,6 @@
 {"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785841059699, "detail": "command matched deny rule: rm -rf /tmp/seamly && git clone --depth 1 --filter=blob:none --sparse https://github.com/FashionFreedom/Seamly2D.git /tmp/seamly 2>&1 | tail -3 && cd /tmp/seaml"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785840790963, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785836788198, "detail": "command matched deny rule: git commit -m \"wip\""}
-{"ev": "STOP", "rule": "baseline-force-push", "project": "stranger", "ts": 1785836144850, "detail": "force-push to shared branch 'main' — use --force-with-lease, or push to your own branch"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785787972438, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785787166085, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1785785210458, "detail": "command matched deny rule: git commit -m \"wip\""}
@@ -233,44 +233,11 @@
 {"ev": "WOULD_BLOCK", "rule": "no-force-push-main", "project": "rails", "ts": 1785713435587, "detail": "command matched deny rule: git push -f upstream main"}
 {"ev": "WOULD_BLOCK", "rule": "no-force-push-main", "project": "rails", "ts": 1785713435563, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "WOULD_BLOCK", "rule": "no-force-push-main", "project": "rails", "ts": 1785713391089, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "WOULD_BLOCK", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713218242, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026"}
-{"ev": "WOULD_BLOCK", "rule": "reset-hard-shared-branch", "project": "inf-baseline-kernel", "ts": 1785713218238, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "WOULD_BLOCK", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785713218235, "detail": "command matched deny rule: git push -f origin master"}
-{"ev": "WOULD_BLOCK", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785713218233, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-overwritten", "project": "inf-baseline-kernel", "ts": 1785713218230, "detail": "command matched deny rule: cp empty.md PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713218227, "detail": "command matched deny rule: printf x | tee PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713218224, "detail": "command matched deny rule: truncate -s 0 PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713218221, "detail": "command matched deny rule: mv PROOF.md archive/"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713218219, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713218216, "detail": "command matched deny rule: rm PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785713218212, "detail": "command matched deny rule: git push --no-verify origin c1"}
-{"ev": "WOULD_BLOCK", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785713218210, "detail": "command matched deny rule: git commit --no-verify -m c1"}
-{"ev": "WOULD_BLOCK", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785713218207, "detail": "command matched deny rule: git -C /tmp/x commit -m \"avx512 speedup landed\""}
-{"ev": "WOULD_BLOCK", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785713218204, "detail": "command matched deny rule: git commit -m \"cekirdek 3.1x hizlandi\""}
-{"ev": "WOULD_BLOCK", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785713218201, "detail": "command matched deny rule: git commit -m \"4x faster than naive\""}
-{"ev": "WOULD_BLOCK", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713196100, "detail": "command matched deny rule: rm -rf $HOME/damla_projects_2026/moonlight"}
 {"ev": "WOULD_BLOCK", "rule": "no-reset-hard-shared-branch", "project": "redis", "ts": 1785713185464, "detail": "command matched deny rule: git reset --hard origin/unstable"}
 {"ev": "WOULD_BLOCK", "rule": "no-reset-hard-shared-branch", "project": "redis", "ts": 1785713185441, "detail": "command matched deny rule: git reset --hard origin/main"}
 {"ev": "WOULD_BLOCK", "rule": "baseline-branch-delete", "project": "redis", "ts": 1785713185398, "detail": "git push deletes shared branch 'main' on the remote (written as 'main') — delete your own branch instead, or silence baseline-branch-delete by id"}
 {"ev": "WOULD_BLOCK", "rule": "baseline-branch-delete", "project": "redis", "ts": 1785713185353, "detail": "git push deletes shared branch 'main' on the remote (written as ':main') — delete your own branch instead, or silence baseline-branch-delete by id"}
 {"ev": "WOULD_BLOCK", "rule": "baseline-force-push", "project": "redis", "ts": 1785713185304, "detail": "force-push to shared branch 'main' (written as +main) — use --force-with-lease, or push to your own branch"}
-{"ev": "WOULD_BLOCK", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713155768, "detail": "command matched deny rule: rm -rf ${HOME}/damla_projects_2026/moonlight"}
-{"ev": "WOULD_BLOCK", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713155765, "detail": "command matched deny rule: rm -rf $HOME/damla_projects_2026/moonlight"}
-{"ev": "WOULD_BLOCK", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713155693, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026"}
-{"ev": "WOULD_BLOCK", "rule": "reset-hard-shared-branch", "project": "inf-baseline-kernel", "ts": 1785713155690, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "WOULD_BLOCK", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785713155687, "detail": "command matched deny rule: git push -f origin master"}
-{"ev": "WOULD_BLOCK", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785713155684, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-overwritten", "project": "inf-baseline-kernel", "ts": 1785713155681, "detail": "command matched deny rule: cp empty.md PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713155679, "detail": "command matched deny rule: printf x | tee PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713155676, "detail": "command matched deny rule: truncate -s 0 PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713155673, "detail": "command matched deny rule: mv PROOF.md archive/"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713155670, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785713155667, "detail": "command matched deny rule: rm PROOF.md"}
-{"ev": "WOULD_BLOCK", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785713155664, "detail": "command matched deny rule: git push --no-verify origin c1"}
-{"ev": "WOULD_BLOCK", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785713155661, "detail": "command matched deny rule: git commit --no-verify -m c1"}
-{"ev": "WOULD_BLOCK", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785713155658, "detail": "command matched deny rule: git -C /tmp/x commit -m \"avx512 speedup landed\""}
-{"ev": "WOULD_BLOCK", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785713155651, "detail": "command matched deny rule: git commit -m \"cekirdek 3.1x hizlandi\""}
-{"ev": "WOULD_BLOCK", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785713155629, "detail": "command matched deny rule: git commit -m \"4x faster than naive\""}
 {"ev": "WOULD_BLOCK", "rule": "no-skipping-werror-build", "project": "redis", "ts": 1785713154106, "detail": "command matched deny rule: make -C . REDIS_CFLAGS=-Wno-error"}
 {"ev": "WOULD_BLOCK", "rule": "no-skipping-werror-build", "project": "redis", "ts": 1785713154085, "detail": "command matched deny rule: make -C ~/damla_projects_2026/katki/redis REDIS_CFLAGS=-Wno-error"}
 {"ev": "WOULD_BLOCK", "rule": "topic-branch-not-mainline", "project": "home", "ts": 1785713154063, "detail": "command matched deny rule of the project it reaches into (~/damla_projects_2026/katki/redis): git -C ~/damla_projects_2026/katki/redis checkout -b unstable"}
@@ -286,9 +253,6 @@
 {"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785713123032, "detail": "command matched deny rule of the project it reaches into (~/damla_projects_2026/katki/redis): git -C ~/damla_projects_2026/katki/redis push --force origin unstable"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785713123006, "detail": "command matched deny rule of the project it reaches into (~/damla_projects_2026/katki/redis): cd ~/damla_projects_2026/katki/redis && git push --force origin unstable"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "redis", "ts": 1785713122979, "detail": "command matched deny rule: git push --force origin unstable"}
-{"ev": "STOP", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713112873, "detail": "command matched deny rule: rm -rf ../../moonlight"}
-{"ev": "STOP", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713112861, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026/moonlight"}
-{"ev": "STOP", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785713112858, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026/moonlight"}
 {"ev": "STOP", "rule": "cloned-module-sources", "project": "redis", "ts": 1785713108128, "detail": "protected file: ~/damla_projects_2026/katki/redis/modules/redisjson/src/lib.rs"}
 {"ev": "STOP", "rule": "untracked-generated-conf", "project": "redis", "ts": 1785713108119, "detail": "protected file: ~/damla_projects_2026/katki/redis/redis-full.conf"}
 {"ev": "STOP", "rule": "vendored-deps", "project": "redis", "ts": 1785713108110, "detail": "protected file: ~/damla_projects_2026/katki/redis/deps/jemalloc/src/jemalloc.c"}
@@ -302,79 +266,11 @@
 {"ev": "STOP", "rule": "no-reset-hard-shared-branch", "project": "redis", "ts": 1785713085067, "detail": "command matched deny rule: git reset --hard origin/unstable"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "redis", "ts": 1785713084990, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "redis", "ts": 1785713084960, "detail": "command matched deny rule: git push --force origin unstable"}
-{"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "inf-baseline-kernel", "ts": 1785713084907, "detail": "'2>& 1' resolves to /opt/1, outside the project tree (~) — the contents are gone before anything runs"}
-{"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "inf-baseline-kernel", "ts": 1785713084903, "detail": "'2>& 1' resolves to /usr/1, outside the project tree (~) — the contents are gone before anything runs"}
-{"ev": "STOP", "rule": "golden-reference", "project": "stitchu", "ts": 1785713079678, "detail": "protected file: ~/damla_projects_2026/stitchu/engine/golden-reference.csv"}
-{"ev": "STOP", "rule": "generated-web-html", "project": "stitchu", "ts": 1785713079674, "detail": "protected file: ~/damla_projects_2026/stitchu/web/patterns/locket-38.html"}
-{"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785713055208, "detail": "'2>& 1' resolves to ~/damla_projects_2026/00_currently_on_working/inf-baseline-kernel/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
 {"ev": "STOP", "rule": "no-rm-rf-outside", "project": "home", "ts": 1785713036210, "detail": "command matched deny rule: rm -f ~/damla_projects_2026/katki/redis/tests/unit/rbfieldprobe.tcl && echo \"probe test removed\"; ls ~/damla_projects_2026/kat"}
-{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785713028099, "detail": "command matched deny rule: ctest --test-dir engine/build | tail -1"}
-{"ev": "STOP", "rule": "no-blanket-add-stitchu", "project": "stitchu", "ts": 1785713023579, "detail": "command matched deny rule: git add -A"}
-{"ev": "STOP", "rule": "no-git-add-never-push-dirs", "project": "stitchu", "ts": 1785713023573, "detail": "command matched deny rule: git add patterns_real/geometry/geometry-full.json"}
-{"ev": "STOP", "rule": "no-ctest-list-as-green", "project": "stitchu", "ts": 1785713023568, "detail": "command matched deny rule: ctest --test-dir engine/build -N"}
-{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785713023562, "detail": "command matched deny rule: ctest --test-dir engine/build | tail -1"}
-{"ev": "STOP", "rule": "baseline-hard-reset", "project": "engine", "ts": 1785713001879, "detail": "git reset --hard onto 'origin/main' — commit or stash first, or reset to a local ref"}
-{"ev": "STOP", "rule": "baseline-force-push", "project": "engine", "ts": 1785713001871, "detail": "force-push to shared branch 'main' — use --force-with-lease, or push to your own branch"}
-{"ev": "STOP", "rule": "rm-rf-outside-project", "project": "inf-baseline-kernel", "ts": 1785712974960, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026"}
-{"ev": "STOP", "rule": "reset-hard-shared-branch", "project": "inf-baseline-kernel", "ts": 1785712974956, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "STOP", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785712974951, "detail": "command matched deny rule: git push -f origin master"}
-{"ev": "STOP", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785712974944, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-overwritten", "project": "inf-baseline-kernel", "ts": 1785712974934, "detail": "command matched deny rule: cp empty.md PROOF.md"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712974926, "detail": "command matched deny rule: printf x | tee PROOF.md"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712974918, "detail": "command matched deny rule: truncate -s 0 PROOF.md"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712974909, "detail": "command matched deny rule: mv PROOF.md archive/"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712974901, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712974895, "detail": "command matched deny rule: rm PROOF.md"}
-{"ev": "STOP", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785712974891, "detail": "command matched deny rule: git push --no-verify origin c1"}
-{"ev": "STOP", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785712974885, "detail": "command matched deny rule: git commit --no-verify -m c1"}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712974881, "detail": "command matched deny rule: git -C /tmp/x commit -m \"avx512 speedup landed\""}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712974877, "detail": "command matched deny rule: git commit -m \"cekirdek 3.1x hizlandi\""}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712974872, "detail": "command matched deny rule: git commit -m \"4x faster than naive\""}
 {"ev": "STOP", "rule": "push-gate", "project": "airflow", "ts": 1785712945730, "detail": "rabadon ran the tests itself (breeze testing core-tests --run-in-parallel) — NOT GREEN.\nsh: breeze: command not found\nFix the failure; rabadon will re-run the suite on your next push attempt."}
-{"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785712934283, "detail": "'2>& 1' resolves to ~/damla_projects_2026/stitchu/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785712916541, "detail": "'2>& 1' resolves to ~/damla_projects_2026/stitchu/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
-{"ev": "STOP", "rule": "reset-hard-shared-branch", "project": "inf-baseline-kernel", "ts": 1785712910161, "detail": "command matched deny rule: git reset --hard main"}
-{"ev": "STOP", "rule": "reset-hard-shared-branch", "project": "inf-baseline-kernel", "ts": 1785712910150, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "STOP", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785712910142, "detail": "command matched deny rule: git push --force origin/main"}
-{"ev": "STOP", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785712910133, "detail": "command matched deny rule: git push -f origin main"}
-{"ev": "STOP", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785712910124, "detail": "command matched deny rule: git push --force origin master"}
-{"ev": "STOP", "rule": "force-push-main", "project": "inf-baseline-kernel", "ts": 1785712910114, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "promise-off-target", "project": "rabadon", "ts": 1785712896257, "detail": "star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch->propose->re-verify repair loop, and honest docs — new ENGINE capability is C++ in native/, JS is glue (installer/dispatch) only — latest off-target file: site/field_stats.py (fires once per session; if this work is "}
-{"ev": "STOP", "rule": "no-push-to-main", "project": "airflow", "ts": 1785712874934, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "push-gate", "project": "stitchu", "ts": 1785712870025, "detail": "code was edited after the last passing test run — run the test suite first"}
-{"ev": "STOP", "rule": "push-gate", "project": "stitchu", "ts": 1785712870020, "detail": "code was edited after the last passing test run — run the test suite first"}
-{"ev": "STOP", "rule": "b-mixed-ws", "project": "cls-x34gf2ol", "ts": 1785712848452, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "b-bare-slash", "project": "cls-s7rzk_k0", "ts": 1785712848428, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "b-bare-s", "project": "cls-dqcqor2g", "ts": 1785712848386, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "b-alternation", "project": "cls-i7084plg", "ts": 1785712848356, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "b-mixed-rev", "project": "cls-4qstmc76", "ts": 1785712848329, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "b-mixed", "project": "cls-rf1wij91", "ts": 1785712848309, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "b-slash-only", "project": "cls-hvoe2qyb", "ts": 1785712848284, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "b-s-only", "project": "cls-zqr_464v", "ts": 1785712848251, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "no-blanket-add-stitchu", "project": "stitchu", "ts": 1785712825035, "detail": "command matched deny rule: git -C ~/damla_projects_2026/stitchu add ."}
-{"ev": "STOP", "rule": "no-blanket-add-stitchu", "project": "stitchu", "ts": 1785712825025, "detail": "command matched deny rule: git add -A"}
-{"ev": "STOP", "rule": "no-ctest-list-as-green", "project": "stitchu", "ts": 1785712825016, "detail": "command matched deny rule: ctest --test-dir engine/build -N"}
-{"ev": "STOP", "rule": "no-ctest-list-as-green", "project": "stitchu", "ts": 1785712825004, "detail": "command matched deny rule: ctest -N | grep -c Test"}
-{"ev": "STOP", "rule": "no-git-add-never-push-dirs", "project": "stitchu", "ts": 1785712824991, "detail": "command matched deny rule: git add patterns_real/geometry/geometry-full.json"}
-{"ev": "STOP", "rule": "no-git-add-never-push-dirs", "project": "stitchu", "ts": 1785712824978, "detail": "command matched deny rule: git add dataset/x.csv"}
-{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785712824971, "detail": "command matched deny rule: ctest --test-dir engine/build | tail -n 2"}
-{"ev": "STOP", "rule": "ctest-tail-hides-verdict", "project": "stitchu", "ts": 1785712824964, "detail": "command matched deny rule: ctest --test-dir engine/build | tail -1"}
-{"ev": "STOP", "rule": "no-shell-edit-generated-html", "project": "stitchu", "ts": 1785712824951, "detail": "command matched deny rule: sed -i s/a/b/ web/patterns/locket.html"}
-{"ev": "STOP", "rule": "no-strategy-in-agent-context", "project": "stitchu", "ts": 1785712824937, "detail": "command matched deny rule: cat STRATEGY.md"}
-{"ev": "STOP", "rule": "no-wrangler-deploy", "project": "stitchu", "ts": 1785712824927, "detail": "command matched deny rule: wrangler deploy"}
-{"ev": "STOP", "rule": "no-coauthor-in-commit", "project": "stitchu", "ts": 1785712824920, "detail": "command matched deny rule: git commit -m x Co-Authored-By: Claude"}
-{"ev": "STOP", "rule": "no-hard-reset-shared-branch", "project": "stitchu", "ts": 1785712824911, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "stitchu", "ts": 1785712824903, "detail": "command matched deny rule: rm -rf ~/Desktop/xx"}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "stitchu", "ts": 1785712824895, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "c-realprefix", "project": "sf3-gaf0v6s_", "ts": 1785712794644, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/realscratch-umeqhpfz/PROOF.md"}
-{"ev": "STOP", "rule": "c-tail-only", "project": "sf3-erb64qz4", "ts": 1785712794630, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "c-tail-only", "project": "sf3-erb64qz4", "ts": 1785712794626, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/realscratch-umeqhpfz/PROOF.md"}
-{"ev": "STOP", "rule": "c-anythree", "project": "sf3-2z4qoe0i", "ts": 1785712794620, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "c-anythree", "project": "sf3-2z4qoe0i", "ts": 1785712794616, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/realscratch-umeqhpfz/PROOF.md"}
-{"ev": "STOP", "rule": "c-anytwo", "project": "sf3-cgt3ux0a", "ts": 1785712794611, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "c-anytwo", "project": "sf3-cgt3ux0a", "ts": 1785712794607, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/realscratch-umeqhpfz/PROOF.md"}
 {"ev": "STOP", "rule": "push-gate", "project": "airflow", "ts": 1785712770171, "detail": "rabadon ran the tests itself (breeze testing core-tests --run-in-parallel) — NOT GREEN.\nsh: breeze: command not found\nFix the failure; rabadon will re-run the suite on your next push attempt."}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "reports", "ts": 1785712763332, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "reports-no-evidence-tree-delete", "project": "reports", "ts": 1785712751722, "detail": "command matched deny rule: rm -rf /tmp/rb-final.P4Xoeu/lulumelon-strateji"}
 {"ev": "STOP", "rule": "reports-no-evidence-tree-delete", "project": "reports", "ts": 1785712751663, "detail": "command matched deny rule: rm -rf /tmp/rb-final.P4Xoeu/golden-kanit"}
 {"ev": "STOP", "rule": "reports-no-evidence-tree-delete", "project": "reports", "ts": 1785712751607, "detail": "command matched deny rule: rm -rf /tmp/rb-final.P4Xoeu/2026-08-01-yabanci-toprak"}
@@ -390,49 +286,19 @@
 {"ev": "STOP", "rule": "no-hook-bypass", "project": "home", "ts": 1785712728401, "detail": "command matched deny rule: git commit --no-verify -m Fix scheduler race"}
 {"ev": "STOP", "rule": "no-hook-bypass", "project": "home", "ts": 1785712728347, "detail": "command matched deny rule: git -C ~/damla_projects_2026/katki/airflow commit --no-verify -m Fix scheduler race"}
 {"ev": "STOP", "rule": "no-hook-bypass", "project": "home", "ts": 1785712728294, "detail": "command matched deny rule: cd ~/damla_projects_2026/katki/airflow && git commit --no-verify -m Fix scheduler race"}
-{"ev": "STOP", "rule": "q-fullpath", "project": "sf2-7abshuj1", "ts": 1785712728270, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
 {"ev": "STOP", "rule": "no-skip-commit-hooks", "project": "airflow", "ts": 1785712728241, "detail": "command matched deny rule: git commit --no-verify -m Fix scheduler race"}
-{"ev": "STOP", "rule": "q-scratchseg", "project": "sf2-c8n1bj2a", "ts": 1785712728151, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/realscratch-dvp_a1yx/PROOF.md"}
-{"ev": "STOP", "rule": "q-scratchseg", "project": "sf2-c8n1bj2a", "ts": 1785712728145, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
-{"ev": "STOP", "rule": "q-slash", "project": "sf2-whvmturn", "ts": 1785712728024, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "q-any", "project": "sf2-0q6l1ctv", "ts": 1785712728004, "detail": "command matched deny rule: rm -f ./PROOF.md"}
-{"ev": "STOP", "rule": "q-any", "project": "sf2-0q6l1ctv", "ts": 1785712727997, "detail": "command matched deny rule: rm -f ~/tmp-notreal/PROOF.md"}
-{"ev": "STOP", "rule": "q-any", "project": "sf2-0q6l1ctv", "ts": 1785712727992, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/realscratch-dvp_a1yx/PROOF.md"}
-{"ev": "STOP", "rule": "q-any", "project": "sf2-0q6l1ctv", "ts": 1785712727986, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
 {"ev": "STOP", "rule": "reports-raw-capture-frozen", "project": "reports", "ts": 1785712724451, "detail": "protected file: ~/damla_projects_2026/reports/2026-07-31-rontgen-2/ham/maya-openai-pixel-config.json"}
 {"ev": "STOP", "rule": "reports-golden-frozen", "project": "reports", "ts": 1785712724374, "detail": "protected file: ~/damla_projects_2026/reports/golden-kanit/golden_baseline.csv"}
 {"ev": "STOP", "rule": "reports-corpus-frozen", "project": "reports", "ts": 1785712724309, "detail": "protected file: ~/damla_projects_2026/reports/2026-08-01-hakem-korpusu/express/express-baseline.green.txt"}
 {"ev": "STOP", "rule": "reports-corpus-frozen", "project": "reports", "ts": 1785712724244, "detail": "protected file: ~/damla_projects_2026/reports/2026-08-01-hakem-korpusu/express/express-dropped-etag-guard.patch"}
 {"ev": "STOP", "rule": "reports-corpus-frozen", "project": "reports", "ts": 1785712724153, "detail": "protected file: ~/damla_projects_2026/reports/2026-08-01-hakem-korpusu/express/MANIFEST.txt"}
 {"ev": "STOP", "rule": "reports-corpus-frozen", "project": "reports", "ts": 1785712724073, "detail": "protected file: ~/damla_projects_2026/reports/2026-08-01-hakem-korpusu/corpus.json"}
-{"ev": "STOP", "rule": "no-npm-or-yarn", "project": "discourse", "ts": 1785712720585, "detail": "command matched deny rule: npm run build --silent"}
-{"ev": "STOP", "rule": "test-tamper", "project": "discourse", "ts": 1785712708510, "detail": "assertions are being removed from spec/models/user_spec.rb while the suite is red"}
 {"ev": "STOP", "rule": "push-gate", "project": "reports", "ts": 1785712708154, "detail": "rabadon ran the tests itself (sh ~/damla_projects_2026/reports/check-integrity.sh) — NOT GREEN.\n  FAIL ./.rb-pushgate-proof.json: JSONDecodeError('Expecting property name enclosed in double quotes: line 1 column 2 (char 1)')\nFix the failure; rabadon will re-run the suite on your next push attempt."}
-{"ev": "STOP", "rule": "no-delete-native-binaries", "project": "rabadon", "ts": 1785712706197, "detail": "command matched deny rule: rm -f native/rabadon-gate native/rabadon-drift"}
-{"ev": "STOP", "rule": "no-shell-rewrite-of-guard-or-promise", "project": "rabadon", "ts": 1785712706183, "detail": "command matched deny rule: sed -i '' 's/enforce/off/' .rabadon/guard.json"}
-{"ev": "STOP", "rule": "no-publish-without-dry-run", "project": "rabadon", "ts": 1785712706145, "detail": "command matched deny rule: npm publish --access public"}
 {"ev": "STOP", "rule": "baseline-clean-ignored", "project": "airflow", "ts": 1785712696005, "detail": "git clean with -x takes ignored files too (.env, local config, build output) — run it with -n first to see the list, or drop the -x"}
 {"ev": "STOP", "rule": "no-conventional-commit-message", "project": "airflow", "ts": 1785712695611, "detail": "command matched deny rule: git commit -m feat:addnewfield"}
 {"ev": "STOP", "rule": "no-push-to-main", "project": "airflow", "ts": 1785712695283, "detail": "command matched deny rule: git push --force-with-lease origin main"}
 {"ev": "STOP", "rule": "baseline-force-push", "project": "airflow", "ts": 1785712695206, "detail": "force-push to shared branch 'main' (written as +main) — use --force-with-lease, or push to your own branch"}
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785712692255, "detail": "'2>& 1' resolves to ~/damla_projects_2026/reports/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
-{"ev": "STOP", "rule": "p-rm-space", "project": "sfprobe-ta2uwzqd", "ts": 1785712690254, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-rm-space", "project": "sfprobe-ta2uwzqd", "ts": 1785712690244, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-rm-space", "project": "sfprobe-ta2uwzqd", "ts": 1785712690233, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
-{"ev": "STOP", "rule": "p-dash-f-space", "project": "sfprobe-r3pwlb4f", "ts": 1785712690187, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-dash-f-space", "project": "sfprobe-r3pwlb4f", "ts": 1785712690177, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-dash-f-space", "project": "sfprobe-r3pwlb4f", "ts": 1785712690166, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
-{"ev": "STOP", "rule": "p-s-class-only", "project": "sfprobe-u7qvwbsp", "ts": 1785712690155, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-s-class-only", "project": "sfprobe-u7qvwbsp", "ts": 1785712690136, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-space-class", "project": "sfprobe-q4quzwfo", "ts": 1785712690106, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-space-class", "project": "sfprobe-q4quzwfo", "ts": 1785712690094, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-backslash-s", "project": "sfprobe-ldim_dx6", "ts": 1785712690059, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-backslash-s", "project": "sfprobe-ldim_dx6", "ts": 1785712690044, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-space-literal", "project": "sfprobe-ssfxt67o", "ts": 1785712690022, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-space-literal", "project": "sfprobe-ssfxt67o", "ts": 1785712690011, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-anychar-before", "project": "sfprobe-isluda1d", "ts": 1785712689929, "detail": "command matched deny rule: rm -f a.md PROOF.md"}
-{"ev": "STOP", "rule": "p-anychar-before", "project": "sfprobe-isluda1d", "ts": 1785712689916, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "p-anychar-before", "project": "sfprobe-isluda1d", "ts": 1785712689899, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
 {"ev": "STOP", "rule": "no-host-pytest-python-airflow", "project": "airflow", "ts": 1785712678616, "detail": "command matched deny rule: airflow db reset -y"}
 {"ev": "STOP", "rule": "no-host-pytest-python-airflow", "project": "airflow", "ts": 1785712678558, "detail": "command matched deny rule: python3 -m pytest airflow-core/tests -q"}
 {"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "airflow", "ts": 1785712678415, "detail": "command matched deny rule: rm -rf ~/Documents"}
@@ -447,35 +313,16 @@
 {"ev": "STOP", "rule": "generated-dir", "project": "airflow", "ts": 1785712665372, "detail": "protected file: ~/damla_projects_2026/katki/airflow/generated/PYPI_README.md"}
 {"ev": "STOP", "rule": "magpie-snapshot", "project": "airflow", "ts": 1785712665353, "detail": "protected file: ~/damla_projects_2026/katki/airflow/.apache-magpie/skills/x.md"}
 {"ev": "STOP", "rule": "baseline-force-push", "project": "rbprobe", "ts": 1785712661620, "detail": "force-push to shared branch 'main' — use --force-with-lease, or push to your own branch"}
-{"ev": "STOP", "rule": "no-blanket-add-stitchu", "project": "stitchu", "ts": 1785712655814, "detail": "command matched deny rule: git add -A"}
-{"ev": "STOP", "rule": "no-git-add-never-push-dirs", "project": "stitchu", "ts": 1785712655793, "detail": "command matched deny rule: git add dataset/x.csv"}
-{"ev": "STOP", "rule": "no-shell-edit-generated-html", "project": "stitchu", "ts": 1785712655776, "detail": "command matched deny rule: sed -i s/a/b/ web/patterns/locket.html"}
-{"ev": "STOP", "rule": "no-strategy-in-agent-context", "project": "stitchu", "ts": 1785712655764, "detail": "command matched deny rule: cat STRATEGY.md"}
-{"ev": "STOP", "rule": "no-wrangler-deploy", "project": "stitchu", "ts": 1785712655752, "detail": "command matched deny rule: wrangler deploy"}
-{"ev": "STOP", "rule": "no-coauthor-in-commit", "project": "stitchu", "ts": 1785712655739, "detail": "command matched deny rule: git commit -m x Co-Authored-By: Claude"}
-{"ev": "STOP", "rule": "no-hard-reset-shared-branch", "project": "stitchu", "ts": 1785712655730, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "stitchu", "ts": 1785712655719, "detail": "command matched deny rule: rm -rf ~/Desktop/xx"}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "stitchu", "ts": 1785712655700, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "magpie-snapshot", "project": "airflow", "ts": 1785712651994, "detail": "protected file: .apache-magpie/skills/x.md"}
 {"ev": "STOP", "rule": "no-airflowctl-newsfragments", "project": "airflow", "ts": 1785712651973, "detail": "protected file: airflow-ctl/newsfragments/999.misc.rst"}
 {"ev": "STOP", "rule": "no-provider-newsfragments", "project": "airflow", "ts": 1785712651933, "detail": "protected file: providers/amazon/newsfragments/12345.bugfix.rst"}
 {"ev": "STOP", "rule": "uv-lock-is-tool-managed", "project": "airflow", "ts": 1785712651913, "detail": "protected file: ~/damla_projects_2026/katki/airflow/uv.lock"}
 {"ev": "STOP", "rule": "uv-lock-is-tool-managed", "project": "airflow", "ts": 1785712651896, "detail": "protected file: uv.lock"}
 {"ev": "STOP", "rule": "uv-lock-is-tool-managed", "project": "airflow", "ts": 1785712651877, "detail": "protected file: ~/damla_projects_2026/katki/airflow/uv.lock"}
-{"ev": "STOP", "rule": "v-suffixonly", "project": "rxprobe-dh3ij3s4", "ts": 1785712647477, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "v-suffixonly", "project": "rxprobe-dh3ij3s4", "ts": 1785712647470, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
-{"ev": "STOP", "rule": "v-loose", "project": "rxprobe-vvuxiyws", "ts": 1785712647387, "detail": "command matched deny rule: rm -f PROOF.md"}
-{"ev": "STOP", "rule": "v-loose", "project": "rxprobe-vvuxiyws", "ts": 1785712647378, "detail": "command matched deny rule: rm -f /var/folders/5b/xxx/scratch/PROOF.md"}
 {"ev": "STOP", "rule": "no-host-pytest-python-airflow", "project": "airflow", "ts": 1785712638082, "detail": "command matched deny rule: airflow db downgrade -n 2.7.0 -y"}
 {"ev": "STOP", "rule": "no-host-pytest-python-airflow", "project": "airflow", "ts": 1785712638026, "detail": "command matched deny rule: airflow db reset -y"}
-{"ev": "STOP", "rule": "push-gate", "project": "discourse", "ts": 1785712628484, "detail": "rabadon ran the tests itself (bin/rspec) — NOT GREEN.\nsh: bin/rspec: No such file or directory\nFix the failure; rabadon will re-run the suite on your next push attempt."}
 {"ev": "STOP", "rule": "no-blind-inplace-source-rewrite", "project": "rabadon", "ts": 1785712596565, "detail": "command matched deny rule: P=/tmp/rabadon-stitchu-backup/probe.sh\nrun(){ printf '%-34s | %s\\n' \"$1\" \"$($P \"$2\" 2>&1 | grep -E '^Rule:|^GATE_EXIT' | tr '\\n' ' ')\"; }\necho \"RULE ID (expecte"}
-{"ev": "STOP", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785712591333, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss commit --no-verify -m c1"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712591322, "detail": "command matched deny rule: cp /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss/empty.md /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_ps"}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712591296, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss commit -m \"cekirdek 3.1x hizlandi\""}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712591275, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-8sp8_pss commit -m \"matmul 4x faster than naive\""}
 {"ev": "STOP", "rule": "push-gate", "project": "reports", "ts": 1785712586958, "detail": "rabadon ran the tests itself (./check-integrity.sh) — NOT GREEN.\nsh: ./check-integrity.sh: No such file or directory\nFix the failure; rabadon will re-run the suite on your next push attempt."}
-{"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "icerik", "ts": 1785712580861, "detail": "'> ~Shared/zzz-scratch.txt' resolves to ~Shared/zzz-scratch.txt, outside the project tree (~) — the contents are gone before anything runs"}
 {"ev": "STOP", "rule": "push-gate", "project": "reports", "ts": 1785712572868, "detail": "rabadon ran the tests itself (./check-integrity.sh) — NOT GREEN.\nsh: ./check-integrity.sh: No such file or directory\nFix the failure; rabadon will re-run the suite on your next push attempt."}
 {"ev": "STOP", "rule": "reports-no-truncate-jsonl", "project": "reports", "ts": 1785712572770, "detail": "command matched deny rule: python3 runner.py > /tmp/rb-scratch.DHTrbj/candidates.jsonl"}
 {"ev": "STOP", "rule": "reports-no-inplace-edit", "project": "reports", "ts": 1785712572568, "detail": "command matched deny rule: sed -i s/a/b/ /tmp/rb-scratch.DHTrbj/x.txt"}
@@ -492,24 +339,10 @@
 {"ev": "STOP", "rule": "no-hard-reset-main", "project": "reports", "ts": 1785712571388, "detail": "command matched deny rule: git reset --hard origin/main"}
 {"ev": "STOP", "rule": "no-rm-rf-outside", "project": "reports", "ts": 1785712571191, "detail": "command matched deny rule: rm -rf /etc/rb-nonexistent"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "reports", "ts": 1785712571035, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "no-verify-bypass", "project": "inf-baseline-kernel", "ts": 1785712552438, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv commit --no-verify -m c1"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712552419, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv/PROOF.md"}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712552410, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv commit -m \"cekirdek 3.1x hizlandi\""}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712552392, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-w6ymdzfv commit -m \"matmul 4x faster than naive\""}
-{"ev": "STOP", "rule": "no-rm-rf-outside", "project": "icerik", "ts": 1785712533582, "detail": "command matched deny rule: rm -rf ~Shared/no-such-dir-xyz"}
-{"ev": "STOP", "rule": "no-rm-rf-outside", "project": "icerik", "ts": 1785712533572, "detail": "command matched deny rule: rm -rf ~/damla_projects_2026/stitchu/no-such-dir-xyz"}
-{"ev": "STOP", "rule": "p-ctestN", "project": "rb-surface-probe-RuBOng", "ts": 1785712527044, "detail": "command matched deny rule: ctest -N --test-dir engine/build | grep -c Test"}
-{"ev": "STOP", "rule": "p-tail", "project": "rb-surface-probe-RuBOng", "ts": 1785712526988, "detail": "command matched deny rule: ctest --test-dir engine/build | tail -1"}
 {"ev": "STOP", "rule": "generated-protobuf-stubs", "project": "terraform", "ts": 1785712500761, "detail": "protected file: internal/stacks/tfstackdata1/tfstackdata1.pb.go"}
 {"ev": "STOP", "rule": "go-generate-output", "project": "terraform", "ts": 1785712500633, "detail": "protected file: internal/tfdiags/severity_string.go"}
 {"ev": "STOP", "rule": "promise-off-target", "project": "rabadon", "ts": 1785712488259, "detail": "star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch->propose->re-verify repair loop, and honest docs — new ENGINE capability is C++ in native/, JS is glue (installer/dispatch) only — latest off-target file: site/field_stats.py (fires once per session; if this work is "}
-{"ev": "STOP", "rule": "no-git-add-never-push-dirs", "project": "stitchu", "ts": 1785712456710, "detail": "command matched deny rule: git add new_flats/scan.pdf"}
 {"ev": "STOP", "rule": "no-host-pytest-python-airflow", "project": "airflow", "ts": 1785712447768, "detail": "command matched deny rule: python3 -m compileall -q -f ."}
-{"ev": "STOP", "rule": "dokunulmayan-is-frozen", "project": "icerik", "ts": 1785712430295, "detail": "protected file: ~/damla_projects_2026/icerik/dewrites-dokunulmayan.txt"}
-{"ev": "STOP", "rule": "dewstock-no-delete", "project": "icerik", "ts": 1785712430291, "detail": "command matched deny rule: rm -f /tmp/rbdrill-kGI5Mp/x-content-bank.md"}
-{"ev": "STOP", "rule": "proof-table-must-not-be-erased", "project": "inf-baseline-kernel", "ts": 1785712410532, "detail": "command matched deny rule: rm -f /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-dy0n7wp3/PROOF.md"}
-{"ev": "STOP", "rule": "no-unproven-speed-claim-in-commit", "project": "inf-baseline-kernel", "ts": 1785712410526, "detail": "command matched deny rule: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/inf-kernel-proof-dy0n7wp3 commit -m \"matmul 4x faster than naive\""}
-{"ev": "STOP", "rule": "dewstock-no-truncating-write", "project": "icerik", "ts": 1785712346515, "detail": "command matched deny rule: grep -v TODO /tmp/rbdrill-kGI5Mp/in.md > /tmp/rbdrill-kGI5Mp/dewlog.md"}
 {"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292871, "detail": "looping on: git commit -m \"wip fix\""}
 {"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292862, "detail": "looping on: git commit -m \"wip fix\""}
 {"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292855, "detail": "looping on: git commit -m \"wip fix\""}
@@ -517,9 +350,6 @@
 {"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292839, "detail": "looping on: git commit -m \"wip fix\""}
 {"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292829, "detail": "looping on: git commit -m \"wip fix\""}
 {"ev": "STOP", "rule": "loop-stop", "project": "rbprobe.nqskoD", "ts": 1785712292817, "detail": "looping on: git commit -m \"wip fix\""}
-{"ev": "STOP", "rule": "release-workflow-needs-test-gate", "project": "rabadon", "ts": 1785712291138, "detail": "protected file: .github/workflows/release.yml"}
-{"ev": "STOP", "rule": "promise-anti-path", "project": "rabadon", "ts": 1785712256962, "detail": "index.html matches anti-path '^index\\.html$'"}
-{"ev": "STOP", "rule": "kanit-bundle-is-captured-output", "project": "icerik", "ts": 1785712245071, "detail": "protected file: ~/damla_projects_2026/icerik/rabadon-show-hn-kanit/ledger-2026-08-01.txt"}
 {"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244272, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
 {"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244265, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
 {"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712244257, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
@@ -538,7 +368,6 @@
 {"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174022, "detail": "command matched deny rule: git commit -m \"wip fix\""}
 {"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712174005, "detail": "command matched deny rule: git commit -m \"wip fix\""}
 {"ev": "STOP", "rule": "px", "project": "rbprobe.nqskoD", "ts": 1785712173997, "detail": "command matched deny rule: git commit -m \"wip fix\""}
-{"ev": "STOP", "rule": "dewstock-no-inplace-rewrite", "project": "icerik", "ts": 1785712139147, "detail": "command matched deny rule: sed -i '' 's/kalip/pattern/g' /tmp/rbdrill-kGI5Mp/dewrites.md"}
 {"ev": "STOP", "rule": "jsonl-trunc", "project": "rbprobe.nqskoD", "ts": 1785712129452, "detail": "command matched deny rule: python3 runner.py >out.jsonl"}
 {"ev": "STOP", "rule": "jsonl-trunc", "project": "rbprobe.nqskoD", "ts": 1785712129443, "detail": "command matched deny rule: python3 runner.py > out.jsonl"}
 {"ev": "STOP", "rule": "quoted-body", "project": "rbprobe.nqskoD", "ts": 1785712129417, "detail": "command matched deny rule: sed -i 's/a/b/' f.txt"}
@@ -580,42 +409,10 @@
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785711750938, "detail": "'2>& 1' resolves to ~/damla_projects_2026/stitchu/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785711715617, "detail": "'2>& 1' resolves to ~/damla_projects_2026/reports/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785711690769, "detail": "'2>& 1' resolves to ~/damla_projects_2026/00_currently_on_working/inf-baseline-kernel/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
-{"ev": "STOP", "rule": "no-hard-reset-on-shared-branch", "project": "discourse", "ts": 1785711661378, "detail": "command matched deny rule: git reset --hard origin/stable"}
-{"ev": "STOP", "rule": "no-hard-reset-on-shared-branch", "project": "home", "ts": 1785711661353, "detail": "command matched deny rule of the project it reaches into (~/damla_projects_2026/katki/discourse): git -C ~/damla_projects_2026/katki/discourse reset --hard origin/stable"}
-{"ev": "STOP", "rule": "no-skipping-git-hooks", "project": "discourse", "ts": 1785711661327, "detail": "command matched deny rule: git commit --no-verify -m fix"}
-{"ev": "STOP", "rule": "no-hook-bypass", "project": "home", "ts": 1785711661300, "detail": "command matched deny rule: git commit --no-verify -m fix"}
-{"ev": "STOP", "rule": "no-hook-bypass", "project": "home", "ts": 1785711661274, "detail": "command matched deny rule: cd ~/damla_projects_2026/katki/discourse && git commit --no-verify -m fix"}
-{"ev": "STOP", "rule": "no-hook-bypass", "project": "home", "ts": 1785711661246, "detail": "command matched deny rule: git -C ~/damla_projects_2026/katki/discourse commit --no-verify -m fix"}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785711612845, "detail": "command matched deny rule: git -C ~/damla_projects_2026/katki/discourse push --force origin main"}
-{"ev": "STOP", "rule": "no-npm-or-yarn", "project": "home", "ts": 1785711612810, "detail": "command matched deny rule of the project it reaches into (~/damla_projects_2026/katki/discourse): cd ~/damla_projects_2026/katki/discourse && npm install"}
-{"ev": "STOP", "rule": "prefer-bin-helpers-over-bundle-exec", "project": "home", "ts": 1785711612773, "detail": "command matched deny rule of the project it reaches into (~/damla_projects_2026/katki/discourse): cd ~/damla_projects_2026/katki/discourse && bundle exec rspec spec/models/user_spec.rb"}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785711612739, "detail": "command matched deny rule: cd ~/damla_projects_2026/katki/discourse && git push --force origin main"}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785711612634, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "no-npm-or-yarn", "project": "discourse", "ts": 1785711612602, "detail": "command matched deny rule: npm install"}
-{"ev": "STOP", "rule": "prefer-bin-helpers-over-bundle-exec", "project": "discourse", "ts": 1785711612572, "detail": "command matched deny rule: bundle exec rspec spec/models/user_spec.rb"}
-{"ev": "STOP", "rule": "no-force-push-to-shared-branch", "project": "discourse", "ts": 1785711612537, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "prefer-bin-helpers-over-bundle-exec", "project": "discourse", "ts": 1785711595474, "detail": "command matched deny rule: bundle exec rubocop -a"}
-{"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "discourse", "ts": 1785711595449, "detail": "command matched deny rule: cd /tmp && rm -rf ~/Documents"}
-{"ev": "STOP", "rule": "baseline-rm-rf-outside", "project": "discourse", "ts": 1785711595423, "detail": "rm -r '/' resolves to /, outside the project tree (~/damla_projects_2026/katki/discourse)"}
-{"ev": "STOP", "rule": "no-force-push-to-shared-branch", "project": "discourse", "ts": 1785711595396, "detail": "command matched deny rule: git push --force-with-lease origin main"}
-{"ev": "STOP", "rule": "no-force-push-to-shared-branch", "project": "discourse", "ts": 1785711595371, "detail": "command matched deny rule: git push --force origin my-stable-fix"}
-{"ev": "STOP", "rule": "gemfile-lock-is-tool-managed", "project": "discourse", "ts": 1785711595328, "detail": "protected file: Gemfile.lock"}
-{"ev": "STOP", "rule": "pnpm-lockfile-is-tool-managed", "project": "discourse", "ts": 1785711595319, "detail": "protected file: pnpm-lock.yaml"}
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785711579904, "detail": "'2>& 1' resolves to ~/damla_projects_2026/icerik/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
 {"ev": "STOP", "rule": "baseline-truncating-redirect", "project": "rabadon", "ts": 1785711578636, "detail": "'2>& 1' resolves to ~/damla_projects_2026/icerik/1, outside the project tree (~/damla_projects_2026/rabadon) — the contents are gone before anything runs"}
-{"ev": "STOP", "rule": "baseline-branch-delete", "project": "discourse", "ts": 1785711563186, "detail": "git push deletes shared branch 'main' on the remote (written as ':main') — delete your own branch instead, or silence baseline-branch-delete by id"}
-{"ev": "STOP", "rule": "no-rm-rf-outside-project", "project": "discourse", "ts": 1785711562996, "detail": "command matched deny rule: rm -rf ~/Documents"}
-{"ev": "STOP", "rule": "no-skipping-git-hooks", "project": "discourse", "ts": 1785711562968, "detail": "command matched deny rule: git commit --no-verify -m \"FIX: skip the hooks\""}
-{"ev": "STOP", "rule": "no-hard-reset-on-shared-branch", "project": "discourse", "ts": 1785711562940, "detail": "command matched deny rule: git reset --hard origin/main"}
-{"ev": "STOP", "rule": "no-force-push-to-shared-branch", "project": "discourse", "ts": 1785711562912, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "no-npm-or-yarn", "project": "discourse", "ts": 1785711562886, "detail": "command matched deny rule: yarn add lodash"}
-{"ev": "STOP", "rule": "no-npm-or-yarn", "project": "discourse", "ts": 1785711562858, "detail": "command matched deny rule: npm install"}
-{"ev": "STOP", "rule": "prefer-bin-helpers-over-bundle-exec", "project": "discourse", "ts": 1785711562829, "detail": "command matched deny rule: bundle exec rspec spec/models/user_spec.rb"}
-{"ev": "STOP", "rule": "no-force-push-to-shared-branch", "project": "discourse", "ts": 1785711522550, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "no-force-push-to-shared-branch", "project": "discourse", "ts": 1785711522540, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "terraform", "ts": 1785711488332, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "no-force-push-main", "project": "terraform", "ts": 1785711488286, "detail": "command matched deny rule: git push --force origin main"}
-{"ev": "STOP", "rule": "no-force-push-main", "project": "home", "ts": 1785711431655, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "loop-stop", "project": "home", "ts": 1785711299573, "detail": "looping on: du -sh ~/damla_projects_2026/katki/airflow 2>&1; cat /private/tmp/claude-501/~/f56eabd9-02af-4073-86b7-"}
 {"ev": "STOP", "rule": "no-rm-rf-outside", "project": "home", "ts": 1785711150290, "detail": "command matched deny rule: pkill -f \"fetch --depth 1 --no-tags origin main\"; sleep 2; rm -rf ~/damla_projects_2026/katki/airflow; mkdir -p ~/damla_projects_2026/katki/airflow && cd ~/daml"}
 {"ev": "WOULD_BLOCK", "rule": "no-rm-rf-outside", "project": "home", "ts": 1785710880074, "detail": "command matched deny rule: pkill -f \"redis.git\" 2>/dev/null; sleep 2; rm -rf ~/damla_projects_2026/katki/redis\ncd ~/damla_projects_2026/katki && ( time git -c http.version=HTTP/1.1 clone "}
@@ -958,7 +755,6 @@
 {"ev": "WOULD_BLOCK", "rule": "no-force-push-main", "project": "home", "ts": 1785505347319, "detail": "command matched deny rule: source /tmp/rbtest_prefix; export HOME=\"$T2/home\"; PFX=\"$T2/pfx\"; RB=\"$PFX/bin/rabadon\"; PROJ=\"$T2/proj\"\nHOOK=\"$PFX/lib/node_modules/rabadon/native/rabadon-gate"}
 {"ev": "WOULD_BLOCK", "rule": "no-force-push-main", "project": "rabadon", "ts": 1785505334364, "detail": "command matched deny rule: source /tmp/rbtest_prefix; export HOME=\"$T2/home\"; PFX=\"$T2/pfx\"; RB=\"$PFX/bin/rabadon\"; PROJ=\"$T2/proj\"; mkdir -p \"$PROJ\"; cd \"$PROJ\" && git init -q\necho \"=== "}
 {"ev": "WOULD_BLOCK", "rule": "promise-off-target", "project": "rabadon", "ts": 1785505119876, "detail": "star: rabadon becomes installable by strangers and provable: portable npm package with prebuilt binaries, kernel-level sandbox enforcement, hash-chained auditable ledger, a real catch->propose->re-verify repair loop, and honest docs — new ENGINE capability is C++ in native/, JS is glue (installer/dispatch) only — latest off-target file: .gitignore (fires once per session; if this work is intended,"}
-{"ev": "WOULD_BLOCK", "rule": "no-force-push-main", "project": "rabadon", "ts": 1785503435634, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785502862055, "detail": "attempt to edit the promise itself: ~/damla_projects_2026/rabadon/.rabadon/promise.json"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785502768465, "detail": "attempt to edit the promise itself: ~/damla_projects_2026/rabadon/.rabadon/promise.json"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "rabadon", "ts": 1785501150244, "detail": "hooks/install.mjs matches anti-path '\\.mjs$'"}
@@ -1003,7 +799,6 @@
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785153692987, "detail": "protected file: ~/damla_projects_2026/stitchu/web/signature.html"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785153526592, "detail": "protected file: ~/damla_projects_2026/stitchu/web/index.html"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "home", "ts": 1785145409869, "detail": "command matched deny rule: cd /tmp/rabadon-bench && DENY='{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"bench-node-1\",\"cwd\":\"/tmp/rabadon-bench\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\""}
-{"ev": "STOP", "rule": "BLOCKED", "project": "home", "ts": 1785140235998, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785139767323, "detail": "command matched deny rule: git push --force origin main"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785083636893, "detail": "command matched deny rule: npx wrangler deploy"}
 {"ev": "STOP", "rule": "BLOCKED", "project": "stitchu", "ts": 1785080935133, "detail": "command matched deny rule: npx wrangler deploy"}
