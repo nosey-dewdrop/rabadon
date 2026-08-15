@@ -94,6 +94,63 @@ using std::vector;
 
 struct Hit { string id, why, detail; };
 
+// ---------- the tool's own throat ----------
+// Does this path land on the enforce switch, the mode marker or the ledger?
+//
+// ONE answer, asked by three laws, because the first version of this asked it
+// in the delete law only and closed a third of the hole. Measured in an
+// isolated lab with the delete law already in place: `rm -f <home>/enabled` was
+// refused with exit 2, and `mv <home>/enabled /tmp/x` returned exit 0 — the
+// same disarm, one verb over. `echo watch > <home>/mode.last` returned 0 too,
+// which defeats the out-of-band mode detector by rewriting what it compares
+// against, and `> <home>/spool/<day>.jsonl` empties a day of the chain.
+//
+// It deliberately does NOT consult the temp carve-out. RABADON_DIR points into
+// a temp tree during this repo's own tests, and a law that waives itself there
+// is a law an agent can arrange to have waived by moving the supervision
+// directory first.
+inline bool inside_supervision(const string& raw, const string& cwd) {
+  // `dd` spells its operands `if=<path>` and `of=<path>`, so the path is not the
+  // word, it is the half after the `=`. Without this, `dd if=/dev/null
+  // of=<home>/enabled` was the one spelling in this family that still walked
+  // while ten others were refused. The test is deliberately narrow: only a value
+  // that is itself absolute or tilde-rooted is read as a path, so an ordinary
+  // `FOO=bar` prefix is untouched.
+  const size_t eq = raw.find('=');
+  if (eq != string::npos && eq + 1 < raw.size() &&
+      (raw[eq + 1] == '/' || raw[eq + 1] == '~')) {
+    const string abs2 = rbpath::lexical_abs(raw.substr(eq + 1), cwd);
+    if (!abs2.empty()) {
+      const string rd2 = rbpath::norm_dir(rbpath::rabadon_dir());
+      const string a2 = rbpath::norm_dir(abs2);
+      if (a2 == rd2) return true;
+      if (a2.size() > rd2.size() && a2.compare(0, rd2.size(), rd2) == 0 &&
+          a2[rd2.size()] == '/') return true;
+    }
+  }
+  const string abs = rbpath::lexical_abs(raw, cwd);
+  if (abs.empty()) return false;
+  const string rdir = rbpath::norm_dir(rbpath::rabadon_dir());
+  const string a = rbpath::norm_dir(abs);
+  if (a == rdir) return true;
+  // "under" means the next character is a separator. A bare prefix test made
+  // `<dir>foo` a child of `<dir>` and refused ordinary work; this file names
+  // that trap in the rm law's comment, and it cuts both ways.
+  return a.size() > rdir.size() && a.compare(0, rdir.size(), rdir) == 0 &&
+         a[rdir.size()] == '/';
+}
+
+inline Hit supervision_hit(const string& shown, const string& how) {
+  return {"baseline-supervision-tamper",
+          "this reaches rabadon's own switch or ledger, which is the record that would "
+          "have shown it happening",
+          how + " '" + shown + "' resolves inside " +
+          rbpath::norm_dir(rbpath::rabadon_dir()) +
+          " — that tree holds the enforce switch, the mode marker and the hash-chained "
+          "ledger. Turning supervision off is `rabadon off`, which writes the change down. "
+          "Silence baseline-supervision-tamper by id if this is really what you meant."};
+}
+
 // ---------- paths ----------
 // The resolver moved to pathres.h and did not get copied: rules.h needs the
 // same answers for the project's OWN deny rules, and a path question answered
@@ -596,6 +653,16 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const stri
           }
           if (fd) continue;
         }
+        // The supervision tree first, and before the containment question,
+        // because `> <home>/mode.last` is how the out-of-band mode detector is
+        // blinded and `> <home>/spool/<day>.jsonl` empties a day of the chain —
+        // neither of which depends on whether that tree happens to sit inside
+        // the project or inside temp.
+        if (!disabled_has(disabled, "baseline-supervision-tamper") &&
+            inside_supervision(rd.target, cwds[s])) {
+          hit = supervision_hit(rd.target, "the redirection '" + rd.op + "' at");
+          return true;
+        }
         const Land L = land_of(rd.target, cwds[s], root);
         if (L.where != rbpath::ESCAPES) continue;
         hit = {"baseline-truncating-redirect",
@@ -615,6 +682,34 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
   const size_t ci = rbtext::command_index(t);
   if (ci >= t.size()) return false;
   const string name = rbtext::base_of(t[ci].text);
+
+  // VERBS THAT MOVE OR OVERWRITE, pointed at the supervision tree.
+  //
+  // `mv <home>/enabled /tmp/x` disarms the gate exactly as `rm` does, and until
+  // this existed it returned 0 while the rm spelling returned 2 — one verb
+  // apart, same outcome, and the delete law was the only one asking. These
+  // verbs are NOT closed in general here; mv and cp are among the named escapes
+  // the red-team still reports open, and closing them properly is a different
+  // and larger job. This is the narrow case where the target is the tool's own
+  // switch and record, which is the one target rabadon cannot be neutral about.
+  //
+  // Every operand is judged, source and destination both: as a source the file
+  // is carried away, as a destination it is overwritten.
+  if (!disabled_has(disabled, "baseline-supervision-tamper")) {
+    static const char* kVerbs[] = {"mv", "cp", "install", "dd", "tee", "truncate",
+                                   "ln", "rsync", "chmod", "chown"};
+    bool relevant = false;
+    for (const char* v : kVerbs) if (rbtext::name_is(name, v)) { relevant = true; break; }
+    if (relevant) {
+      for (size_t i = ci + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (!w.empty() && w[0] == '-') continue;          // an option is not a path
+        if (!inside_supervision(w, cwd)) continue;
+        hit = supervision_hit(w, string(name.c_str()) + " at");
+        return true;
+      }
+    }
+  }
 
   if (rbtext::name_is(name, "git")) {
     size_t sub = 0;
@@ -1126,31 +1221,9 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     // through the one surface rabadon actually mediates, which is the surface
     // that removed it in the first place.
     if (!disabled_has(disabled, "baseline-supervision-tamper")) {
-      const string rdir = rbpath::norm_dir(rbpath::rabadon_dir());
       for (size_t i = 0; i < d.targets.size(); i++) {
-        const string abs = rbpath::lexical_abs(d.targets[i], cwd);
-        if (abs.empty()) continue;
-        const string absDir = rbpath::norm_dir(abs);
-        // The directory itself, or something UNDER it — and "under" means the
-        // next character is a separator. norm_dir drops the trailing slash, so
-        // a bare prefix test made `<home>foo/x` a child of `<home>`, and the
-        // twin that had to pass was refused. This file's own comment names the
-        // trap forty lines up: a prefix is where an escape hides. It is also
-        // where a false refusal hides, which is the same mistake pointing the
-        // other way.
-        const bool self = absDir == rdir;
-        const bool under = absDir.size() > rdir.size() &&
-                           absDir.compare(0, rdir.size(), rdir) == 0 &&
-                           absDir[rdir.size()] == '/';
-        if (!self && !under) continue;
-        hit = {"baseline-supervision-tamper",
-               "this deletes rabadon's own switch or ledger, which is the record that would "
-               "have shown the deletion",
-               "rm on '" + d.targets[i] + "' resolves inside " + rdir +
-               " — that tree holds the enforce switch and the hash-chained ledger. Turning "
-               "supervision off is `rabadon off`, which writes the change down; removing the "
-               "file does the same thing with no record. Silence baseline-supervision-tamper "
-               "by id if this is really what you meant."};
+        if (!inside_supervision(d.targets[i], cwd)) continue;
+        hit = supervision_hit(d.targets[i], "rm on");
         return true;
       }
     }
@@ -1236,6 +1309,23 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd,
     const string b = rbtext::base_of(p.segs[s].words[ci].text);
     relevant = relevant || rbtext::name_is(b, "git") || rbpath::is_delete_command(b) ||
                rbtext::is_content_destroyer(b);
+    // THE SUPERVISION TREE MAKES A SEGMENT RELEVANT WHATEVER THE VERB IS.
+    //
+    // This filter is the laws' own precondition, and it named the verbs the
+    // older laws act on. mv, cp, ln, install, tee and chmod are not among them,
+    // so `mv <supervision dir>/enabled /tmp/x` returned here without the root
+    // ever being resolved and without any law running. Measured side by side:
+    // `rm -f <dir>/enabled` exit 2, `mv <dir>/enabled /tmp/x` exit 0 — the same
+    // disarm, one verb over, and truncate was refused only because truncate is
+    // on the list for unrelated reasons.
+    //
+    // Widening by verb would put six more name comparisons on every tool call
+    // for a law that cares about exactly one directory. Asking whether any
+    // operand lands in that directory is the precondition itself, and it runs
+    // only on the segments the verb test already declined.
+    if (!relevant && !disabled_has(disabled, "baseline-supervision-tamper"))
+      for (size_t w = ci + 1; w < p.segs[s].words.size() && !relevant; w++)
+        relevant = inside_supervision(p.segs[s].words[w].text, cwd);
   }
   if (!relevant) return false;
   const string root = project_root(cwd);

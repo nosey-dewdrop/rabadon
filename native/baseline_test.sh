@@ -215,6 +215,27 @@ RC=$(run "$PROJ" "rm -f $RABADON_DIR/enabled")
   && pass "the refusal is on the ledger under its own rule id" \
   || fail "no baseline-supervision-tamper record on the spool"
 
+# THE VERB IS NOT THE POINT, THE TARGET IS. `mv <dir>/enabled /tmp/x` disarms the
+# gate exactly as rm does, and it returned 0 while the rm spelling returned 2 —
+# the relevance pre-filter in check_parsed listed the verbs the older laws act
+# on, so these lines never reached a law at all.
+while IFS='|' read -r desc cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run "$PROJ" "$cmd")
+  [ "$RC" = "2" ] && pass "refused: $desc" || fail "NOT refused ($RC): $cmd"
+done <<EOF
+the switch carried away by mv|mv $RABADON_DIR/enabled /tmp/carried
+the switch emptied by cp|cp /dev/null $RABADON_DIR/enabled
+the switch replaced by a symlink|ln -sf /dev/null $RABADON_DIR/enabled
+the switch overwritten by install|install /dev/null $RABADON_DIR/enabled
+the switch made unreadable by chmod|chmod 000 $RABADON_DIR/enabled
+the mode marker rewritten by a redirection|echo watch > $RABADON_DIR/mode.last
+a ledger day emptied by a redirection|> $RABADON_DIR/spool/2026-01-01.jsonl
+a ledger day emptied by truncate|truncate -s 0 $RABADON_DIR/spool/2026-01-01.jsonl
+the mode marker rewritten by tee|tee $RABADON_DIR/mode.last < /dev/null
+the switch overwritten through dd's of= spelling|dd if=/dev/null of=$RABADON_DIR/enabled
+EOF
+
 # THE TWINS THAT MUST STILL PASS. The first spelling of this law compared a bare
 # prefix, so "<dir>foo" was read as a child of "<dir>" and ordinary work was
 # refused — the trap baseline.h names forty lines above the law itself.
@@ -226,6 +247,12 @@ done <<EOF
 a sibling file sharing the prefix|rm -f ${RABADON_DIR}-backup
 the project's own build output|rm -rf $PROJ/build
 node_modules|rm -rf $PROJ/node_modules
+an ordinary move inside the project|mv $PROJ/build/a.o $PROJ/build/b.o
+an ordinary copy out of the project|cp $PROJ/README.md /tmp/r
+an ordinary redirection inside the project|echo hi > $PROJ/out.txt
+an ordinary chmod on the project's own script|chmod +x $PROJ/build/run.sh
+a dd onto the project's own file|dd if=/dev/zero of=$PROJ/out.img
+an assignment prefix that is not a path|FOO=bar make test
 EOF
 
 # The recursive sibling is refused by baseline-rm-rf-outside, which is correct
