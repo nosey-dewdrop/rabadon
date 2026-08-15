@@ -1682,7 +1682,7 @@ def green_paths_refused(meas):
     return sum(1 for c in cases if c.get("verdict") != "verified")
 
 
-def usage_block():
+def usage_block(meas):
     """The overview shows `rabadon usage` output, so it runs `rabadon usage`.
     A screenshot of a command is a claim about the command; this is the
     command."""
@@ -1696,8 +1696,23 @@ def usage_block():
             [(f"{t['repairsHeld']:,}", "g"), "repairs held after the proof survived the judge"],
             [(f"{t['wouldRefuse']:,}", "y"), "refusals recorded in watch mode, where nothing is blocked"],
             [("0", "b"), "fake repairs accepted, on every run there is a record of"]]
+    # WHY THIS NUMBER IS NOT THE ONE IN THE HEADLINE, said on the page rather
+    # than left for a reader to trip over. The binary and site/field_stats.py
+    # exclude rehearsals by two different definitions: drill.h applies five
+    # rules (the emit tag, session-id markers, self pipes, a 120s window around
+    # a marker, and a stub-speed test), while field_stats.py applies the emit
+    # tag and a laboratory pipe list. The binary's is stricter, so its refusal
+    # count is lower. Both are honest and they are not the same measurement;
+    # printing them side by side with no note is how a reader concludes one of
+    # them is a lie.
+    note = ('<p class="cap">This is the binary\'s own count, and it is lower than the '
+            f'{mval(meas, "field.stop")} in the headline because the two apply different '
+            'rehearsal filters: the binary also excludes events inside a 120-second window '
+            'around a drill marker and repairs that closed faster than a model can answer. '
+            'The headline filter excludes the drill tag and the named laboratory pipes. '
+            'Reconciling them onto one definition is open work.</p>')
     return (cmdline("rabadon usage --days 30") +
-            table([("", "n"), ("", "d")], rows, "usage bare")), t
+            table([("", "n"), ("", "d")], rows, "usage bare") + note), t
 
 
 def index(rows, meas):
@@ -1711,7 +1726,7 @@ def index(rows, meas):
     ran_in = len(ledger_dirs())
     mine = load_json(DEFECTS_PATH) or {"overall": {}, "byRepo": [], "cases": []}
     o = mine["overall"]
-    usage_html, totals = usage_block()
+    usage_html, totals = usage_block(meas)
     days = len(group_by_day(rows))
 
     # the fixture's own split, counted rather than spelled out in English
