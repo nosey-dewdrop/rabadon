@@ -898,15 +898,27 @@ def catches(meas):
                '<p class="small dim" style="margin-bottom:var(--g2)">A catch is half the product. When a '
                "check goes red, a fix is proposed in an isolated copy and only held if the project's own "
                "suite goes green with every test file and every harness file byte-identical.</p>")
+    # A SECOND UNFILTERED COUNTER, on the same page as the filtered one.
+    #
+    # These four read ev[...] straight off the whole spool — every laboratory
+    # run, every demo, every drill. On the same build the headline said 425
+    # commands refused and this block said 1,667 runs stopped, and 102 repairs
+    # held against a repair counter that had already been split into 32 on real
+    # work and 70 inside the harness. Two numbers for one fact, both published,
+    # eighty lines apart.
+    #
+    # The refusal count comes from measured.json now, which is the one place
+    # that applies the drill and laboratory filters. The repair counts come from
+    # repairs_held(), which is the same split the proof block above prints.
     out.append('<div class="ledger">'
-               f'<div class="item"><span class="n g">{ev.get("REPAIR_OK", 0)}</span>'
-               '<span class="t">repairs held, proof intact</span></div>'
+               f'<div class="item"><span class="n g">{held}</span>'
+               '<span class="t">repairs held on real work, proof intact</span></div>'
                f'<div class="item"><span class="n p">{ev.get("REPAIR_FAIL", 0)}</span>'
                '<span class="t">repairs refused, fail-closed, tree untouched</span></div>'
-               f'<div class="item"><span class="n b">{ev.get("CHECK_FAIL", 0):,}</span>'
-               '<span class="t">red checks caught in flight</span></div>'
-               f'<div class="item"><span class="n y">{ev.get("STOP", 0):,}</span>'
-               '<span class="t">runs stopped rather than allowed to produce something wrong</span></div>'
+               f'<div class="item"><span class="n y">{mval(meas, "field.stop")}</span>'
+               '<span class="t">commands refused outright, so they never ran</span></div>'
+               f'<div class="item"><span class="n b">{mval(meas, "field.would_block")}</span>'
+               '<span class="t">verdicts recorded in watch mode, where nothing was blocked</span></div>'
                "</div>")
     out.append('<p class="cap">Two of those held repairs were real source defects in expressjs/express, an '
                "off-by-one and a reversed comparison, judged by that project's own suite of 1,260 tests with "
