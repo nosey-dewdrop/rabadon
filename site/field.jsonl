@@ -1,3 +1,6 @@
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786754435883, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786754153336, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786753616537, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "WOULD_BLOCK", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786753279881, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "WOULD_BLOCK", "rule": "no-silenced-ctest-stderr", "project": "rabadon", "ts": 1786752280757, "detail": "command matched deny rule: ls ~/damla_projects_2026/stitchu/.rabadon/ 2>&1; echo \"====\"; grep -rn \"ctest-tail-hides-verdict\" ~/damla_projects_2026/stitchu/.rabadon/ ~/.rabadon/*.json ~/.r"}
 {"ev": "WOULD_BLOCK", "rule": "no-silenced-ctest-stderr", "project": "rabadon", "ts": 1786752273532, "detail": "command matched deny rule: grep -rn \"ctest-tail-hides-verdict\" . 2>/dev/null | head -20"}

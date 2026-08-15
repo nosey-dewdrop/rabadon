@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>rabadon patch notes — every commit, read out of the repository</title>
-<meta name="description" content="All 471 commits in rabadon with the day each landed, generated from git rather than maintained by hand.">
+<meta name="description" content="All 472 commits in rabadon with the day each landed, generated from git rather than maintained by hand.">
 <meta name="author" content="Damla Su Bilge">
 <link rel="canonical" href="https://rabadon.noseydewdrop.com/patch-notes">
 <meta property="og:type" content="website">
 <meta property="og:title" content="rabadon patch notes — every commit, read out of the repository">
-<meta property="og:description" content="All 471 commits in rabadon with the day each landed, generated from git rather than maintained by hand.">
+<meta property="og:description" content="All 472 commits in rabadon with the day each landed, generated from git rather than maintained by hand.">
 <meta property="og:url" content="https://rabadon.noseydewdrop.com/patch-notes">
 <meta property="og:site_name" content="rabadon">
 <meta property="og:image" content="https://rabadon.noseydewdrop.com/og.png">
@@ -18,11 +18,11 @@
 <meta property="og:image:alt" content="rabadon — guardrails and a verifiable record for coding agents">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="rabadon patch notes — every commit, read out of the repository">
-<meta name="twitter:description" content="All 471 commits in rabadon with the day each landed, generated from git rather than maintained by hand.">
+<meta name="twitter:description" content="All 472 commits in rabadon with the day each landed, generated from git rather than maintained by hand.">
 <meta name="twitter:image" content="https://rabadon.noseydewdrop.com/og.png">
 <meta name="theme-color" content="#171221">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","@id":"https://rabadon.noseydewdrop.com/#software","name":"rabadon","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Guardrails and a verifiable record for AI coding agents. Refuses a destructive command before the process starts, writes a hash-chained ledger, and repairs a failing check without being able to buy its own green.","url":"https://rabadon.noseydewdrop.com","codeRepository":"https://github.com/nosey-dewdrop/rabadon","programmingLanguage":"C++","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Damla Su Bilge","url":"https://www.noseydewdrop.com/"}},{"@type":"WebSite","@id":"https://rabadon.noseydewdrop.com/#website","url":"https://rabadon.noseydewdrop.com","name":"rabadon","inLanguage":"en","publisher":{"@id":"https://rabadon.noseydewdrop.com/#software"}},{"@type":"WebPage","@id":"https://rabadon.noseydewdrop.com/patch-notes#page","url":"https://rabadon.noseydewdrop.com/patch-notes","name":"rabadon patch notes \u2014 every commit, read out of the repository","description":"All 471 commits in rabadon with the day each landed, generated from git rather than maintained by hand.","isPartOf":{"@id":"https://rabadon.noseydewdrop.com/#website"},"about":{"@id":"https://rabadon.noseydewdrop.com/#software"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"overview","item":"https://rabadon.noseydewdrop.com/"},{"@type":"ListItem","position":2,"name":"patch notes","item":"https://rabadon.noseydewdrop.com/patch-notes"}]}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","@id":"https://rabadon.noseydewdrop.com/#software","name":"rabadon","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Guardrails and a verifiable record for AI coding agents. Refuses a destructive command before the process starts, writes a hash-chained ledger, and repairs a failing check without being able to buy its own green.","url":"https://rabadon.noseydewdrop.com","codeRepository":"https://github.com/nosey-dewdrop/rabadon","programmingLanguage":"C++","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Damla Su Bilge","url":"https://www.noseydewdrop.com/"}},{"@type":"WebSite","@id":"https://rabadon.noseydewdrop.com/#website","url":"https://rabadon.noseydewdrop.com","name":"rabadon","inLanguage":"en","publisher":{"@id":"https://rabadon.noseydewdrop.com/#software"}},{"@type":"WebPage","@id":"https://rabadon.noseydewdrop.com/patch-notes#page","url":"https://rabadon.noseydewdrop.com/patch-notes","name":"rabadon patch notes \u2014 every commit, read out of the repository","description":"All 472 commits in rabadon with the day each landed, generated from git rather than maintained by hand.","isPartOf":{"@id":"https://rabadon.noseydewdrop.com/#website"},"about":{"@id":"https://rabadon.noseydewdrop.com/#software"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"overview","item":"https://rabadon.noseydewdrop.com/"},{"@type":"ListItem","position":2,"name":"patch notes","item":"https://rabadon.noseydewdrop.com/patch-notes"}]}]}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171221'/%3E%3Crect x='6' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3Crect x='20' y='6' width='6' height='20' fill='%23ff8fb3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,12 +40,13 @@
 <h1>every commit in this project, since the first one.</h1>
 <p class="lede small dim">Read out of the repository each time this page is built, never typed by hand. A changelog somebody maintains starts lying the week after it is written, and the only version of this project worth showing is the one the history already proves.</p>
 <div class="proof">
-<div><span class="n b">471</span><span class="t">commits</span></div>
+<div><span class="n b">472</span><span class="t">commits</span></div>
 <div><span class="n">21</span><span class="t">days with work in them</span></div>
 <div><span class="n g">2026-07-24</span><span class="t">first commit</span></div>
 </div></div>
 <section>
-<div class="day"><span class="d">2026-08-15<br><span class="c">24 commits</span></span><div class="rows">
+<div class="day"><span class="d">2026-08-15<br><span class="c">25 commits</span></span><div class="rows">
+<div class="r"><span class="h"><a href="https://github.com/nosey-dewdrop/rabadon/commit/15c611c">15c611c</a></span><span class="t">03:43</span><span class="s">BLOCKER 2 (second site): a second unfiltered counter contradicted the headline on the same page</span></div>
 <div class="r"><span class="h"><a href="https://github.com/nosey-dewdrop/rabadon/commit/bd8cbb2">bd8cbb2</a></span><span class="t">03:35</span><span class="s">BLOCKERS 4 and 6: the docs contradicted the code, the SPEC and themselves</span></div>
 <div class="r"><span class="h"><a href="https://github.com/nosey-dewdrop/rabadon/commit/6ad32e6">6ad32e6</a></span><span class="t">03:33</span><span class="s">BLOCKER 2: one refused number and one watch number, and the remaining gap is named on the page</span></div>
 <div class="r"><span class="h"><a href="https://github.com/nosey-dewdrop/rabadon/commit/c677e7b">c677e7b</a></span><span class="t">03:30</span><span class="s">BLOCKER 1: 206 drills were published as field catches with the flag stripped</span></div>
