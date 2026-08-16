@@ -61,6 +61,13 @@ native/gate_bench
 # `git add -A` by any session in this repository would have published the
 # operator's home path in the tool that exists to stop exactly that.
 .claude/
+# and the Cursor half of the same install, missed when the line above was
+# written because only the Claude Code side had been run in this repo. The day
+# `rabadon init` was invoked here it wrote .cursor/hooks.json — five hook
+# entries, every one an absolute path with the operator's account name in it —
+# and the next `git add -A` staged it. Caught in the staging area, not in a
+# clone, but the leak was identical in kind to the one above.
+.cursor/
 
 # python bytecode from site/build.py and its imports
 __pycache__/

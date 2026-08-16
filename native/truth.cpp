@@ -288,7 +288,38 @@ struct Truth {
   string why;                    // the file that proved it exists
 };
 
+// "check" in .rabadon/guard.json, authored by the user. Deliberately NOT a
+// separate file: guard.json is the one thing in .rabadon the gate already
+// refuses to let a supervised session weaken, and a check command living
+// anywhere else is a check command the agent can quietly point at `true`.
+static string declared_check(const string& dir) {
+  const string g = read_file(dir + "/.rabadon/guard.json");
+  size_t k = g.find("\"check\"");
+  if (k == string::npos) return "";
+  size_t c = g.find(':', k + 7);
+  if (c == string::npos) return "";
+  size_t q = g.find('"', c);
+  if (q == string::npos) return "";
+  string v;
+  for (size_t i = q + 1; i < g.size(); i++) {
+    if (g[i] == '\\' && i + 1 < g.size()) { v += g[++i]; continue; }
+    if (g[i] == '"') break;
+    v += g[i];
+  }
+  return v;
+}
+
 static Truth detect(const string& dir, const Scan& s) {
+  // ---- 0: the user already told us -----------------------------------------
+  // Discovery is a guess that is usually right; a declaration is not a guess.
+  // It outranks every rung below, because the 34-of-66 projects on this machine
+  // that discovery finds nothing in are exactly the ones whose owner knows the
+  // command and had, until now, nowhere to put it.
+  {
+    const string declared = declared_check(dir);
+    if (!declared.empty()) return {3, "declared", declared, ".rabadon/guard.json check"};
+  }
+
   const string pkg = read_file(dir + "/package.json");
   const string mk  = read_file(dir + "/Makefile");
 

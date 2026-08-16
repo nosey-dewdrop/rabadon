@@ -664,6 +664,12 @@ test: all
 	./native/postuse_test.sh
 	./native/agents_test.sh
 	./native/run_test.sh
+# run_test.sh proves rabadon can supervise an agent that never heard of it.
+# This one asks the question one step earlier: before rabadon judges anything,
+# does it SAY what it is about to judge? Every arm changes the project and reads
+# the block back, because the failure worth catching is not bad wording — it is
+# a contract that describes a project other than this one.
+	./native/contract_test.sh
 	./native/pushgate_test.sh
 # pushgate_test.sh proves the gate runs the suite and reads the real result.
 # this one asks who is allowed to say the suite was green. the gate skipped its

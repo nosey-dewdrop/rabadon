@@ -641,6 +641,102 @@ static std::vector<string> parse_str_array(const string& j, const string& key) {
   return out;
 }
 
+// ---------- THE CONTRACT ----------
+//
+// The complaint this answers, in the user's words: "it catches nothing, it
+// repairs nothing, and if it did repair I have no idea on what grounds, and I
+// have no idea when it would fire." Every one of those is the same missing
+// thing — the supervisor never SAID what it was going to do. It only ever
+// became knowable by an incident happening.
+//
+// So: at the start of every session, before anything is judged, rabadon states
+// its terms. What it will run, when it will run it, what happens if that comes
+// back red, what it will not do, and where it is blind. Read once, it should be
+// possible to predict every intervention rabadon will make for the rest of the
+// session. That predictability IS the product; a guardrail that surprises you
+// is a guardrail you turn off.
+//
+// The hardest rule here is the silence rule: if rabadon cannot protect this
+// project, the contract has to SAY so and say what would fix it. A tool that
+// finds nothing to run and then says nothing is indistinguishable, from the
+// outside, from a tool that is working.
+static string contract_block(const string& cwd, const string& truthJson,
+                             bool enforce, bool repairOn, bool cursorDialect,
+                             const string& guardRaw) {
+  const int level = (int)get_num(truthJson, "level");
+  const string run = get_str(truthJson, "run");
+  const string why = get_str(truthJson, "why");
+  std::ostringstream o;
+  o << "rabadon: here is what I will do in this project.\n";
+
+  if (level == 0 || run.empty()) {
+    // The honest failure. Not a warning buried in a log — the first line of the
+    // contract, because a session that starts here is a session rabadon cannot
+    // vouch for and the user has to know that in second one, not on day three.
+    o << "  check      : NONE FOUND — I cannot check this project, so I cannot catch\n"
+      << "               anything here. Tell me what to run, and I will:\n"
+      << "                 put  \"check\": \"<the command that tells you it works>\"\n"
+      << "                 in   " << cwd << "/.rabadon/guard.json\n";
+  } else {
+    const string kind = get_str(truthJson, "kind");
+    const char* strength = kind == "declared" ? "the command YOU declared — I did not guess it"
+                         : level >= 3 ? "your own test suite"
+                         : level == 2 ? "the build/typecheck — weaker than a suite"
+                                      : "a syntax check only — WEAK evidence";
+    o << "  check      : " << run << "\n"
+      << "               (" << strength << "; found via " << (why.empty() ? "discovery" : why) << ")\n";
+  }
+
+  if (!enforce) {
+    // watch mode spends nothing on the user's machine, which also means it
+    // stops nothing. Saying "after every edit" here would be a lie.
+    o << "  when       : NEVER — this project is in watch mode. I record what I would\n"
+      << "               have stopped and run nothing. `rabadon on` to enforce.\n";
+  } else if (level == 0 || run.empty()) {
+    o << "  when       : nothing to run.\n";
+  } else {
+    o << "  when       : after every edit to code, in the background — you never wait for it\n";
+  }
+
+  if (enforce && level > 0 && !run.empty())
+    o << "  if it goes red: I stop your turn and hand you the failing output. It is the\n"
+      << "               EDGE I report — the edit that turned green into red.\n";
+
+  o << "  repair     : "
+    << (repairOn
+        ? "on — I may propose a patch in an isolated copy. Your tree is never edited.\n"
+        : "OFF. Turning it on spends money on YOUR account (it calls a model),\n"
+          "               so I will not do it behind your back. Turn on: RABADON_JUDGE=1\n");
+
+  {
+    const string praw = read_file(cwd + "/.rabadon/promise.json");
+    const auto areas = parse_str_array(praw, "areas");
+    if (!areas.empty()) {
+      o << "  scope      : ";
+      for (size_t i = 0; i < areas.size() && i < 6; i++) o << (i ? ", " : "") << areas[i];
+      if (areas.size() > 6) o << ", +" << (areas.size() - 6) << " more";
+      o << "\n               (work outside this and I say something)\n";
+    } else {
+      o << "  scope      : not set — every path in this project is fair game.\n";
+    }
+  }
+
+  {
+    // Where the supervision has holes. Naming them is not a weakness of the
+    // product; a user who knows the hole works around it, a user who does not
+    // trusts a coverage that was never there.
+    std::vector<string> blind;
+    if (cursorDialect)
+      blind.push_back("Cursor has no pre-edit hook: I see file edits AFTER they land, not before");
+    blind.push_back("an agent that calls a program by absolute path (/usr/bin/git) walks past me");
+    if (guardRaw.empty())
+      blind.push_back("no .rabadon/guard.json here, so no command is denied — I only watch");
+    o << "  blind spots:\n";
+    for (const auto& b : blind) o << "               - " << b << "\n";
+  }
+  return o.str();
+}
+
 // ---------- session state: one file per session, ONE writer each ----------
 //
 // Everything a session is promised for the length of the session lived in one
@@ -2263,6 +2359,37 @@ int main(int argc, char** argv) {
     if (stat(hpath.c_str(), &hst) == 0 && time(nullptr) - hst.st_mtime < 7 * 86400) {
       const string h = read_file(hpath);
       fwrite(h.data(), 1, h.size(), stdout);
+    }
+    // ---------- the contract ----------
+    // Discovery runs HERE and only here: rabadon-truth is deterministic and
+    // costs ~100ms once per session, and the alternative — describing a check
+    // rabadon has not actually located — is the kind of confident wrong answer
+    // this whole binary exists to refuse. If the helper is missing or slow the
+    // block still prints, with the NONE FOUND arm, which is the truth in that
+    // case too.
+    {
+      string truthJson;
+      const string tbin = self_dir() + "/rabadon-truth";
+      if (file_exists(tbin)) {
+        const string tcmd = "\"" + tbin + "\" \"" + cwd + "\" --json 2>/dev/null";
+        if (FILE* p = popen(tcmd.c_str(), "r")) {
+          char buf[8192]; size_t n;
+          while ((n = fread(buf, 1, sizeof buf, p)) > 0) truthJson.append(buf, n);
+          pclose(p);
+        }
+      }
+      const string block = contract_block(cwd, truthJson, g_mode == MODE_ENFORCE,
+                                          llmOn, g_dialect == rbhook::DIALECT_CURSOR,
+                                          guardRaw);
+      // stdout: on Claude Code and Cursor a SessionStart hook's stdout becomes
+      // session context, so the agent reads its own terms too — it is a
+      // contract with both parties, not a banner at the user.
+      fwrite(block.data(), 1, block.size(), stdout);
+      const string runCmd = get_str(truthJson, "run");
+      em.emit("CONTRACT", "\"check\":\"" + json_escape(runCmd) +
+              "\",\"level\":" + std::to_string((int)get_num(truthJson, "level")) +
+              ",\"mode\":\"" + string(mode_tag()) +
+              "\",\"repair\":" + (llmOn ? "true" : "false"));
     }
     const size_t nb = parse_rules(guardRaw, "bash", "deny", disabled).size();
     const size_t np = parse_rules(guardRaw, "protectedPaths", "match", disabled).size();
