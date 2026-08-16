@@ -670,6 +670,12 @@ test: all
 # the block back, because the failure worth catching is not bad wording — it is
 # a contract that describes a project other than this one.
 	./native/contract_test.sh
+# contract_test.sh proves rabadon SAYS what it will do. This one proves it does
+# it: the check goes red and the next action does not start. The arms that carry
+# the risk are the ones proving the fix path stays open and that an inconclusive
+# check refuses nothing — a stop with no way out is how a guardrail gets
+# uninstalled, and it would be this rule that did it.
+	./native/redbase_test.sh
 	./native/pushgate_test.sh
 # pushgate_test.sh proves the gate runs the suite and reads the real result.
 # this one asks who is allowed to say the suite was green. the gate skipped its

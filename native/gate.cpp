@@ -699,8 +699,10 @@ static string contract_block(const string& cwd, const string& truthJson,
   }
 
   if (enforce && level > 0 && !run.empty())
-    o << "  if it goes red: I stop your turn and hand you the failing output. It is the\n"
-      << "               EDGE I report — the edit that turned green into red.\n";
+    o << "  if it goes red: your next action does not start. Not a warning — a refusal,\n"
+      << "               repeated for as long as it stays red.\n"
+      << "               STILL ALLOWED while red: reading anything, editing anything,\n"
+      << "               and re-running that check. A pass clears it immediately.\n";
 
   o << "  repair     : "
     << (repairOn
@@ -1832,29 +1834,36 @@ int main(int argc, char** argv) {
                                  rx_test("\"judge\"\\s*:\\s*true", guardRaw));
   const bool judgeOff = !llmOn;
 
-  // ---------- PostToolUse: observe + track session state ----------
-  // The action already ran; exit 2 here is FEEDBACK to the agent, not a block.
-  // lastCodeEdit / lastTest* are TOP-LEVEL state (Pre reads them); the drift
-  // trackers are per-session. The LLM (diagnose / re-anchor) is bounded and
-  // off the hot path — a missing/slow claude fails open to the deterministic
-  // verdict.
-  if (hook == "PostToolUse") {
-    const long long now = now_ms();
-
-    // ---------- the net's verdict from the PREVIOUS tool call ----------
-    // What matters is not "the suite is red" — it is the TRANSITION. Step 3.254
-    // is the moment something that was green stopped being green while the run
-    // kept going. A standing red reported on every call is noise the agent
-    // learns to ignore; the EDGE, reported once with the failing output, is a
-    // correction it can act on.
-    {
-      const string netRaw = read_file(cwd + "/.rabadon/net.json");
-      const long long netTs = get_num(netRaw, "ts");
-      if (!netRaw.empty() && netTs > stt.lastNetTs) {
-        const string verdict = get_str(netRaw, "verdict");
-        const string kindStr = get_str(netRaw, "kind");
-        const int lvl        = (int)get_num(netRaw, "level");
-        const string prev    = stt.lastNetVerdict;
+  // ---------- the net's verdict, read on EVERY event ----------
+  //
+  // This used to live inside the PostToolUse branch, and that placement was the
+  // whole of the "it catches nothing" complaint. The check runs detached and
+  // lands in net.json whenever it lands; if only PostToolUse reads it, a red
+  // that arrived while the agent was thinking is not seen until AFTER the next
+  // action has already run. The supervisor was always one action behind the
+  // damage it existed to prevent.
+  //
+  // Reading here — before any branch — means the verdict is applied at the
+  // first event that follows it, and the most valuable of those is PreToolUse:
+  // the moment before the next action, which is the only moment at which
+  // stopping it is still worth anything. The detached run is untouched; nothing
+  // waits for a suite. What changed is when the ANSWER is allowed to matter.
+  //
+  // netEdgeRed is the green->red transition, hoisted out so PostToolUse can
+  // still report the edge with its failing output. netRed is the standing
+  // condition, which is what PreToolUse acts on.
+  bool netEdgeRed = false, netRed = false;
+  string netTail, netKind; int netLevel = 0;
+  {
+    const string netRaw = read_file(cwd + "/.rabadon/net.json");
+    const long long netTs = get_num(netRaw, "ts");
+    if (!netRaw.empty()) {
+      const string verdict = get_str(netRaw, "verdict");
+      netTail  = get_str(netRaw, "tail");
+      netKind  = get_str(netRaw, "kind");
+      netLevel = (int)get_num(netRaw, "level");
+      if (netTs > stt.lastNetTs) {
+        const string prev = stt.lastNetVerdict;
         stt.lastNetTs = netTs;
         stt.lastNetVerdict = verdict;
         // lastTestRun:0 is what "the net has never run anything" was measured
@@ -1872,52 +1881,54 @@ int main(int argc, char** argv) {
           ss.lastTestFail = netTs; stt.lastTestVerifiedFail = netTs;
         }
         stt.save();
-
-        if (verdict == "red" && prev != "red") {
-          string tail = get_str(netRaw, "tail");
-          if (tail.size() > 700) tail = tail.substr(tail.size() - 700);
-          const char* strength = lvl == 3 ? "your own test suite"
-                               : lvl == 2 ? "the build/typecheck"
-                                          : "a syntax check (weak evidence)";
-          em.emit("CHECK_FAIL", "\"step\":\"net\",\"mode\":\"" + string(mode_tag()) +
-                  "\",\"level\":" + std::to_string(lvl) + ",\"kind\":\"" + json_escape(kindStr) +
-                  "\",\"fails\":[{\"check\":\"net-turned-red\",\"why\":\"" +
-                  json_escape(utf8_clip(tail, 600)) + "\"}]");
-          fprintf(stderr,
-            "rabadon: this project just went GREEN -> RED, caught by %s.\n"
-            "It happened on your last edit — this is not a pre-existing failure.\n"
-            "%s\n"
-            "Fix this before continuing: every step from here builds on a broken base.\n",
-            strength, tail.c_str());
-          // PostToolUse exit 2 is FEEDBACK to the agent, not a block — the
-          // correction re-enters the run as an instruction.
-          return refuse_code();
-        }
+        netEdgeRed = (verdict == "red" && prev != "red");
       }
+      // INCONCLUSIVE IS NOT RED, and this is the line that decides whether the
+      // product is usable. A suite that timed out, a runner that is not
+      // installed, a run that executed no tests — net.cpp records all three as
+      // inconclusive, and treating any of them as red would wedge a session on
+      // evidence nobody has. A false stop is how a guardrail gets uninstalled.
+      netRed = (verdict == "red");
     }
+  }
 
+  // ---------- PostToolUse: observe + track session state ----------
+  // The action already ran; exit 2 here is FEEDBACK to the agent, not a block.
+  // lastCodeEdit / lastTest* are TOP-LEVEL state (Pre reads them); the drift
+  // trackers are per-session. The LLM (diagnose / re-anchor) is bounded and
+  // off the hot path — a missing/slow claude fails open to the deterministic
+  // verdict.
+  if (hook == "PostToolUse") {
+    const long long now = now_ms();
+
+    // ---------- THE ALWAYS-ON NET ----------
+    // The agent just touched code. Start the project's own check in a DETACHED
+    // child and return immediately: a hook that waits for a test suite freezes
+    // the editor for as long as the suite takes, which is how a supervisor
+    // becomes the thing people uninstall. The verdict lands in .rabadon/net.json
+    // and is read on the next hook event — one call of latency, zero stall.
+    //
+    // THIS RUNS BEFORE ANY REPORTING, and that ordering is a bug fix, not a
+    // preference. It used to live below the green->red report, which returns
+    // early — so the edit that FIXED the breakage never started a check, the
+    // verdict stayed red, and the refusal it caused could only be cleared by
+    // making a second, pointless edit. The supervisor had made its own red
+    // un-clearable. Nothing that reports may sit in front of the thing that
+    // re-measures.
+    //
+    // ENFORCE ONLY. In watch mode rabadon spends not one cycle of the user's
+    // machine on their repo; watch observes what the agent did, nothing more.
+    // Turning it on is the moment you accept the cost of being supervised.
+    bool startedCheck = false;
     if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") {
-      // isCode: guard.codePaths present ? ANY match : true. Set BEFORE the
-      // fan-out / re-anchor early-exits so a fed-back edit still records.
-      bool isCode = true;
+      // isCode: guard.codePaths present ? ANY match : true.
+      bool isCodeEdit = true;
       if (!guardRaw.empty() && guardRaw.find("\"codePaths\"") != string::npos) {
-        isCode = false;
+        isCodeEdit = false;
         for (const auto& pat : parse_str_array(guardRaw, "codePaths"))
-          if (rx_test(pat, filePath)) { isCode = true; break; }
+          if (rx_test(pat, filePath)) { isCodeEdit = true; break; }
       }
-      if (isCode) stt.lastCodeEdit = now;
-
-      // ---------- THE ALWAYS-ON NET ----------
-      // The agent just touched code. Start the project's own check in a DETACHED
-      // child and return immediately: a hook that waits for a test suite freezes
-      // the editor for as long as the suite takes, which is how a supervisor
-      // becomes the thing people uninstall. The verdict lands in .rabadon/net.json
-      // and is read on the next tool call — one call of latency, zero stall.
-      //
-      // ENFORCE ONLY. In watch mode rabadon spends not one cycle of the user's
-      // machine on their repo; watch observes what the agent did, nothing more.
-      // Turning it on is the moment you accept the cost of being supervised.
-      if (isCode && g_mode == MODE_ENFORCE) {
+      if (isCodeEdit && g_mode == MODE_ENFORCE) {
         const string netBin = self_dir() + "/rabadon-net";
         if (file_exists(netBin)) {
           pid_t k = fork();
@@ -1931,9 +1942,51 @@ int main(int argc, char** argv) {
             execl(netBin.c_str(), netBin.c_str(), cwd.c_str(), (char*)nullptr);
             _exit(127);
           }
-          // do not wait: the child outlives this hook on purpose
+          startedCheck = true;   // do not wait: the child outlives this hook
         }
       }
+    }
+    (void)startedCheck;
+
+    // ---------- the net's verdict from the PREVIOUS tool call ----------
+    // What matters is not "the suite is red" — it is the TRANSITION. Step 3.254
+    // is the moment something that was green stopped being green while the run
+    // kept going. A standing red reported on every call is noise the agent
+    // learns to ignore; the EDGE, reported once with the failing output, is a
+    // correction it can act on.
+    if (netEdgeRed) {
+      string tail = netTail;
+      if (tail.size() > 700) tail = tail.substr(tail.size() - 700);
+      const char* strength = netLevel == 3 ? "your own test suite"
+                           : netLevel == 2 ? "the build/typecheck"
+                                           : "a syntax check (weak evidence)";
+      em.emit("CHECK_FAIL", "\"step\":\"net\",\"mode\":\"" + string(mode_tag()) +
+              "\",\"level\":" + std::to_string(netLevel) + ",\"kind\":\"" + json_escape(netKind) +
+              "\",\"fails\":[{\"check\":\"net-turned-red\",\"why\":\"" +
+              json_escape(utf8_clip(tail, 600)) + "\"}]");
+      fprintf(stderr,
+        "rabadon: this project just went GREEN -> RED, caught by %s.\n"
+        "It happened on your last edit — this is not a pre-existing failure.\n"
+        "%s\n"
+        "Fix this before continuing: I will refuse anything that is not the fix.\n",
+        strength, tail.c_str());
+      // PostToolUse exit 2 is FEEDBACK to the agent, not a block — the
+      // correction re-enters the run as an instruction. The BLOCK is at
+      // PreToolUse on the next action, which is where a refusal still costs the
+      // damage nothing.
+      return refuse_code();
+    }
+
+    if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") {
+      // isCode: guard.codePaths present ? ANY match : true. Set BEFORE the
+      // fan-out / re-anchor early-exits so a fed-back edit still records.
+      bool isCode = true;
+      if (!guardRaw.empty() && guardRaw.find("\"codePaths\"") != string::npos) {
+        isCode = false;
+        for (const auto& pat : parse_str_array(guardRaw, "codePaths"))
+          if (rx_test(pat, filePath)) { isCode = true; break; }
+      }
+      if (isCode) stt.lastCodeEdit = now;
 
       // scope fan-out: rel = path.relative(cwd,file); top = first segment when
       // the file is inside cwd. touchedDirs is an order-preserving Set. Fires
@@ -2779,6 +2832,64 @@ int main(int argc, char** argv) {
     for (const auto& d : disabled) if (d == id) return true;
     return false;
   };
+
+  // ---------- red base: the check is failing, so the run does not continue ----------
+  //
+  // The four complaints that produced this file were "it catches nothing, it
+  // repairs nothing, on what grounds is unknown, when is unknown". This is the
+  // first one. rabadon HAD the red — net.cpp ran the project's own check and
+  // wrote the verdict — and did nothing with it except print a sentence, once,
+  // on the transition, after the fact. The agent read the sentence and kept
+  // going. A supervisor whose strongest move is a suggestion is not supervision.
+  //
+  // The rule: while the project's own check is red, the next action does not
+  // start. Not "is warned about" — does not start. And not once, on the edge:
+  // EVERY action, for as long as the red stands, because a red that stops
+  // complaining after the first refusal is a red the agent can wait out.
+  //
+  // WHAT IS STILL ALLOWED, and why the carve-out is this shape. A stop with no
+  // way out is a wedge, and a wedged session ends with rabadon uninstalled, so
+  // the fix path stays wide open: reading anything, editing anything, and
+  // re-running the check. That is the complete set of moves needed to go from
+  // red to green, and it is also the exact set that CANNOT build on the broken
+  // base — a read commits nothing, an edit is the repair, and the check is what
+  // clears the refusal. Everything else — a commit, a push, an install, a
+  // deploy, spawning a sub-agent, moving on to the next feature — is work
+  // stacked on a base that is known to be broken, and every minute of it is
+  // paid for twice.
+  //
+  // The escape hatch is not a flag: it is running the check and seeing it pass.
+  // That matters for a flaky suite, which is the one input that could turn this
+  // law into the thing that kills the product. A flaky red clears itself the
+  // moment the check is re-run, and re-running the check is never refused.
+  if (netRed && hook == "PreToolUse" && !ruleOff("red-base")) {
+    // the check command this project is judged by — the same string the
+    // contract printed at session start, so "run the check" is unambiguous.
+    const string checkCmd = get_str(read_file(cwd + "/.rabadon/net.json"), "cmd");
+    bool isFixPath = false;
+    // reads and edits: the two halves of repairing something.
+    if (toolName == "Read" || toolName == "Grep" || toolName == "Glob" ||
+        toolName == "LS" || toolName == "NotebookRead" || toolName == "TodoWrite" ||
+        toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit" ||
+        toolName == "NotebookEdit")
+      isFixPath = true;
+    // and re-running the check itself. Matched on the command TEXT rather than
+    // on a verb list: the check is whatever this project declared or rabadon
+    // discovered, so the only honest test is whether the agent is running it.
+    if (!isFixPath && !checkCmd.empty() && !command.empty() &&
+        command.find(checkCmd) != string::npos)
+      isFixPath = true;
+
+    if (!isFixPath) {
+      string tail = netTail;
+      if (tail.size() > 400) tail = tail.substr(tail.size() - 400);
+      block("red-base",
+            "this project's own check is failing, so anything that is not the fix builds on a broken base",
+            "the check that is red: " + (checkCmd.empty() ? string("(the project check)") : checkCmd) +
+            "\n" + tail +
+            "\nread and edit freely, and re-run that check — a pass clears this immediately.");
+    }
+  }
 
   // ---------- guard-weaken: strengthen your own guard, never cut it ----------
   // Sealing the promise rules alone would move the hole one file over: the
