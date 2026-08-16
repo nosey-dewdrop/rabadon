@@ -823,6 +823,21 @@ test: all
 # once and was free to happen again.
 	./native/rule_census_test.sh
 
+# THE SCOREBOARD. Not part of `make test`, and the reason is not squeamishness:
+# it asserts promises that are not built yet, so it is RED on purpose, and a red
+# `make test` in this repository means rabadon's own red-base law refuses every
+# action in its own tree. A suite designed to fail cannot also be the gate.
+#
+# It is separate for a second reason that matters more. Every other target here
+# tests a mechanism; this one asks the owner's question — run the product end to
+# end, would a stranger agree the promise is kept — and its criteria are
+# transcribed from the owner's words rather than the implementer's. It exists
+# because on 16 August two promises were reported finished, with green suites
+# behind them, and an audit twenty minutes later found three real holes that no
+# mechanism test could have caught.
+promises: all
+	./native/promises_test.sh
+
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate
 	./native/precision_test.sh
@@ -830,7 +845,7 @@ precision: native/rabadon-gate
 clean:
 	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
-.PHONY: all bench clean precision
+.PHONY: all bench clean precision promises
 
 native/rabadon-verify: native/verify.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
