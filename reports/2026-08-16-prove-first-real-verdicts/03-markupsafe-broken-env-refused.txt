@@ -1,0 +1,18 @@
+rabadon prove — /tmp/ms
+  the claim: putting back the source half of this change turns this repo's own check red.
+  NOT the claim: that the change is correct.
+
+  change: 1 source, 1 test, 0 harness, 1 other
+  check : python3 -m pytest tests -q
+
+  running the check on three trees, 2 sample(s) each...
+
+    post     exit=4 exit=4   RED
+    counter  exit=4 exit=4   RED
+    pre      exit=4 exit=4   RED
+
+  verdict: NO_COUNTERFACTUAL
+    the check is RED with the change applied, so there is no green for the change to explain.
+    1 file(s) were called source by elimination rather than by a rule that names them.
+    existing tests rewritten by this change:
+      tests/test_markupsafe.py

@@ -1,0 +1,19 @@
+rabadon prove — /tmp/cmd
+  the claim: putting back the source half of this change turns this repo's own check red.
+  NOT the claim: that the change is correct.
+
+  change: 3 source, 2 test, 0 harness, 0 other
+  check : npx jest --silent
+
+  running the check on three trees, 2 sample(s) each...
+
+    post     exit=0 exit=0   GREEN
+    counter  exit=0 exit=0   GREEN
+    pre      exit=0 exit=0   GREEN
+
+  verdict: TEST_PASSES_BOTH_WAYS
+    the change ships tests, and those tests pass with the source put back. The change's own tests do not test the change.
+    3 file(s) were called source by elimination rather than by a rule that names them.
+    existing tests rewritten by this change:
+      tests/argument.variadic.test.js
+      tests/options.variadic.test.js
