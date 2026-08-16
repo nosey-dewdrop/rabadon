@@ -221,6 +221,38 @@ int main(int argc, char** argv) {
   fprintf(stderr, "rabadon run — %d program(s) under the gate, project %s%s\n",
           shimmed, dir.c_str(), fence ? ", kernel fence on" : "");
 
+  // THE SAME CONTRACT EVERY OTHER AGENT GETS, and it is fetched from the gate
+  // rather than written again here — a second copy of these terms would drift
+  // from the first, and the drift would be a promise no code keeps. The gate
+  // speaks the generic dialect (docs/agent-contract.md), so a synthetic
+  // session_start is all it takes.
+  //
+  // RABADON_RUN=1 is already in the environment two lines above, and the gate
+  // reads it: the contract it prints here drops the promises this path cannot
+  // keep (no post-action event, so no check and no stop on red) instead of
+  // being corrected by a footnote underneath. A user who believes they have
+  // cover they do not have is worse off than a user with no tool at all.
+  {
+    // single-quote for /bin/sh: ' -> '\'' . The project directory is attacker-
+    // adjacent input here (it comes from --dir), so it is quoted, not pasted.
+    auto shq = [](const string& s) {
+      string o = "'";
+      for (char ch : s) { if (ch == '\'') o += "'\\''"; else o += ch; }
+      return o + "'";
+    };
+    const string gateBin = selfDir + "/rabadon-gate";
+    if (is_exec(gateBin)) {
+      const string ev = "{\"rabadon\":1,\"event\":\"session_start\",\"cwd\":\"" + dir +
+                        "\",\"session\":\"rabadon-run\"}";
+      const string c = "printf %s " + shq(ev) + " | " + shq(gateBin) + " 2>/dev/null";
+      if (FILE* p = popen(c.c_str(), "r")) {
+        char buf[4096]; size_t n;
+        while ((n = fread(buf, 1, sizeof buf, p)) > 0) fwrite(buf, 1, n, stderr);
+        pclose(p);
+      }
+    }
+  }
+
   vector<string> full;
   if (fence) {
     full.push_back(sandboxBin);

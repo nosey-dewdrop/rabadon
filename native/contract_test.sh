@@ -53,8 +53,16 @@ has "your own test suite" "$OUT" \
 has "package.json scripts.test" "$OUT" \
   && ok "says WHERE it found the command — the claim is auditable" \
   || bad "no provenance for the discovered command"
-has "after every edit" "$OUT" \
+has "changed a file" "$OUT" \
   && ok "says when it fires" || bad "no when-line"
+# and it says WHY the trigger is trustworthy. The first version of the when-line
+# read "after every edit to code", which was true only of edits made with an
+# edit tool — a shell `sed -i`, or any agent driven through `rabadon run`, went
+# unchecked while the contract said otherwise. The sentence and the mechanism
+# were fixed together.
+has "not the tool name" "$OUT" \
+  && ok "and says the trigger is the filesystem, not the tool name — so it holds for any agent" \
+  || bad "the when-line does not say what actually triggers the check"
 has "you never wait for it" "$OUT" \
   && ok "says the check is off the agent's critical path" \
   || bad "does not say the agent is not stalled"
@@ -159,6 +167,30 @@ has "Cursor has no pre-edit hook" "$OUTC" \
 has "npm test" "$OUTC" \
   && ok "and the rest of the contract still resolves on the Cursor dialect" \
   || bad "the Cursor session got no check line"
+
+# ---------- 5b. an agent with no post-action event is told what it does NOT get ----------
+# `rabadon run` supervises agents that were never adapted, by owning their PATH.
+# That is enough to refuse a program before it runs and nothing more: no event
+# arrives after an action, so the project's check never starts and no red can
+# stop anything. Printing the standard block here unchanged would promise a stop
+# that cannot happen — the most expensive kind of wrong, because the user stops
+# checking for themselves.
+RUNP="$(mktemp -d)"; RDR="$(mktemp -d)"; : > "$RDR/enabled"
+printf '{"name":"r","scripts":{"test":"node -e \\"process.exit(0)\\""}}' > "$RUNP/package.json"
+printf '#!/bin/sh\necho agent-ran\n' > "$RUNP/ag.sh"; chmod +x "$RUNP/ag.sh"
+RUNOUT="$(cd "$RUNP" && RABADON_DIR="$RDR" "$HERE/rabadon-run" --dir "$RUNP" -- sh ag.sh 2>&1)"
+has "agent-ran" "$RUNOUT" \
+  && ok "an unadapted agent still runs under rabadon run" || bad "the agent did not run: $RUNOUT"
+has "rabadon: here is what I will do" "$RUNOUT" \
+  && ok "and it gets the SAME contract, not a different one written twice" \
+  || bad "no contract for a hook-less agent: $RUNOUT"
+has "I will NOT stop you on a red one" "$RUNOUT" \
+  && ok "which states plainly that on this path there is no stop on red" \
+  || bad "the contract promises a stop this path cannot perform: $RUNOUT"
+has "your next action does not start" "$RUNOUT" \
+  && bad "it promised a refusal that cannot happen without a post-action event" \
+  || ok "and the promise it cannot keep is absent, not merely contradicted later"
+rm -rf "$RUNP" "$RDR"
 
 # ---------- 6. scope ----------
 has "every path in this project is fair game" "$OUT" \

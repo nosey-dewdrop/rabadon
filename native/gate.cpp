@@ -641,6 +641,58 @@ static std::vector<string> parse_str_array(const string& j, const string& key) {
   return out;
 }
 
+// ---------- did anything in this project change since the last check? ----------
+//
+// The hole this closes. The check used to be started by exactly one thing: a
+// PostToolUse event whose tool was Edit, Write or MultiEdit. So an agent that
+// edited through the shell — `sed -i`, a heredoc, `>`, `cp`, `patch`, `git
+// checkout`, a codegen script — broke the project and rabadon never ran
+// anything. Worse, `rabadon run -- <agent>` exists precisely for agents with no
+// edit tool at all; for every one of those, supervision was zero. The contract
+// said "after every edit to code" and meant "after every edit made with a tool
+// I recognise", which is not the same sentence.
+//
+// Asking the filesystem instead of the tool name is what makes the answer agent
+// -independent: a file is newer than the last verdict, or it is not. No dialect
+// knows better than the mtime.
+//
+// COST IS THE WHOLE DESIGN. The walk exits at the FIRST file newer than the
+// last check, which is the case that matters — something just changed, so the
+// answer arrives after a handful of stats. The expensive direction is proving a
+// negative on a large tree, so it is capped: past `cap` entries the walk stops
+// and says it did not finish. A capped walk returns false — rabadon does not
+// start a suite on a maybe — and the caller SAYS so rather than letting the
+// user believe a check happened.
+static bool tree_changed_since(const string& dir, long long sinceMs, int cap, bool* capped) {
+  *capped = false;
+  int seen = 0;
+  std::vector<string> stack{dir};
+  while (!stack.empty()) {
+    const string cur = stack.back(); stack.pop_back();
+    DIR* d = opendir(cur.c_str());
+    if (!d) continue;
+    while (struct dirent* ent = readdir(d)) {
+      const string n = ent->d_name;
+      if (n == "." || n == "..") continue;
+      // dot-directories (.git, .rabadon, .venv), dependency and output trees:
+      // churn that is not the user's source. .rabadon especially — the gate
+      // writes there on every event, so counting it would make every command
+      // look like an edit and every command start a suite.
+      if (n[0] == '.' || n == "node_modules" || n == "target" ||
+          n == "vendor" || n == "dist" || n == "build" || n == "__pycache__") continue;
+      if (++seen > cap) { *capped = true; closedir(d); return false; }
+      const string p = cur + "/" + n;
+      struct stat st;
+      if (lstat(p.c_str(), &st) != 0) continue;
+      if (S_ISDIR(st.st_mode)) { stack.push_back(p); continue; }
+      if (!S_ISREG(st.st_mode)) continue;
+      if ((long long)st.st_mtime * 1000 > sinceMs) { closedir(d); return true; }
+    }
+    closedir(d);
+  }
+  return false;
+}
+
 // ---------- THE CONTRACT ----------
 //
 // The complaint this answers, in the user's words: "it catches nothing, it
@@ -687,7 +739,20 @@ static string contract_block(const string& cwd, const string& truthJson,
       << "               (" << strength << "; found via " << (why.empty() ? "discovery" : why) << ")\n";
   }
 
-  if (!enforce) {
+  // `rabadon run` owns the agent's PATH and nothing else. It can refuse a
+  // program before it runs; it gets no event AFTER an action, so nothing there
+  // starts the project's check and nothing stops the agent on a red one. Said
+  // here, inside the one contract, rather than as a correction printed under it
+  // — a block that promises a stop and is then contradicted three lines later
+  // is worse than either sentence alone.
+  const char* runEnv = getenv("RABADON_RUN");
+  const bool postHookless = runEnv && string(runEnv) == "1";
+
+  if (postHookless) {
+    o << "  when       : NEVER on my own. This agent gives me no signal after an action,\n"
+      << "               so I cannot run that check and I will NOT stop you on a red one.\n"
+      << "               What I do here: refuse forbidden programs BEFORE they run.\n";
+  } else if (!enforce) {
     // watch mode spends nothing on the user's machine, which also means it
     // stops nothing. Saying "after every edit" here would be a lie.
     o << "  when       : NEVER — this project is in watch mode. I record what I would\n"
@@ -695,10 +760,12 @@ static string contract_block(const string& cwd, const string& truthJson,
   } else if (level == 0 || run.empty()) {
     o << "  when       : nothing to run.\n";
   } else {
-    o << "  when       : after every edit to code, in the background — you never wait for it\n";
+    o << "  when       : after any action that changed a file in this project — an edit\n"
+      << "               tool or a shell command, I ask the filesystem, not the tool name.\n"
+      << "               It runs in the background; you never wait for it.\n";
   }
 
-  if (enforce && level > 0 && !run.empty())
+  if (enforce && level > 0 && !run.empty() && !postHookless)
     o << "  if it goes red: your next action does not start. Not a warning — a refusal,\n"
       << "               repeated for as long as it stays red.\n"
       << "               STILL ALLOWED while red: reading anything, editing anything,\n"
@@ -885,7 +952,7 @@ struct Sess {
   string goalPrompt; long long goalTs = 0;
   std::vector<string> touchedDirs; bool fanoutWarned = false;
   string lastCmd; long long lastCmdTs = 0; int cmdRepeat = 1;
-  int actionCount = 0, offTarget = 0, driftChallenged = 0;
+  int actionCount = 0, offTarget = 0, driftChallenged = 0, walkCapWarned = 0;
   std::vector<std::pair<long long, string>> recent;
   std::vector<string> recentEv;
   long long tsOffset = 0, tokensOut = 0, tokensIn = 0;
@@ -946,6 +1013,7 @@ struct State {
     s.cmdRepeat = (int)get_num(obj, "cmdRepeat"); if (s.cmdRepeat < 1) s.cmdRepeat = 1;
     s.actionCount = (int)get_num(obj, "actionCount");
     s.offTarget = (int)get_num(obj, "offTarget");
+    s.walkCapWarned = (int)get_num(obj, "walkCapWarned");
     s.driftChallenged = (int)get_num(obj, "driftChallenged");
     for (const auto& r : parse_obj_array(obj, "recent"))
       s.recent.push_back({ get_num(r, "t"), get_str(r, "s") });
@@ -968,6 +1036,7 @@ struct State {
       << ",\"lastCmd\":\"" << json_escape(s.lastCmd) << "\",\"lastCmdTs\":" << s.lastCmdTs
       << ",\"cmdRepeat\":" << s.cmdRepeat << ",\"actionCount\":" << s.actionCount
       << ",\"offTarget\":" << s.offTarget << ",\"driftChallenged\":" << s.driftChallenged
+      << ",\"walkCapWarned\":" << s.walkCapWarned
       << ",\"lastTestPass\":" << s.lastTestPass << ",\"lastTestFail\":" << s.lastTestFail
       << ",\"lastTestRun\":" << s.lastTestRun
       << ",\"recent\":[";
@@ -1919,7 +1988,7 @@ int main(int argc, char** argv) {
     // ENFORCE ONLY. In watch mode rabadon spends not one cycle of the user's
     // machine on their repo; watch observes what the agent did, nothing more.
     // Turning it on is the moment you accept the cost of being supervised.
-    bool startedCheck = false;
+    bool wantCheck = false, walkCapped = false;
     if (toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") {
       // isCode: guard.codePaths present ? ANY match : true.
       bool isCodeEdit = true;
@@ -1928,25 +1997,47 @@ int main(int argc, char** argv) {
         for (const auto& pat : parse_str_array(guardRaw, "codePaths"))
           if (rx_test(pat, filePath)) { isCodeEdit = true; break; }
       }
-      if (isCodeEdit && g_mode == MODE_ENFORCE) {
-        const string netBin = self_dir() + "/rabadon-net";
-        if (file_exists(netBin)) {
-          pid_t k = fork();
-          if (k == 0) {
-            setsid();
-            int devnull = open("/dev/null", O_RDWR);
-            if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2); }
-            // argv[0] must carry the FULL path: rabadon-net locates its sibling
-            // rabadon-truth from it, and a bare name makes it look in the
-            // supervised project instead of the install directory.
-            execl(netBin.c_str(), netBin.c_str(), cwd.c_str(), (char*)nullptr);
-            _exit(127);
-          }
-          startedCheck = true;   // do not wait: the child outlives this hook
+      wantCheck = isCodeEdit;
+    } else if (g_mode == MODE_ENFORCE) {
+      // EVERY OTHER TOOL, asked of the filesystem rather than of the tool name.
+      // A shell command that wrote a file is an edit; an agent with no edit tool
+      // makes ALL of its edits this way. Bounded, and the bound is spoken about
+      // below rather than hidden.
+      int cap = 20000;
+      { const char* c = getenv("RABADON_WALK_CAP"); if (c && *c) cap = atoi(c); }
+      wantCheck = tree_changed_since(cwd, stt.lastNetTs, cap, &walkCapped);
+    }
+
+    if (wantCheck && g_mode == MODE_ENFORCE) {
+      const string netBin = self_dir() + "/rabadon-net";
+      if (file_exists(netBin)) {
+        pid_t k = fork();
+        if (k == 0) {
+          setsid();
+          int devnull = open("/dev/null", O_RDWR);
+          if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2); }
+          // argv[0] must carry the FULL path: rabadon-net locates its sibling
+          // rabadon-truth from it, and a bare name makes it look in the
+          // supervised project instead of the install directory.
+          execl(netBin.c_str(), netBin.c_str(), cwd.c_str(), (char*)nullptr);
+          _exit(127);
         }
+        // do not wait: the child outlives this hook on purpose
       }
     }
-    (void)startedCheck;
+    // A tree too large to scan is the one case where rabadon cannot tell
+    // whether an edit happened. Failing quietly here would be the worst
+    // outcome of all — the user keeps their belief in a check that stopped
+    // running — so the miss is announced, once per session, and lands on the
+    // ledger where it can be read back.
+    if (walkCapped && !ss.walkCapWarned) {
+      ss.walkCapWarned = 1;
+      em.emit("CHECK_SKIPPED", "\"step\":\"net\",\"why\":\"tree too large to scan for changes\"");
+      fprintf(stderr,
+        "rabadon: this tree is too large for me to tell whether that command changed a file,\n"
+        "so I did NOT run the check. Edits made with the edit tool are still checked.\n"
+        "Raise the bound with RABADON_WALK_CAP=<entries> if you want the scan anyway.\n");
+    }
 
     // ---------- the net's verdict from the PREVIOUS tool call ----------
     // What matters is not "the suite is red" — it is the TRANSITION. Step 3.254
@@ -2117,11 +2208,13 @@ int main(int argc, char** argv) {
       // back into a red verdict. Both orders occur, count-first and word-first,
       // so both are neutralised before the vocabulary is consulted.
       string evid = out;
+      bool declaredZeroFailures = false;
       try {
         static const std::regex zeroCount(
             "\\b0+\\s*(fail(ed|ure|ures|s|ing)?|errors?)\\b|"
             "\\b(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*0+\\b",
             std::regex::ECMAScript | std::regex::icase);
+        declaredZeroFailures = std::regex_search(out, zeroCount);
         evid = std::regex_replace(out, zeroCount, " ");
       } catch (...) { evid = out; }
       // The vocabulary is split in two, and the split is what a wrong refusal on
@@ -2161,8 +2254,29 @@ int main(int argc, char** argv) {
       // the summary said `pass 17  fail 0`, and the session was told its own
       // green suite was red. Recorded as `rabadon wrong test-run`.
       const bool statedExitZero = rx_test("\\b[A-Z_]*EXIT[A-Z_]*\\s*=\\s*0\\b", out);
+      // A SUITE THAT COUNTED ITS OWN FAILURES AND FOUND NONE outranks any loose
+      // failure word later in the same output, for the same reason a stated exit
+      // 0 does: one is a measurement the runner made, the other is a word that
+      // appeared. This cost a wrong refusal today. `redbase_test.sh` finished
+      // `26 ok, 0 fail` and was called RED, because one of the things it proves
+      // is named "carries the real failing output" — the word `failing`, inside
+      // the NAME of a passing assertion. The zero-count was already being
+      // stripped from the evidence; it just was not allowed to answer.
+      //
+      // hardFailure still wins. A segfault next to `0 failed` means the runner
+      // never got to the end, and the count is describing a run that died.
       const bool sawFailure =
-          countedFailure || hardFailure || (!statedExitZero && softFailure);
+          countedFailure || hardFailure ||
+          (!statedExitZero && !declaredZeroFailures && softFailure);
+
+      // A CRASH STRING CANCELS THE GREEN. `passed` is decided from the counts,
+      // and the counts describe the tests the runner got through — not the
+      // runner. `Segmentation fault` followed by `0 failed` satisfied the green
+      // phrase list and was reported GREEN, which is the one direction this
+      // repo treats as worse than being wrong loudly: a false green is a check
+      // that has quietly stopped checking. A run that died before it finished
+      // counting has not passed, whatever its last line says.
+      if (passed && hardFailure) passed = false;
 
       // This session watched this run go past, so this session is who the
       // verdict is about. It is not written where another session can read it:
@@ -2873,12 +2987,36 @@ int main(int argc, char** argv) {
         toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit" ||
         toolName == "NotebookEdit")
       isFixPath = true;
-    // and re-running the check itself. Matched on the command TEXT rather than
-    // on a verb list: the check is whatever this project declared or rabadon
-    // discovered, so the only honest test is whether the agent is running it.
-    if (!isFixPath && !checkCmd.empty() && !command.empty() &&
-        command.find(checkCmd) != string::npos)
-      isFixPath = true;
+    // and re-running the check itself, which is the ONLY way out of this
+    // refusal and therefore the one match that must not be pedantic. The first
+    // version compared the whole string: the check discovered as
+    // `npm test --silent` meant an agent that ran `npm test` — the same suite,
+    // the obvious thing to type — was refused, and the escape hatch was shut
+    // from the inside. That is the wedge this rule was written to avoid, built
+    // into the rule itself.
+    //
+    // So the match is on the check's IDENTITY, not its spelling: the runner and
+    // what it runs, flags dropped. `npm test --silent` becomes {npm, test}, and
+    // `npm test`, `npm run test`, `cd sub && npm test` all carry both words.
+    // `npm install left-pad` carries only one and is still refused, which is
+    // the line that matters — installing a dependency is not fixing a failure.
+    // Flags are skipped when picking the two words, or `python3 -m pytest -q`
+    // would be identified by `-m`, which identifies nothing.
+    if (!isFixPath && !checkCmd.empty() && !command.empty()) {
+      std::vector<string> words;
+      for (size_t i = 0; i < checkCmd.size() && words.size() < 2; ) {
+        while (i < checkCmd.size() && isspace((unsigned char)checkCmd[i])) i++;
+        size_t j = i;
+        while (j < checkCmd.size() && !isspace((unsigned char)checkCmd[j])) j++;
+        const string w = checkCmd.substr(i, j - i);
+        i = j;
+        if (w.empty() || w[0] == '-') continue;   // a flag names nothing
+        words.push_back(w);
+      }
+      bool all = !words.empty();
+      for (const auto& w : words) if (command.find(w) == string::npos) all = false;
+      if (all) isFixPath = true;
+    }
 
     if (!isFixPath) {
       string tail = netTail;

@@ -736,6 +736,38 @@ for eng in native node; do
     || bad "BR12 $eng override ignored (got '$got')"
 done
 
+# ---------------- BR13: a passing suite that TALKS about failure ----------------
+# Measured today, on this repository, by rabadon refusing its own work. The
+# suite redbase_test.sh finished `26 ok, 0 fail` and the gate answered "tests
+# are RED. Fix the failure before moving on." — because one of the things that
+# suite proves is named "carries the real failing output". The word `failing`,
+# inside the NAME of an assertion that PASSED.
+#
+# Same family as BR4a2 above, and the family that decides whether anyone keeps
+# the tool: a supervisor that stops a green run stops being consulted. The
+# counted zero was already being stripped out of the evidence; it simply had no
+# vote. A run that counted its own failures and found none now outranks a loose
+# failure word standing further down the same output.
+#
+# The last arm is what keeps the fix from becoming a hole: a crash string still
+# wins, because `0 failed` next to a segfault is a count describing a run that
+# never reached the end.
+C13="$(mktemp -d)"; RD13="$(mktemp -d)"; : > "$RD13/enabled"; mkdir -p "$C13/.rabadon"
+echo '{"project":"p","testCommand":"npm test"}' > "$C13/.rabadon/guard.json"
+br13() {
+  printf '{"hook_event_name":"PostToolUse","cwd":"%s","session_id":"s13","tool_use_id":"t%s","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_response":{"stdout":"%s"}}' \
+    "$C13" "$RANDOM" "$1" | env $DIFF_ENV RABADON_DIR="$RD13" RABADON_NOTIFY=0 RABADON_JUDGE=0 "$BIN" >/dev/null 2>&1; echo $?
+}
+[ "$(br13 'ok - and carries the real failing output\\nred base: 26 ok, 0 fail')" = "0" ] \
+  && ok "BR13 a suite counting 0 failures is GREEN even when its own text says 'failing'" \
+  || bad "BR13 false red: the word beat the count — this is the bug that refused our own green suite"
+[ "$(br13 'FAILED tests/x.py::test_a\\n1 failed, 5 passed')" = "2" ] \
+  && ok "BR13 a real counted failure is still RED" \
+  || bad "BR13 a genuine red went unnoticed"
+[ "$(br13 'Segmentation fault\\n0 failed')" = "2" ] \
+  && ok "BR13 a crash string still outranks a zero count — the run died before it could count" \
+  || bad "BR13 a segfault was excused by a zero count"
+
 # ---------------- cleanup + verdict ----------------
 rm -f /tmp/pt_*.$$ 2>/dev/null
 rm -rf "$STUBDIR" 2>/dev/null

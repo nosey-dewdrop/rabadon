@@ -105,6 +105,19 @@ C=$(code PreToolUse Bash '{"command":"git push"}')
 [ "$(code PreToolUse Bash '{"command":"npm test --silent"}')" = "0" ] \
   && ok "re-running the check is allowed — that is the escape hatch, and it needs no flag" \
   || bad "the check itself was refused: the red can never be cleared"
+# and the hatch is not spelling-sensitive. The check discovered here is
+# `npm test --silent`; an agent types `npm test`. The first version of this rule
+# compared whole strings and refused that, which shut the only exit from the
+# inside — the exact wedge the carve-out exists to prevent.
+[ "$(code PreToolUse Bash '{"command":"npm test"}')" = "0" ] \
+  && ok "the check counts as the check without its flags (npm test vs npm test --silent)" \
+  || bad "the escape hatch is spelling-sensitive: the session is wedged"
+[ "$(code PreToolUse Bash '{"command":"cd packages/core && npm test"}')" = "0" ] \
+  && ok "and still counts when it is run from a subdirectory" \
+  || bad "running the check from a subdir was refused"
+[ "$(code PreToolUse Bash '{"command":"npm run build"}')" = "2" ] \
+  && ok "but a DIFFERENT npm command is still refused — the carve-out is the check, not the runner" \
+  || bad "any command sharing the runner slipped through: the rule means nothing"
 
 # ---------- 4. a real pass clears it ----------
 printf 'module.exports = () => 1;\n' > "$P/src/a.js"
@@ -115,6 +128,49 @@ settle green \
 [ "$(code PreToolUse Bash '{"command":"git commit -m wip"}')" = "0" ] \
   && ok "and the refusal clears itself — no flag, no restart, no rabadon off" \
   || bad "still refusing after the check went green: the wedge is real"
+
+# ---------- 4b. an edit made through the SHELL is caught too ----------
+# The hole that made everything above half-true. The check used to start only
+# after an Edit/Write tool call, so `sed -i`, a heredoc, `>` or a codegen script
+# broke the project unwatched — and an agent driven by `rabadon run` has no edit
+# tool at all, so for those agents supervision was zero. rabadon asks the
+# filesystem now, not the tool name.
+S="$(mktemp -d)"; RS="$(mktemp -d)"; : > "$RS/enabled"; mkdir -p "$S/src"
+printf '{"name":"s","scripts":{"test":"node test.js"}}' > "$S/package.json"
+printf 'const a=require("./src/a.js");if(a()!==1){console.error("SHELL-BREAK");process.exit(1)}console.log("ok")\n' > "$S/test.js"
+printf 'module.exports = () => 1;\n' > "$S/src/a.js"
+sfire() { printf '{"hook_event_name":"%s","cwd":"%s","session_id":"sh1","tool_name":"%s","tool_input":%s,"tool_response":{"stdout":"x"}}' \
+    "$1" "$S" "$2" "$3" | RABADON_DIR="$RS" "$GATE" 2>&1; }
+ssettle() { for _ in 1 2 3 4 5 6 7 8 9 10; do
+    grep -q "\"verdict\":\"$1\"" "$S/.rabadon/net.json" 2>/dev/null && return 0; sleep 1; done; return 1; }
+printf 'module.exports = () => 2;\n' > "$S/src/a.js"          # the shell edit
+sfire PostToolUse Bash '{"command":"sed -i s/1/2/ src/a.js"}' >/dev/null 2>&1
+ssettle red \
+  && ok "a file changed by a SHELL command starts the check — no edit tool required" \
+  || bad "a shell edit went unchecked: $(cat "$S/.rabadon/net.json" 2>/dev/null || echo 'no verdict at all')"
+SE=$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"sh1","tool_name":"Bash","tool_input":{"command":"git commit -m wip"}}' "$S" \
+  | RABADON_DIR="$RS" "$GATE" >/dev/null 2>&1; echo $?)
+[ "$SE" = "2" ] \
+  && ok "and the break made through the shell stops the next action just the same" \
+  || bad "a shell-made break did not stop anything: $SE"
+
+# and the other direction: a command that changed NOTHING must not burn a suite
+TS1="$(grep -o '"ts":[0-9]*' "$S/.rabadon/net.json")"
+sfire PostToolUse Bash '{"command":"grep -r module src"}' >/dev/null 2>&1
+sleep 2
+TS2="$(grep -o '"ts":[0-9]*' "$S/.rabadon/net.json")"
+[ "$TS1" = "$TS2" ] \
+  && ok "a read-only command runs no suite — supervision does not become a CPU tax" \
+  || bad "an untouched tree still triggered a check ($TS1 -> $TS2)"
+
+# and when the tree is too big to answer, it says so instead of failing quiet
+CAPOUT="$(printf '{"hook_event_name":"PostToolUse","cwd":"%s","session_id":"sh2","tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"stdout":"x"}}' "$S" \
+  | RABADON_DIR="$RS" RABADON_WALK_CAP=1 "$GATE" 2>&1)"
+case "$CAPOUT" in *"did NOT run the check"*)
+  ok "a tree too large to scan is ANNOUNCED — the miss is never silent" ;;
+  *) bad "an unscannable tree failed quietly: $CAPOUT" ;;
+esac
+rm -rf "$S" "$RS"
 
 # ---------- 5. INCONCLUSIVE IS NOT RED ----------
 # The law that decides whether this feature is usable. A timeout, a missing
