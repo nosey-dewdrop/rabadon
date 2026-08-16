@@ -136,6 +136,9 @@ seeing what happened
   export [--otlp]     the ledger in an open format, for your own tooling
 
 acting
+  run -- <agent>      supervise ANY agent, adapted or not: it runs with rabadon
+                      first on its PATH, so the programs it shells out to are
+                      judged before they run. No hook system required.
   exec -- <cmd>       run a command under the project's law AND a kernel sandbox
   do "<task>" [dir]   plan a task into steps and run them under the arbiter
   loop <dir> <plan>   run an existing plan, every step checked before the next
@@ -175,6 +178,7 @@ HELP
   repair)          R="$(nbin repair)" || exit 1; shift; exec "$R" "$@" ;;
   exec)            B="$(nbin sandbox)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
   sandbox)         B="$(nbin sandbox)" || exit 1; shift; exec "$B" "$@" ;;
+  run)             B="$(nbin run)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
   replay)          A="$(nbin audit)" || exit 1; shift; exec "$A" --replay "$@" ;;
   lint)            G="$(nbin gate)" || exit 1; shift; exec "$G" --lint "${1:-.}" ;;
   export)          E="$(nbin export)" || exit 1; shift; exec "$E" "$@" ;;

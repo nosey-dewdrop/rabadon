@@ -45,7 +45,9 @@ From the author's own week, replayable from the spool — a mid-session `wrangle
 ```
 rabadon usage — last 7 day(s) · local, nothing leaves this machine
   (EXAMPLE OUTPUT, captured 2026-07-31. The live numbers move every day and are
-   published at https://rabadon.noseydewdrop.com — this block shows the SHAPE.)
+   published at https://rabadon.noseydewdrop.com — this block shows the SHAPE.
+   The repair counters below were true on that date and are not any more:
+   repairs held has since gone 0 -> 2. See the paragraph under this block.)
 
   61 refused before they happened · 15,178 actions gated · 0 repairs held · 3 unverified
 
@@ -82,7 +84,7 @@ Plus your own laws, authored into `.rabadon/guard.json` (deny rules, protected p
 
 ## What it costs to run
 
-**By default, nothing calls a model.** Every law above is deterministic C++: pattern matching, path resolution, exit codes, hashes. The gate adds ~2.3 ms to a tool call and, when it refuses, a short sentence to the agent's context — measured across this machine's entire ledger, 2,789 refusal texts totalling 410,342 characters, a median of 68 each. Roughly 5k tokens a day.
+**By default, nothing calls a model.** Every law above is deterministic C++: pattern matching, path resolution, exit codes, hashes. The gate adds ~3.1 ms to a tool call and, when it refuses, a short sentence to the agent's context — measured across this machine's entire ledger, 2,789 refusal texts totalling 410,342 characters, a median of 68 each. Roughly 5k tokens a day.
 
 That was not always true, and it is worth saying plainly, because a supervision tool doing this quietly is the thing it exists to prevent. Until this release, installing rabadon signed you up for two `claude -p` calls on your own account from inside a hook: a drift judge every 12th action, and an incident diagnosis the moment your suite went red — up to 30 and 90 seconds of wall clock with your agent stopped dead, waiting, and a second bill beside the one you were already paying. Nothing announced either.
 
@@ -128,7 +130,7 @@ The session guard is one binding of a smaller thing: a runtime that runs work in
 
 `rabadon lens` is the cost half: sessions, tokens and USD read straight off the transcripts Claude Code already writes to disk — no wrapper, no key, and no model call to produce any number.
 
-Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. That refusal is not only about flags. `rabadon trace <run>` is the form the help screen teaches, and the word used to be taken as a file path: the path did not exist, so the renderer fell back to the newest day file and answered with the whole ledger at exit 0 — 20,801 lines, and the run that was asked for was in yesterday's file, not among them. A word that names nothing now ends the run and says which word, and asking for a run that is not in the window exits non-zero with an empty stdout instead of a quiet `(no matching run)` at exit 0. `native/cli_test.sh` discovers the binaries by glob and holds all sixteen to that, **and to being reachable**: `npm i -g rabadon` puts exactly one file on your PATH, so a shipped binary the dispatcher never names is a binary nobody can run. The verb list in that test is parsed out of the dispatcher itself, never typed in.
+Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. That refusal is not only about flags. `rabadon trace <run>` is the form the help screen teaches, and the word used to be taken as a file path: the path did not exist, so the renderer fell back to the newest day file and answered with the whole day's ledger at exit 0, and the run that was asked for was in yesterday's file, not among them. A word that names nothing now ends the run and says which word, and asking for a run that is not in the window exits non-zero with an empty stdout instead of a quiet `(no matching run)` at exit 0. `native/cli_test.sh` discovers the binaries by glob and holds every one of them to that, **and to being reachable**: `npm i -g rabadon` puts exactly one file on your PATH, so a shipped binary the dispatcher never names is a binary nobody can run. The verb list in that test is parsed out of the dispatcher itself, never typed in.
 
 ## Prove it yourself
 

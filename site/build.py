@@ -692,8 +692,12 @@ def benchmarks(rows, meas):
                '28 git has other ways to the same place           <span class="r">28</span>   '
                '<span class="o">git push --forc (git accepts abbreviations), branch -D main, clean -xfd, reset --hard @{u}, rm -rf .git</span>'
                "</div>"
-               '<p class="cap">Enforce mode is not on, and this is the reason. A gate that promises a protection '
-               "it cannot hold is worse than one that says what it stops. Reproduce with "
+               '<p class="cap">Enforce mode IS on, and these are its published limits. This line used to read '
+               '"enforce mode is not on, and this is the reason" — true when it was written, false from the '
+               "day the switch was turned on, and left standing on a page nobody re-read. A claim about the "
+               "machine that outlives the machine is the same defect this project measures in other people's "
+               "numbers. The escapes stay published beside the refusals, because a gate that promises a "
+               "protection it cannot hold is worse than one that says what it stops. Reproduce with "
                "<code>python3 redteam/redteam.py</code>; it judges and never runs, with every destructive "
                "binary shadowed on PATH and the log of what they were asked to do asserted empty.</p>"
                "</section>")

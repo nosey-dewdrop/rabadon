@@ -1,7 +1,7 @@
 {
   "name": "@rabadon/darwin-x64",
   "version": "0.2.3",
-  "description": "rabadon prebuilt native core for darwin-x64 — installed automatically by the 'rabadon' package on this platform.",
+  "description": "rabadon prebuilt native core for darwin-x64 \u2014 installed automatically by the 'rabadon' package on this platform.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,6 +30,7 @@
     "rabadon-claims",
     "rabadon-repair",
     "rabadon-sandbox",
+    "rabadon-run",
     "rabadon-export"
   ]
 }

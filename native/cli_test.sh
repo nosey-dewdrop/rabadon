@@ -517,7 +517,11 @@ out = []
 def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
 
 # a glob that matched nothing would make every assertion below vacuous, so the
-# count itself is asserted: the Makefile builds sixteen today.
+# count itself is asserted. The floor is deliberately a floor and not today's
+# exact count: this line said "sixteen" for the two releases after the Makefile
+# started building seventeen, and a number typed into a comment is the thing
+# this whole file exists to stop trusting. The build is the source; the assertion
+# only refuses a glob that came back empty or half-built.
 rec(len(names) >= 16, "the help probe found %d native binaries to interrogate" % len(names)
     if len(names) >= 16 else
     "the help probe found only %d binaries (%s) — build first, this run proves nothing"

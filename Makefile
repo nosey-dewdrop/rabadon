@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
+all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
 # the OTHER benchmark, and the one the site was quoting without owning: how long
 # rbrules::judge_command takes, in process, over the 34 real cases in the
@@ -55,6 +55,9 @@ native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/d
 
 native/rabadon-serve: native/serve.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -pthread -o $@ $<
+
+native/rabadon-run: native/run.cpp native/rules.h native/cmdtext.h native/pathres.h native/cli_help.h
+	$(CXX) $(CXXFLAGS) -o $@ native/run.cpp
 
 native/rabadon-truth: native/truth.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -660,6 +663,7 @@ test: all
 	./native/budget_test.sh
 	./native/postuse_test.sh
 	./native/agents_test.sh
+	./native/run_test.sh
 	./native/pushgate_test.sh
 # pushgate_test.sh proves the gate runs the suite and reads the real result.
 # this one asks who is allowed to say the suite was green. the gate skipped its
@@ -812,7 +816,7 @@ precision: native/rabadon-gate
 	./native/precision_test.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-export native/gate_bench
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
 .PHONY: all bench clean precision
 

@@ -38,21 +38,28 @@ it unset is timing a gate nobody runs.
 
 | gate   | case  | median    | p95       | n  |
 |--------|-------|-----------|-----------|----|
-| native | allow | 2.29 ms   | 3.36 ms   | 40 |
-| native | deny  | 2.33 ms   | 2.53 ms   | 40 |
-| node   | allow | 100.77 ms | 112.49 ms | 40 |
-| node   | deny  | 102.00 ms | 125.23 ms | 40 |
+| native | allow | 3.14 ms   | 3.87 ms   | 40 |
+| native | deny  | 3.20 ms   | 3.44 ms   | 40 |
+| node   | allow | 100.27 ms | 107.32 ms | 40 |
+| node   | deny  | 101.25 ms | 111.79 ms | 40 |
 
-Median hook tax drops from ~101 ms (node process startup dominates) to 2.3 ms
-(native) — 44x faster at the median. Medians are stable run to run (five runs
-this session: native allow 2.44 / 2.36 / 2.31 / 2.26 / 2.29 ms, node allow
-100.49 / 99.87 / 99.88 / 100.78 / 100.77 ms). The native p95 is noisier on a
-laptop (scheduler / spawn jitter) — the median is the robust number.
+Measured 2026-08-16 with `RABADON_NOTIFY=0 make bench`. Median hook tax drops
+from ~100 ms (node process startup dominates) to 3.1 ms (native), about 32x at
+the median. The native p95 is noisier on a laptop (scheduler / spawn jitter), so
+the median is the robust number.
 
-Every latency figure in README.md and docs/ is this table's number. There is no
-second source, and there is no rounding in either direction.
+This table read 2.29 ms on 31 July. The honest reading of the difference is that
+it is a different binary on a different day and not a regression anybody
+measured — the gate has since grown the multi-agent event normaliser — and two
+numbers taken in separate sessions do not make a difference. Where one number is
+needed, quote this table's, re-run rather than remembered.
 
-One path is deliberately not 2.3 ms: a `git push` after code changed since the
+Judging alone, with the process cost taken out: **245.3 µs** median, p95 361.5
+µs, over 34 real fixture cases at 200 judgements each. That comes from
+`./native/gate_bench.sh`, which refuses to print any number unless the
+in-process judge and the shipped binary first agree on all 34 verdicts.
+
+One path is deliberately not 3.1 ms: a `git push` after code changed since the
 last green test run makes the gate run the project's suite inside that same
 hook call. That is bounded by `pushGate.timeoutSec` (default 900 s), and the
 installed hook ceiling sits above it at 960 s on purpose — if the outer timeout
@@ -136,7 +143,7 @@ Split by what actually happened:
 
 | bucket                                        | 30 days |
 |-----------------------------------------------|---------|
-| repairs **held** — fix re-checked with test files hash-locked | **0** |
+| repairs **held** — fix re-checked with test files hash-locked | **2** |
 | repairs unverified — nothing was locked, so nothing witnessed it | 3 |
 | push gates passed — a suite ran green, nothing was repaired    | 0 |
 | rules written — law was authored, nothing was repaired         | 1 |
@@ -168,7 +175,7 @@ Passive tracers (Langfuse, Braintrust) wrap the client and watch; they cannot
 stop a bad call and cannot repair it. Galileo's inline gate CAN stop a call
 (block or canned override) but does not repair. rabadon is inline, fail-closed,
 pre-spend on real projects (61 real catches in 30 days: stitchu 43, rabadon 12,
-drills excluded), overhead is deterministic C++ at 2.3 ms. The repair loop is
+drills excluded), overhead is deterministic C++ at 3.1 ms. The repair loop is
 proven in the test suite but has held 0 hash-locked repairs on real breakage so
 far.
 
@@ -176,15 +183,24 @@ far.
 
 ## 5. Not yet — the next gate
 
-**repairs held = 0.** `[building]`
+**repairs held = 2.** `[building]`
 
-That number is 0 on every project here, drills included. The repair path is
-proven in-suite (a real repair is accepted, a gamed repair is rejected and the
-loop fails closed) but has never held a hash-locked repair on real, non-demo
-breakage. The 3 the ledger does carry are unverified — the anti-tamper check
-had no test file to hold, so nothing witnessed them, so they do not count. G3 —
-the first HELD repair on real breakage, moving that counter above 0 — is the
-next gate. It stays 0 on this page until it isn't.
+This section read 0 for two weeks after it stopped being 0, which is the exact
+failure the rest of this page exists to guard against: a number kept by hand
+drifts away from the ledger it claims to summarise, and nobody goes back for the
+one that flatters nobody.
+
+The two are on expressjs/express @ a3714473, its own 1,260-test mocha suite in
+the judge's seat, all 91 of its test files hash-locked, the working tree never
+edited. Raw events and both patches: `reports/2026-08-01-g3-first-held-repair/`.
+In the same run a proposal that reached for `describe.skip` was refused as
+test-tamper and the counter did not move.
+
+Two things this number is not. It is not breakage found in the wild — both bugs
+were planted to drive the loop end to end, and the number that matters next is
+the one on breakage nobody planted. And it is not the 46 a raw ledger scan
+shows: 44 of those came from a single scripted pipe inside four minutes, which
+is what `native/drill.h` rule 5 was written to catch and now does.
 
 ---
 
@@ -194,7 +210,7 @@ next gate. It stays 0 on this page until it isn't.
 RABADON_NOTIFY=0 bench/reproduce.sh
 ```
 
-Numbers vary slightly with machine load. The reproducible facts: 2.3 ms native
+Numbers vary slightly with machine load. The reproducible facts: 3.1 ms native
 gate median, 44x median gap over node, 13/13 node==native parity + 53/0 and
 9/0 native suites, 55 real catches on stitchu+rabadon in 30 days (drills
 excluded), and repairs-held = 0.

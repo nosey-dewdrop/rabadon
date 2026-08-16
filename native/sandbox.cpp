@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cerrno>
 #include <ctime>
 #include <fstream>
 #include <sstream>
@@ -303,11 +304,23 @@ int main(int argc, char** argv) {
   rb_help(argc, argv, kHelp);
 
   string dir = ".";
+  // --no-fence and --real exist for ONE caller: the PATH shims `rabadon run`
+  // writes around an agent it knows nothing about. A shim judges one command
+  // and then becomes the real binary, so it must not build a kernel profile
+  // per command (the fence goes around the whole agent, once) and it must exec
+  // the ORIGINAL binary rather than search PATH again, which would find the
+  // shim and recurse forever. The command is still JUDGED as the user typed it,
+  // `git push --force`, not `/usr/bin/git push --force`, because that is the
+  // text every rule in every guard.json was written against.
+  string realBin;
+  bool noFence = false;
   bool denyNet = false, doPrint = false, doCheck = false;
   vector<string> cmd;
   for (int i = 1; i < argc; i++) {
     string a = argv[i];
     if (a == "--dir" && i + 1 < argc) dir = argv[++i];
+    else if (a == "--real" && i + 1 < argc) realBin = argv[++i];
+    else if (a == "--no-fence") noFence = true;
     else if (a == "--deny-net") denyNet = true;
     else if (a == "--print") doPrint = true;
     else if (a == "--check") doCheck = true;
@@ -416,6 +429,20 @@ int main(int argc, char** argv) {
       "(user override: add \"%s\" to disabled[] in .rabadon/guard.json)\n",
       v.id.c_str(), v.why.c_str(), v.detail.c_str(), v.id.c_str());
     return 2;
+  }
+
+  // A shim has already been judged above; the fence is somebody else's job.
+  if (noFence) {
+    vector<string> run = cmd;
+    if (!realBin.empty()) run[0] = realBin;
+    vector<char*> bare;
+    for (auto& c : run) bare.push_back((char*)c.c_str());
+    bare.push_back(nullptr);
+    execv(run[0].c_str(), bare.data());
+    // execv, not execvp: the shim dir is first on PATH and a search would find
+    // this shim again. A missing real binary is the caller's problem to report.
+    fprintf(stderr, "rabadon: could not run %s: %s\n", run[0].c_str(), strerror(errno));
+    return 127;
   }
 
   const bool wantsEnforcement = !prefixes.empty() || netDeny;
