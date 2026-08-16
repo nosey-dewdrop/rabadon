@@ -1,0 +1,85 @@
+rabadon prove — ILK SUPURME, GERCEK TARIH UZERINDE
+2026-08-16
+
+Iki elle secilmis vaka bir dagilim degil. Bu, bir reponun KENDI gecmisinde,
+kaynak VE test'e birlikte dokunan commit'lerin hepsini secmeden gecirmek.
+`native/prove_sweep.sh` yaziyor; commit'ler sonucu iyi gorunsun diye degil,
+degisikligin SEKLINE gore seciliyor.
+
+KOSU 1 — pallets/markupsafe, 12 commit
+  kontrol: PYTHONPATH=src python3 -m pytest tests -q   (agactan yuklenen saf python)
+
+  ILK HAL (silme probu YOKKEN):
+    TEST_PASSES_BOTH_WAYS   5
+    UNPROBED                2
+    NO_COUNTERFACTUAL       2
+    PROVEN_WITH_TEST_EDIT   1
+    NO_OUTPUT               1
+    MIXED_FILE_UNPROVABLE   1
+
+  Bu 5'i yayinlamak YANLIS OLURDU. Elle bakinca hepsi baska sebepten:
+    643a70a44 "Adopt multi-phase init"   -> src/markupsafe/_speedups.c, C uzantisi
+    8cb1691ca "relax speedups str check" -> ayni dosya
+      Kontrol saf-python yolundan kosuyor, C uzantisi hic derlenmiyor.
+      O dosyayi geri almak calisma zamaninda HICBIR SEYI degistirmiyor.
+      Test zayif degil, kod hic calismiyor.
+    53d3f4548 "check types with pyright" -> tip annotasyonu
+    a4f3da914 "type check tests"         -> tip annotasyonu
+    7e4e6ce24 "Free-threading: pytest-run-parallel" -> CI ayari
+      Uctur davranis iddiasi degil.
+
+  SILME PROBU EKLENDIKTEN SONRA (kaynak dosyalari komple sil, kontrolu kos;
+  hala yesilse o kod hic calismiyor demektir):
+    NOT_EXERCISED           4     <- 5'in 4'u dogru yerine tasindi
+    UNPROBED                2
+    NO_COUNTERFACTUAL       2
+    TEST_PASSES_BOTH_WAYS   1
+    PROVEN_WITH_TEST_EDIT   1
+    NO_OUTPUT               1
+    MIXED_FILE_UNPROVABLE   1
+
+  Kalan tek TEST_PASSES_BOTH_WAYS: 53d3f4548 "check types with pyright".
+  __init__.py'ye dokunuyor, o dosya GERCEKTEN calisiyor (silinince suite kirmizi),
+  ve annotasyonlari geri almak davranisi degistirmiyor. Yani hukum teknik olarak
+  dogru ama ilginc degil: davranis iddiasi olmayan bir commit. Ayri bir kelime
+  gerekiyor (NOT_A_BEHAVIOUR_CLAIM), yazilmadi.
+
+KOSU 2 — ayni repo, venv + `pip install -e .` ile (C uzantisi GERCEKTEN derleniyor)
+  3 commit, ucu de NOT_EXERCISED.
+
+  BU BEKLENTIYI COURUTTU ve daha onemli bir sey gosterdi. C uzantisi derlenmis
+  olsa bile silme probu ise yaramiyor, cunku:
+    - probe src/markupsafe/_speedups.c dosyasini siliyor
+    - ama venv icinde DERLENMIS .so duruyor ve suite onu yukluyor
+    - dolayisiyla suite yesil kaliyor ve prob "calismiyor" diyor
+  Yani SILME PROBU YALNIZCA agactan dogrudan yuklenen kod icin gecerli.
+  Derlenen ya da kurulan kod icin, prob ile kontrol arasinda yeniden derleme
+  sart; yoksa prob anlamsiz.
+
+  Bu, plandaki 5. riskin (bayat turetilmis artefakt) probun kendisinde
+  atesienmesi. Kayda geciyor, calisilmadi.
+
+KOSU 3 — tj/commander.js c635fad50 (tek commit, elle)
+  kontrol: npx jest --silent
+  post GREEN / counter GREEN / gone RED / TEST_PASSES_BOTH_WAYS, exit 1
+  lib/*.js jest tarafindan agactan yukleniyor, yani silme probu burada gecerli:
+  silinince kirmizi, geri alininca yesil. Testler kodu calistiriyor ama
+  degisikligi ayirt etmiyor. GERCEK bulgu bu.
+
+BUGUNKU DURUST OZET
+  - Motor calisiyor ve gercek kodda gercek bir bulgu uretti (commander.js).
+  - Gercek tarih uzerinde KANIT ORANI DUSUK. markupsafe'te 12 commit'in 2'si
+    karara baglandi.
+  - Dusuk olmasinin sebepleri artik mekanik ve sayili, gizemli degil:
+      (a) commit'lerin cogu davranis iddiasi degil (tip, CI, lint, bagimlilik)
+      (b) silme probu derlenen/kurulan kodu goremiyor
+      (c) bazi commit'ler agaca temiz uygulanmiyor (UNPROBED)
+      (d) kaynak ve test ayni dosyadaysa kesilemiyor (MIXED)
+  - Yani bir sonraki is bellidir: (a) icin bir on-siniflandirma, (b) icin
+    prob ile kontrol arasinda yeniden derleme.
+
+OLCULMEYEN
+  - Tek repo, tek dil. Dagilim degil.
+  - commander.js icin supurme kosulmadi (jest suite'i her agacta dakikalar
+    suruyor; 6-8 kosu x N commit bu gece bitmezdi).
+  - Kanit orani, duzeltilmis prob ile yeniden olculmedi.

@@ -407,10 +407,42 @@ int main(int argc, char** argv) {
     if (cPre[0] != 0)
       r.why += " (the pre-change tree is also red, so the check was already failing before any of this.)";
   } else if (nTest > 0) {
-    r.verdict = "TEST_PASSES_BOTH_WAYS";
-    r.why = "the change ships tests, and those tests pass with the source put back. The change's own "
-            "tests do not test the change.";
-    r.exitCode = 1;
+    // The counterfactual stayed green. Before saying the tests are weak, rule
+    // out the cheaper explanation: the check may never execute this code at all.
+    //
+    // This is not hypothetical. The first sweep over markupsafe's history read
+    // five commits as "tests do not test the change", and two of them edited
+    // src/markupsafe/_speedups.c — a C extension the check never compiled,
+    // because the run took the pure-python fallback. Reverting that file changes
+    // nothing at runtime, so of course the suite stayed green. Calling that a
+    // weak test is an accusation the evidence does not support.
+    //
+    // The probe needs no oracle either: DELETE the changed source files and run
+    // the check. If it still passes, those files are not on the path the check
+    // takes, and the question of whether the tests distinguish them never
+    // arises.
+    const string gone = string(work) + "/gone";
+    run("cp -R '" + post + "' '" + gone + "'", "/", &o, 300);
+    for (const auto& s : secs)
+      if (s.cls.kind == rbclass::SOURCE) run("rm -f '" + s.path + "'", gone, &o, 30);
+    string gout;
+    int grc = run(cmd, gone, &gout, timeoutSec);
+    write_file(string(work) + "/gone.0.log", gout);
+    printf("    %-8s exit=%d%s   (source files deleted outright)\n", "gone", grc,
+           grc == 0 ? "   GREEN" : "   RED");
+    if (grc == 0) {
+      r.verdict = "NOT_EXERCISED";
+      r.why = "the check still passes with the changed source DELETED, so it never runs that code. "
+              "Nothing can be proved about a change to a file the check does not execute — this is "
+              "not a weak test, it is an unexercised file.";
+      r.exitCode = 2;
+    } else {
+      r.verdict = "TEST_PASSES_BOTH_WAYS";
+      r.why = "the change ships tests; deleting the changed source turns the check red, so the code "
+              "IS executed — and yet putting the source back leaves the check green. The change's own "
+              "tests do not distinguish it.";
+      r.exitCode = 1;
+    }
   } else {
     r.verdict = "NO_COUNTERFACTUAL";
     r.why = "the check stays green with the source put back, and the change adds no test. Either it is "
