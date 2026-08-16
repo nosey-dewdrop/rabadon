@@ -275,9 +275,27 @@ def withhold_reason(blob):
 
 
 def clean(s, limit=400):
+    """Published free text, with the home path, the account name and every
+    withheld project name taken out of it.
+
+    The withheld names were handled one layer up — a whole RECORD carrying one
+    was dropped — and that covered the ledger and nothing else. A withheld name
+    reaches published bytes in shapes no record-level drop can see: inside a
+    rule id (`no-blanket-add-<name>`), inside a proof command a finding quotes,
+    inside a sentence a rule gives as its own reason. Five published artifacts
+    on this machine carried one on 16 August, and leaks() had been reporting it
+    correctly for as long as the name had been on the list — every generator
+    simply asked something else.
+
+    Substituted, not dropped, and the difference is the point: dropping the
+    surrounding text would delete a real rule from a census whose whole claim is
+    that it counts every rule. The rule is still counted, still named, and the
+    part of its name that is not ours to publish reads `(withheld)`."""
     if not s:
         return ""
     s = unhome(s).replace(USER, "home")
+    if _PROJECT_RE is not None:
+        s = _PROJECT_RE.sub("(withheld)", s)
     return s[:limit] if limit else s
 
 
@@ -314,4 +332,20 @@ def project_of(pipe):
     if _ENCODED_KEY.match(p):
         rest = FOREIGN_KEY.sub("", p.replace(ENCODED_HOME, ""), count=1).strip("-")
         p = rest.rsplit("-", 1)[-1] if rest else USER
-    return "home" if p == USER else p
+    p = "home" if p == USER else p
+    # AND THE WITHHELD LIST APPLIES HERE TOO. It did not, and the docstring
+    # above is where the gap hid: project names are published on purpose, so
+    # this function was written to produce one and never asked whether THIS one
+    # was allowed out. The record-level drop covered the ledger lines; the
+    # aggregate that says which project a rule lives in never went through that
+    # drop, so a withheld name reached site/measured.json and site/field.html
+    # and survived every publish. leaks() named it correctly the whole time —
+    # nothing on this path was asking it.
+    #
+    # One constant for every withheld name, not a distinct placeholder each.
+    # Distinct labels would publish HOW MANY withheld projects exist and let
+    # rows be correlated across pages, which is a fact about the operator's work
+    # that the withholding is there to keep.
+    if _project_hit(p):
+        return "(withheld)"
+    return p

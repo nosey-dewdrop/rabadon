@@ -71,9 +71,15 @@ FIXTURE PREMISE — checked before any green is believed
 
 WHAT THE NUMBER COUNTS
     Rules, not events.  A rule that refuses twice is one rule.  And a rule is
-    keyed by (guard, id), never by (project, id): three separate stitchu
-    checkouts on this machine each carry a rule called `no-force-push-main`,
+    keyed by (guard, id), never by (project, id): three separate checkouts of
+    one project on this machine each carry a rule called `no-force-push-main`,
     and keying on the project name silently merges 16 of the 430 away.
+
+    The project was named here by name until 16 August, and it is a withheld
+    one. This file is served from the directory it helps redact, so an example
+    written into its own prose is published on the domain and in the public
+    repository — the same door site/redact.py already warns about, entered
+    through documentation. Illustrations here stay generic.
 
 WHAT IS MEASURED IS NOT WHAT IS PUBLISHED
     The census is taken on this machine, over this machine's guard files, so

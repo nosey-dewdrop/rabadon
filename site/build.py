@@ -736,7 +736,13 @@ def ledger():
                 dirs.add(str(d["pipe"]).split(":")[0])
             if d.get("ev") != "WOULD_BLOCK":
                 continue
-            rule = str(d.get("rule", "?"))
+            # THE RULE ID GOES THROUGH THE REDACTOR TOO. A rule is named by the
+            # person who wrote it, in the project it protects, so the id itself
+            # carries a project name often enough — `no-blanket-add-<project>`
+            # reached site/catches.html and stayed there through every publish.
+            # Nothing on this page is authored; every string is lifted off the
+            # ledger, so an id had never been treated as text that can disclose.
+            rule = redact.clean(str(d.get("rule", "?")), limit=None)
             if d.get("drill"):
                 drill[rule] += 1
                 continue
