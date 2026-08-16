@@ -1,3 +1,6 @@
+{"ev": "STOP", "rule": "no-blind-inplace-source-rewrite", "project": "rabadon", "ts": 1786838515175, "detail": "command matched deny rule: cd ~/damla_projects_2026/rabadon && sed -i '' 's|#include <cstring>|#include <cstring>\\n#include <cerrno>|' native/sandbox.cpp && make native/rabadon-sandbox 2>"}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786837908399, "detail": "command matched deny rule: git commit -m \"wip\""}
+{"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786837577676, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "no-exit-code-after-pipe", "project": "home", "ts": 1786835750639, "detail": "command matched deny rule: LAB=$(cat /tmp/stranger.txt)\necho \"### rabadon çalışıyor mu\"\nenv -u RABADON_DIR HOME=\"$LAB/home\" \"$LAB/pfx/bin/rabadon\" --version 2>&1 | head -5; echo \"exit"}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786835211575, "detail": "command matched deny rule: git commit -m \"wip\""}
 {"ev": "STOP", "rule": "semantic-commit-required", "project": "fixed", "ts": 1786754435883, "detail": "command matched deny rule: git commit -m \"wip\""}
