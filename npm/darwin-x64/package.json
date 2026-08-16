@@ -31,7 +31,6 @@
     "rabadon-repair",
     "rabadon-sandbox",
     "rabadon-run",
-    "rabadon-prove",
     "rabadon-export"
   ]
 }

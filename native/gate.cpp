@@ -1581,7 +1581,7 @@ int main(int argc, char** argv) {
   //         have caught, in your repo, on your work." Nobody hands a new tool
   //         write access to their codebase on day one; this is how the door
   //         opens. It is a free tier by construction, never the product.
-  // ENFORCE the arbiter acts: refuse, repair, prove.
+  // ENFORCE the arbiter acts: refuse, stop, repair.
   const char* offEnv = getenv("RABADON_OFF");
   const string rhome = rabadon_home();
   if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")

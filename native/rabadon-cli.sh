@@ -136,9 +136,6 @@ seeing what happened
   export [--otlp]     the ledger in an open format, for your own tooling
 
 acting
-  prove [--patch F]   did this change actually cause anything? Puts the source
-                      half back, leaves the tests, and re-runs the check. A
-                      change whose removal keeps the suite green proved nothing.
   run -- <agent>      supervise ANY agent, adapted or not: it runs with rabadon
                       first on its PATH, so the programs it shells out to are
                       judged before they run. No hook system required.
@@ -182,7 +179,6 @@ HELP
   exec)            B="$(nbin sandbox)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
   sandbox)         B="$(nbin sandbox)" || exit 1; shift; exec "$B" "$@" ;;
   run)             B="$(nbin run)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
-  prove)           B="$(nbin prove)" || exit 1; shift; exec "$B" --dir "$(pwd)" "$@" ;;
   replay)          A="$(nbin audit)" || exit 1; shift; exec "$A" --replay "$@" ;;
   lint)            G="$(nbin gate)" || exit 1; shift; exec "$G" --lint "${1:-.}" ;;
   export)          E="$(nbin export)" || exit 1; shift; exec "$E" "$@" ;;

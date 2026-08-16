@@ -1,14 +1,12 @@
 // classify.h — is this path source, test, harness, or neither. (C++17)
 //
 // WHY THIS FILE EXISTS
-// Three callers now need the same answer and each had grown its own copy:
-// truth.cpp decides what to LOCK, repair.cpp decides what a proposal may not
-// TOUCH, and prove.cpp decides which half of a diff to REVERT. The third one is
-// what forced the merge, because it is the one where a wrong answer is silent.
-// If a test file is read as source, `prove` reverts it, the suite goes red for
-// the wrong reason, and a change that proves nothing is reported PROVEN. A
-// false green is worse than a false red, and three copies of a heuristic drift
-// until one of them is wrong.
+// Two callers need the same answer and each had grown its own copy: truth.cpp
+// decides what to LOCK, repair.cpp decides what a proposal may not TOUCH. A
+// wrong answer here is silent — if a test file is read as source, a repair is
+// allowed to edit the very thing that judges it, and the green it buys means
+// nothing. A false green is worse than a false red, and two copies of a
+// heuristic drift until one of them is wrong.
 //
 // Every rule below came out of a repository that broke it, and the comments say
 // which one. That history is the value here — the rules read like arbitrary
@@ -31,7 +29,7 @@ using std::string;
 
 enum Kind {
   SOURCE,    // code a behaviour change lives in
-  TEST,      // the suite. Locked by repair, never reverted by prove.
+  TEST,      // the suite. Locked by repair, never editable by a proposal.
   HARNESS,   // decides WHICH tests run (package.json, pytest.ini, jest.config)
   DOC,       // prose
   ARTIFACT,  // binary or generated
