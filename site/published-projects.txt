@@ -1,0 +1,46 @@
+# published-projects.txt — the project names that MAY appear in site/ artifacts.
+#
+# WHY THIS FILE EXISTS, AND WHY IT IS THE OPPOSITE OF THE OTHER LIST.
+# site/redact.py withholds names found on a PRIVATE list the operator keeps at
+# ~/.rabadon/redact/projects.txt, outside this tree, because a list of private
+# repository names committed to a public repo would publish exactly what it is
+# meant to hide. That design is right and it stays.
+#
+# But it means the check is default-ALLOW: a name is published unless somebody
+# remembered to add it to a file that only exists on one machine. Measured on
+# 2026-08-17: 58 distinct project names were published in site/ artifacts and
+# ZERO of them were on the private list. CI cannot catch this class at all —
+# it has no private list, so name-based withholding does nothing there and the
+# suite passes on blindness rather than on cleanliness.
+#
+# So this file inverts the default. It is PUBLIC, it is committed, and a
+# project name may appear in a published artifact only if it is named here.
+# A name nobody has decided about is refused, not published. CI can enforce
+# that without ever learning a private name.
+#
+# HOW TO ADD A NAME: decide, deliberately, that this name may be public, then
+# add it on its own line with the reason. Adding a name is a disclosure
+# decision and belongs to the operator, not to a session.
+#
+# Checked by: site/allowlist.py, driven by native/published_allowlist_test.sh.
+# One name per line. Blank lines and #-comments ignored. Matching is exact.
+
+# --- this project ----------------------------------------------------------
+rabadon
+
+# --- the marker redaction leaves behind, not a project ---------------------
+(withheld)
+
+# --- public open-source repositories rabadon was measured against ----------
+# These are third-party public repos; naming them discloses nothing that their
+# own GitHub pages do not, and the benchmark claims are worthless without them.
+rails
+redis
+terraform
+airflow
+apache-airflow
+discourse
+goose
+crush
+llama.cpp
+LMCache

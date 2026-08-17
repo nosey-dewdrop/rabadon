@@ -766,6 +766,15 @@ test: all
 # repository — it is public — so sections 1-4 write their own list and are as
 # red on a runner as they are here.
 	./native/publish_redaction_test.sh
+# publish_redaction_test.sh asks whether a name on the operator's PRIVATE list
+# got out. A runner has no such list, so its section 6 passes there on blindness
+# rather than on cleanliness. This one asks the inverse question against a
+# PUBLIC committed allowlist — was this name DECIDED? — which a runner can
+# answer without ever learning a private name. Measured 2026-08-17: 72 project
+# names published under site/, 12 decided, 60 not. It is RED until the operator
+# triages them, and an allowlist seeded with everything already published would
+# have been a check that cannot turn red.
+	./native/published_allowlist_test.sh
 # and whether the page gets republished at all. site_claims_test.sh asks whether
 # a number can be walked back to a run; this asks whether the number the public
 # reads is the number the ledger holds. Between 25 July and 3 August the only
