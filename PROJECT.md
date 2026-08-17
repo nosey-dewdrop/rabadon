@@ -337,6 +337,32 @@ Those were minted while the base was red and publishing is paused, so they
 were restored with `git restore`, not committed. A test suite that rewrites
 published files is a hazard on its own.
 
+CI VERIFIED (run 32021838705, commit db2d954): `red base: 26 ok, 0 fail` on
+BOTH platforms — macos-15 and ubuntu-latest — alongside `gate postuse: 88 ok,
+0 fail` and `contract: 35 ok, 0 fail`. This is the first time since `7ffb0fb`
+that CI got past redbase. The run is still red, and only at
+`publish_redaction`.
+
+AND THE LEAK IS WORSE THAN A FAILING TEST: CI CANNOT SEE IT. Locally that
+suite reports 26 passed / 2 failed; on CI it reports 27 passed / 1 failed.
+The difference is the section that checks the real site/ artifacts. The
+withheld-terms list lives at `~/.rabadon/redact/projects.txt`, deliberately
+outside the tree (`site/redact.py:60-77`: a list of private repo names written
+into a public repo would be published twice over). CI has no such file, so
+name-based withholding does nothing there and the check passes on BLINDNESS,
+not on cleanliness. `stitchu` appears 3 times in the operator's terms file and
+once each in the tracked, published `site/field.html` and
+`site/measured.json`. So: this class of leak can only ever be caught on the
+operator's machine, and `make test` green on CI is not evidence that site/ is
+clean.
+
+The causal chain, for the next session: redaction bookkeeping is broken
+(withheld 0 of 3, and the four rule names survive) -> a withheld project name
+flowed into the generated site artifacts -> those artifacts were committed and
+published. Fixing the bookkeeping is the root; scrubbing the two files is the
+consequence; making CI able to fail on this without publishing the terms list
+is the third, open question.
+
 NEXT: fix the redaction path so the withheld count is 3 of 3 and no
 published artifact under site/ carries a withheld project name.
 
