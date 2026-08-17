@@ -92,7 +92,13 @@ SCRATCH_ROOTS = {"tmp", "temp", "var", "private", "folders"}
 # to (from the account name, and from the dash-encoded absolute path — both
 # spellings, because they were the same session all along). A home directory is
 # not a project, and the label was never a name; it was a redaction.
+#
+# `~` is the same directory in the OTHER spelling redact.py produces — the one
+# unhome() leaves in a path. The machine-wide guard lives at `~/.rabadon/
+# guard.json`, so reading a project identity off that path gives `~`, and seven
+# rules were published under it as though the home directory were a repository.
 HOME_LABEL = "home"
+HOME_PATH_LABEL = "~"
 
 # a record with no project recorded. It is not a place and it must never be
 # folded into one — a redaction may hide a fact, never invent one.
@@ -208,8 +214,9 @@ def identity_of(pipe, non_projects=None):
     if label in MARKERS:
         return ({LAB: "lab", NO_PROJECT: "none"}.get(label, "withheld"), label)
 
-    # 4. the home directory, under either spelling (site/redact.py folded both).
-    if label == HOME_LABEL:
+    # 4. the home directory, under any of its spellings — the account-name fold
+    #    site/redact.py performs, and the `~` an unhomed path leaves behind.
+    if label in (HOME_LABEL, HOME_PATH_LABEL):
         return ("none", NO_PROJECT)
 
     # 5. a dot-directory is configuration or state — `.claude`, `.reachprobe`.
@@ -247,6 +254,24 @@ def identity_of(pipe, non_projects=None):
 def project_label(pipe, non_projects=None):
     """The string a published record carries in its `project` field."""
     return identity_of(pipe, non_projects)[1]
+
+
+def published_label(pipe, non_projects=None):
+    """REDACTION FIRST, IDENTITY SECOND, and the order is the whole argument.
+
+    site/redact.py decides whether a name may leave this machine at all: it
+    folds the two spellings of the home directory together and replaces a name
+    on the operator's private withhold list with a marker. This module then
+    decides what the surviving label DENOTES.
+
+    Running them the other way round would ask "is this a project?" of a string
+    that has not been through the withhold list yet, and any label this module
+    rewrote — a spelling normalised, a lab collapsed — would reach redact.py in
+    a spelling the private list was not written in. The withheld name would
+    walk out under a label that looks tidy. Every generator that publishes a
+    project name calls THIS function, so there is one order and it is this one."""
+    from redact import project_of      # local: identity.py stands alone in tests
+    return project_label(project_of(pipe), non_projects)
 
 
 def is_lab(pipe):

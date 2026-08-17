@@ -80,6 +80,7 @@ want "(no project)"           "none (no project)"    "(no project) re-resolves t
 want "-"                      "none (no project)"    "a record with no project recorded says so"
 want ""                       "none (no project)"    "and so does an empty label"
 want "home"                   "none (no project)"    "the home directory is not a project"
+want "~"                      "none (no project)"    "and it is not one in the spelling an unhomed path leaves either"
 want ".claude"                "none (no project)"    "a dot-directory is configuration, not a project"
 want ".reachprobe"            "none (no project)"    "including a dotted probe tree"
 want "tmp"                    "none (no project)"    "the system scratch area is not a project"

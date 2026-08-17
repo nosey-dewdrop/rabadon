@@ -28,8 +28,20 @@
 # --- this project ----------------------------------------------------------
 rabadon
 
-# --- the marker redaction leaves behind, not a project ---------------------
+# --- the markers, not projects ---------------------------------------------
+# None of these three is a name. Each one is what site/identity.py writes when
+# the label on a record does not denote a project, and each is a CONSTANT on
+# purpose: a distinct marker per withheld project would publish how many there
+# are, and a distinct one per lab tree would do the same for the harness.
+# Deciding about them once is deciding about no repository at all.
+#
+# the name redaction took out                     (site/redact.py)
 (withheld)
+# a tree rabadon made to exercise itself          (site/identity.py)
+(lab)
+# a directory that is not a project root: the home directory, the projects
+# root, a system scratch path, a dot-directory   (site/non-projects.txt)
+(no project)
 
 # --- public open-source repositories rabadon was measured against ----------
 # These are third-party public repos; naming them discloses nothing that their

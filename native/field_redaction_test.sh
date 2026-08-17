@@ -44,6 +44,10 @@ cp "$REPO/site/field_stats.py" "$T/repo/site/field_stats.py"
 # generator could publish through the same one; the isolated site/ needs both
 # files or the script under test cannot import itself into existence.
 cp "$REPO/site/redact.py" "$T/repo/site/redact.py"
+# field_stats.py imports site/identity.py to answer what a project label
+# denotes; a fixture without it tests an ImportError, not a generator.
+cp "$REPO/site/identity.py" "$T/repo/site/identity.py"
+cp "$REPO/site/non-projects.txt" "$T/repo/site/non-projects.txt"
 
 # the record the gate really wrote, with the home path cut mid-account-name.
 # `alicewond` is what is left of `$FAKEHOME` after a clip, the same shape as the

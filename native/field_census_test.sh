@@ -32,6 +32,10 @@ cp "$REPO/site/field_stats.py" "$T/repo/site/field_stats.py"
 # generator could publish through the same one; the isolated site/ needs both
 # files or the script under test cannot import itself into existence.
 cp "$REPO/site/redact.py" "$T/repo/site/redact.py"
+# field_stats.py imports site/identity.py to answer what a project label
+# denotes; a fixture without it tests an ImportError, not a generator.
+cp "$REPO/site/identity.py" "$T/repo/site/identity.py"
+cp "$REPO/site/non-projects.txt" "$T/repo/site/non-projects.txt"
 
 # three rules the ledger says were authored after an incident
 python3 - "$FAKEHOME/.rabadon/spool/2026-08-03.jsonl" <<'PY'

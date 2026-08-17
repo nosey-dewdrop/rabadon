@@ -23,6 +23,10 @@ from collections import Counter, OrderedDict
 # site/rule_census.py publishes the census through it; the pages are built
 # from the same ledger and must not be redacted by a different rule.
 import redact
+# and the one answer to what a label denotes, for the same reason: these pages
+# render the same project column the data files publish, and two spellings of
+# that column means a page and its own dataset disagree in public.
+import identity
 
 REPO_URL = "https://github.com/nosey-dewdrop/rabadon"
 SEP = "\x1f"  # unit separator: safe inside a commit subject, unlike | or tab
@@ -776,7 +780,13 @@ def ledger():
             # left the account name standing in the project column, because a
             # session started in the home directory is named after the DIRECTORY
             # and that directory is the operator's account.
-            proj = redact.project_of(str(d.get("pipe", "?")))
+            # AND THE SAME IDENTITY THE DATA FILES USE, for the same reason.
+            # redact.project_of answers "may this name leave the machine"; it
+            # does not answer "is this a project". The column carried the home
+            # directory, the projects root and a scratch tree as if each were a
+            # repository, and the hand-written gloss table below is where that
+            # was papered over rather than fixed.
+            proj = identity.published_label(str(d.get("pipe", "?")))
             projects[proj] += 1
             per.setdefault(proj, Counter())[rule] += 1
             det = redact.clean(str(d.get("detail", "")), 0)
@@ -878,10 +888,13 @@ def catches(meas):
     # away: a session started in the home directory used to arrive here spelled
     # as the operator's account, and this table was the last place on the site
     # that spelling was written down by hand.
-    NICE = {"home": "the home directory itself",
-            "damla_projects_2026": "the projects root",
-            "icerik": "the writing repository",
-            "p": "a scratch repository"}
+    # three of the four entries here used to gloss a label that names no
+    # project — the home directory, the projects root, a scratch tree. They are
+    # one answer now, resolved in site/identity.py rather than glossed here.
+    NICE = {identity.NO_PROJECT: "sessions that were not in a project: the home "
+                                 "directory, the projects root, a scratch tree",
+            identity.LAB: "rabadon's own probe and fixture trees",
+            "icerik": "the writing repository"}
     out.append("<section><h2>project by project</h2>"
                '<p class="small dim">Each line is the sentence the ledger wrote at the moment the gate ruled '
                "against the command, with the home path stripped and nothing else changed. These are "

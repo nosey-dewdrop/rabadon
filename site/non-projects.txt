@@ -36,5 +36,12 @@ lab  fixed
 none spool
 
 # The directory the project directories live IN. `ls ~/damla_projects_2026`
-# lists the projects; the container is not one of them.
+# lists the projects; the container is not one of them. site/build.py's own
+# gloss table has said so since it was written: "the projects root".
 none damla_projects_2026
+
+# site/build.py's gloss table again: "a scratch repository". Ten ledger records
+# on one day (2026-08-01), and the step text is a walk of misspelled force-push
+# variants — `git push --for`, `git push --forc`, `xargs -I{} git push -fu` —
+# which is a probe of the deny pattern, not work.
+none p

@@ -35,7 +35,14 @@
 # module now, and both generators import it.
 import collections, glob, json, os, sys, time
 
+import identity
 import redact
+# the laboratories and the project label both moved to site/identity.py. They
+# were private to this file, so the two other generators that publish a project
+# name — site/rule_census.py and site/build.py — could not see either one, which
+# is the same failure the redactor was pulled out of this file to fix.
+from identity import (FIXTURE, LAB_EXACT, LAB_PREFIX,  # noqa: F401
+                      is_lab, published_label)
 from redact import (SENSITIVE, USER, clean, leaks, project_of,  # noqa: F401
                     unhome, withhold_reason)
 
@@ -43,23 +50,14 @@ HOME = os.path.expanduser("~")
 SPOOL = os.path.join(HOME, ".rabadon", "spool", "*.jsonl")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# runs made to exercise the engine. `<name>:session` is a real session in a repo
-# called <name>; everything here is a harness, a demo or a scratch tree.
-# "A:session" is the scratch repository the repair harness builds: 50 REPAIR_OK
-# in a single day (2026-08-05), every one with an empty detail, interleaved with
-# REPAIR_FAIL — the shape of a suite walking its cases, not of work. It was not
-# on this list, so /catches counted those 50 as repairs held on real work and
-# published 102 where the honest number is a fraction of it.
-LAB_EXACT = {"vibecoded-demo", "llm-repair-live", "do-test:do", "do-test", "A:session"}
-LAB_PREFIX = ("tmp.", "rabadon-", "test-", "scratch")
-# the fixtures the engine was proven against. real repositories, but visited to
-# BE measured, so they are reported separately from the operator's own work.
-FIXTURE = {"express:session", "goose:session", "crush:session"}
-
-def is_lab(pipe):
-    if pipe in LAB_EXACT:
-        return True
-    return any(pipe.startswith(p) for p in LAB_PREFIX)
+# LAB_EXACT, LAB_PREFIX, FIXTURE and is_lab() are imported above. They lived
+# here, as a private set inside one of the three generators that publish a
+# project name, and the other two therefore disagreed with this one: the
+# allowlist check counted rabadon's own probe trees as projects awaiting a
+# disclosure decision, because nothing outside this file had ever heard of the
+# list. They are in site/identity.py now, beside the rest of the question they
+# were half of — what does this label denote — and the reason each entry is on
+# the list is written there.
 
 
 def live_rules():
@@ -86,7 +84,16 @@ def live_rules():
                 g = json.load(open(path, encoding="utf-8"))
             except Exception:
                 continue
-            proj = project_of(g.get("project") or os.path.basename(os.path.dirname(os.path.dirname(path))))
+            # WHERE A GUARD LIVES, NOT WHAT IT CALLS ITSELF. This read the
+            # guard's self-declared `project` key first and fell back to the
+            # directory. That key is a nickname: 10 of the 63 guards on this
+            # machine declare a name their directory does not have, and four of
+            # those are a second spelling of a project the ledger already names
+            # the other way — so the same project was published twice, under two
+            # names, and counted as two. Two more declare a name their directory
+            # has nothing to do with, which published a second name for a project
+            # nobody had decided to publish once.
+            proj = published_label(identity.from_guard_path(path))
             for r in g.get("bash") or []:
                 rid = r.get("id")
                 if rid:
@@ -150,7 +157,7 @@ def main():
     wb = evs(field, "WOULD_BLOCK")
     wb_own = evs(own, "WOULD_BLOCK")
     by_rule = collections.Counter(r.get("rule") or r.get("reason") or "-" for r in wb)
-    by_proj = collections.Counter(project_of(r.get("pipe")) for r in wb)
+    by_proj = collections.Counter(published_label(r.get("pipe")) for r in wb)
 
     # STOP: enforce mode refused and the command never ran.
     stop = evs(field, "STOP")
@@ -177,7 +184,7 @@ def main():
         if step.startswith("new gate: "):
             rules.append({
                 "rule": step[len("new gate: "):],
-                "project": project_of(r.get("pipe")),
+                "project": published_label(r.get("pipe")),
                 "ts": r.get("ts", 0),
                 "kind": r.get("repair_kind", ""),
             })
@@ -188,6 +195,23 @@ def main():
     for r in rules:
         r["live"] = r["rule"] in here
         r["in"], r["why"] = here.get(r["rule"], ("", ""))
+
+    # AND A RULE ID IS FREE TEXT, so it goes through the redactor like free text.
+    #
+    # The engine names a rule after what it is about, and one of them is named
+    # after a withheld project: the id ends in the repository's name. The id was
+    # published verbatim here — no `project` field carried the name, so the
+    # allowlist could not see it, and withhold_reason is applied to field.jsonl's
+    # records but never to this list. It reached site/measured.json and
+    # site/field.html and survived every publish.
+    #
+    # It was found on 2026-08-17 and fixed IN THE ARTIFACT: the name was edited
+    # out of the two published files and the generator was left as it was, so
+    # the next `--write` put it straight back. This is the same fix applied to
+    # the cause. The lookup above runs FIRST and on the raw id, because `here`
+    # is keyed by what the guard files actually call the rule.
+    for r in rules:
+        r["rule"] = clean(r["rule"], 0)
     n_live = sum(1 for r in rules if r["live"])
 
     # AND THE COUNT OF EVENTS IS NOT THE COUNT OF RULES. The ledger records one
@@ -273,7 +297,7 @@ def main():
         p = {
             "ev": r.get("ev"),
             "rule": r.get("rule") or r.get("reason") or "",
-            "project": project_of(r.get("pipe")),
+            "project": published_label(r.get("pipe")),
             "ts": r.get("ts", 0),
             "detail": clean(r.get("detail", "")),
         }
@@ -398,7 +422,7 @@ def rewrite_published():
                 continue
             r = json.loads(line)
             r["detail"] = clean(r.get("detail", ""))
-            r["project"] = project_of(r.get("project"))
+            r["project"] = published_label(r.get("project"))
             keep.append(r)
     dropped = sum(withheld.values())
     bad = [(p, leaks(json.dumps(p, ensure_ascii=False))) for p in keep]

@@ -117,6 +117,7 @@ import sys
 import tempfile
 import time
 
+import identity
 import redact
 
 HOME = os.path.expanduser("~")
@@ -358,6 +359,91 @@ def sanitize(census):
             return out
         return node
 
+    def identify(node, measured):
+        """Rewrite every `project` value to the identity of the project, using
+        the guard PATH that sits beside it in the same record.
+
+        The identity written here is the RAW directory name, not the published
+        spelling: pass 4 has to be able to read it and judge it. Pass 5 is what
+        turns it into what a reader sees.
+
+        A declared name is only ever mapped away when it is not itself some
+        guard's directory. If two different projects genuinely disagree —
+        one declaring the name the other lives under — the safe answer is to
+        leave both alone and let a human see two names, because the danger in
+        this pass is a project quietly absorbing another one's rules."""
+        rules = measured.get("rules") or []
+        locations = {identity.from_guard_path(r.get("guard")) for r in rules
+                     if isinstance(r, dict)}
+        locations.discard(None)
+        name_map = {}
+        for r in rules:
+            if not isinstance(r, dict):
+                continue
+            declared, where = r.get("project"), identity.from_guard_path(r.get("guard"))
+            if not declared or not where or declared == where:
+                continue
+            if declared in locations:
+                continue          # a real project of its own; do not absorb it
+            name_map[declared] = where
+
+        def walk(n):
+            if isinstance(n, dict):
+                out = {}
+                for k, v in n.items():
+                    if k == "project" and isinstance(v, str) and v:
+                        out[k] = name_map.get(v, v)
+                    else:
+                        out[k] = walk(v)
+                return out
+            if isinstance(n, list):
+                return [walk(v) for v in n]
+            return n
+
+        return walk(node)
+
+    def finalise(node):
+        """The published spelling, and the rows that are now one row.
+
+        Runs after the second decision, so nothing here can hide a name from
+        it: by the time this pass turns a label into `(withheld)` or `(lab)`,
+        the record has already been judged on the name itself."""
+        def walk(n):
+            if isinstance(n, dict):
+                return {k: (identity.published_label(v)
+                            if k == "project" and isinstance(v, str) and v
+                            else walk(v))
+                        for k, v in n.items()}
+            if isinstance(n, list):
+                return [walk(v) for v in n]
+            return n
+
+        done = walk(node)
+
+        # by_project is one ROW per project, so two spellings collapsing means
+        # two rows for one project. They are counts; they add.
+        rows = done.get("by_project")
+        if isinstance(rows, list):
+            merged = {}
+            for row in rows:
+                if not isinstance(row, dict) or "project" not in row:
+                    continue
+                seen = merged.get(row["project"])
+                if seen is None:
+                    merged[row["project"]] = dict(row)
+                    continue
+                for k, v in row.items():
+                    if isinstance(v, (int, float)) and not isinstance(v, bool):
+                        seen[k] = seen.get(k, 0) + v
+            if len(merged) != len(rows):
+                print("  identity: %d project row(s) merged into %d — two "
+                      "spellings of one project were being counted twice"
+                      % (len(rows), len(merged)))
+            done["by_project"] = sorted(
+                merged.values(),
+                key=lambda p: (-p.get("cannot_fire", 0), -p.get("total", 0)))
+        return done
+
     def scrub(node):
         """Rewrite what survived: the home path to `~`, the account name out,
         and a withheld term out of free text that merely mentions one."""
@@ -371,7 +457,53 @@ def sanitize(census):
             return redact.clean(node, 0)
         return node
 
-    clean = scrub(prune(census, ""))
+    # THIRD PASS: the project column carries an IDENTITY, not a nickname.
+    #
+    # Until now a rule was published under the `project` key its guard file
+    # declares about itself. That key is a preference, not a fact: 10 of the 63
+    # guards on this machine declare a name their directory does not have, and
+    # four of those are a second spelling of a project the ledger already spells
+    # the other way (`idea garden` beside `idea-garden`, `message-in-a-bottle`
+    # beside `messageinabottle`). The census published both, so one project was
+    # counted as two and the allowlist asked the operator to decide twice about
+    # the same repository. Two more guards declare a name their directory has
+    # nothing to do with, which published a SECOND name for a project nobody had
+    # decided to publish once.
+    #
+    # Where a project lives is a fact, and the published file carries the guard
+    # path beside every rule — so a reader can check this mapping without the
+    # machine it was made on. That is the whole reason it is allowed to happen
+    # here rather than being asserted.
+    #
+    # It runs THIRD, after the withhold decision and after the scrub, and the
+    # order is not cosmetic. Running it before prune would hand withhold_reason
+    # a name that had already been rewritten, which is the exact two-passes bug
+    # described above, one layer along.
+    # FIVE PASSES, AND EACH ONE EXISTS BECAUSE THE PASS BEFORE IT COULD NOT KNOW
+    # WHAT THE PASS AFTER IT LEARNS.
+    #
+    #   1 prune     decide, on the ORIGINAL text (see above)
+    #   2 scrub     rewrite what survived
+    #   3 identify  resolve the project column to an identity
+    #   4 prune     decide AGAIN, because identify ADDED information
+    #   5 finalise  the published spelling, and merge rows that are now one row
+    #
+    # Pass 4 is not belt-and-braces. It is the fix for a live leak this work
+    # found: two guards declare a nickname their directory does not have, both
+    # directories are on the operator's private withhold list, and both
+    # nicknames are not — the list is written in directory names. Pass 1 dropped
+    # every rule record for those two projects, and their aggregate rows in
+    # by_project survived, published under the nicknames, saying how many rules
+    # each withheld project has. Nothing in the record carried a path, so
+    # nothing in the record could be judged. Resolving the nickname to the
+    # directory is the moment that becomes knowable, so the decision has to be
+    # taken again right there.
+    #
+    # The map for pass 3 is built from the census as MEASURED, not from what
+    # survived pass 1 — a guard whose records were all withheld still knows what
+    # its own directory is called, and that is precisely the mapping needed to
+    # catch the row that got away.
+    clean = finalise(prune(identify(scrub(prune(census, "")), census), "identity"))
     total = sum(withheld.values())
     clean["withheld_from_publication"] = {
         "records": total,
