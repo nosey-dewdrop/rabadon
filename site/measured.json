@@ -224,7 +224,7 @@
         "kind": "rule",
         "live": true,
         "project": "(withheld)",
-        "rule": "no-blanket-add-stitchu",
+        "rule": "no-blanket-add-(withheld)",
         "ts": 1785541265814,
         "why": "Repo holds untracked unignored dirs (Logs/, patterns_real additions) that must never be staged wholesale, and other Claude sessions write in this tree; explicit-path git add stays allowed."
       },
