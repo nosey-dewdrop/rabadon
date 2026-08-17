@@ -279,6 +279,99 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-08-17 (3) — the suite stops rewriting what the site serves
+
+DECISION (operator) — git history: option (a), LEAVE IT. The name was launched
+publicly by the operator's own posts, cited SHAs must not be orphaned, and a
+tamper-evident tool does not rewrite its own history. `stitchu` stays on the
+private withhold list. The BLOCKED entry in the previous session log is
+resolved by this decision; no history was rewritten and none will be.
+
+DECISION (operator) — triage: reported as edited and committed by hand.
+NOT PRESENT IN THIS REPOSITORY, and the check is unchanged as a result.
+Evidence, since this contradicts the instruction and the instruction does not
+outrank it: `site/published-projects.txt` still holds exactly the 12 seeded
+names; its only commit is `4045665`, which is this session line's own seed
+commit; `git status` clean; `main` and `origin/main` at 0/0 after a fetch; no
+stash, one worktree, one branch, and the reflog carries only these sessions'
+commits. So the verdict asked for is the same one as before:
+  python3 site/allowlist.py --list  ->  72 name(s) found, 12 allowed, 60 off-list
+  python3 site/allowlist.py         ->  exit 1
+The 60 names are still untriaged and `native/published_allowlist_test.sh` is
+still red by design. Nothing was invented to make this read better: if the edit
+exists it is in another clone or was never committed/pushed.
+
+DONE — the logged NEXT. `make test` mutated three tracked, publishable files on
+every run, because `native/site_claims_test.sh` ran `python3 site/build.py` in
+the real repo and build.py wrote to hardcoded `site/` paths. Fixed at both ends:
+  site/build.py       `OUT = os.environ.get("RABADON_SITE_OUT", "site")`, used
+                      at all four write sites — the six pages (:1938), the og
+                      card (:1951, via og.render's existing `out=` parameter),
+                      sitemap.xml (:1976) and robots.txt (:1980). Unset, a run
+                      is byte-for-byte what it was; the deploy path is untouched.
+                      The READS deliberately did not move: measured.json, the
+                      templates, and the committed copy `rendered_day` dates a
+                      page against all stay in site/.
+  site_claims_test.sh renders into a `mktemp -d` and asserts against THAT, at
+                      all three read points — the build invocation, the
+                      placeholder grep, and the two-pages-one-number
+                      cross-check, whose `first_stat`/`proof_stat` now resolve a
+                      `site/` prefix through one `built()` helper.
+NOT WEAKENED, and this was checked rather than asserted: the placeholder case
+still reads freshly rendered output, and a `{{fake.placeholder}}` planted into
+that output is still seen. Moving the output opened one new way to pass
+vacuously — a build that writes nothing would make the grep trivially empty —
+so a NEW assertion was ADDED, "the build wrote the page it is judged on"
+(`[ -s "$BUILT/index.html" ]`). The suite went from 9 to 10 cases; no existing
+assertion, needle or expected value changed.
+
+Proof:
+  bash native/site_claims_test.sh    -> pass 10, fail 0, "site claims: GREEN"
+  RABADON_SITE_OUT=$(mktemp -d) python3 site/build.py
+                                     -> exit 0, all 9 artifacts written there,
+                                        `git status` clean
+  make test                          -> exit 2, and the ONLY failure in the run
+                                        is the deliberate allowlist gate:
+                                        gate postuse 88/0, contract 35/0,
+                                        red base 26/0, site claims GREEN,
+                                        publish redaction 28/0, 88 suites run,
+                                        then published allowlist 8 ok / 1 fail
+  git status --short after that run   -> only this file's own uncommitted log
+                                        edit. NO tracked site/ artifact was
+                                        mutated. THAT CRITERION IS MET, and it
+                                        is the one this session existed for.
+
+THE CHECK CAUGHT ITS OWN AUTHOR, and the run above is the second one because of
+it. `site/allowlist.py` — written last session to close this very class — spelled
+the leaked rule id verbatim in its own KNOWN LIMIT docstring. Everything under
+site/ is uploaded by `vercel deploy`, source included, so documenting the leak
+republished it. publish_redaction_test.sh section 6 failed on
+`allowlist.py: withheld project name(s) stitchu=1`, which is exactly the failure
+it should produce. Rewritten to describe the class and never the name, and the
+lesson is now a paragraph inside that file rather than a line in this one.
+After the fix: 0 files under site/ carry a withheld term, publish redaction 28/0.
+
+WHAT THE DELIBERATE RED HIDES, counted rather than assumed: `make` stops at the
+first failing recipe line, and the allowlist gate sits at Makefile:777 with 86
+suites before it and 7 after. Those 7 never run under `make test` while the gate
+is red, so they were run individually instead — publish_test 46/0,
+field_census_test 1/0, claims_test 13/0, fd_dup_test 11/0, mode_wrong_test 9/0,
+guard_subdir_test 16/0, rule_census_test GREEN. All exit 0, 96 assertions, and
+none of them mutates a tracked file either. Nothing is hiding behind the gate.
+Moving the gate to the end of the test target would stop it masking anything;
+that is a Makefile ordering decision, it was not taken here.
+
+NOT VERIFIED / NOT MET: `make test` exit 0 was NOT achieved, so this session's
+Done is incomplete by its own terms. The cause is not this step — it is the
+allowlist gate standing red on 60 untriaged names, and the triage commit that
+was reported as made is not in this repository (see the decision above). No
+fresh-clone or clean-machine run. CI had not run at the time this was written.
+
+NEXT: triage the 60 off-list project names — each one joins
+site/published-projects.txt with its reason, or goes on the private withhold
+list — and land that edit IN THIS REPOSITORY. That is the single thing between
+here and a green `make test`.
+
 ### 2026-08-17 (2) — redaction decided after it had scrubbed the evidence
 
 DONE 1 — the bookkeeping. `site/rule_census.py` sanitized in ONE pass that
