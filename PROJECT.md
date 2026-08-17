@@ -373,6 +373,27 @@ Proof:
   The run before the move (old Makefile, all 94 suites incl. the gate) had
   exactly 1 FAIL and it was the gate — so the identity work broke nothing.
 
+CORRECTION, FOUND WHILE STARTING V1.2 AND WRITTEN AGAINST THIS SESSION'S OWN
+CLAIM: `make test` green does NOT mean every suite in native/ is green. There are
+97 `*_test.sh` files and the Makefile names 96 of them plus one non-test script;
+two suites are wired into nothing:
+  native/parser_unify_test.sh    PASS (69 checks) — green, just not run
+  native/stdin_program_test.sh   FAIL (76 passed) — RED, and not run
+The two failures in it are FALSE REFUSALS, which CLAUDE.md counts at the same
+severity as a missed catch: "a redirect target is not a delete target: refused,
+and refusing it cuts real work", and the numbered-descriptor twin of it. They
+predate this session — the same two fail at the previous commit with the CXX
+change stashed, so this session did not cause them and did not fix them.
+
+This is the masking problem the last session fixed at the END of the target,
+reappearing at the other end: a suite that is not in the list cannot mask
+anything, and nothing can catch it either. It is NOT wired in here on purpose.
+Wiring a genuinely red suite into `make test` turns rabadon's own base red again
+one commit after the deliberate red was moved out — and unlike the disclosure
+gate this red is a real defect, so the red-base law would be right to stop
+everything. That is a decision with a real cost either way and it belongs to the
+operator, not to the session that happened to find it.
+
 READY FOR INDEPENDENT VERIFICATION — Promise 2 was NOT flipped, deliberately.
 `make test` is green on the builder's machine and green on CI on both platforms.
 Rule 7 is still unmet: no fresh clone, and the builder's own green is a claim,
@@ -410,10 +431,26 @@ THREE THINGS FOR THE OPERATOR, none of them fixable by a session:
      unblock myself is the move this product refuses. The rule is right that
      something disagrees; only the operator can say which side.
 
-NEXT: the operator triages the 41 names below; then fix `native/gate.cpp:1829` so
-new records carry the project ROOT rather than the cwd basename (the source half
-of this session's fix), with a test that runs the gate from a subdirectory of a
-git repo and asserts the repo's name on the pipe.
+V1.2 STARTED, NOT DONE. The half that could be proven here is done: all ten test
+scripts that hardcoded `CXX="${CXX:-clang++}"` now say `${CXX:-c++}`. make does
+not export its builtin CXX, so under `make test` that fallback is what actually
+runs, and on a Linux box with only g++ installed `clang++` is a command that does
+not exist. Proof: `make test` EXIT=0, 0 FAIL lines, and `CXX=g++
+./native/cmdtext_test.sh` -> PASS (61 checks).
+  NOT DONE, and the step stays unchecked: the Makefile still defaults
+  `CXX ?= clang++`, so `make all` itself would still fail on a g++-only machine;
+  and the CI matrix does not yet run g++ AND clang. Flipping the build's default
+  compiler switches ubuntu CI from clang to g++ under -Wall -Wextra, which is a
+  change that deserves its own session and its own red to watch. The step's own
+  proof — "`make test` exits 0 in a container with only g++" — was not produced:
+  there is no container here. UNVERIFIED, and the box stays unticked.
+
+NEXT: the two unwired suites above — decide whether `native/stdin_program_test.sh`
+goes into `make test` red (the honest reading of the red-base law) or gets its two
+false refusals fixed first. Then the operator triages the 41 names below; then fix
+`native/gate.cpp:1829` so new records carry the project ROOT rather than the cwd
+basename (the source half of this session's fix), with a test that runs the gate
+from a subdirectory of a git repo and asserts the repo's name on the pipe.
 
 THE 41, one line per name, for triage. `repo` = a git repository of that name
 exists here; `dir` = the directory exists and is not a repository; the last three

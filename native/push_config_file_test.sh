@@ -104,7 +104,12 @@ export LC_ALL=C
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 GATE="${RABADON_GATE:-$HERE/rabadon-gate}"
-CXX="${CXX:-clang++}"
+# `c++`, not `clang++`. make does NOT export its builtin CXX, so under
+# `make test` this variable is unset and the fallback is what actually runs —
+# and on a Linux box with only g++ installed, `clang++` is a command that does
+# not exist. `c++` is the standard alias and resolves to whichever compiler the
+# machine has (PROJECT.md S0.2 / V1.2).
+CXX="${CXX:-c++}"
 [ -x "$GATE" ] || { echo "push_config_file_test: build first (make)"; exit 1; }
 
 FAIL=0
