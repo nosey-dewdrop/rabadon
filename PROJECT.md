@@ -73,7 +73,10 @@ says so instead of going quiet. Proof: `bash native/contract_test.sh`
 
 ## Promise 2 — a red base stops the next action
 
-STATUS: DONE (verified 16.08 on an independent machine)
+STATUS: RED — challenged 2026-08-17, human-approved. The recovery half
+does not work: `native/redbase_test.sh` returns 24 ok, 2 fail on both CI
+platforms, deterministically, since `7ffb0fb`. Returns to DONE only when
+`bash native/redbase_test.sh` prints 26 ok, 0 fail.
 Break the repo, the next action exits 2 with the real failing output
 on screen, recovery is automatic when the base turns green.
 Proof: `bash native/redbase_test.sh` (26) + `bash native/postuse_test.sh` (88).
