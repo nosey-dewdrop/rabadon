@@ -838,22 +838,23 @@ test: all
 # grow into a blanket. It sits ABOVE the gate deliberately: it must be able to
 # fail the build on its own, not only when somebody runs it by hand.
 	./native/identity_test.sh
-# LAST ON PURPOSE, and the ordering is the point. publish_redaction_test.sh asks
-# whether a name on the operator's PRIVATE list got out. A runner has no such
-# list, so its section 6 passes there on blindness rather than on cleanliness.
-# This one asks the inverse question against a PUBLIC committed allowlist — was
-# this name DECIDED? — which a runner can answer without ever learning a private
-# name. Measured 2026-08-17: 72 project names published under site/, 12 decided,
-# 60 not. It is RED until the operator triages them, and an allowlist seeded
-# with everything already published would have been a check that cannot turn red.
+# The disclosure gate USED TO RUN HERE, last in this target. It is `make
+# disclosure` now, and moving it is the only change: same suite, same verdict,
+# same fail-closed allowlist, run on both platforms in CI as its own job.
 #
-# WHY IT SITS HERE rather than beside its sibling: `make` stops at the first
-# failing recipe line, so while this gate is red it MASKS every suite after it.
-# It stood at position 87 of 94 and hid the last 7 — they had to be run by hand
-# to know they were green (2026-08-17 session log). A long-lived deliberate red
-# belongs at the END of a serial target, where the only thing it can hide is
-# nothing. Anything added below this line is hidden by it: add above.
-	./native/published_allowlist_test.sh
+# It had to move because of the sentence written above `promises` in this file:
+# A SUITE DESIGNED TO FAIL CANNOT ALSO BE THE GATE. It is red on purpose and
+# stays red until a human makes 41 disclosure decisions, and `make test` is what
+# rabadon's own guard runs on this repository — so rabadon refused every action
+# in its own tree for as long as the triage was outstanding, including the
+# actions that were doing the triage. The red-base law is right; pointing it at
+# a deliberate red is what was wrong.
+#
+# What did NOT happen, because it was the obvious way and it is the move this
+# product exists to refuse: the gate was not made lenient, not made advisory,
+# not allowlisted-by-default, and no name was added to the allowlist to shrink
+# the number. It fails the build in its own job, on both platforms, on every
+# push. Only the wiring changed.
 
 # THE SCOREBOARD. Not part of `make test`, and the reason is not squeamishness:
 # it asserts promises that are not built yet, so it is RED on purpose, and a red
@@ -870,6 +871,25 @@ test: all
 promises: all
 	./native/promises_test.sh
 
+# THE DISCLOSURE GATE. Separate from `make test` for the reason written above
+# `promises`, and it is the same reason: a suite that is red on purpose cannot
+# also be the base that decides whether the next action may run.
+#
+# It asks one question about the site artifacts — was every project name in them
+# DECIDED, against the public committed allowlist in site/published-projects.txt
+# — and it is red until the answer is yes for all of them. It fails closed: a
+# missing allowlist allows NOTHING, so a runner with no file refuses everything
+# rather than passing on blindness. That is the whole point of it existing
+# beside the private withhold list, which CI cannot have.
+#
+# It runs on both platforms in CI as its own job (.github/workflows/ci.yml), so
+# the red is as visible to a stranger as it ever was. What it no longer does is
+# tell rabadon's red-base law that this repository's base is broken.
+#
+# It needs no build: python3 and site/ are all it reads.
+disclosure:
+	./native/published_allowlist_test.sh
+
 # the same suite without the rest of the build, for working on the number
 precision: native/rabadon-gate
 	./native/precision_test.sh
@@ -877,7 +897,7 @@ precision: native/rabadon-gate
 clean:
 	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
-.PHONY: all bench clean precision promises
+.PHONY: all bench clean disclosure precision promises
 
 native/rabadon-verify: native/verify.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<

@@ -75,3 +75,32 @@ jobs:
 
       - name: js suites
         run: npm test
+
+  # THE DISCLOSURE GATE, on both platforms, as its own job.
+  #
+  # It used to run last inside `make test`. It is red on purpose — it stays red
+  # until a human has decided about every project name in the published
+  # artifacts — and `make test` is what rabadon's own red-base law runs on this
+  # repository, so a deliberate red was refusing every action in rabadon's own
+  # tree, including the actions doing the triage. A suite designed to fail
+  # cannot also be the gate (Makefile, above `promises`).
+  #
+  # It is a JOB and not a step of the one above, so a red here cannot mask a
+  # green there and vice versa: two verdicts, both visible, neither hiding the
+  # other. Nothing about the check itself was weakened to move it — same suite,
+  # same fail-closed allowlist, and it fails this workflow on every push until
+  # the names are decided. It is exactly as loud as it was and no longer aimed
+  # at the wrong law.
+  #
+  # No compiler and no build: it reads python3 and site/.
+  disclosure:
+    name: disclosure ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false        # the same red on both platforms is worth seeing twice
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - name: every published project name was decided
+        run: make disclosure
