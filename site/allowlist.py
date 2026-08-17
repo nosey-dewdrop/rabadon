@@ -20,12 +20,20 @@ default publish. CI can enforce it without learning a private name.
 KNOWN LIMIT, with a number rather than an adjective: this reads the project
 name a record DECLARES — the `project` field of the JSON and JSONL artifacts,
 which are the sources the HTML pages are rendered from. It does not tokenize
-free text, so a name embedded inside an identifier is out of scope here: the
-one real leak found on 2026-08-17 was the rule id `no-blanket-add-stitchu`,
-where the project name was part of the id and no `project` field carried it.
-That class is caught by redact.py's content pass, and only where the private
-list has the term. Closing it against an allowlist means tokenizing every
-identifier, which needs its own decision about what a token is.
+free text, so a name embedded inside an IDENTIFIER is out of scope here: the one
+real leak found on 2026-08-17 was a rule id that ended in a withheld project
+name, where no `project` field carried it at all. That class is caught by
+redact.py's content pass, and only where the private list has the term. Closing
+it against an allowlist means tokenizing every identifier, which needs its own
+decision about what a token is.
+
+AND A NOTE THIS FILE EARNED THE HARD WAY: everything under site/ is uploaded by
+`vercel deploy`, source included — the domain answers 200 for build.py. So a
+comment in here that spells out a withheld name republishes the very thing it is
+describing. The first version of this docstring named the leaked id verbatim and
+publish_redaction_test.sh section 6 caught it on the next run: the check found
+the mistake of the session that wrote the check. Describe the class, never the
+name.
 """
 
 import json
