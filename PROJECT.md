@@ -279,6 +279,192 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-08-17 (5) — the project column becomes an identity, and `make test` is green
+
+START: two steps, in the operator's order. (1) the NEXT of the last session — make
+the published `project` field carry a project identity rather than a cwd basename.
+(2) the approved structural decision — move the deliberate-red disclosure gate out
+of `make test` into its own target and its own CI job. Proof commands: `make test`,
+`make disclosure`, `python3 site/allowlist.py --list`, and CI on both platforms.
+
+DONE (1) — THE IDENTITY FIX. `native/gate.cpp:1829` writes `project =
+basename(cwd)`, and every published project name descends from that string. A
+basename is not an identity, so the column was publishing directories as
+repositories. Four commits, and the criterion moved in its own commit ahead of
+the code per non-negotiable 2.
+
+  72 distinct names -> 53.  off-list 60 -> 41.  Every collapse has a reason that
+  can be checked by someone who is not on this machine:
+    the home directory   116 records, in TWO spellings — `home`, and the `~` a
+                         guard path leaves after unhome(); 7 rules were published
+                         under `~` as though home were a repository
+    rabadon's own trees  `fixed` is created by native/guard_allow_twin_test.sh:64
+                         with `"project": "fixed"` in its guard; the rbprobe/rbd-
+                         probes; the 12 bench repos
+    not project roots    `spool`, `damla_projects_2026`, `p` — the last two are
+                         glossed as "the projects root" and "a scratch repository"
+                         in site/build.py's own table, which is where this defect
+                         was papered over instead of fixed
+    one project, two     idea garden/idea-garden, just ballet/just-ballet,
+    names                message-in-a-bottle/messageinabottle,
+                         urun-psikolojisi-kitap/psikoloji-kitabi,
+                         apache-airflow/airflow. The census published the name a
+                         guard DECLARES about itself; 10 of 63 guards declare a
+                         name their directory does not have. Identity is where a
+                         project lives, and the guard path is beside every rule in
+                         the published file, so this is checkable off-machine.
+    a scrub residue      `(withheld)-showcase` is what is left after a name is cut
+                         out of a longer one. Not a second project.
+
+AND IT FOUND TWO LIVE LEAKS, which is the part that mattered more than the count.
+  a. Two guards declare a nickname; both their directories are on the operator's
+     private withhold list and neither nickname is, because that list is written
+     in directory names. Every rule record for those two projects was dropped —
+     and their by_project AGGREGATE ROWS survived, published under the nicknames,
+     stating how many rules each withheld project has. No record carried a path,
+     so nothing in the record could be judged. The census now decides AGAIN after
+     the identity pass (pass 4 of 5) and drops them, counted in the published file
+     as `identity.by_project: 2`.
+  b. Regenerating measured.json put `no-blanket-add-<withheld>` back verbatim — a
+     rule id ending in a withheld project's name. It was found on 2026-08-17 and
+     fixed IN THE ARTIFACT (commit c3f6e21 edited two published files; the
+     generator was left alone), so the next `--write` reinstated it. Fixed at the
+     cause: a rule id is free text and goes through the redactor like free text.
+
+NOT A COUNT-DRIVEN COLLAPSE, and it is tested from both sides.
+native/identity_test.sh (37 cases) proves each rule fires AND proves an underscore
+is not rewritten, a dot inside a name is part of the name, an unknown label stays
+a project name in front of a human, and that site/non-projects.txt cannot grow
+into a blanket (<=20 entries, every one with its evidence above it, format
+checked). Mutation-tested both directions before it was committed: stop
+collapsing the residue -> 2 fail; collapse everything unknown -> 8 fail.
+
+THE NUMBER THAT FELL IS RABADON'S OWN, published as it fell. The lab filter was
+under-inclusive and lived inside one of the three generators that publish a name.
+Widening it correctly costs the field headline 37 WOULD_BLOCK and 77 STOP that
+were rabadon's own probe trees counted as field evidence.
+
+AND A COUNT THAT FELL FOR A REASON THAT IS NOT THIS WORK: the census publishes 39
+fewer rule records than the file on disk did. The operator's private list grew
+from 11 terms to 12 since the last publish. Verified by running the PREVIOUS
+generator against the CURRENT list — 328 published, 102 withheld, identical but
+for this change's 2. Attribution checked rather than assumed.
+
+DONE (2) — THE GATE MOVED OUT. `make disclosure` is its own target with its own
+CI job on ubuntu-latest and macos-15, fail-fast off. Same suite, same fail-closed
+allowlist (a missing file allows NOTHING), same exit code 2. Not one name was
+added to the allowlist to shrink the number, and the check was not made lenient,
+advisory or default-allow. Only the wiring moved. The reason is the sentence
+already written above `promises` in the Makefile: a suite designed to fail cannot
+also be the gate — `make test` is what rabadon's red-base law runs here, so a
+deliberate red was refusing every action in rabadon's own tree, including the
+actions doing the triage. It refused this session's commands twice.
+
+Proof:
+  make test                        EXIT=0, 0 FAIL lines across 94 suites
+  make disclosure                  exit 2, "53 name(s) found, 12 allowed, 41 off-list"
+  CI run 32050931727 (e42251a)     ubuntu-latest  success
+                                   macos-15       success
+                                   disclosure ubuntu-latest  failure, same verdict
+                                   disclosure macos-15       failure, same verdict
+  ./native/identity_test.sh        37 ok, 0 failed
+  ./native/publish_redaction_test.sh  28 ok, 0 failed (27/1 at the criterion
+                                   commit, red on purpose, before the code landed)
+  The run before the move (old Makefile, all 94 suites incl. the gate) had
+  exactly 1 FAIL and it was the gate — so the identity work broke nothing.
+
+READY FOR INDEPENDENT VERIFICATION — Promise 2 was NOT flipped, deliberately.
+`make test` is green on the builder's machine and green on CI on both platforms.
+Rule 7 is still unmet: no fresh clone, and the builder's own green is a claim,
+not a verdict. The auditor runs the fresh-clone clause. Promise 2's STATUS line
+is untouched.
+
+NOT VERIFIED: no fresh clone on a machine that is not the dev box; no g++-only
+container (S0.2 still open). The 41 surviving names are NOT decided — none of them
+was decided here, and deciding them is not a session's to make. Rule ids other than
+the one in field.rules_list still do not pass through the content redactor
+(`stop_by_rule`, `would_block_by_rule`, `wrong_by_rule`, and field.jsonl's `rule`);
+field.jsonl is protected by the record-level drop instead, and the counters
+currently carry no withheld term — but that is luck, not a mechanism. The gate
+itself still writes `basename(cwd)`: this session fixed the PUBLISH path, so
+history is unchanged and future records will keep arriving as basenames until
+gate.cpp is fixed. A ledger record carries no path, so `reports` and the other
+subdirectory labels cannot be resolved from history at all.
+
+THREE THINGS FOR THE OPERATOR, none of them fixable by a session:
+  1. `msducky-stays-private` is a live rule id in the published census, and its
+     own `why` reads "portfolio law: msducky-abone stays PRIVATE (KVKK), never
+     enters the public wall/repo". The name is NOT on the private withhold list,
+     so nothing withholds it, and allowlist.py cannot see it (it reads `project`
+     fields; a name inside an identifier is its documented known limit). This is
+     the same class as the leak fixed on 2026-08-17. It predates this session.
+  2. `pattern-bridge` (2 records, off-list) resolves on this machine to
+     `~/damla_projects_2026/<withheld>/engine/pattern-bridge` — a component
+     directory of a withheld project. Publishing the name discloses a part of it.
+  3. rabadon's own drift rule `promise-off-target` blocked this session's first
+     edit under site/: `.rabadon/promise.json` declares areas `^native/`,
+     `^Makefile$`, `^scripts/` and six more, and `^site/` is not among them —
+     while the last five sessions' work (the redactor, the census, the disclosure
+     gate) has been almost entirely under site/. Either the promise is stale or
+     that work is drift. promise.json was NOT edited: changing gate config to
+     unblock myself is the move this product refuses. The rule is right that
+     something disagrees; only the operator can say which side.
+
+NEXT: the operator triages the 41 names below; then fix `native/gate.cpp:1829` so
+new records carry the project ROOT rather than the cwd basename (the source half
+of this session's fix), with a test that runs the gate from a subdirectory of a
+git repo and asserts the repo's name on the pipe.
+
+THE 41, one line per name, for triage. `repo` = a git repository of that name
+exists here; `dir` = the directory exists and is not a repository; the last three
+are not projects at all and history cannot say what they were.
+  [ ] youkiddingme                 33  repo
+  [ ] icerik                       26  dir   ~/damla_projects_2026/icerik
+  [ ] seviyorsevmiyor              19  repo
+  [ ] ir-globe                     17  repo
+  [ ] parmakestra                  14  repo
+  [ ] inf-baseline-kernel          12  dir
+  [ ] kisalafinuzunu               11  repo
+  [ ] missingsemicolon             10  repo
+  [ ] moonlight                    10  repo
+  [ ] nosey-dewdrop.github.io      10  repo
+  [ ] sunflower                    10  repo
+  [ ] noseydewrites                 9  repo
+  [ ] shortstorylong                9  repo
+  [ ] sightstone                    9  repo
+  [ ] vibecodedflopware             9  repo
+  [ ] damla_portfolio               8  repo
+  [ ] idea-garden                   8  repo
+  [ ] peek-a-book                   8  repo
+  [ ] psikoloji-kitabi              8  repo
+  [ ] just-ballet                   7  repo
+  [ ] ladybug                       7  repo
+  [ ] messageinabottle              7  repo
+  [ ] mumucakes                     7  repo
+  [ ] musical-improvisation-tool    7  repo
+  [ ] snailmail-web                 7  repo
+  [ ] wildflower.dev                7  repo
+  [ ] blog                          6  repo  (three of them exist; ambiguous)
+  [ ] creator-books                 6  repo
+  [ ] houndhub                      6  repo
+  [ ] idea-parking                  6  repo
+  [ ] ir-globe-showcase             6  repo
+  [ ] lingolingo                    6  repo
+  [ ] sahaf                         6  repo
+  [ ] seviyorsevmiyor-showcase      6  repo
+  [ ] synthjury                     6  repo
+  [ ] visionboard                   6  repo
+  [ ] benimstilim                   5  repo
+  [ ] reports                      47  NOT A PROJECT — five `reports` directories
+                                       exist here, one of them inside the withheld
+                                       tree. A subdirectory published as a repo.
+  [ ] pattern-bridge                2  NOT A PROJECT — a component directory of a
+                                       withheld project (see finding 2 above)
+  [ ] 2026-08-01-real-defect-mine   1  NOT A PROJECT — it is
+                                       rabadon/reports/2026-08-01-real-defect-mine
+                                       (site/finding.py:36), a directory in THIS repo
+  [ ] falmarx                       1  repo
+
 ### 2026-08-17 (4) — the gate moves last, and the 60 are not 60 decisions
 
 START: one step — the approved Makefile ordering decision (move the allowlist
