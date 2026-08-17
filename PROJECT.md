@@ -279,6 +279,92 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-08-17 (2) — redaction decided after it had scrubbed the evidence
+
+DONE 1 — the bookkeeping. `site/rule_census.py` sanitized in ONE pass that
+cleaned each record before asking whether to withhold it, so
+`redact.withhold_reason` was handed a blob the scrub had already emptied of
+every term it looks for. It never fired: 0 withheld where 3 were owed, and all
+four fixture rules survived with their names quietly rubbed out — a cover-up
+with a counter stuck at zero. `redact.clean`'s own docstring says the
+record-level drop happens "one layer up" from it, so the order was the bug.
+Split into `prune` (decide on the ORIGINAL text, inner lists first) then
+`scrub` (rewrite only what survived). No test file touched.
+Proof: `bash native/publish_redaction_test.sh` 26 passed/2 failed -> 27/1.
+
+DONE 2 — the leak. The disclosure was not a `project` field, which redaction
+had correctly set to `(withheld)`; it was the rule ID itself,
+`no-blanket-add-stitchu`. The two tracked, published artifacts each carried it
+once and nothing else: a full scan of site/ against the operator's 12 terms
+found exactly 2 files, 1 occurrence each. Replaced the token with what
+`redact.clean` itself produces for it, `no-blanket-add-(withheld)`, so not one
+published number moved (diff: 2 files, 1 line each). The current code would
+withhold that record outright, so the artifacts were STALE — generated before
+the term was listed.
+Proof: `bash native/publish_redaction_test.sh` -> 28 passed, 0 failed;
+`make test` -> exit 0, the first fully green local run.
+
+DONE 3 — the gate, mechanism only, by operator decision. Measured first,
+because the number is the argument: 72 distinct project names are published in
+site/ artifacts; the private terms file holds 12; and of the 58 names published
+as `project` values, ZERO were on it. The private list is deliberately outside
+the tree (`site/redact.py:60-77`) and that stays — but it makes the check
+default-ALLOW and unenforceable off one machine, which is why CI's section 6
+passes on blindness. So the question is inverted against a PUBLIC committed
+allowlist: not "is this name secret" but "was this name decided".
+  site/published-projects.txt        the allowlist, 12 names seeded: rabadon,
+                                    the `(withheld)` marker, and the 10 public
+                                    OSS repos the benchmarks name
+  site/allowlist.py                  the checker; `--list` prints the verdict
+                                    per name; a missing or empty list allows
+                                    NOTHING (fails closed)
+  native/published_allowlist_test.sh NEW file, 9 cases, wired into `make test`
+Proof: `bash native/published_allowlist_test.sh` -> 8 ok, 1 fail. The 8 prove
+the gate can turn red, names the offender, reads both artifact shapes, goes
+green when every name is decided, and fails closed on a missing or empty list.
+The 1 is the real site/: 72 found, 12 allowed, 60 off-list. It is RED ON
+PURPOSE — seeding the allowlist with everything already published would have
+been a check that cannot turn red, and which of the 60 may be public is a
+disclosure decision that belongs to the operator, not to this session.
+
+NOT VERIFIED: `make test` was exit 0 BEFORE the allowlist gate was wired in;
+with the gate it is red by design until the 60 names are triaged, so the
+session ends on a deliberate red, not a green. Nothing was run on a clean
+machine or a fresh clone. CI has not run since the gate landed. The 60 names
+have not been triaged and no claim is made about which are sensitive.
+
+BLOCKED — the name in git history, a human decision, untouched by design.
+The working tree is clean but `stitchu` remains in the history and on GitHub.
+Options, with costs:
+  (a) leave it. The name is in old commits and any fork or clone already has
+      it. Cheapest, and honest as long as it is written down here.
+  (b) rewrite history (`git filter-repo`), force-push. Touches 500+ commits,
+      breaks every existing clone, and GitHub keeps unreachable objects
+      reachable by SHA for a while, so a full scrub is NOT guaranteed. Needs
+      its own session.
+  (c) decide the name is not sensitive enough to warrant (b) and remove it
+      from the private terms list instead, which is a smaller, honest answer
+      if it is true.
+Nothing here was acted on.
+
+ALSO FOUND, and it breaks one of this session's Done criteria: `make test`
+still mutates tracked publishable files. `native/site_claims_test.sh:112` runs
+`python3 site/build.py` in the REAL repo, and build.py writes to hardcoded
+`site/` paths (build.py:1917, 1952, 1956), so a run regenerates
+site/index.html, site/catches.html and site/patch-notes.html from the live
+ledger. Restored with `git restore` twice this session, never committed. The
+fix is an output-directory override (`RABADON_SITE_OUT`, defaulting to `site`
+so nothing changes unless set) plus repointing site_claims_test.sh's three read
+points at the fresh output — that last part moves an EXISTING test's
+assertions, which is not something to improvise at the end of a long session,
+so it is NEXT and not done. Doing it any other way (letting the assertions read
+the committed pages instead of the fresh build) would reinterpret the test into
+one that can no longer catch a build.py emitting placeholders.
+
+NEXT: triage the 60 off-list project names — each one either joins
+site/published-projects.txt with its reason or goes on the private withhold
+list — then `make test` is green again.
+
 ### 2026-08-17 — the silent skip behind Promise 2's recovery half
 
 DONE: root-caused and fixed the two `native/redbase_test.sh` failures without
