@@ -267,3 +267,76 @@ spec — never the full chat history, never future versions' details.
 
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
+
+### 2026-08-17 — protocol files land, branches sorted
+
+CHALLENGE — Promise 2 is red, not DONE. This file claims:
+
+    Promise 2 — STATUS: DONE (verified 16.08 on an independent machine)
+    Proof: bash native/redbase_test.sh (26) + bash native/postuse_test.sh (88)
+
+The evidence contradicts the first half. `native/redbase_test.sh` returns
+**24 ok, 2 fail** on CI, deterministically, on ubuntu-latest AND macos-15,
+on every run since 2026-08-16 11:28. Last green CI commit: `d2bca90`. First
+red: `7ffb0fb` ("close the three holes the audit found"). Still red at
+`e926fc2`. Verbatim, from run 31979858461:
+
+    FAIL - still not green after the fix: {"ts":1786922041077,"level":3,
+      "kind":"suite","cmd":"npm test --silent","verdict":"red","exit":1,
+      "dur_ms":150,"tail":"FAIL: a() must return 1\n"}
+    FAIL - still refusing after the check went green: the wedge is real
+    red base: 24 ok, 2 fail
+
+Both failures are in section "4. a real pass clears it"
+(`native/redbase_test.sh:122-130`): after the CORRECT fix is written,
+`settle green` times out and `.rabadon/net.json` still holds the stale red
+verdict, so the refusal never clears. The second failure follows from the
+first. This is not a cosmetic test failure — it is the recovery half of
+Promise 2 ("recovery is automatic when the base turns green") not working.
+
+Proposed diff to PROJECT.md, for human approval, NOT applied here:
+Promise 2's STATUS line becomes
+`RED — challenged 2026-08-17, see session log` until
+`bash native/redbase_test.sh` returns 26 ok, 0 fail. Per CLAUDE.md rule
+"a challenged step is treated as red", and non-negotiable #5, no V1 step
+starts before this is green. `redbase_test.sh` is not to be touched: the
+test looks correct and the code regressed.
+
+DONE: PROJECT.md added to the repo (it did not exist); CLAUDE.md replaced
+with the session law and removed from .gitignore so a clone carries it
+(the superseded Turkish mission file is kept locally, untracked, as
+CLAUDE-eski-misyon.md); dead branches `fix/publish-blockers-2026-08-15`
+and `hakem-kilit` deleted local + origin, and the prunable worktree at
+/private/tmp/rabadon-hakem pruned — `main` is the only branch left.
+Proof: `git branch -a` lists only main/origin-main; `git ls-files | grep
+-E '^(PROJECT|CLAUDE)\.md$'` lists both; both branches deleted with
+`git branch -d` (not -D), which git only permits when fully merged, and
+`git rev-list --count main..<branch>` was 0 for each.
+
+NOT VERIFIED: no test was run this session — `make test` was not invoked
+and the base is still red (see CHALLENGE). Nothing was checked on a clean
+machine or a fresh clone beyond a local clone check of the two files. The
+three PARKED items below are reported from reading, not from running.
+
+NEXT: diagnose the two `redbase_test.sh` failures introduced by `7ffb0fb`
+and fix them in the code without touching the test.
+
+PARKED (found while reading; not in PROJECT.md; each needs its own session):
+- rabadon has NEVER been published: `npm view rabadon` returns 404. Tags
+  v0.2.0/v0.2.1/v0.2.2 exist, but the release workflow died on the
+  darwin-arm64 build all three times and `fail-fast: true` took the
+  publish job with it — it has never run to completion. Root cause: no
+  pytest on the macOS runner, so `heldout_test.sh` scored 0 pass / 8 fail.
+  A pytest guard now exists at `native/heldout_test.sh:121` and
+  `native/harness_lock_test.sh:118`, but it is NOT VERIFIED on a real
+  runner. The NPM_TOKEN secret exists (added 2026-08-04); whether the
+  `@rabadon` scope exists is unknown.
+- `rabadon-run` would be missing from every published platform package:
+  `.github/workflows/release.yml` copies 17 binaries into
+  `npm/<target>/`, while each `npm/*/package.json` `files` array lists 18.
+  V1's GATE requires the `rabadon run` surface, so this blocks release.
+- S0.2 still stands: ten scripts under `native/` use `${CXX:-clang++}` and
+  the Makefile does not export CXX.
+- S0.4 still stands: `README.md:46` says "last 7 day(s)" above numbers
+  that are `BENCHMARK.md:115`'s 30-day figures; `docs/quickstart.md:148`
+  repeats it.
