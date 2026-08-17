@@ -68,6 +68,25 @@ STATE="$STATE_DIR/publish.state"
 LOCK="$STATE_DIR/publish.lock"
 DOMAIN="${RABADON_PUBLISH_DOMAIN:-rabadon.noseydewdrop.com}"
 
+# --------------------------------------------------------------------------
+# the pause switch. A guard tool may not publish numbers it minted on a red
+# base. The figures on the field page are verdicts, and while the recovery
+# half of Promise 2 is broken a verdict can be the STALE one — which this
+# script would then render as fact and alias onto the live domain. The marker
+# file carries its own reason, so whoever reads the log learns why the page
+# stopped moving instead of assuming the job died. Delete the marker when the
+# base is green again; that is the entire ritual.
+# --------------------------------------------------------------------------
+PAUSED="$REPO/scripts/publish-field.PAUSED"
+if [ -f "$PAUSED" ]; then
+  printf '%s  paused  %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    "$(head -1 "$PAUSED")" >> "$LOG" 2>/dev/null
+  echo "publish-field: PAUSED — nothing was published."
+  echo "  reason: $(head -1 "$PAUSED")"
+  echo "  resume: rm '$PAUSED'"
+  exit 0
+fi
+
 # the files this script generates, and therefore the only files it may stage.
 # site/build.py and site/field_stats.py are deliberately absent: they are inputs
 # somebody else edits, not outputs this job produces.

@@ -1,0 +1,12 @@
+Promise 2 is RED (redbase_test.sh 24/2 since 7ffb0fb) — numbers minted on a stale verdict are not publishable.
+
+Paused 2026-08-17 by human decision, alongside the approved CHALLENGE in PROJECT.md's session log.
+
+The bug: after a red base is genuinely fixed, .rabadon/net.json keeps the stale
+red verdict, so a verdict this script reads and publishes may describe a state
+that is no longer true. The overnight range that carried the counter from 490 to
+502 refused was minted under that bug and is tainted; it must be re-derived from
+the ledger, not trusted, once the base is green.
+
+Resume: delete this file after `bash native/redbase_test.sh` prints 26 ok, 0 fail
+and CI is green on both platforms.

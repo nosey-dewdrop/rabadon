@@ -273,7 +273,20 @@ DONE / NOT VERIFIED / NEXT)
 
 ### 2026-08-17 — protocol files land, branches sorted
 
-CHALLENGE — Promise 2 is red, not DONE. This file claims:
+PUBLISHING PAUSED, AND A TAINTED RANGE. The field-numbers job
+(`scripts/publish-field.sh`, launchd every 1800s) is stopped until main is
+green: it mints the published figures from ledger verdicts, and while the
+Promise 2 recovery bug is open a verdict it reads can be the stale one, which
+it would then alias onto the live domain as fact. Two locks, on purpose — the
+launchd agent is booted out, AND the script refuses a hand-run while
+`scripts/publish-field.PAUSED` exists (proof: `bash scripts/publish-field.sh`
+prints "PAUSED — nothing was published", exit 0). **The overnight range that
+carried the counter from 490 to 502 refused was minted under the bug and is
+TAINTED**: it must be re-derived from the ledger once the base is green, not
+trusted. Resume ritual: delete the marker, then reload the agent.
+
+CHALLENGE — Promise 2 is red, not DONE. Approved by the operator on
+2026-08-17; the STATUS line above now reads RED. This file claimed:
 
     Promise 2 — STATUS: DONE (verified 16.08 on an independent machine)
     Proof: bash native/redbase_test.sh (26) + bash native/postuse_test.sh (88)
