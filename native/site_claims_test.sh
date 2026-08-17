@@ -109,7 +109,21 @@ PY
   else bad "numbers still typed into site/index.tmpl.html:"; echo "$LEFT" | sed 's/^/        /'; fi
 fi
 
-python3 site/build.py > /tmp/rb_site_build.$$ 2>&1
+# THE BUILD IS REAL AND ITS OUTPUT IS NOT THE TRACKED TREE.
+# These cases have to actually render the pages: reading the committed HTML
+# instead would pass on a build.py that emits `{{placeholders}}`, which is the
+# one thing this section exists to catch. But the pages are tracked and
+# publishable and their numbers come off the live ledger, so every run of this
+# file used to rewrite site/index.html, site/catches.html and
+# site/patch-notes.html — twice undone with `git restore` on 17 August, once
+# after minting figures while the base was red and publishing was paused.
+# So: render into a scratch directory and assert against THAT. Every assertion
+# below is unchanged and still reads freshly rendered output; only the path it
+# was rendered to moved. RABADON_SITE_OUT is build.py's own switch and defaults
+# to site/, so nothing outside this file behaves differently.
+BUILT="$(mktemp -d)"
+trap 'rm -rf "$BUILT"' EXIT
+RABADON_SITE_OUT="$BUILT" python3 site/build.py > /tmp/rb_site_build.$$ 2>&1
 if [ $? -ne 0 ]; then
   bad "site/build.py failed"; sed 's/^/        /' /tmp/rb_site_build.$$ | tail -20
 else
@@ -117,22 +131,36 @@ else
 fi
 rm -f /tmp/rb_site_build.$$
 
+# the build must have produced the page the next assertions read; without this
+# a build that wrote nothing would make the placeholder check vacuously green.
+if [ -s "$BUILT/index.html" ]; then ok "the build wrote the page it is judged on"
+else bad "site/build.py produced no $BUILT/index.html — the checks below would pass on an empty tree"; fi
+
 # no placeholder may survive into the shipped page
-UNFILLED=$(grep -o '{{[a-zA-Z0-9_.]*}}' site/index.html 2>/dev/null | sort -u)
-if [ -z "$UNFILLED" ]; then ok "no unfilled placeholder in site/index.html"
-else bad "placeholders left unrendered in site/index.html:"; echo "$UNFILLED" | sed 's/^/        /'; fi
+UNFILLED=$(grep -o '{{[a-zA-Z0-9_.]*}}' "$BUILT/index.html" 2>/dev/null | sort -u)
+if [ -z "$UNFILLED" ]; then ok "no unfilled placeholder in the rendered index.html"
+else bad "placeholders left unrendered in the rendered index.html:"; echo "$UNFILLED" | sed 's/^/        /'; fi
 echo
 
 # ---------------------------------------------------------------------------
 # 3. the same fact may not have two values
 # ---------------------------------------------------------------------------
 echo "3. two pages, one number"
-CROSS=$(python3 - <<'PY'
-import re, sys
+CROSS=$(RABADON_SITE_OUT="$BUILT" python3 - <<'PY'
+import os, re, sys
+
+# The BUILT pages are read from wherever this run rendered them; the SOURCES
+# they are checked against — measured.json and the templates — stay in site/.
+# Unset, this resolves to site/ and the file behaves exactly as before.
+_OUT = os.environ.get('RABADON_SITE_OUT', 'site')
+
+def built(path):
+    """a page this run rendered, wherever it landed"""
+    return _OUT + path[len('site'):] if path.startswith('site/') else path
 
 def first_stat(path, needle):
     """the number in the stat block whose caption contains `needle`"""
-    s = open(path, encoding='utf-8').read()
+    s = open(built(path), encoding='utf-8').read()
     for m in re.finditer(r'class="n[^"]*"[^>]*>([0-9,]+)</(?:span|a)><span class="t">([^<]*)', s):
         if needle in m.group(2):
             return m.group(1).replace(',', '')
@@ -147,7 +175,7 @@ def measured_val(key):
     return None if v is None else str(v)
 
 def proof_stat(path, needle):
-    s = open(path, encoding='utf-8').read()
+    s = open(built(path), encoding='utf-8').read()
     for m in re.finditer(r'class="n[^"]*"[^>]*>([0-9,]+)</(?:span|a)><span class="t">([^<]*)', s):
         if needle in m.group(2):
             return m.group(1).replace(',', '')

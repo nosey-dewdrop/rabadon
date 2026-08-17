@@ -457,6 +457,26 @@ __BODY__
 # of leaving it to guess from the markup.
 SITE = "https://rabadon.noseydewdrop.com"
 
+# WHERE THE RENDERED PAGES LAND. Defaults to `site`, so a plain run is
+# byte-for-byte what it always was and the deploy path is untouched.
+#
+# It exists because a TEST has to be able to run this builder. The suite's
+# claims cases must actually render the pages — reading yesterday's committed
+# HTML instead would pass on a build that emits `{{placeholders}}`, which is the
+# one thing those cases exist to catch. But these pages are TRACKED and
+# PUBLISHABLE and their numbers come off the live ledger, so every `make test`
+# rewrote site/index.html, site/catches.html and site/patch-notes.html with
+# fresh figures. Twice on 17 August that had to be undone with `git restore`,
+# and once those regenerated numbers had been minted while the base was red and
+# publishing was paused. A test suite that rewrites what the site serves is a
+# hazard in its own right.
+#
+# So the WRITES are redirectable and the READS are not: the pages are rendered
+# wherever the caller asks, while the sources this builder reads — measured.json,
+# the templates, and the committed copy `rendered_day` dates a page against —
+# stay in site/ where they live.
+OUT = os.environ.get("RABADON_SITE_OUT", "site")
+
 
 def jsonld(path, title, desc, extra=(), main=None):
     """extra: further nodes for the graph, for a page that is more than a page.
@@ -1914,17 +1934,21 @@ def main():
                           ("patch-notes", patch_notes(rows)),
                           ("pull-requests", pull_request_page(prs, rows)),
                           ("benchmarks", benchmarks(rows, meas))):
-        with open(f"site/{name}.html", "w", encoding="utf-8") as f:
+        os.makedirs(OUT, exist_ok=True)
+        with open(f"{OUT}/{name}.html", "w", encoding="utf-8") as f:
             f.write(content)
         built[name] = content
-        print(f"site/{name}.html  {len(content):>7} bytes")
+        print(f"{OUT}/{name}.html  {len(content):>7} bytes")
     # the share card, drawn from the same measured.json the pages read. It is
     # rewritten only when it comes out different, and a card that cannot be
     # drawn is reported rather than raised: the pages are the deploy, the png is
     # the poster on the door.
     try:
         import og
-        print(og.render(meas))
+        # og.render already takes its destination, so the card follows the pages
+        # rather than being the one artifact a redirected build still writes into
+        # the tracked tree.
+        print(og.render(meas, out=f"{OUT}/og.png"))
     except Exception as e:                      # noqa: BLE001 - never fail a build over a picture
         print(f"site/og.png  NOT redrawn: {type(e).__name__}: {e}")
     # A crawler should not have to discover this site by following links, and a
@@ -1949,13 +1973,13 @@ def main():
         f"<changefreq>{'daily' if path in ('/', '/catches', '/patch-notes') else 'weekly'}</changefreq>"
         f"<priority>{'1.0' if path == '/' else '0.8'}</priority></url>"
         for path, _ in NAV if path.startswith("/"))
-    with open("site/sitemap.xml", "w", encoding="utf-8") as f:
+    with open(f"{OUT}/sitemap.xml", "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                 + urls + "</urlset>\n")
-    with open("site/robots.txt", "w", encoding="utf-8") as f:
+    with open(f"{OUT}/robots.txt", "w", encoding="utf-8") as f:
         f.write("User-agent: *\nAllow: /\n\nSitemap: " + SITE + "/sitemap.xml\n")
-    print("site/sitemap.xml  site/robots.txt")
+    print(f"{OUT}/sitemap.xml  {OUT}/robots.txt")
     print("  lastmod  " + "  ".join(f"{p}={lastmod[p]}" for p, _ in NAV
                                     if p.startswith("/")))
     print(f"  from {len(rows)} commits, {len(prs)} pull requests, "
