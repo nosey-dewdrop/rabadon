@@ -246,7 +246,11 @@ echo "2. the census generator redacts at the point of generation"
 # its own path and the full-census copy from $HOME, so both land under mktemp
 # and the real site/ and the real ~/.rabadon are never touched.
 mkdir -p "$T/repo/site"
-for f in rule_census.py field_stats.py; do cp "$REPO/site/$f" "$T/repo/site/$f"; done
+# identity.py and its committed list travel with them: both generators import
+# it to answer what a project label denotes, and a fixture missing it does not
+# test a weaker redactor, it tests an ImportError.
+for f in rule_census.py field_stats.py identity.py; do cp "$REPO/site/$f" "$T/repo/site/$f"; done
+cp "$REPO/site/non-projects.txt" "$T/repo/site/non-projects.txt"
 # $RABADON_REDACT_PY swaps in another redactor, which is how every case below
 # was shown red before it was closed — the same handle native/*_test.sh give
 # for the binaries ($RABADON_GATE_BIN, $RABADON_REPAIR_BIN). Section 5 always
@@ -498,7 +502,8 @@ else bad "the project-key rules do not hold"; fi
 # an EMPTY terms list in $T/repo/site, and a scan of that directory would report
 # section 4's fixture and call it this section's leak.
 mkdir -p "$T/keyrepo/site"
-for f in rule_census.py field_stats.py; do cp "$REPO/site/$f" "$T/keyrepo/site/$f"; done
+for f in rule_census.py field_stats.py identity.py; do cp "$REPO/site/$f" "$T/keyrepo/site/$f"; done
+cp "$REPO/site/non-projects.txt" "$T/keyrepo/site/non-projects.txt"
 cp "${RABADON_REDACT_PY:-$REPO/site/redact.py}" "$T/keyrepo/site/redact.py"
 python3 - "$T/keyrepo/site/field.jsonl" "$FAKEHOME" <<'PY'
 import json, os, re, sys
@@ -529,13 +534,21 @@ if len(rows) != 2:
 if acct in json.dumps(rows):
     problems.append("the account name is still in the published records")
 labels = sorted(r.get("project", "") for r in rows)
-if labels != ["home", "rabadon"]:
-    problems.append("labels are %r, expected ['home', 'rabadon']" % labels)
+# `(no project)`, not `home`. This assertion said `home` because that is what
+# redact.project_of folds a home-directory session to, and the question this
+# case asks is whether the ACCOUNT NAME survived — it does not, under either
+# label. What changed is the next question along: `home` is a directory, not a
+# project, and it was being published in a column of repository names and
+# counted as one of 72 project names awaiting a disclosure decision. The
+# criterion moves ahead of the code that satisfies it, in its own commit, per
+# CLAUDE.md non-negotiable 2.
+if labels != ["(no project)", "rabadon"]:
+    problems.append("labels are %r, expected ['(no project)', 'rabadon']" % labels)
 for p in problems:
     print(p)
 sys.exit(1 if problems else 0)
 PY
-if [ $? -eq 0 ]; then ok "both records survive, relabelled home and rabadon, with no account name left"
+if [ $? -eq 0 ]; then ok "both records survive, relabelled (no project) and rabadon, with no account name left"
 else bad "the published records are wrong"; fi
 SCANOUT="$(scan "$T/keyrepo/site" "$FAKEHOME" "$TERMS" 2>&1)"
 if [ -z "$SCANOUT" ]; then ok "the scanner reads the key spelling too, and finds nothing"
