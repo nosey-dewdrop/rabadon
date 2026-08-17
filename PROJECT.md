@@ -77,8 +77,10 @@ STATUS: RED — fix landed 2026-08-17, awaiting independent verification.
 The recovery half was broken by a silent skip in the twin-delivery dedupe
 (`native/gate.cpp:1857`); the cause and the measurement are in the session
 log. `bash native/redbase_test.sh` now prints 26 ok, 0 fail on the builder's
-machine, five consecutive runs and again inside `make test`. It stays RED
-because rule 2 and rule 7 are not met: `make test` still exits 2 on a
+machine, five consecutive runs and again inside `make test`. The redbase fix
+itself is INDEPENDENTLY CONFIRMED: CI run 32021838705 is green on both
+platforms, and a fresh clone at `e74c790` ran 26/0 in a third environment.
+It stays RED because rule 2 and rule 7 are not met: `make test` still exits 2 on a
 separate pre-existing failure (`publish_redaction_test.sh`, 2 fails, a live
 disclosure leak), and the builder's own green is a claim, not a verdict.
 Goes DONE when `make test` is green from a fresh clone on a machine that is
