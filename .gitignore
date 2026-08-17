@@ -5,7 +5,10 @@
 # the root was the half that could still commit a key.
 .env*
 .parked/
-CLAUDE.md
+# The session law (CLAUDE.md) is tracked now — a clone without it cannot run
+# the protocol PROJECT.md assumes. Only the superseded Turkish mission file
+# stays local.
+CLAUDE-eski-misyon.md
 HISTORY.md
 node_modules/
 rabadon-study-notlar/
