@@ -372,6 +372,19 @@ site/published-projects.txt with its reason, or goes on the private withhold
 list — and land that edit IN THIS REPOSITORY. That is the single thing between
 here and a green `make test`.
 
+CI (run 32035238269, commit e161e3e) mirrors the local run exactly, on BOTH
+platforms — macos-15 and ubuntu-latest:
+  red base: 26 ok, 0 fail            site claims: GREEN
+  publish redaction: 28 passed, 0 failed
+  published allowlist: 8 ok, 1 fail  -> 72 found, 12 allowed, 60 off-list
+So this step is confirmed on machines that are not the dev box, and the run's
+only failure is the intended gate. One thing worth naming: the allowlist gate
+reports the SAME 72/12/60 on a runner as it does here. That was the entire
+design goal — publish_redaction's section 6 can only ever see a leak where the
+private terms file exists, and this gate needs no private list to enforce a
+public decision. It is the first check in this repo that can fail on a
+disclosure question anywhere.
+
 ### 2026-08-17 (2) — redaction decided after it had scrubbed the evidence
 
 DONE 1 — the bookkeeping. `site/rule_census.py` sanitized in ONE pass that
