@@ -279,6 +279,119 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-08-17 (4) — the gate moves last, and the 60 are not 60 decisions
+
+START: one step — the approved Makefile ordering decision (move the allowlist
+gate to the END of the test target so a red gate cannot mask the suites behind
+it). Proof command: `make test`, reading the order suites are invoked in and the
+count of FAIL lines in the whole run.
+
+DONE — the ordering, and it is the only thing this session changed. The gate was
+at Makefile:777, position 87 of 94, immediately after its sibling
+`publish_redaction_test.sh`. `make` stops at the first failing recipe line, so
+while the gate stood red the last 7 suites never ran under `make test` at all —
+last session had to run them by hand to know they were green. Moved to the end,
+after `rule_census_test.sh`, with its comment block and a new paragraph naming
+the ordering rule so it does not drift back: a long-lived deliberate red belongs
+at the END of a serial target, and anything added below that line is hidden by
+it. No test file, assertion, expected value or acceptance criterion was touched;
+the diff is a move of 9 comment lines plus 1 recipe line, and 8 new comment
+lines. `Makefile` is the only modified file.
+
+Proof:
+  make test  -> exit 2, and the suites now run in this order at the tail:
+                site_claims, field_redaction, publish_redaction, publish,
+                field_census, claims, fd_dup, mode_wrong, guard_subdir,
+                rule_census, THEN published_allowlist last
+                All 7 formerly-masked suites now execute inside the run:
+                publish 46/0, field census 1/0, claims 13/0, fd_dup 11/0,
+                mode_wrong 9/0, guard_subdir 16/0, rule census GREEN
+  grep -c '^  FAIL' over the whole run  -> 1
+                exactly one FAIL line in 94 suites, and it is the deliberate
+                allowlist gate. NOTHING is behind it any more.
+  git status --short after the run      -> ` M Makefile` only. No tracked site/
+                artifact was mutated (last session's fix holds).
+
+NOT DONE, AND IT COULD NOT BE: `make test` is NOT green, Promise 2 was NOT
+flipped, and no next step was started.
+
+THE TRIAGE COMMIT IS NOT IN THIS REPOSITORY. Reported as landed for the second
+consecutive session; absent for the second consecutive session. This is stated
+with evidence because it contradicts the instruction and the instruction does
+not outrank evidence:
+  site/published-projects.txt   still the 12 seeded names, 46 lines, unchanged
+  its only commit               4045665 — the seed commit from two sessions ago
+  git status                    clean before this session's Makefile edit
+  main vs origin/main           0 / 0 after `git fetch`
+  git stash list                empty;  git worktree list: one;  git branch -a: main only
+  git reflog -10                carries only these sessions' commits
+  git log --all --grep=triage --grep=allowlist -i  -> only 4045665
+  python3 site/allowlist.py --list  -> 72 found, 12 allowed, 60 off-list
+  python3 site/allowlist.py         -> exit 1
+Byte-identical verdict to last session. If that edit exists it is in another
+clone, or was never committed. Nothing was invented to make this read better.
+
+CI is red on the same single thing, on BOTH platforms — run 32035685460, commit
+cfc894b: one distinct FAIL across macos-15 and ubuntu-latest, `72 name(s) found,
+12 allowed, 60 off-list`. So local and CI agree exactly, and the gate needs no
+private list to say so. NOT VERIFIED: this run predates the Makefile move, so
+the reordering itself has not been through CI.
+
+AND THE 60 ARE NOT 60 DISCLOSURE DECISIONS — the count is inflated by a data
+defect, which makes this a smaller decision than it looks. `allowlist.py` reads
+the `project` field each record DECLARES, and that field is not a project
+identity: it is a directory basename, temp and fixture trees included. Classified
+against the real directories under `~/damla_projects_2026`:
+  39 names / 377 records  ARE real project directories — genuine disclosure
+                          decisions, and they belong to the operator
+  21 names / 305 records  are NOT — led by `home` (116 records) and `fixed`
+                          (102), which together are a THIRD of all off-list
+                          records and are not projects at all. `home` records
+                          are STOP events whose cwd resolved to a home-relative
+                          path; `fixed` is a redteam fixture tree
+                          (`git commit -m "wip"` × 102). Also here:
+                          `rbprobe.nqskoD` (33), `rbprobe`, `rbd-do`,
+                          `rbd-toggle.IZCtM2`, `.reachprobe`, `p`, `tmp`,
+                          `.claude`, `spool`, `damla_projects_2026` — mktemp
+                          dirs and scratch paths.
+  Plus 4 duplicate spellings of names already decidable once: `idea garden` vs
+  `idea-garden`, `just ballet` vs `just-ballet`, `message-in-a-bottle` vs
+  `messageinabottle`, `urun-psikolojisi-kitap` vs `psikoloji-kitabi`.
+  And one that is a redaction artifact, not a name: `(withheld)-showcase` (5).
+The mechanism to exclude harness trees ALREADY EXISTS and is under-inclusive:
+`site/field_stats.py:53-57`, `LAB_EXACT` / `LAB_PREFIX = ("tmp.", "rabadon-",
+"test-", "scratch")` / `FIXTURE`. It catches none of the 21. And `allowlist.py`
+does not consult it at all.
+
+DELIBERATELY NOT FIXED, because fixing it here would be the exact move this
+product refuses. Widening `LAB_PREFIX` until the count falls is indistinguishable
+from redefining the gate to get green, and it would have been done in the same
+session that was asked to produce green. The classification above is offered as
+evidence for a decision, not taken as one. Whether the extractor should report a
+project identity instead of a cwd basename is a real bug with a real fix; it
+needs its own session and its own commit, ahead of any triage, so that the
+operator triages ~39 real names and not 60 strings.
+
+STRUCTURAL FINDING, unfixed and worth naming: the allowlist gate is now a
+permanently-red suite inside `make test`, and `make test` is what rabadon's own
+guard runs on this repo. So rabadon now refuses every action in its own tree —
+it refused this session's commands twice, correctly. The Makefile's own comment
+above `promises` states the principle this violates: "A suite designed to fail
+cannot also be the gate." Moving the gate last fixed masking; it did not fix
+this. Options are a session's worth of thought, not a paragraph's.
+
+NOT VERIFIED: no fresh clone, no clean machine, no g++-only container. The
+reordered Makefile has not run on CI. Promise 2's STATUS condition (`make test`
+green from a fresh clone on a machine that is not the dev box, verified by a
+session that did not build it) is unmet on all three clauses, so it stays RED
+and was not touched. The 21 non-project names are classified by directory
+existence, which is evidence about the extractor, NOT proof that each of the 39
+is safe to publish — none of the 39 was decided here.
+
+NEXT: fix the `project` field so it carries a project identity rather than a cwd
+basename (or make `allowlist.py` apply the existing lab/fixture filter), in its
+own commit, and re-measure. Then the operator triages what survives.
+
 ### 2026-08-17 (3) — the suite stops rewriting what the site serves
 
 DECISION (operator) — git history: option (a), LEAVE IT. The name was launched

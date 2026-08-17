@@ -766,15 +766,6 @@ test: all
 # repository — it is public — so sections 1-4 write their own list and are as
 # red on a runner as they are here.
 	./native/publish_redaction_test.sh
-# publish_redaction_test.sh asks whether a name on the operator's PRIVATE list
-# got out. A runner has no such list, so its section 6 passes there on blindness
-# rather than on cleanliness. This one asks the inverse question against a
-# PUBLIC committed allowlist — was this name DECIDED? — which a runner can
-# answer without ever learning a private name. Measured 2026-08-17: 72 project
-# names published under site/, 12 decided, 60 not. It is RED until the operator
-# triages them, and an allowlist seeded with everything already published would
-# have been a check that cannot turn red.
-	./native/published_allowlist_test.sh
 # and whether the page gets republished at all. site_claims_test.sh asks whether
 # a number can be walked back to a run; this asks whether the number the public
 # reads is the number the ledger holds. Between 25 July and 3 August the only
@@ -831,6 +822,22 @@ test: all
 # itself after real incidents, so each named something that had already happened
 # once and was free to happen again.
 	./native/rule_census_test.sh
+# LAST ON PURPOSE, and the ordering is the point. publish_redaction_test.sh asks
+# whether a name on the operator's PRIVATE list got out. A runner has no such
+# list, so its section 6 passes there on blindness rather than on cleanliness.
+# This one asks the inverse question against a PUBLIC committed allowlist — was
+# this name DECIDED? — which a runner can answer without ever learning a private
+# name. Measured 2026-08-17: 72 project names published under site/, 12 decided,
+# 60 not. It is RED until the operator triages them, and an allowlist seeded
+# with everything already published would have been a check that cannot turn red.
+#
+# WHY IT SITS HERE rather than beside its sibling: `make` stops at the first
+# failing recipe line, so while this gate is red it MASKS every suite after it.
+# It stood at position 87 of 94 and hid the last 7 — they had to be run by hand
+# to know they were green (2026-08-17 session log). A long-lived deliberate red
+# belongs at the END of a serial target, where the only thing it can hide is
+# nothing. Anything added below this line is hidden by it: add above.
+	./native/published_allowlist_test.sh
 
 # THE SCOREBOARD. Not part of `make test`, and the reason is not squeamishness:
 # it asserts promises that are not built yet, so it is RED on purpose, and a red
