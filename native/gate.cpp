@@ -1857,10 +1857,31 @@ int main(int argc, char** argv) {
   // twin-delivery dedupe (same law as the node gate): tool events carry a
   // unique tool_use_id; non-tool events (Stop/SessionStart/prompt) dedupe on
   // a 2s time bucket, which only ever collides with a genuine twin.
+  //
+  // A TIME BUCKET IS NOT AN IDENTITY, AND FOR TOOL EVENTS IT WAS A SILENT
+  // SKIP. The condition used to read `hook != "PreToolUse"`, which sent
+  // PostToolUse — a tool event — down the bucket branch whenever the agent
+  // sent no tool_use_id. Two genuinely different edits landing in the same
+  // two seconds then produced ONE supervised event: the second returned 0
+  // here, before the branch that starts the project's own check, so no check
+  // ran and a red base could never clear itself. Measured, 3 runs each, two
+  // edits 300ms apart: same bucket -> the suite ran 1 time and the verdict
+  // stayed red; across a boundary -> it ran 2 times and went green. The
+  // recovery half of Promise 2 was failing on exactly this.
+  //
+  // The bucket also never did its own job for tool events: a genuine twin
+  // delivered 1ms apart across a boundary lands in two buckets and passes
+  // through. So this is not a protection being traded away — it is a
+  // heuristic that dropped real events and caught duplicates by luck.
+  //
+  // A tool event with no tool_use_id has NO identity available, so it is not
+  // deduped: a doubled check costs one suite run (and net.cpp's single-flight
+  // already collapses concurrent ones), while a dropped one costs the catch.
   {
+    const bool toolEvent = (hook == "PreToolUse" || hook == "PostToolUse");
     string key;
     if (!toolUseId.empty()) key = hook + ":" + toolUseId;
-    else if (hook != "PreToolUse") key = hook + ":" + std::to_string(now_ms() / 2000);
+    else if (!toolEvent) key = hook + ":" + std::to_string(now_ms() / 2000);
     if (!key.empty()) {
       for (const auto& id : ss.recentEv) if (id == key) return 0;
       ss.recentEv.push_back(key);
