@@ -822,6 +822,22 @@ test: all
 # itself after real incidents, so each named something that had already happened
 # once and was free to happen again.
 	./native/rule_census_test.sh
+# and the field the two files above publish a project under. The gate writes
+# `project = basename(cwd)`, so the published column carried whatever a session's
+# working directory happened to be called: the home directory, a system scratch
+# path, rabadon's own probe trees, the directory that CONTAINS the projects, and
+# the residue left after a withheld name was scrubbed out of a longer one. 72
+# "project" names, a third of them naming no project at all.
+#
+# Collapsing those is a correctness fix and it is ALSO, from one step away,
+# exactly the move this product refuses: widen the filter one prefix at a time
+# and the disclosure gate below goes green without one disclosure decision being
+# made. So this suite tests the rules from both sides — every collapse rule has a
+# case proving it fires, and cases proving it does NOT fire on an ordinary name,
+# that an unknown label survives as a name, and that the committed list cannot
+# grow into a blanket. It sits ABOVE the gate deliberately: it must be able to
+# fail the build on its own, not only when somebody runs it by hand.
+	./native/identity_test.sh
 # LAST ON PURPOSE, and the ordering is the point. publish_redaction_test.sh asks
 # whether a name on the operator's PRIVATE list got out. A runner has no such
 # list, so its section 6 passes there on blindness rather than on cleanliness.

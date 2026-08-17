@@ -1,0 +1,40 @@
+# non-projects.txt — labels that reach the `project` field and name no project.
+#
+# WHY THIS FILE EXISTS. The gate writes `project = basename(cwd)`, so anything
+# a session's working directory happened to be called arrives in the published
+# `project` column as if it were a repository: the operator's home directory, a
+# system scratch path, rabadon's own probe trees, the directory that CONTAINS
+# the projects. site/identity.py resolves most of those from the string alone
+# (a dot-directory, a lab prefix, the home fold). This file is for the residue
+# it cannot: a label that is a perfectly ordinary directory name and simply is
+# not a project root.
+#
+# THE RULE FOR ADDING A LINE, AND IT IS THE WHOLE POINT OF THE FILE BEING
+# PUBLIC AND COMMITTED. A line is admissible only with evidence that the label
+# denotes something other than a project, written beside it, checkable by
+# someone who is not on this machine — a file and line in this repository, or
+# the ledger's own text. "It made the count smaller" is not evidence, and a
+# label that is merely UNFAMILIAR does not belong here: it belongs off-list, in
+# front of the human who owns the disclosure decision. If you are tempted to
+# add a line to turn a check green, that is the exact move rabadon exists to
+# refuse — leave it red and say so.
+#
+# Format: <kind> <label>, kind is `lab` or `none`.
+#   lab   a tree rabadon made to exercise itself; published as (lab)
+#   none  a real directory that is not a project;  published as (no project)
+# Read by: site/identity.py. Checked by: native/identity_test.sh.
+
+# --- rabadon's own fixtures ------------------------------------------------
+# native/guard_allow_twin_test.sh:64 does `mkdir -p "$ROOT/fixed"` and writes a
+# guard there declaring `"project": "fixed"`. 220 ledger records over 9 days,
+# every one of them a suite walking its cases.
+lab  fixed
+
+# --- directories that are not project roots --------------------------------
+# ~/.rabadon/spool — the directory the gate writes the ledger into. The ledger's
+# own step text records it: `ran: cd ~/.rabadon/spool && python3 - <<`.
+none spool
+
+# The directory the project directories live IN. `ls ~/damla_projects_2026`
+# lists the projects; the container is not one of them.
+none damla_projects_2026
