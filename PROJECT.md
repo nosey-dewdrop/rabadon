@@ -73,10 +73,16 @@ says so instead of going quiet. Proof: `bash native/contract_test.sh`
 
 ## Promise 2 — a red base stops the next action
 
-STATUS: RED — challenged 2026-08-17, human-approved. The recovery half
-does not work: `native/redbase_test.sh` returns 24 ok, 2 fail on both CI
-platforms, deterministically, since `7ffb0fb`. Returns to DONE only when
-`bash native/redbase_test.sh` prints 26 ok, 0 fail.
+STATUS: RED — fix landed 2026-08-17, awaiting independent verification.
+The recovery half was broken by a silent skip in the twin-delivery dedupe
+(`native/gate.cpp:1857`); the cause and the measurement are in the session
+log. `bash native/redbase_test.sh` now prints 26 ok, 0 fail on the builder's
+machine, five consecutive runs and again inside `make test`. It stays RED
+because rule 2 and rule 7 are not met: `make test` still exits 2 on a
+separate pre-existing failure (`publish_redaction_test.sh`, 2 fails, a live
+disclosure leak), and the builder's own green is a claim, not a verdict.
+Goes DONE when `make test` is green from a fresh clone on a machine that is
+not the dev box, verified by a session that did not build it.
 Break the repo, the next action exits 2 with the real failing output
 on screen, recovery is automatic when the base turns green.
 Proof: `bash native/redbase_test.sh` (26) + `bash native/postuse_test.sh` (88).
@@ -270,6 +276,69 @@ spec — never the full chat history, never future versions' details.
 
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
+
+### 2026-08-17 — the silent skip behind Promise 2's recovery half
+
+DONE: root-caused and fixed the two `native/redbase_test.sh` failures without
+touching any test file. `native/gate.cpp:1857` deduped twin deliveries, and its
+own comment reserved the 2-second time bucket for NON-tool events — but the
+condition read `hook != "PreToolUse"`, which sent PostToolUse down the bucket
+branch whenever the agent sent no `tool_use_id`. Two genuinely different edits
+inside the same two seconds therefore produced ONE supervised event: the second
+returned 0 above the branch that starts the project's own check, so no check
+ran and a red base could never clear. That is why the suite passed here and
+failed on CI — the bug is phase-dependent on wall-clock, not deterministic.
+
+Measured, two edits 300ms apart, 3 runs each (`/tmp/rb-probe6.sh`):
+  same 2s bucket, before the fix  -> the suite ran 1 time, verdict stayed red
+  across a bucket boundary        -> the suite ran 2 times, verdict green
+  same 2s bucket, after the fix   -> the suite ran 2 times, verdict green
+The bucket never did its own job for tool events either: a genuine twin
+delivered 1ms apart across a boundary lands in two buckets and passes through.
+Tool events now dedupe only on `tool_use_id`; absent one there is no identity,
+so they are not deduped. No test asserts the old behaviour —
+`native/postuse_test.sh:136` explicitly ignores `recentEv` as
+"dedupe bookkeeping, not verdict state".
+
+Proof, run in this order:
+  make all
+  bash native/redbase_test.sh   -> 26 ok, 0 fail, five consecutive runs
+  bash native/postuse_test.sh   -> 88 ok, 0 fail
+  bash native/contract_test.sh  -> 35 ok, 0 fail
+  make test                     -> redbase 26 ok 0 fail INSIDE the full suite
+Scope of the defect was wider than the test: every second edit inside the same
+two seconds went unsupervised, so catches were lost silently, not just this
+recovery path.
+
+NOT VERIFIED: `make test` still exits 2 — see the blocker below. Nothing was
+run on a clean machine or a fresh clone; CI has not been seen green on either
+platform since the fix. Per PROJECT.md rule 7 this green is a claim, not a
+verdict, so Promise 2 stays RED until an independent run confirms it.
+
+BLOCKER — a second, pre-existing red, and it is a live data leak.
+`native/publish_redaction_test.sh` returns 26 passed, 2 failed, and it failed
+identically BEFORE this session touched gate.cpp, with the older binary, so it
+is not a regression from this fix:
+  FAIL  the withheld bookkeeping does not hold
+        withheld count is 0, expected 3; wrong rules survived
+        ['no-force-push-main','no-rm-rf-outside','protect-data','no-copy-out']
+  FAIL  published artifacts under site/ carry what may not be published:
+        field.html: withheld project name(s) stitchu=1
+        measured.json: withheld project name(s) stitchu=1
+Both files are TRACKED in git and the site is public, so a project name the
+redaction law is supposed to withhold is currently published. The redaction
+path is withholding 0 of 3 things it should. This is a publish-blocking,
+disclosure-grade failure and it owns the next session.
+
+ALSO FOUND: `make test` mutates tracked publishable artifacts. Running it
+rewrote site/index.html, site/catches.html and site/patch-notes.html with
+regenerated field numbers (461 -> 468 refused, ledger 123,911 -> 124,402).
+Those were minted while the base was red and publishing is paused, so they
+were restored with `git restore`, not committed. A test suite that rewrites
+published files is a hazard on its own.
+
+NEXT: fix the redaction path so the withheld count is 3 of 3 and no
+published artifact under site/ carries a withheld project name.
 
 ### 2026-08-17 — protocol files land, branches sorted
 
