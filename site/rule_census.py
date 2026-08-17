@@ -323,28 +323,55 @@ def sanitize(census):
     # of a table inside it. So the inner list is pruned first and the outer
     # record is judged on what is left of it — which is how a redaction stays a
     # redaction instead of quietly becoming a deletion.
-    def walk(node, where):
+    # TWO PASSES, AND THE ORDER IS THE WHOLE CORRECTNESS ARGUMENT. This used to
+    # be one pass that cleaned each record BEFORE asking whether to withhold it,
+    # so `withhold_reason` was handed a blob the scrub had already emptied of
+    # every term it looks for. It never fired: the census published 0 withheld
+    # where 3 were owed, and all four fixture rules survived with their names
+    # quietly rubbed out. A pass that keeps the record and erases the evidence
+    # is not a redaction — it is a cover-up with a counter stuck at zero. That
+    # is also what `redact.clean`'s own docstring assumes is already done: the
+    # withheld names are "handled one layer up — a whole RECORD carrying one was
+    # dropped".
+    #
+    # So: decide first, on the ORIGINAL text; rewrite only what survives.
+    def prune(node, where):
+        """Drop the records that may not be published, judged on what they say
+        before anything is scrubbed.
+
+        Inner lists are pruned first so an outer record is judged on what is
+        LEFT of it: the entry for `guard reach from a subdirectory` carries a
+        list of the project roots the fixture walked, one of which is withheld,
+        and judging the outer record first threw away a whole measured
+        mechanism to hide one row of a table inside it."""
         if isinstance(node, dict):
-            return {redact.clean(k, 0): walk(v, where + "." + str(k)) for k, v in node.items()}
+            return {k: prune(v, where + "." + str(k)) for k, v in node.items()}
         if isinstance(node, list):
             out = []
             for item in node:
                 if isinstance(item, (dict, list)):
-                    item = walk(item, where)
+                    item = prune(item, where)
                     if redact.withhold_reason(json.dumps(item, ensure_ascii=False)):
                         withheld[where.lstrip(".")] += 1
                         continue
-                    out.append(item)
-                else:
-                    out.append(walk(item, where))
+                out.append(item)
             return out
+        return node
+
+    def scrub(node):
+        """Rewrite what survived: the home path to `~`, the account name out,
+        and a withheld term out of free text that merely mentions one."""
+        if isinstance(node, dict):
+            return {redact.clean(k, 0): scrub(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [scrub(v) for v in node]
         if isinstance(node, str):
             # no length clip here: unlike a ledger label, a census field is a
             # pattern or a probe, and half a regex is not a shorter regex.
             return redact.clean(node, 0)
         return node
 
-    clean = walk(census, "")
+    clean = scrub(prune(census, ""))
     total = sum(withheld.values())
     clean["withheld_from_publication"] = {
         "records": total,
