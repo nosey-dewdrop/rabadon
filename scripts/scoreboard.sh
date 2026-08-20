@@ -15,8 +15,10 @@
 #   DEFS artırılır, eski dosya yanına kaydırılır (silinmez), yeni dosya başlar.
 #   Ölçüm tanımını değiştirip eski çizgiyle övünmek de, sahte alarmla durmak da
 #   aynı hatanın iki yüzü.
-DEFS=2   # 1 -> 2: cheat/stops sözlük yerine sayı okunuyor, verbs fiil sayıyor,
+DEFS=3   # 1 -> 2: cheat/stops sözlük yerine sayı okunuyor, verbs fiil sayıyor,
          #         why_len "allow" alanını da topluyor (bkz. reports/phase-0/review.md)
+         # 2 -> 3: "allow" bir liste; str() yerine boşlukla birleştiriliyor,
+         #         yoksa Python repr tırnakları da byte sayılıyordu
 
 set -u
 ROOT="${1:-$PWD}"
@@ -104,7 +106,11 @@ for f in glob.glob(os.path.join(sys.argv[1],"**",".rabadon","guard.json"),recurs
         for r in grp:
             if isinstance(r,dict) and "why" in r:
                 nxt=r.get("fix") or r.get("allow") or ""
-                if not isinstance(nxt,str): nxt=str(nxt)
+                # "allow" her kuralda bir LİSTE (örnek komutlar). str() ile
+                # düzleştirmek Python repr'ının tırnak ve virgüllerini de
+                # sayardı — insanın okuduğu metin o değil. Boşlukla birleştir.
+                if isinstance(nxt,(list,tuple)): nxt=" ".join(str(x) for x in nxt)
+                elif not isinstance(nxt,str): nxt=str(nxt)
                 tot+=len(r.get("why",""))+len(nxt); n+=1
 print(tot//n if n else "")
 P
