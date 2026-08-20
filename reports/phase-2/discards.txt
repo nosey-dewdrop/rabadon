@@ -1,0 +1,14 @@
+# mine_honest.sh — elimination report (gate 2 requires these numbers)
+repo=/tmp/express
+check=npm test
+scan_depth=1000
+max_cases=0
+max_hit=no
+scanned=1000
+kept=4
+discarded_total=996
+discarded_wrong_shape=936
+discarded_revert_would_not_apply=0
+discarded_checkout_failed=0
+discarded_did_not_go_red=0
+discarded_nondeterministic=60

@@ -1,0 +1,72 @@
+commit ae6dd37680e3a00618d6c8a3e522f0ee4eeba1a4
+Author: James Ross <james@jross.me>
+Date:   Sun Jul 12 19:22:00 2026 +0100
+
+    feat: allow conditional revalidation for QUERY requests (#7366)
+    
+    * feat: allow conditional revalidation for QUERY requests
+    
+    req.fresh only validated freshness for GET and HEAD, so QUERY responses never returned 304 despite a matching If-None-Match. QUERY is a safe, idempotent, cacheable method that supports conditional requests, so include it in the freshness check.
+    
+    * docs: include history
+    
+    ---------
+    
+    Co-authored-by: Sebastian Beltran <bjohansebas@gmail.com>
+
+diff --git a/test/req.fresh.js b/test/req.fresh.js
+index 3bf6a1f6..318a6516 100644
+--- a/test/req.fresh.js
++++ b/test/req.fresh.js
+@@ -2,6 +2,7 @@
+ 
+ var express = require('../')
+   , request = require('supertest');
++var shouldSkipQuery = require('./support/utils').shouldSkipQuery
+ 
+ describe('req', function(){
+   describe('.fresh', function(){
+@@ -47,6 +48,43 @@ describe('req', function(){
+       .expect(200, 'false', done);
+     })
+ 
++    it('should return true for a QUERY request with a body when the resource is not modified', function(done){
++      if (shouldSkipQuery(process.versions.node)) {
++        this.skip()
++      }
++      var app = express();
++      var etag = '"12345"';
++
++      app.use(function(req, res){
++        res.set('ETag', etag);
++        res.send(req.fresh);
++      });
++
++      request(app)
++      .query('/')
++      .set('If-None-Match', etag)
++      .send({ ids: ['a', 'b'] })
++      .expect(304, done);
++    })
++
++    it('should return false for a QUERY request with a body when the resource is modified', function(done){
++      if (shouldSkipQuery(process.versions.node)) {
++        this.skip()
++      }
++      var app = express();
++
++      app.use(function(req, res){
++        res.set('ETag', '"123"');
++        res.send(req.fresh);
++      });
++
++      request(app)
++      .query('/')
++      .set('If-None-Match', '"12345"')
++      .send({ ids: ['a', 'b'] })
++      .expect(200, 'false', done);
++    })
++
+     it('should ignore "If-Modified-Since" when "If-None-Match" is present', function(done) {
+       var app = express();
+       const etag = '"FooBar"'

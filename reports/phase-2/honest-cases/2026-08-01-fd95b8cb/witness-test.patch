@@ -1,0 +1,108 @@
+commit fd95b8cb9d4b597523d55458b5ea175a36c12ac4
+Author: nosey-dewdrop <damummyphus@gmail.com>
+Date:   Sat Aug 1 21:40:12 2026 +0300
+
+    fix(res.send): send the actual bytes of an ArrayBuffer view
+    
+    res.send() treats a chunk as binary when ArrayBuffer.isView(chunk) is true,
+    which holds for a DataView and for every TypedArray, and sets Content-Type to
+    application/octet-stream. The body, however, was produced by
+    Buffer.from(chunk, encoding), which reads a view as a list of elements rather
+    than as bytes, so the classification and the body disagreed:
+    
+      - a DataView has no length, so the body was dropped entirely and the response
+        was 200 with Content-Length: 0 and no data
+      - every element of a multi-byte TypedArray was truncated to one byte, so
+        Uint16Array([0x0100, 0x0001]) was sent as 00 01 instead of 00 01 01 00
+      - without an ETag the small-chunk branch skips the conversion and passes the
+        raw view to res.end(), which rejects it with ERR_INVALID_ARG_TYPE after
+        Content-Length has already been set from Buffer.byteLength()
+    
+    Wrap a non-Buffer view around its own bytes with .buffer, .byteOffset and
+    .byteLength before the length and the ETag are computed, so all three paths
+    agree. An empty view is replaced with an empty buffer because its backing
+    ArrayBuffer may have been detached and cannot be wrapped.
+    
+    Signed-off-by: nosey-dewdrop <damummyphus@gmail.com>
+
+diff --git a/test/res.send.js b/test/res.send.js
+index f38ffde9..a2795c2f 100644
+--- a/test/res.send.js
++++ b/test/res.send.js
+@@ -217,6 +217,76 @@ describe('res', function(){
+         .expect(200, "hey", done);
+     })
+ 
++    it('should accept DataView', function(done){
++      var app = express();
++      app.use(function(req, res){
++        var view = new DataView(new ArrayBuffer(3));
++        view.setUint8(0, 0x68);
++        view.setUint8(1, 0x65);
++        view.setUint8(2, 0x79);
++        res.set('Content-Type', 'text/plain').send(view);
++      })
++
++      request(app)
++        .get('/')
++        .expect('Content-Length', '3')
++        .expect(200, 'hey', done);
++    })
++
++    it('should accept a multi-byte TypedArray', function(done){
++      var app = express();
++      app.use(function(req, res){
++        res.send(new Uint16Array([0x0100, 0x0001]));
++      })
++
++      request(app)
++        .get('/')
++        .expect('Content-Type', 'application/octet-stream')
++        .expect('Content-Length', '4')
++        .expect(utils.shouldHaveBody(Buffer.from([0x00, 0x01, 0x01, 0x00])))
++        .expect(200, done);
++    })
++
++    it('should accept a view on part of an ArrayBuffer', function(done){
++      var app = express();
++      app.use(function(req, res){
++        var buf = new Uint8Array([0x78, 0x68, 0x65, 0x79, 0x78]);
++        res.set('Content-Type', 'text/plain').send(buf.subarray(1, 4));
++      })
++
++      request(app)
++        .get('/')
++        .expect('Content-Length', '3')
++        .expect(200, 'hey', done);
++    })
++
++    it('should accept a multi-byte TypedArray without an ETag', function(done){
++      var app = express();
++      app.set('etag', false);
++      app.use(function(req, res){
++        res.send(new Uint16Array([0x0100, 0x0001]));
++      })
++
++      request(app)
++        .get('/')
++        .expect('Content-Length', '4')
++        .expect(utils.shouldHaveBody(Buffer.from([0x00, 0x01, 0x01, 0x00])))
++        .expect(200, done);
++    })
++
++    it('should accept an empty view', function(done){
++      var app = express();
++      app.use(function(req, res){
++        res.send(new Uint8Array(0));
++      })
++
++      request(app)
++        .get('/')
++        .expect('Content-Length', '0')
++        .expect(utils.shouldNotHaveBody())
++        .expect(200, done);
++    })
++
+     it('should not override ETag', function (done) {
+       var app = express()
+ 

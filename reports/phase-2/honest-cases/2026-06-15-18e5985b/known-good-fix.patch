@@ -1,0 +1,42 @@
+commit 18e5985b8a9d5e8423db0a9121f22bdaecd5b120
+Author: Yury Shkoda <shkoda.yuri@gmail.com>
+Date:   Tue Jun 16 06:06:31 2026 +0300
+
+    fix(res.send): add Content-Length header only if Transfer-Encoding is not present (#4893)
+    
+    * fix(respond): add Content-Length header only if Transfer-Encoding is not present
+    
+    * fix(response): used get('Transfer-Encoding')
+    
+    * test(res.send): covered Transfer-Encoding and Content-Length headers logic
+    
+    * chore(response): removed comment
+    
+    * chore(res.redirect): revert changes to focus on res.send
+    
+    * test(res.send): added tests for all transfer encodings
+    
+    * docs: update History.md to include bug fix for HTTP header conflict in res.send()
+    
+    ---------
+    
+    Co-authored-by: Sebastian Beltran <bjohansebas@gmail.com>
+
+diff --git a/lib/response.js b/lib/response.js
+index ebcf5f0d..b4755a5c 100644
+--- a/lib/response.js
++++ b/lib/response.js
+@@ -162,9 +162,10 @@ res.send = function send(body) {
+   var etagFn = app.get('etag fn')
+   var generateETag = !this.get('ETag') && typeof etagFn === 'function'
+ 
+-  // populate Content-Length
+-  var len
+-  if (chunk !== undefined) {
++  // Because Content-Length and Transfer-Encoding can't be present in the response headers together,
++  // Content-Length should be added only if there is no Transfer-Encoding header
++  var len;
++  if (chunk !== undefined && !this.get('Transfer-Encoding')) {
+     if (Buffer.isBuffer(chunk)) {
+       // get length of Buffer
+       len = chunk.length

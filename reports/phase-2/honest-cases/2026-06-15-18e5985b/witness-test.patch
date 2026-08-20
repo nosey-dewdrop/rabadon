@@ -1,0 +1,58 @@
+commit 18e5985b8a9d5e8423db0a9121f22bdaecd5b120
+Author: Yury Shkoda <shkoda.yuri@gmail.com>
+Date:   Tue Jun 16 06:06:31 2026 +0300
+
+    fix(res.send): add Content-Length header only if Transfer-Encoding is not present (#4893)
+    
+    * fix(respond): add Content-Length header only if Transfer-Encoding is not present
+    
+    * fix(response): used get('Transfer-Encoding')
+    
+    * test(res.send): covered Transfer-Encoding and Content-Length headers logic
+    
+    * chore(response): removed comment
+    
+    * chore(res.redirect): revert changes to focus on res.send
+    
+    * test(res.send): added tests for all transfer encodings
+    
+    * docs: update History.md to include bug fix for HTTP header conflict in res.send()
+    
+    ---------
+    
+    Co-authored-by: Sebastian Beltran <bjohansebas@gmail.com>
+
+diff --git a/test/res.send.js b/test/res.send.js
+index eb6e4961..f38ffde9 100644
+--- a/test/res.send.js
++++ b/test/res.send.js
+@@ -592,4 +592,29 @@ describe('res', function(){
+       })
+     })
+   })
++
++  describe('when Transfer-Encoding header is present', function(){
++    var transferEncodings = [
++      'chunked',
++      'compress',
++      'deflate',
++      'gzip'
++    ];
++
++    transferEncodings.forEach(function(encoding){
++      it('should not add Content-Length header if Transfer-Encoding header is equal to ' + encoding, function(done){
++        var app = express();
++
++        app.use(function(_, res){
++          res.status(200).set('Transfer-Encoding', encoding).send('');
++        });
++
++        request(app)
++          .get('/')
++          .expect(utils.shouldNotHaveHeader('Content-Length'))
++          .expect(utils.shouldHaveHeader('Transfer-Encoding'))
++          .expect(200, '', done);
++      })
++    });
++  })
+ })

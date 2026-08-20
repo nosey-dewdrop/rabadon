@@ -1,0 +1,47 @@
+commit fd95b8cb9d4b597523d55458b5ea175a36c12ac4
+Author: nosey-dewdrop <damummyphus@gmail.com>
+Date:   Sat Aug 1 21:40:12 2026 +0300
+
+    fix(res.send): send the actual bytes of an ArrayBuffer view
+    
+    res.send() treats a chunk as binary when ArrayBuffer.isView(chunk) is true,
+    which holds for a DataView and for every TypedArray, and sets Content-Type to
+    application/octet-stream. The body, however, was produced by
+    Buffer.from(chunk, encoding), which reads a view as a list of elements rather
+    than as bytes, so the classification and the body disagreed:
+    
+      - a DataView has no length, so the body was dropped entirely and the response
+        was 200 with Content-Length: 0 and no data
+      - every element of a multi-byte TypedArray was truncated to one byte, so
+        Uint16Array([0x0100, 0x0001]) was sent as 00 01 instead of 00 01 01 00
+      - without an ETag the small-chunk branch skips the conversion and passes the
+        raw view to res.end(), which rejects it with ERR_INVALID_ARG_TYPE after
+        Content-Length has already been set from Buffer.byteLength()
+    
+    Wrap a non-Buffer view around its own bytes with .buffer, .byteOffset and
+    .byteLength before the length and the ETag are computed, so all three paths
+    agree. An empty view is replaced with an empty buffer because its backing
+    ArrayBuffer may have been detached and cannot be wrapped.
+    
+    Signed-off-by: nosey-dewdrop <damummyphus@gmail.com>
+
+diff --git a/lib/response.js b/lib/response.js
+index b4755a5c..ed8f3115 100644
+--- a/lib/response.js
++++ b/lib/response.js
+@@ -152,6 +152,15 @@ res.send = function send(body) {
+         if (!this.get('Content-Type')) {
+           this.type('bin');
+         }
++
++        if (!Buffer.isBuffer(chunk)) {
++          // view the same bytes as a Buffer, since Buffer.from(view) reads a
++          // view as a list of elements instead: a DataView has no length and
++          // would be dropped, and a multi-byte element would be truncated
++          chunk = chunk.byteLength
++            ? Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)
++            : Buffer.alloc(0); // an empty view may sit on a detached buffer
++        }
+       } else {
+         return this.json(chunk);
+       }

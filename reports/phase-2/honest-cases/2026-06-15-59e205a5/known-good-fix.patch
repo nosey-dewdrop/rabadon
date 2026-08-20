@@ -1,0 +1,57 @@
+commit 59e205a57a04fced6bb7b8ec0b5dec29461a9996
+Author: Blake Embrey <hello@blakeembrey.com>
+Date:   Mon Jun 15 19:45:22 2026 -0700
+
+    Upgrade `content-disposition` (#7233)
+    
+    * Upgrade content-disposition
+    
+    * Better backward compat
+    
+    * chore: upgrade content-disposition to 2.0.1 and update History.md
+    
+    * test: add case for encoding latin1 file names with ASCII fallback in attachment
+    
+    * test: add cases for quoting invalid file names and handling empty file names in attachment
+    
+    ---------
+    
+    Co-authored-by: Sebastian Beltran <bjohansebas@gmail.com>
+
+diff --git a/lib/response.js b/lib/response.js
+index f965e539..ebcf5f0d 100644
+--- a/lib/response.js
++++ b/lib/response.js
+@@ -31,6 +31,7 @@ var cookie = require('cookie');
+ var send = require('send');
+ var extname = path.extname;
+ var resolve = path.resolve;
++var basename = path.basename;
+ var vary = require('vary');
+ const { Buffer } = require('node:buffer');
+ 
+@@ -454,7 +455,7 @@ res.download = function download (path, filename, options, callback) {
+ 
+   // set Content-Disposition when file is sent
+   var headers = {
+-    'Content-Disposition': contentDisposition(name || path)
++    'Content-Disposition': contentDisposition.create(basename(name || path))
+   };
+ 
+   // merge user-provided headers
+@@ -602,11 +603,12 @@ res.format = function(obj){
+  */
+ 
+ res.attachment = function attachment(filename) {
+-  if (filename) {
+-    this.type(extname(filename));
++  const name = filename !== undefined ? basename(filename) : undefined;
++  if (name) {
++    this.type(extname(name));
+   }
+ 
+-  this.set('Content-Disposition', contentDisposition(filename));
++  this.set('Content-Disposition', contentDisposition.create(name));
+ 
+   return this;
+ };
