@@ -1,0 +1,27 @@
+# faz 3 — rapor (AGENTS-PROTOCOL.md Faz 3: "mevcut testlerden kaçı kırıldı ve neden")
+
+broken_tests=0
+
+# Sıfır, ama bedava değil: çöküş (Kapsam maddesi F) uygulandığında
+# native/cli_test.sh:210 kırılıyordu ("rabadon toggle did not turn it on"),
+# çünkü o test protokolün kaldırılmasını emrettiği dosyanın (<RABADON_DIR>/enabled)
+# varlığını doğruluyor. Test düzeltilmedi, zayıflatılmadı, silinmedi —
+# madde F geri alındı ve çelişki reports/phase-3/BLOCKED.md'de CHALLENGE olarak
+# insana bırakıldı. Bu yüzden broken_tests=0 doğru, ve faz yine de geçmiyor.
+
+tests_in_recipe_before=94
+tests_in_recipe_after=95
+new_test=native/scope_test.sh
+new_test_assertions=9
+assertion_lines_before=3322
+assertion_lines_after=3331
+make_test_exit=0
+
+sealed_files_changed=1
+sealed_file_1=Makefile
+sealed_file_1_reason=protokolün Kabul maddesi yeni bir test istiyor; test recipe'ye girmeden koşmuyor. Tek satır ekleme, kendi commit'i (f72d023), hiçbir şey zayıflatılmadı.
+
+scope_items_total=5
+scope_items_done=4
+scope_items_blocked=1
+scope_item_blocked=F (enabled + mode.last tek dosyaya iniş)

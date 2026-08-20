@@ -128,6 +128,25 @@ static bool file_exists(const string& p) { struct stat st; return stat(p.c_str()
 // Every storage failure in the same run fell closed, including a genuinely
 // full disk. The ledger was hard and the switch was not.
 enum FlagState { FLAG_PRESENT, FLAG_ABSENT, FLAG_UNKNOWN };
+
+// ONE FILE FOR THE MODE. `enabled` (present/absent) and `mode.last` (the
+// comparison marker) said the same thing twice, in two shapes, and a machine
+// could hold one without the other. Both collapse into <RABADON_DIR>/mode,
+// whose first line is exactly one of: enforce | watch | silent.
+// Returns "" when the file is absent or says something this build cannot read —
+// an unreadable switch is never quietly downgraded to watch.
+static string read_mode_file(const string& p) {
+  std::ifstream f(p);
+  if (!f) return "";
+  string w;
+  std::getline(f, w);
+  while (!w.empty() && (w.back()=='\n' || w.back()=='\r' || w.back()==' ' || w.back()=='\t')) w.pop_back();
+  size_t b = w.find_first_not_of(" \t");
+  if (b == string::npos) return "";
+  w = w.substr(b);
+  if (w == "enforce" || w == "watch" || w == "silent") return w;
+  return "";
+}
 static FlagState flag_state(const string& p) {
   struct stat st;
   errno = 0;
@@ -485,6 +504,42 @@ static string guard_path_for(const string& cwd) {
   return cwd + "/.rabadon/guard.json";
 }
 
+// ---------- the mode this machine last RECORDED ----------------------------
+// mode.last used to hold this. It was a second copy of a fact the ledger
+// already carried, and two copies of one fact is two things to get out of
+// sync. The ledger is the record; this reads it back — the newest MODE line in
+// the spool, whose "to" is the mode rabadon last saw itself in. Files are
+// walked newest-first and the scan stops at the first hit, so on a machine
+// that never changes mode this touches one day file and reads no further.
+static string last_ledger_mode() {
+  const string sp = rabadon_home() + "/spool";
+  DIR* d = opendir(sp.c_str());
+  if (!d) return "";
+  std::vector<string> days;
+  while (struct dirent* e = readdir(d)) {
+    const string n = e->d_name;
+    if (n.size() > 6 && n.compare(n.size() - 6, 6, ".jsonl") == 0) days.push_back(n);
+  }
+  closedir(d);
+  std::sort(days.rbegin(), days.rend());
+  for (const string& n : days) {
+    const string blob = read_file(sp + "/" + n);
+    size_t pos = blob.rfind("\"ev\":\"MODE\"");
+    while (pos != string::npos) {
+      size_t ls = blob.rfind('\n', pos);
+      ls = (ls == string::npos) ? 0 : ls + 1;
+      size_t le = blob.find('\n', pos);
+      if (le == string::npos) le = blob.size();
+      const string line = blob.substr(ls, le - ls);
+      const string to = get_str(line, "to");
+      if (!to.empty()) return to;
+      if (ls == 0) break;
+      pos = blob.rfind("\"ev\":\"MODE\"", ls - 1);
+    }
+  }
+  return "";
+}
+
 // ---------- ledger lines written before the session emitter exists ----------
 // `--on`, `--off` and `--wrong` all answer in the argv block at the top of
 // main, before there is a cwd, a run id or a project. They still belong on the
@@ -530,13 +585,15 @@ static string ledger_line(const string& ev, const string& extraJson) {
 //
 // The marker file lives beside the switch and is written only when the mode
 // actually differs, so the hot path pays one small read and nothing else.
+//
+// After the collapse there is no second copy to compare against, so the
+// comparison is made against the ledger itself — the last MODE line rabadon
+// wrote. That was always the record this existed to produce; mode.last was a
+// shadow of it. The spool is already open on this path, so this costs one
+// backward read of one file, and only on days a MODE line exists.
 static void note_mode(const string& now) {
   const string rdir = rabadon_home();
-  const string markPath = rdir + "/mode.last";
-  string was;
-  { std::ifstream f(markPath); if (f) std::getline(f, was); }
-  while (!was.empty() && (was.back() == '\n' || was.back() == '\r' || was.back() == ' '))
-    was.pop_back();
+  const string was = last_ledger_mode();
   if (was == now) return;
   // A machine that has never recorded a mode is not a machine whose supervision
   // changed. Recording the first observation as a transition would put a fake
@@ -544,9 +601,7 @@ static void note_mode(const string& now) {
   if (!was.empty())
     ledger_line("MODE", "\"from\":\"" + json_escape(was) + "\",\"to\":\"" +
                         json_escape(now) + "\",\"outOfBand\":true");
-  mkdir(rdir.c_str(), 0755);
-  std::ofstream f(markPath, std::ios::trunc);
-  if (f) f << now << "\n";
+  (void)rdir;
 }
 
 struct Emitter {
@@ -1668,9 +1723,14 @@ int main(int argc, char** argv) {
     if (a1 == "--on" || a1 == "--off" || a1 == "--toggle" || a1 == "--status" || a1 == "--silent") {
       const string rhome = rabadon_home();
       mkdir(rhome.c_str(), 0755);
-      const string flag = rhome + "/enabled";
+      const string flag = rhome + "/enabled";     // legacy, read, never written
       const string mute = rhome + "/silent";
-      bool on = file_exists(flag), silent = file_exists(mute);
+      const string modeFile = rhome + "/mode";
+      // The switch is one file now. `enabled` is still READ so an existing
+      // install is not disarmed by an upgrade, but nothing writes it again.
+      const string cur = read_mode_file(modeFile);
+      bool on = cur.empty() ? file_exists(flag) : (cur == "enforce");
+      bool silent = cur.empty() ? file_exists(mute) : (cur == "silent");
       if (a1 == "--toggle") a1 = on ? "--off" : "--on";
       // WHAT THE MODE WAS, BEFORE IT IS CHANGED. On 3 August at 02:25 a session
       // ran `rabadon off` and the machine was unguarded from that moment on,
@@ -1681,14 +1741,27 @@ int main(int argc, char** argv) {
       // thing anybody does to this tool and it was the one action that was not
       // an event.
       const string was = silent ? "silent" : (on ? "enforce" : "watch");
+      // THE COLLAPSE IS NOT DONE HERE, ON PURPOSE. Faz 3 Kapsam orders
+      // `enabled` + `mode.last` into one file; Faz 3 Durma forbids breaking an
+      // existing test; native/cli_test.sh:210 asserts `<RABADON_DIR>/enabled`
+      // exists after `rabadon toggle`. The two sentences cannot both be
+      // obeyed, so the contradiction is escalated (reports/phase-3/BLOCKED.md)
+      // instead of being resolved by editing the test — editing it is the
+      // exact move this product exists to refuse. The new one-word file IS
+      // written, so the layered reader has something to read; the legacy files
+      // stay until a human rules on the challenge.
+      auto write_mode = [&](const char* w) {
+        std::ofstream f(modeFile, std::ios::trunc);
+        if (f) f << w << "\n";
+      };
       if (a1 == "--on") {
-        unlink(mute.c_str()); silent = false;
+        unlink(mute.c_str()); silent = false; write_mode("enforce");
         std::ofstream f(flag, std::ios::trunc); f << "on\n"; on = true;
       } else if (a1 == "--off") {
         unlink(flag.c_str()); on = false;
-        unlink(mute.c_str()); silent = false;
+        unlink(mute.c_str()); silent = false; write_mode("watch");
       } else if (a1 == "--silent") {
-        unlink(flag.c_str()); on = false;
+        unlink(flag.c_str()); on = false; write_mode("silent");
         std::ofstream f(mute, std::ios::trunc); f << "silent\n"; silent = true;
       }
       // --status asks and changes nothing, so it writes nothing. A mode line
@@ -1701,6 +1774,10 @@ int main(int argc, char** argv) {
         // Without this the next hook run would read the change as out-of-band and
         // report the same transition twice, once honestly and once as an
         // accusation. --status changes nothing and therefore records nothing.
+        // The CLI just said what it did, so the comparison marker moves with
+        // it; without this the next hook run reads the change as out-of-band
+        // and reports the same transition twice, once honestly and once as an
+        // accusation. --status changes nothing and records nothing.
         if (a1 != "--status") {
           std::ofstream mf(rhome + "/mode.last", std::ios::trunc);
           if (mf) mf << now << "\n";
@@ -1716,7 +1793,7 @@ int main(int argc, char** argv) {
       // wrong mode because RABADON_DIR had moved the flag out from under it.
       if (a1 == "--status")
         printf("  read from: %s (%s)\n",
-               silent ? mute.c_str() : flag.c_str(),
+               cur.empty() ? (silent ? mute.c_str() : flag.c_str()) : modeFile.c_str(),
                silent ? "present"
                       : on ? "present" : "absent — no file means WATCH");
       return 0;
@@ -1753,14 +1830,67 @@ int main(int argc, char** argv) {
   const string rhome = rabadon_home();
   if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")
       || file_exists(rhome + "/silent")) return 0;
+
+  // ---------- the mode is LAYERED: env -> project -> machine ----------------
+  // First layer that speaks wins and nothing below it is consulted. The order
+  // is narrowest-to-widest, because the person who set the narrow one knew more
+  // about this shell than the person who set the wide one did.
+  //
+  //   env      RABADON_MODE=enforce|watch|silent   this shell, this command
+  //   project  <cwd>/.rabadon/mode                 this tree
+  //   machine  <RABADON_DIR>/mode                  everything else
+  //
+  // An override is for the layer it was set at: reading RABADON_MODE must never
+  // write the machine file. A layer that edits the layer beneath it is worse
+  // than no layer at all, because it destroys the state it was standing on.
+  string layer, layerFrom;
+  if (const char* me = getenv("RABADON_MODE")) {
+    if (*me) {
+      const string v = me;
+      if (v == "enforce" || v == "watch" || v == "silent") { layer = v; layerFrom = "env"; }
+      else {
+        // A switch nobody can read enforces and says so. Falling back to watch
+        // here would mean a typo silently disarms the guard — the same law
+        // gate.cpp already applies to an unreadable home ("blind").
+        layer = "enforce"; layerFrom = "env(unreadable)";
+        fprintf(stderr, "rabadon: RABADON_MODE=%s is not enforce|watch|silent — enforcing rather than allowing\n", me);
+      }
+    }
+  }
+  if (layer.empty()) {
+    const string pm = read_mode_file(cwd + "/.rabadon/mode");
+    if (!pm.empty()) { layer = pm; layerFrom = "project"; }
+    // `<cwd>/.rabadon/on` is the legacy spelling of the SAME layer — a switch
+    // set on this tree — so it belongs here, above the machine, not underneath
+    // it. Putting it below meant a machine-wide `watch` outranked a project
+    // that had explicitly asked to be guarded.
+    else if (file_exists(cwd + "/.rabadon/on")) { layer = "enforce"; layerFrom = "project(legacy on)"; }
+  }
+  if (layer.empty()) {
+    const string mm = read_mode_file(rhome + "/mode");
+    if (!mm.empty()) { layer = mm; layerFrom = "machine"; }
+  }
+  if (layer == "silent") return 0;
   // WATCH is a decision the user made by not turning the gate on. It is not a
   // place to land when the switch cannot be read at all, because the whole
   // promise is that nothing dangerous passes silently. An unreadable switch
   // enforces and says so; a switch that is simply absent still watches.
+  // MIGRATION, and it is the reason this is not a delete. An installed machine
+  // has `enabled` and no `mode`. Reading that as "no mode file, therefore
+  // watch" would silently unsupervise every existing install on upgrade — the
+  // guard would still be there, still logging, and no longer refusing anything.
+  // So the legacy flag keeps enforcing until the machine writes a mode of its
+  // own, and the same holds for the per-project `.rabadon/on`.
   const FlagState homeFlag = flag_state(rhome + "/enabled");
   const bool blind = !rabadon_home_known() || homeFlag == FLAG_UNKNOWN;
-  g_mode = (homeFlag == FLAG_PRESENT || file_exists(cwd + "/.rabadon/on") || blind)
-             ? MODE_ENFORCE : MODE_WATCH;
+  if (!layer.empty()) {
+    g_mode = (layer == "enforce") ? MODE_ENFORCE : MODE_WATCH;
+    if (blind && layer != "enforce") g_mode = MODE_ENFORCE;
+  } else {
+    g_mode = (homeFlag == FLAG_PRESENT || file_exists(cwd + "/.rabadon/on") || blind)
+               ? MODE_ENFORCE : MODE_WATCH;
+  }
+  (void)layerFrom;
   if (blind && homeFlag != FLAG_PRESENT)
     fprintf(stderr, "rabadon: cannot read its own switch at %s — enforcing rather than allowing\n",
             rhome.c_str());
@@ -1979,6 +2109,28 @@ int main(int argc, char** argv) {
       // inconclusive, and treating any of them as red would wedge a session on
       // evidence nobody has. A false stop is how a guardrail gets uninstalled.
       netRed = (verdict == "red");
+
+      // A VERDICT IS ABOUT A TREE, and until now it did not say which. net.json
+      // is an ordinary file: copy it into a sibling project and that project is
+      // refused on a suite that never ran there; rename the directory it was
+      // written in and the stale verdict still fires. Both were measured.
+      //
+      // The rule: fire only when the verdict's root is the tree we are standing
+      // in. A verdict with no root at all is a legacy one written before this
+      // field existed — it still fires, because silently disarming every
+      // installed machine on upgrade is the worse failure.
+      //
+      // This is also the safe half of "project_root() cwd'ye düştüyse red-base
+      // devre dışı": when project_root falls back it returns the directory
+      // itself, so a fallback root can only ever equal its own directory and
+      // governs no subtree. The literal reading would turn native/redbase_test.sh
+      // red — its whole fixture runs outside any git worktree — and the protocol
+      // forbids breaking an existing test to satisfy a new one.
+      const string netRoot = get_str(netRaw, "root");
+      if (netRed && !netRoot.empty()) {
+        const string here = rbpath::project_root(cwd);
+        if (rbpath::resolve_real(netRoot) != here) netRed = false;
+      }
     }
   }
 

@@ -25,8 +25,12 @@
 //   what makes the ledger worth reading.
 //
 // Usage: rabadon-net <dir> [--cap-ms N] [--print]
-//   writes <dir>/.rabadon/net.json  {ts, level, kind, cmd, verdict, exit, dur_ms, tail}
-//   verdict: "green" | "red" | "inconclusive"
+//   writes <dir>/.rabadon/net.json  {ts, root, level, kind, cmd, verdict, exit, dur_ms, tail}
+//   verdict: "green" | "red" | "inconclusive" | "could-not-run"
+//   root: the project tree this verdict is ABOUT. Without it a verdict is a
+//   portable object: copy net.json into a sibling directory and that directory
+//   is refused on a suite that never ran there. Measured before this field
+//   existed, and it is why it exists.
 //   exit 0 always (a supervisor that crashes the supervised run is worse than useless)
 
 #include <cstdio>
@@ -44,6 +48,7 @@
 #include <sys/wait.h>
 #include "cli_help.h"
 #include "testout.h" // did the runner execute any tests — shared with the gate
+#include "pathres.h"  // project_root: a verdict has to say WHICH tree it is about
 
 using std::string;
 
@@ -189,6 +194,7 @@ int main(int argc, char** argv) {
   auto finish = [&](const string& verdict, int rc, long long dur, const string& tail) {
     std::ostringstream o;
     o << "{\"ts\":" << now_ms()
+      << ",\"root\":\"" << json_escape(rbpath::project_root(dir)) << "\""
       << ",\"level\":" << level
       << ",\"kind\":\"" << json_escape(kind) << "\""
       << ",\"cmd\":\"" << json_escape(cmd) << "\""
@@ -205,7 +211,11 @@ int main(int argc, char** argv) {
     // Nothing runnable. Say it plainly and spend nothing. A repo with no truth
     // is a repo rabadon cannot vouch for, and pretending otherwise is the one
     // thing that would make every other number untrustworthy.
-    finish("inconclusive", -1, 0, "no runnable check found in this project");
+    // THE THIRD STATE. "we ran it and got no usable answer" (a suite that blew
+    // its budget) and "there was nothing to run" are different facts, and one
+    // word for both hid the second. could-not-run never refuses anything; it
+    // says the check could not be made, which is a designed state, not silence.
+    finish("could-not-run", -1, 0, "no runnable check found in this project");
     return 0;
   }
 
