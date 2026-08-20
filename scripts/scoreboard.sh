@@ -8,55 +8,91 @@
 #   Ölçülmemiş = kanıtlanmamış. Eksik ölçüm, gerçek sıfır gibi görünmemeli —
 #   bu projenin kendi standardı, tabelası da ona uymalı.
 
+#
+# İKİNCİ KURAL: bir metriğin TANIMI değişirse eski satırlarla kıyaslanmaz.
+#   Kayma kontrolü "bu sayı geri gitmesin" diyor; sayının ne olduğu değişince
+#   o kıyas anlamsızlaşır ve sahte alarm üretir. Tanım değişince aşağıdaki
+#   DEFS artırılır, eski dosya yanına kaydırılır (silinmez), yeni dosya başlar.
+#   Ölçüm tanımını değiştirip eski çizgiyle övünmek de, sahte alarmla durmak da
+#   aynı hatanın iki yüzü.
+DEFS=2   # 1 -> 2: cheat/stops sözlük yerine sayı okunuyor, verbs fiil sayıyor,
+         #         why_len "allow" alanını da topluyor (bkz. reports/phase-0/review.md)
+
 set -u
 ROOT="${1:-$PWD}"
 OUT="$ROOT/reports/scoreboard.tsv"
+DEFSFILE="$ROOT/reports/scoreboard.defs"
 PHASE="${PHASE:-?}"
 mkdir -p "$(dirname "$OUT")"
 
+OLDDEFS=$(cat "$DEFSFILE" 2>/dev/null || echo "1")
+if [ -s "$OUT" ] && [ "$OLDDEFS" != "$DEFS" ]; then
+  ARCHIVE="$OUT.defs$OLDDEFS.old"
+  mv "$OUT" "$ARCHIVE"
+  echo "ÖLÇÜM TANIMI DEĞİŞTİ ($OLDDEFS -> $DEFS)." >&2
+  echo "  Eski satırlar silinmedi, $ARCHIVE içinde." >&2
+  echo "  Yeni dosya sıfırdan başlıyor; tanım değişmeden önceki sayılarla" >&2
+  echo "  kıyaslanmaz — o kıyas sahte alarm ya da sahte övünme üretir." >&2
+fi
+echo "$DEFS" > "$DEFSFILE"
+
 q() { [ -n "${1:-}" ] && [ "${1}" != "" ] && echo "$1" || echo "?"; }
 
-# 1. cheat kolu — kaç aile
-CHEAT=$(python3 - "$ROOT" <<'P' 2>/dev/null || echo ""
+# Ortak okuyucu: measured.json'daki bir anahtarın "value"su. O value bazen
+# düz sayı, bazen sözlük. Sözlükse alt anahtar aranır, sayıysa doğrudan alınır.
+# Eskiden ikisi de sözlük varsayılıyordu; sayı olan iki metrik (cheats_refused,
+# field.stop) her koşuda istisna atıp "?" yazdırıyordu — yani ölçülmüş iki
+# sayı ölçülmemiş gibi görünüyordu ve kayma kontrolü o sütunlarda hiç çalışmadı.
+measured() {  # measured <anahtar> [alt-anahtar]
+  python3 - "$ROOT" "$1" "${2:-}" <<'P' 2>/dev/null || echo ""
 import json,sys
+root,key,sub=sys.argv[1],sys.argv[2],sys.argv[3]
 try:
-    d=json.load(open(sys.argv[1]+"/site/measured.json"))
-    print(d["corpus.cheats_refused"]["value"]["families"])
-except Exception: print("")
+    d=json.load(open(root+"/site/measured.json"))
+except Exception:
+    print(""); sys.exit(0)
+if key not in d:
+    print(""); sys.exit(0)
+v=d[key].get("value") if isinstance(d[key],dict) else None
+if isinstance(v,dict):
+    v=v.get(sub) if sub else None
+elif isinstance(v,list):
+    v=len(v) if not sub else None
+print("" if v is None or isinstance(v,(dict,list)) else v)
 P
-)
+}
+
+# 1. cheat kolu — kaç aile reddedildi
+CHEAT=$(measured corpus.cheats_refused families)
 
 # 2. dürüst kol — kaç doğrulanmış vaka (kırmızı+yeşil ikisi de koşmuş)
 HONEST=$(find "$ROOT" -name 'case.env' -path '*honest*' 2>/dev/null | wc -l | tr -d ' ')
 [ "$HONEST" = "0" ] && HONEST=""
 
-# 3. VAHŞİDE tutulan tamir — planted değil. Şu an 0, ve 0 kalmalı ta ki olana dek.
-WILD=$(grep -rhoE '"wild_repairs_held"\s*:\s*[0-9]+' "$ROOT/site/measured.json" 2>/dev/null | grep -oE '[0-9]+$' | head -1)
+# 3. VAHŞİDE tutulan tamir — planted değil. Şu an ölçen bir şey yok:
+#    measured.json'da "wild_repairs_held" anahtarı hiç yok, o yüzden "?".
+#    0 YAZILMAZ — 0 "ölçtük, hiç yok" demek olurdu, oysa henüz kimse ölçmedi.
+WILD=$(measured wild_repairs_held)
 
 # 4. saha: durdurma ve yanlış red
-STOPS=$(python3 - "$ROOT" <<'P' 2>/dev/null || echo ""
-import json,sys
-try:
-    d=json.load(open(sys.argv[1]+"/site/measured.json"))
-    print(d["field.stop"]["value"]["total"])
-except Exception: print("")
-P
-)
-WRONG=$(python3 - "$ROOT" <<'P' 2>/dev/null || echo ""
-import json,sys
-try:
-    d=json.load(open(sys.argv[1]+"/site/measured.json"))
-    print(d["field.wrong_refusals"]["value"])
-except Exception: print("")
-P
-)
+STOPS=$(measured field.stop total)
+WRONG=$(measured field.wrong_refusals)
 
 # 5. YÜZEY: kullanıcıya görünen verb sayısı. Bu sayı ARTMAMALI.
 #    Artıyorsa kapsam kayması var.
-VERBS=$(grep -cE '^## `rabadon ' "$ROOT/docs/commands.md" 2>/dev/null)
+#    Başlık değil FİİL sayılır: "## `rabadon on | off | status | toggle`" tek
+#    başlıkta dört fiil. Başlık sayarsan iki başlığı birleştirerek yüzey
+#    küçülmeden sayıyı düşürebilirsin — ölçülen şeyi ölçmeyi bırakmadan
+#    metriği iyileştirmek, tam da bu projenin reddettiği hamle.
+VERBS=$(grep -oE '^## `rabadon [a-z |]+' "$ROOT/docs/commands.md" 2>/dev/null \
+        | sed 's/^## `rabadon //' | tr '|' '\n' | tr -d ' ' | grep -c . )
+[ "${VERBS:-0}" = "0" ] && [ ! -f "$ROOT/docs/commands.md" ] && VERBS=""
 
 # 6. SEANS MALİYETİ: red mesajlarının ortalama uzunluğu (byte).
 #    why+fix <= 200 hedefi. Bu sayı DÜŞMELİ.
+#    guard.json'daki kuralların anahtarları: id/deny/why/allow/catches — "fix"
+#    diye bir alan yok, "insanın bundan sonra ne yapacağı" alanının adı "allow".
+#    Eskiden len(fix) hep 0 dönüyordu, yani hedefin yarısı hiç ölçülmüyordu.
 WHYLEN=$(python3 - "$ROOT" <<'P' 2>/dev/null || echo ""
 import json,glob,sys,os
 tot=n=0
@@ -67,7 +103,9 @@ for f in glob.glob(os.path.join(sys.argv[1],"**",".rabadon","guard.json"),recurs
         if not isinstance(grp,list): continue
         for r in grp:
             if isinstance(r,dict) and "why" in r:
-                tot+=len(r.get("why",""))+len(r.get("fix","")); n+=1
+                nxt=r.get("fix") or r.get("allow") or ""
+                if not isinstance(nxt,str): nxt=str(nxt)
+                tot+=len(r.get("why",""))+len(nxt); n+=1
 print(tot//n if n else "")
 P
 )
@@ -88,8 +126,15 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 
 if command -v column >/dev/null 2>&1; then column -t -s "$(printf '\t')" "$OUT"; else cat "$OUT"; fi
 
+# ---- ÖLÇÜLEMEYENİ SÖYLE ---------------------------------------------------
+# "?" sessiz kalmamalı: hangi sütun neden ölçülemedi, stderr'e yazılır.
+for pair in "cheat:$CHEAT" "honest:$HONEST" "wild_held:$WILD" "stops:$STOPS" \
+            "wrong:$WRONG" "verbs:$VERBS" "why_len:$WHYLEN" "classed:$CLASSED" "repro:$REPRO"; do
+  [ -z "${pair#*:}" ] && echo "  ? ${pair%%:*} — ölçülemedi (kaynak yok ya da beklenen şekilde değil)" >&2
+done
+
 # ---- KAYMA KONTROLÜ -------------------------------------------------------
-# Sadece iki satır varsa kıyas yok. Üçten itibaren yön kontrol edilir.
+# İki satırdan itibaren son iki satır kıyaslanır. Tek satırda kıyas yoktur.
 python3 - "$OUT" <<'P'
 import sys,csv
 rows=list(csv.DictReader(open(sys.argv[1]),delimiter='\t'))

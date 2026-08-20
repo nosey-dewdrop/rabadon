@@ -32,7 +32,36 @@ Satır 54'teki "HEAD yeşil mi" kontrolü var ama "ağaç temiz mi" kontrolü yo
 Bu repoda şu an 44 silinmiş dosya bekliyor (`git status --short | grep -c '^ D'`),
 yani burada koşarsa o silmeler geri gelir ve kimse fark etmez.
 
-### K2 — mayınlanan vakanın "tanığı" doğrulanmıyor: kırmızı başka testten gelebilir
+### K2 — **GERİ ÇEKİLDİ (20 Ağu).** İddia yanlıştı, kanıtım kanıtlamıyordu.
+
+Aşağıdaki tuzakta commit, `test/old.test.js`'i de değiştirmişti (`sub`
+assertion'ını o commit ekledi). Yani kırmızıyı üreten assertion commit'in kendi
+eklediği assertion'dı — geçerli bir tanık. "Boş yeni test" dikkat dağıtıcıydı,
+vakanın kendisi sağlamdı.
+
+Doğru tuzağı sonradan kurdum: mevcut hiçbir teste dokunmayan, sadece kaynak +
+bomboş yeni test içeren bir commit. Script onu **doğru şekilde reddetti**:
+
+```
+$ OUT=/tmp/mh3/out bash native/mine_honest.sh /tmp/mh3/repo 'sh check.sh' 0 50
+scanned 2 commits -> 0 cases
+  discarded: 1 wrong shape, 1 did not go red, 0 nondeterministic
+```
+
+Kuruluş aslında sağlam ve sebebi şu: ebeveyn ağaç ESKİ kaynak + ESKİ testlerle
+yeşildi. Kaynak-only revert = ESKİ kaynak + YENİ testler. O yüzden düşen her
+test, ebeveynden test tarafında farklı olan bir testtir — yani commit'in
+eklediği/değiştirdiği bir test. Tek istisna: yeni bir testin bıraktığı durumun
+eski bir testi düşürmesi (test kirliliği).
+
+Yapılan düzeltme bu yüzden "kritik hata tamiri" değil, **denetlenebilirlik**:
+kırmızı çıktı artık atılmıyor, vaka klasörüne `red.log` olarak yazılıyor, test
+tarafı `witness-test.patch` olarak duruyor, ve `case.env`'deki not artık
+kanıtlanmamış bir şeyi ("commit'in kendi testi tanıktır") iddia etmiyor.
+
+Toplam sayı bu yüzden **16 değil, 15 hata + 1 geri çekilmiş iddia.**
+
+<details><summary>Geri çekilen orijinal iddia (kayıt için)</summary>
 
 `case.env` şunu yazıyor: *"the commit's own test is the witness"*. Script bunu
 hiç kontrol etmiyor — sadece **süitin tamamı** kırmızı mı diye bakıyor. Commit'in
@@ -59,6 +88,8 @@ Yani: dürüst kol korpusuna, tanığı boş bir vaka girdi ve dosya "tanık var
 yazdı. Bu tam olarak rabadon'un reddetmek için var olduğu şeyin, rabadon'un kendi
 fikstür üreticisinde tekrarlanması. Kapatılması gereken: kaynak-only revert'ten
 sonra kırmızıya dönen test dosyası, commit'in EKLEDİĞİ test dosyası olmalı.
+
+</details>
 
 ### K3 — Kapı 3'ün mührü 10 gerçek test dosyasını kaçırıyor
 

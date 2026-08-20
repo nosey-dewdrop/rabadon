@@ -28,35 +28,67 @@ Geçmezse kendi işine başlamaz, `BLOCKED.md` yazıp durur.
 Faz N'in `accept.sh`'ı, faz N başlamadan **ayrı bir ajan** tarafından yazılır
 ve commit'lenir. Uygulayan ajan o dosyaya dokunamaz.
 
-Kontrol: faz sonunda `git log --oneline accept.sh` tek commit göstermeli, ve o
-commit uygulama commit'lerinden önce olmalı. Değilse faz geçersiz.
+Kontrol: faz sonunda
+
+```sh
+git log --oneline -- reports/phase-N/accept.sh
+```
+
+tek commit göstermeli, ve o commit uygulama commit'lerinden önce olmalı.
+Değilse faz geçersiz. (`--` ve tam yol şart: `git log --oneline accept.sh`
+"ambiguous argument" deyip 128 döner — kapı hiç çalışmaz.)
+
+**Kapının bilinen sınırı:** kabul testi fazın kendi ürettiği bir dosyayı
+çağırmak zorundaysa, gate'in yarısı uygulayan ajanın elindedir. Faz 0'da somut:
+`accept.sh` mühürlü `corpus_cheats.sh`'ı çağırır ama fazın yazdığı `fetch.sh`'ı
+da çağırır. O yüzden kabul testleri iddiayı **fazın ürettiği dosyanın
+söylediğinden değil, mühürlü aracın çıktısından** okur; fazın getirdiği her dış
+girdi (pinlenmiş SHA gibi) Kapı 2 raporunda ayrıca gösterilir.
 
 ### Kapı 2 — hedeflenen sayı raporlanan sayı değildir
 
 Ajana "N tane üret" hedefi verilmez. Verilen hedef: **filtreyi uygula, sonucu
-raporla.** Eleme sayıları zorunlu alan.
+raporla.** Eleme sayıları zorunlu alan, **makinenin yazdığı dosyadan** gelir
+(`discards.txt`), ajanın anlatısından değil. Toplam yetmez: eleme **sebep sebep**
+ayrılır — "uygulanamayan revert"i "yanlış şekil"e yazmak sayıyı doğru, sebebi
+yanlış gösterir.
 
 Şüphe kuralları:
 - sıfır eleme → otomatik ret, filtre çalışmıyor demektir
-- eleme oranı bir önceki koşudan %50'den fazla düştüyse → filtre değişmiş,
+- eleme oranı bir önceki koşudan %50'den fazla **düştüyse** → filtre gevşemiş,
   `git diff` ile ispatlanmalı
-- vaka sayısı hedefe tam oturuyorsa (tam 40) → şüpheli, gerçek dağılım yuvarlak
-  sayı vermez
+- eleme oranı %50'den fazla **arttığı halde tutulan vaka da arttıysa** → filtre
+  değişmiş, aynı ispat. (Tek yönlü kural, filtreyi gevşetip elemeyi de şişiren
+  ajanı kaçırıyordu.)
+- koşu bir üst sınıra değdiyse (`max_hit=yes`) → sayı verinin şekli değil,
+  sınırın şekli; sınır kaldırılıp yeniden koşulur. Araçlarda vaka üst sınırı
+  varsayılan olarak KAPALI. ("Tam 40 şüphelidir" kuralı, aracın kendi
+  varsayılanı 40 olduğu için her dolu koşuda ateşliyordu — sınırı aracın
+  raporladığı `max_hit` alanı söylüyor artık, yuvarlaklık sezgisi değil.)
+- tutulan vaka sayısı bağımsız yeniden sayılabilmeli
+  (`find <out> -name case.env | wc -l`), yoksa rapor kanıt değil iddiadır.
 
 ### Kapı 3 — test ve fikstür dosyaları mühürlü
 
-Faz başlamadan:
+Faz başlamadan ve faz bitince:
 
 ```sh
-find . -path ./node_modules -prune -o \
-  \( -name '*_test.sh' -o -path './test/*' -o -name 'accept.sh' \
-     -o -name 'corpus_*.sh' -o -name 'heldout_test.sh' \) -print \
-  | sort | xargs sha256sum > reports/phase-N/locks.txt
+bash scripts/seal.sh N before     # faz başlamadan
+bash scripts/seal.sh N after      # faz bitince
+diff reports/phase-N/locks.txt.before reports/phase-N/locks.txt.after
 ```
 
-Faz sonunda aynı komut, `diff` ile karşılaştır. Hash değiştiyse:
-faz **reddedilir**, sebebi `discards.txt`'e yazılır. Test değiştirmek
-gerekiyorsa ayrı bir commit, ayrı gerekçe, insan onayı.
+Hash değiştiyse faz **reddedilir**, sebebi `discards.txt`'e yazılır. Test
+değiştirmek gerekiyorsa ayrı commit, ayrı gerekçe, insan onayı.
+
+Mühür listesi `scripts/seal.sh` içinde, tek yerde. Elle yazılan `find` deseni
+JS süitini (`*.test.mjs`) kaçırıyordu: `core/`, `hooks/`, `ui/`, `demo/`
+altındaki 9 test dosyası mühürsüzdü, yani bir ajan onları zayıflatabilir ve faz
+sonu diff'i sessiz kalırdı. Mühür artık üç şeyi daha kapsıyor:
+
+- `.rabadon/guard.json` — gate'in kendi yasası
+- `site/measured.json` — yayınlanan sayılar
+- `reports/scoreboard.tsv` — kayma detektörünün hafızası
 
 Harness dosyaları da mühürlü: `package.json`, `Makefile`, `pytest.ini`,
 `CMakeLists.txt`, `conftest.py`.
@@ -76,13 +108,17 @@ Harness dosyaları da mühürlü: `package.json`, `Makefile`, `pytest.ini`,
 
 ## Fazlar
 
-### Faz 0 — korpusu git'e al
+### Faz 0 — korpusu git'e al — **BLOKE, 20 Ağu 2026**
 **Kapsam:** `/tmp/cheat` → `rabadon-corpus` reposu. Pinlenmiş commit SHA'ları +
 `fetch.sh`. `corpus_cheats.sh` oradan okusun.
 **Kapsam dışı:** `native/*.cpp`, `native/*.h`. Tek satır C++ değişmeyecek.
 **Kabul:** temiz makinede `fetch.sh && corpus_cheats.sh` → 10 aile, 10 refused.
 **Rapor:** her checkout'un SHA'sı ve boyutu.
 **Durma:** bir checkout çekilemiyorsa dur, atlama.
+
+> Taşınacak şey yok: `/tmp/cheat` makinede yok ve hiç commit'lenmemiş.
+> Ayrıntı ve kanıt: `reports/phase-0/BLOCKED.md`. Kabul testi yerinde duruyor ve
+> exit 2 ("koşamıyorum") veriyor — yeşile boyanmadı, zorlanmadı.
 
 ### Faz 1 — REPAIR sonuç ölçümü
 **Kapsam:** her `REPAIR_START` için kapanış + sonuç + tutmadıysa **sınıf**
@@ -102,7 +138,9 @@ deftere yazılsın (`REPAIR_FAIL` / `FLAKY` / `test-tamper` / `harness-tamper` /
 Yeni vakalar ayrı dosyaya.
 **Kabul:** her vaka için kaynak-only revert kırmızı, geri koyunca yeşil —
 ikisi de loglanmış.
-**Rapor:** taranan commit, elenen (şekil / kırmızıya dönmedi / flaky), kalan.
+**Rapor:** `discards.txt`'i araç yazar: taranan, tutulan, ve eleme sebep sebep
+(şekil / revert uygulanamadı / checkout başarısız / kırmızıya dönmedi / flaky),
+`max_hit` alanıyla birlikte.
 **Durma:** eleme sayısı sıfırsa dur — filtre çalışmıyor.
 
 ### Faz 3 — kapsam düzeltmesi
@@ -131,10 +169,17 @@ hiçbir yazma olmadığı gösterilmiş.
 Sabah şu üçünü koştur, üçü de yeşil değilse gece geçersiz sayılır:
 
 ```sh
-diff reports/phase-*/locks.txt.before reports/phase-*/locks.txt.after
+for d in reports/phase-*/; do
+  [ -f "$d/locks.txt.before" ] && diff "$d/locks.txt.before" "$d/locks.txt.after"
+done
 for p in reports/phase-*/accept.sh; do bash "$p" || echo "FAIL $p"; done
 rabadon audit
 ```
 
 Üçüncüsü önemli: defter kendi kendini doğrulamıyorsa gecede yazılan
 hiçbir sayıya güvenilmez.
+
+Not: mühür dosyalarının adı `locks.txt.before` / `locks.txt.after`. Kapı 3
+eskiden tek bir `locks.txt` üretiyordu, yani buradaki `diff` her sabah "böyle
+bir dosya yok" diyordu — kontrol koşuyor görünüp hiçbir şey kontrol etmiyordu.
+`scripts/seal.sh` ikisini de doğru adla yazar.
