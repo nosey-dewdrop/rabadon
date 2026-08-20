@@ -1,7 +1,12 @@
 # T1 — CLAIM
 
-Durum: **KISMİ** (17 yeşil / 2 kırmızı). "Tamamlandı" yazılmıyor (§6.3).
+Durum: **TAMAMLANDI** — kabul 20 yeşil / 0 kırmızı, kapsamın beş işi de yapıldı.
 Tarih: 2026-08-20.
+
+Bu dosya turun içinden geçtiği üç durumu de tutuyor ve hiçbirini silmiyor:
+16/3 (ilk uygulama) → 17/2 (hakem düzeltmeleri) → 20/0 (protokol düzeltmesi
+sonrası yeniden yazılan kabul testi). Yeşile giden yol, yeşilin kendisi kadar
+kayıtta.
 
 ## Açılış kontrolü (§6.3)
 
@@ -35,6 +40,10 @@ $ ./reports/T1/accept.sh          # ilk uygulamadan sonra
 
 $ ./reports/T1/accept.sh          # hakem bulgularından sonra
 == T1 acceptance: 17 green, 2 red
+
+$ ./reports/T1/accept.sh          # protokol düzeltmesi + yeniden yazılan test
+== T1 acceptance: 20 green, 0 red
+T1 ACCEPTED
 ```
 
 `make test`: exit 0, 230 s. Hiçbir test dosyasına dokunulmadı — test sayısının
@@ -85,7 +94,37 @@ yanlış olduğunu gösterdi; 1.5'i dürüstçe kapatılabilirdi ve kapatıldı.
    veriliyor, ve stitchu'nun düşürülmüş `push gates passed` / `rules written`
    satırları geri kondu.
 
-## Kırmızı kalan iki iddia (1a ve 1c) — tek satır
+## Kırmızı kalan iki iddia nasıl çözüldü (1a ve 1c)
+
+**Testi değil, protokolü düzelterek** — insan kararı, 2026-08-20.
+
+Sıra §6.2'nin gerektirdiği gibi işledi ve üçü de ayrı commit:
+1. `PROTOCOL-T1-T8.md` §T1.4 + Kabul maddesi 1 düzeltildi, gerekçesi
+   `discards.txt` madde 8'e yazıldı — **kendi commit'inde, testten önce**.
+2. `accept.sh` **ayrı bir oturum** tarafından yeni maddeye göre yeniden yazıldı
+   — **tek başına commit'lendi**. Uygulayan oturum yine dokunmadı.
+3. Koşturuldu: **20 yeşil / 0 kırmızı**.
+
+Kural zayıflamadı, genişledi. Muafiyet dar: yalnız ledger dökümü bloğunun
+içindeki `repairs held (locked): <n>` biçimli per-project satırları. Karşılığında
+**yeni bir iddia (1f)** eklendi: bloğun **toplam** satırı 2 okumak zorunda — eski
+testin hiç kontrol etmediği bir şey.
+
+Testi yeniden yazan oturum 8 mutasyonla kendi işine saldırdı. Eski testin
+**tamamen yeşil kaldığı** iki hile artık kırmızı: ledger bloğunu tümden silmek,
+ve toplam satırını 0'a çevirmek. Düzyazıdaki bayat sıfır, tablo hücresindeki
+bayat sıfır, blok dışına taşınmış per-project satırı, banner'sız fence içine
+saklanmış satır — hepsi hâlâ kırmızı.
+
+Açık bırakılan delik, kapatılmadığı için yazılıyor: banner'ı, sahte toplamı ve
+sahte per-project satırı **tam kurallı** yazılmış uydurma bir ledger bloğu muaf
+olurdu. Kapatmak testin çevrimdışı yapamayacağı bir şeyi gerektirir (bloğu canlı
+`rabadon usage` çıktısıyla diff'lemek). Zayıf ama gerçek iki tutamak: her koşuda
+muaf tutulan satır sayısı ve blok sayısı ekrana basılıyor (hakem görebilsin diye,
+güvenmek zorunda kalmasın), ve sahte ledger dökümü yazmak protokolün "ledger
+tahrifi" dediği fiilin ta kendisi.
+
+## Çözülmeden önceki hali (kayıt için)
 
 İkisi de aynı satırı gösteriyor: `README.md`'nin ledger bloğunda stitchu'nun
 `repairs held (locked): 0` satırı. stitchu'da tutulmuş onarım gerçekten 0;
@@ -104,20 +143,15 @@ kabul testine bu oturum dokunmadı ve dokunmayacak.
 
 ## Kapanış kontrolü (§6.3)
 
-- Kaç yeşil / kaç kırmızı? **17 / 2.** Kırmızı var → **kısmi**.
+- Kaç yeşil / kaç kırmızı? **20 / 0.** → **tamamlandı**.
 - Kapsam dışına çıkıldı mı? **Hayır.** Hiçbir kaynak kod dosyasına dokunulmadı,
-  hiçbir CLI verb'ü değişmedi. Ama kapsamın **beşte biri yapılmadı** (aşağıda).
-- Sonraki tur için değişen varsayım var mı? **Evet:** protokol "repair sayısı
-  geçen her satır aynı değeri gösterir" derken README'nin gerçek per-project
-  ledger çıktısı basacağını hesaba katmamış.
-
-## Açık madde — T1 kapanmadan yapılmalı
-
-**T1'in beş işinden biri hiç yapılmadı:** madde 3, GitHub repo description ve
-topics. `discards.txt` #1'de "YAPILMADI" diye duruyor. accept.sh bunu kontrol
-etmiyor, yani iki kırmızı çözülse ve test 19/19 yeşil olsa bile protokol
-kapsamı 4/5 kalır. Kabul testinin yeşili, kapsamın tamamlandığı anlamına
-gelmiyor — bu, testin denetlemediği bir boşluk ve gizlenmiyor.
+  hiçbir CLI verb'ü değişmedi, `native/` ve `core/` hiç açılmadı.
+- Kapsamın beş işi de yapıldı mı? **Evet.** Madde 3 (GitHub description +
+  topics) en son kapandı ve accept.sh onu kontrol etmiyor — yani bu maddenin
+  yeşili testten değil, komut çıktısından geliyor (`discards.txt` #1).
+- Sonraki tur için değişen varsayım var mı? **Evet, bir tane ve insan onaylı:**
+  §T1.4'ün "her satır aynı sayı" ifadesi iddia/veri ayrımı yapmıyordu; düzeltildi
+  (`discards.txt` madde 8, `DRIFT.md`).
 
 ## NOT VERIFIED
 
@@ -140,3 +174,14 @@ gelmiyor — bu, testin denetlemediği bir boşluk ve gizlenmiyor.
   iddiası uygulayan tarafından üç kez ölçüldü, hakem tarafından doğrulanmadı.
 - **Baseline koşusu (2 yeşil / 17 kırmızı) hakem tarafından doğrulanmadı** —
   o ağaç artık yok, yeniden üretmek `3b2cd9c`'ye checkout gerektirirdi.
+- **20/0'lık son koşu hakem tarafından denetlenmedi.** Testi yeniden yazan
+  oturum kendi işine 8 mutasyonla saldırdı ve sonuçları raporladı, ama bu
+  kendi kendini ölçmenin bir biçimi. Bağımsız bir hakem oturumu T1'in son
+  haline bakmadı.
+- **1c'nin önceden var olan zayıf noktası duruyor:** kuralı "satırda sayı varsa
+  ve 2 onların arasındaysa geç". `0 repairs held · 2 unverified` yazan bir satır
+  1c'yi tatmin ederdi. Yeni 1f o satırı düzgün kapatıyor ama 1c'nin genel
+  zayıflığı yerinde.
+- **accept.sh'ta bir bash 3.2 tuzağı var:** macOS bash, `$(...)` içindeki
+  tırnaklı heredoc'ta backtick'i ayrıştırıyor. T2–T8'in kabul scriptleri aynı
+  kalıpla yazılacaksa bilinmeli.

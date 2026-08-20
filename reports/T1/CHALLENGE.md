@@ -1,4 +1,14 @@
-# T1 — CHALLENGE
+# T1 — CHALLENGE — **ÇÖZÜLDÜ** (2026-08-20, insan kararı)
+
+> Karar: **testi değil, protokolü düzelt.** §T1.4'e "iddia ile veri ayrılır"
+> paragrafı ve Kabul maddesi 1'e per-project muafiyeti eklendi, kendi
+> commit'inde; sonra `accept.sh` ayrı bir oturum tarafından yeniden yazıldı ve
+> tek başına commit'lendi. Sonuç: **20 yeşil / 0 kırmızı.**
+> Gerekçenin tamamı: `reports/T1/discards.txt` madde 8.
+> Aşağısı itirazın çözülmeden önceki hali — kayıt için duruyor, silinmedi.
+
+---
+
 
 Bir CHALLENGE, kabul testine ya da protokole dokunma yetkisi **değildir**.
 Kanıtı ve önerilen diff'i insanın önüne koyar, orada durur.

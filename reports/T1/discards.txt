@@ -1,10 +1,14 @@
 T1 — elenen / yapılmayan maddeler ve sebepleri (§6.2 zorunlu dosyası)
 
-1. GitHub repo description + topics (T1 madde 3) — YAPILMADI.
-   Sebep: repoya değil, GitHub API'sine yazan bir iş; yetki gerektiriyor ve
-   accept.sh onu kontrol etmiyor, yani yapılsa da turun kabulüne girmiyor.
-   Sessizce "yapıldı" sayılmıyor: açık madde olarak duruyor, T1 kapanmadan
-   önce insan eliyle ya da onaylı bir komutla yapılmalı.
+1. GitHub repo description + topics (T1 madde 3) — YAPILDI (insan onaylı,
+   2026-08-20). Bir süre "YAPILMADI" olarak durdu; accept.sh onu kontrol
+   etmediği için sessizce yapılmış sayılabilirdi, sayılmadı.
+   Komut: gh repo edit --description "<kanonik cümle>" --add-topic
+   compound-error --add-topic agent-recovery --add-topic coding-agent
+   --remove-topic guardrails
+   Ek bulgu: eski GitHub açıklaması gate'i "~2.3ms" diye satıyordu, oysa
+   ölçülmüş medyan BENCHMARK.md'de 3.1 ms. Dışarı bakan, ölçülmemiş bir
+   sayıydı; kanonik cümleyle birlikte düştü. Yeni açıklamada hiç sayı yok.
 
 2. bench/reproduce.sh koşturulmadı.
    Sebep: protokol sayının reproduce.sh'tan üretilmesini istiyor; sayı bu turda

@@ -16,9 +16,23 @@ T1 | 2026-08-20 | kabul: 17 yeşil / 2 kırmızı (KISMİ) | kapsam dışı: yok
 T1 | 2026-08-20 | VARSAYIM DEĞİŞTİ (insan onaylı): §T1.4 + Kabul maddesi 1 düzeltildi — "repair sayısı geçen her satır aynı değer" ifadesi, aynı maddenin "sayı ledger'dan okunur" cümlesiyle çakışıyordu; ledger dökümü projeye göre 0 ve 2 basıyor ve ikisi de doğru. Yeni ifade iddia/veri ayrımı yapıyor, per-project sayımları muaf tutuyor, ve karşılığında ledger bloğunun TOPLAM satırının 2 okuduğunu ayrıca zorunlu kılıyor. Gerekçe: reports/T1/discards.txt madde 8.
 ```
 
-**Açık bayrak:** T1 kısmi kapandı. Bayrak 2 gereği, düzeltilmiş accept.sh yeşile
-dönmeden ve kapsam maddesi 3 (GitHub description + topics) yapılmadan
-**T2 başlamaz**.
+```
+T1 | 2026-08-20 | kabul: 20 yeşil / 0 kırmızı (TAMAMLANDI) | kapsam dışı: yok | kapsam maddesi 3 (GitHub description+topics) kapandı
+```
+
+**Bayrak yok. T1 kapandı, T2 başlayabilir.**
+
+Üç kırmızı bayrağın hiçbiri yanmadı: kapsam dışına çıkılmadı, tur kısmi
+bırakılıp üstüne gidilmedi, `make test` sayısı düşmedi (hiçbir test dosyasına
+dokunulmadı).
+
+Kayda geçen iki uyarı, T2'ye taşınıyor:
+- T1'in son hali (20/0) bağımsız bir hakem oturumu tarafından denetlenmedi;
+  testi yeniden yazan oturum kendi işini mutasyonla sınadı. Kendi kendini ölçmenin
+  bir biçimi (§4).
+- `accept.sh`'ın muafiyetinde bilinen ve kapatılmayan bir delik var: tam kurallı
+  yazılmış uydurma bir ledger bloğu muaf olurdu. Gerekçesi ve tutamakları
+  `reports/T1/CLAIM.md` içinde.
 
 Hakem kaydı: T1'i ayrı bir oturum denetledi, Kapı 1'i temiz buldu, README ve
 BENCHMARK'a yazılan her sayıyı ledger'a karşı doğruladı (uydurma sayı yok), ve
