@@ -94,3 +94,23 @@ T1 — elenen / yapılmayan maddeler ve sebepleri (§6.2 zorunlu dosyası)
    Sıra (§6.2, kriter koddan önce ve ayrı): protokol düzeltmesi kendi
    commit'inde -> accept.sh ayrı bir oturum tarafından yeniden yazılır ve
    TEK BAŞINA commit'lenir -> ancak ondan sonra koşturulur.
+
+9. CLAUDE.md ÇELİŞKİSİ — T1 SONRASI KAPATILDI (insan kararı, 2026-08-20).
+
+   Önce elendi ("kapsam beş iş, madem buradayım düzeltmesi yapılmaz"),
+   sonra kapatıldı. Gerekçe: bu çelişki T1'den ÖNCE yoktu, T1'in kendisi
+   yarattı. Bırakılsaydı sonraki turlar yanlış bir kurala göre çalışırdı —
+   yani kapsam disiplini burada tam da bu projenin engellemek için var
+   olduğu şeyi, compound error'ı üretirdi. Kapsam dışı bir iş değil,
+   T1'in kendi artığı; T1'in devamı sayılır.
+
+   Çelişki: CLAUDE.md'nin kalite çıtası maddesi
+     "Zero-config by default. `npm i -g rabadon && rabadon init` must
+      produce a working guard with no questions asked."
+   diyordu. T1 ise tam o komutu README'den kaldırdı, çünkü paket
+   yayınlanmamış (T1 madde 5). Yani proje kanunu, projenin kendi
+   dokümantasyonunun yalanladığı bir komutu şart koşar hale gelmişti.
+
+   Düzeltme: madde install-agnostik yapıldı. Çıta korundu — kurulum TEK
+   adım olmalı — ama hangi komut olduğu dondurulmadı: bugün kaynaktan,
+   T8'de npm. Kural zayıflamadı, doğru şeye bağlandı.

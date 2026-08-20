@@ -57,8 +57,11 @@ in this file are rabadon applied to rabadon's own builder.
   silently depends on the dev box (a compiler that happens to be
   installed, a PATH entry, a local file) is a bug. The reference
   environment is a clean container.
-- Zero-config by default. `npm i -g rabadon && rabadon init` must
-  produce a working guard with no questions asked. Every config
+- Zero-config by default. Whatever the documented install is, it plus
+  `rabadon init` must produce a working guard with no questions asked.
+  (Today that install is from source; `npm i -g rabadon` becomes the
+  documented one in T8, when the package is actually published. This
+  bar is about the install being one step, not about which one.) Every config
   option must have a sane default and a one-line explanation.
 - Every refusal message answers three questions in plain language:
   what was blocked, why, and the one command the human runs next.
