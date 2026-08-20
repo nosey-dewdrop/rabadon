@@ -150,15 +150,17 @@ Split by what actually happened:
 
 The three that used to read as "repairs accepted" are all unverified, all on
 stitchu. The number that sells the product — a fix proven against test files
-that provably did not move — is still **0**, and it stays on this page as 0
-until it isn't.
+that provably did not move — reads **2**, both on expressjs/express, and both on
+**planned** breakage. On **unplanned** breakage the count is **0**, and it stays
+on this page as 0 until it isn't. That second number is the one to watch; the
+first only proves the loop runs end to end.
 
 Command: `RABADON_NOTIFY=0 rabadon usage --days 30`.
 
 Note: the bench harness writes to an ISOLATED spool (`RABADON_DIR` per run), so
 bench drills do not inflate this ledger. The stable facts this page rests on:
 node/native parity held, stitchu is the largest real signal, and repairs-held is
-0 across the board.
+2 on planned breakage and 0 on unplanned breakage.
 
 ---
 
@@ -169,15 +171,16 @@ node/native parity held, stitchu is the largest real signal, and repairs-held is
 | Langfuse            | wrap client        | no — passive by design ("only logs")     | no             | tracing / evals    |
 | Braintrust          | wrap client        | no — passive tracer                      | no             | tracing / evals    |
 | Galileo             | inline gate        | yes — block / canned override            | no             | one call           |
-| **rabadon**         | wrap / hooks / CLI | **yes — inline, fail-closed, pre-spend** `[proven]` | **bounded, re-checked — proven in-suite, 0 on real breakage** `[building]` | session + pipeline, one budget, local-only |
+| **rabadon**         | wrap / hooks / CLI | **yes — inline, fail-closed, pre-spend** `[proven]` | **bounded, re-checked — 2 held on planned breakage, 0 on unplanned breakage** `[building]` | session + pipeline, one budget, local-only |
 
 Passive tracers (Langfuse, Braintrust) wrap the client and watch; they cannot
 stop a bad call and cannot repair it. Galileo's inline gate CAN stop a call
 (block or canned override) but does not repair. rabadon is inline, fail-closed,
 pre-spend on real projects (61 real catches in 30 days: stitchu 43, rabadon 12,
 drills excluded), overhead is deterministic C++ at 3.1 ms. The repair loop is
-proven in the test suite but has held 0 hash-locked repairs on real breakage so
-far.
+proven in the test suite and has held 2 hash-locked repairs on planned breakage
+(expressjs/express, its own suite as arbiter); on unplanned breakage it has held
+0 so far.
 
 ---
 
@@ -213,4 +216,4 @@ RABADON_NOTIFY=0 bench/reproduce.sh
 Numbers vary slightly with machine load. The reproducible facts: 3.1 ms native
 gate median, 44x median gap over node, 13/13 node==native parity + 53/0 and
 9/0 native suites, 55 real catches on stitchu+rabadon in 30 days (drills
-excluded), and repairs-held = 0.
+excluded), and repairs-held = 2 on planned breakage, 0 on unplanned breakage.

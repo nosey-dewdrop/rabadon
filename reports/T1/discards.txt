@@ -1,0 +1,33 @@
+T1 — elenen / yapılmayan maddeler ve sebepleri (§6.2 zorunlu dosyası)
+
+1. GitHub repo description + topics (T1 madde 3) — YAPILMADI.
+   Sebep: repoya değil, GitHub API'sine yazan bir iş; yetki gerektiriyor ve
+   accept.sh onu kontrol etmiyor, yani yapılsa da turun kabulüne girmiyor.
+   Sessizce "yapıldı" sayılmıyor: açık madde olarak duruyor, T1 kapanmadan
+   önce insan eliyle ya da onaylı bir komutla yapılmalı.
+
+2. bench/reproduce.sh koşturulmadı.
+   Sebep: protokol sayının reproduce.sh'tan üretilmesini istiyor; sayı bu turda
+   `RABADON_NOTIFY=0 rabadon usage --days 30` ile ledger'dan okundu, ki aynı
+   ledger'ın aynı okuyucusu. reproduce.sh yolu DOĞRULANMADI ve öyle yazıldı.
+
+3. README'nin geri kalanı (laws bölümü, mimari anlatımı, docs/) elden
+   geçirilmedi.
+   Sebep: T1'in kapsamı beş iş. "Madem buradayım" düzeltmesi kapsam kaymasıdır
+   ve §6.4'ün birinci kırmızı bayrağını tetikler. Park edildi.
+
+4. package.json'dan `self-healing` ve `reliability` keyword'leri SİLİNMEDİ.
+   Sebep: protokol yalnız `guardrails`, `sandbox`, `pipeline` için düşme
+   emri veriyor. Emredilmeyeni silmek de kapsam dışıdır.
+
+5. docs/agent-contract.md'nin Cursor kapsamı daraltılmadı.
+   Sebep: o iş protokolün §5'inde tarif ediliyor ama T1'in beş işinden biri
+   değil ve accept.sh onu kontrol etmiyor. T2 veya sonrası.
+
+6. accept.sh'ın kırmızı kalan üç iddiası testi düzenleyerek geçirilmedi.
+   Sebep: Kapı 1. Uygulayan oturum kabul testini yazamaz/değiştiremez.
+   Kanıt ve önerilen diff reports/T1/CHALLENGE.md'de, karar insanın.
+
+7. Metin, testin desenini atlatacak şekilde yeniden yazılmadı.
+   Sebep: yeşili kelime oyunuyla satın almak, §6.2'deki "kapsamı sessizce
+   daraltma" ile aynı şey. Doğru cümle kırmızı bırakıldı ve itiraz yazıldı.

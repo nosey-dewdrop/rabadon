@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/nosey-dewdrop/rabadon/actions/workflows/ci.yml/badge.svg)](https://github.com/nosey-dewdrop/rabadon/actions/workflows/ci.yml)
 
-Supervise your coding agent. rabadon stands at the gate of a live Claude Code session and enforces your project's own laws deterministically, **before** every action — then keeps a tamper-evident record of everything it did.
+rabadon catches your coding agent's error before it compounds, and fixes it. It runs inside the live session, not over the logs afterwards. It sees the error in the move that makes it, while the move is still a proposal. And it hands the agent the one thing the agent cannot see for itself — what actually broke, and where this attempt diverges from the last one that worked — so the agent writes the fix. Not a watchdog, not a gate, not a dashboard: stopping is not the product, getting unstuck is.
 
 ![rabadon refusing a force-push and a recursive delete, holding a verified repair, and rejecting a fake one](docs/cast/rabadon.svg)
 
@@ -16,8 +16,13 @@ Everything is local, by law: events append to `~/.rabadon/spool/` on your machin
 
 ## Install
 
+Not on npm yet — install from source. (The package is built and the release
+workflow is wired; publishing is its own step, and until it happens this page
+will not print a command that cannot work.)
+
 ```sh
-npm i -g rabadon          # prebuilt native core for macOS/Linux (source-build fallback)
+git clone https://github.com/nosey-dewdrop/rabadon && cd rabadon
+npm install && npm link   # builds the native core with clang++/g++, puts `rabadon` on your PATH
 
 cd your-project
 rabadon init              # authors guard rules from your law files (CLAUDE.md / RULES.md),
@@ -40,36 +45,43 @@ From the author's own week, replayable from the spool — a mid-session `wrangle
   ENV.md Deploy: wrangler deploy is the human's step; the agent must never deploy or claim the worker is live."}]}
 ```
 
-`rabadon usage` turns a week of those into the only sales artifact that matters — what it caught, in your repo, on your work:
+`rabadon usage` turns a month of those into the only sales artifact that matters — what it caught, in your repo, on your work. Real output, captured 2026-08-20 by `RABADON_NOTIFY=0 rabadon usage --days 30`, trimmed to two of its projects. Every count is verbatim from the ledger; the one-line reason beside each rule is written for this page, where the real output prints the offending command instead:
 
 ```
-rabadon usage — last 7 day(s) · local, nothing leaves this machine
-  (EXAMPLE OUTPUT, captured 2026-07-31. The live numbers move every day and are
-   published at https://rabadon.noseydewdrop.com — this block shows the SHAPE.
-   The repair counters below were true on that date and are not any more:
-   repairs held has since gone 0 -> 2. See the paragraph under this block.)
+rabadon usage — last 30 day(s) · local, nothing leaves this machine
+source: /Users/damummyphus/.rabadon/spool
 
-  61 refused before they happened · 15,178 actions gated · 0 repairs held · 3 unverified
+  520 refused before they happened · 90,274 actions gated · 2 repairs held · 3 unverified · 684 would-have-refused (watch)
 
-  stitchu                                            last event: today 23:40
-    actions gated                     4,195
-    caught before happening              43
-      14x  push-gate                   code was edited after the last passing test run
-       9x  no-rm-rf-outside-project    recursive delete outside the project tree is unrecoverable
-       6x  no-wrangler-deploy          deploys go through CI, never from a live session
-       5x  generated-web-html          a generated file was about to be hand-edited
-       3x  ctest-tail-hides-verdict    piping the suite through tail buries the real verdict
-       2x  loop-stop                   the same command a 3rd time with no code change in between
-    checks failed (caught)              105   (loops stopped: 2)
-    repairs held (locked)                 0
-    repairs unverified                    3
+  stitchu                                            last event: 2026-08-20 20:23
+    actions gated:           20,332
+    caught before happening:   171
+       92x  ctest-tail-hides-verdict   piping the suite through tail buries the real verdict
+       28x  push-gate                  code was edited after the last passing test run
+       12x  no-ctest-list-as-green     listing the tests is not running them
+       10x  no-rm-rf-outside-project   recursive delete outside the project tree is unrecoverable
+        6x  no-wrangler-deploy         deploys go through CI, never from a live session
+        2x  test-tamper                assertions removed from test_style.cpp while the suite is red
+        2x  loop-stop                  the same command again with no code change in between
+    checks failed (caught):    422   (loops stopped: 2)
+    repairs held (locked):       0
+    repairs unverified:          3
 
-  (3,495 event(s) from rabadon's own drills and self-tests — excluded from every number above)
+  express                                            last event: 2026-08-20 04:55
+    actions gated:               80
+    caught before happening:      2
+    checks failed (caught):      21
+    repairs held (locked):        2
+    repairs unverified:           0
+
+  (4,341 event(s) from rabadon's own drills/demos/self-tests — excluded from every number above)
 ```
 
 The drill exclusion is load-bearing: a tool that counts its own self-tests as catches is worthless, so rabadon tags them at emit and never counts them. That honesty is the brand, and a claim like this is only worth the loosest surface that reads the ledger — so all three readers run the identical predicate, from one file. `rabadon export --otlp`, because it leaves the machine: the refusals in your Jaeger are the refusals in your terminal, to the event. `rabadon trace`, because it is the prettiest one and the one that ends up in a screenshot: a self-run renders `CAUGHT 0` under the banner `rabadon's own drill — excluded from every number`, and prints no saved-money line. Its own cost stays on screen, because excluded from every count is not the same as erased from the record.
 
 So is the second line. `repairs held` and `repairs unverified` used to be one number called "repairs accepted", and that number also swept in green push-gate suites and freshly written rules — four different events sharing one name in the ledger. Split apart, the honest reading of this machine is that the repair path has produced **two** fixes proven against hash-locked test files — both on expressjs/express @ a3714473, its own mocha suite as the arbiter, 91 test files locked — and three that nothing was holding. A fix nobody could witness is not a fix rabadon gets to count.
+
+And the two carry one more qualification, which travels with the number everywhere it is printed: both were on **planned** breakage — bugs planted to drive the loop end to end. On **unplanned** breakage, a bug nobody staged, repairs held is **0**. That is the number that will decide whether the repair path is real, and it stays on this page as 0 until it isn't.
 
 ## The built-in laws
 
@@ -130,7 +142,7 @@ The session guard is one binding of a smaller thing: a runtime that runs work in
 
 `rabadon lens` is the cost half: sessions, tokens and USD read straight off the transcripts Claude Code already writes to disk — no wrapper, no key, and no model call to produce any number.
 
-Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. That refusal is not only about flags. `rabadon trace <run>` is the form the help screen teaches, and the word used to be taken as a file path: the path did not exist, so the renderer fell back to the newest day file and answered with the whole day's ledger at exit 0, and the run that was asked for was in yesterday's file, not among them. A word that names nothing now ends the run and says which word, and asking for a run that is not in the window exits non-zero with an empty stdout instead of a quiet `(no matching run)` at exit 0. `native/cli_test.sh` discovers the binaries by glob and holds every one of them to that, **and to being reachable**: `npm i -g rabadon` puts exactly one file on your PATH, so a shipped binary the dispatcher never names is a binary nobody can run. The verb list in that test is parsed out of the dispatcher itself, never typed in.
+Every native binary answers `--help` and `-h` with its own screen — what it does, its arguments, and a runnable example — and refuses a flag it does not know rather than swallowing it. That refusal is not only about flags. `rabadon trace <run>` is the form the help screen teaches, and the word used to be taken as a file path: the path did not exist, so the renderer fell back to the newest day file and answered with the whole day's ledger at exit 0, and the run that was asked for was in yesterday's file, not among them. A word that names nothing now ends the run and says which word, and asking for a run that is not in the window exits non-zero with an empty stdout instead of a quiet `(no matching run)` at exit 0. `native/cli_test.sh` discovers the binaries by glob and holds every one of them to that, **and to being reachable**: an install puts exactly one file on your PATH, so a shipped binary the dispatcher never names is a binary nobody can run. The verb list in that test is parsed out of the dispatcher itself, never typed in.
 
 ## Prove it yourself
 
@@ -142,4 +154,4 @@ npm test             # the JS surface: install/merge, wrap, store, ui
 
 ## Status
 
-Building in public. **Proven, by running code committed here:** the session gate (deny rules, loop-stop, test-tamper, push gate) through the real binary; kernel-enforced protected paths (real OS `EPERM`), proven in CI on **both** backends — macOS Seatbelt and Linux bubblewrap; the hash-chained ledger with tamper detection; the session repair loop (caught → proposed in isolation → re-verified → held patch, fake fixes rejected); OTLP export; portable `npm i -g` install with prebuilt binaries; clean `init`/`remove`/`doctor`. **[building]:** the local dashboard (`rabadon ui`) is a stub — `rabadon watch` is the live surface today. **Honest gap:** the repair loop is proven on scripted repos and on a foreign one — two repairs held on expressjs/express on 2026-08-01, judged by that project's own suite. It has not yet run on a project whose maintainer asked for it. Not yet published to npm — the release workflow and provenance are wired and waiting on the maintainer's `npm publish`.
+Building in public. **Proven, by running code committed here:** the session gate (deny rules, loop-stop, test-tamper, push gate) through the real binary; kernel-enforced protected paths (real OS `EPERM`), proven in CI on **both** backends — macOS Seatbelt and Linux bubblewrap; the hash-chained ledger with tamper detection; the session repair loop (caught → proposed in isolation → re-verified → held patch, fake fixes rejected); OTLP export; clean `init`/`remove`/`doctor`. **[building]:** the local dashboard (`rabadon ui`) is a stub — `rabadon watch` is the live surface today. **Honest gap:** the repair loop is proven on scripted repos and on a foreign one — two repairs held on expressjs/express on 2026-08-01, judged by that project's own suite, both on **planted** breakage. On unplanned breakage — a bug nobody staged — the count is **0**. It has not yet run on a project whose maintainer asked for it. Not yet published to npm — the release workflow and provenance are wired and waiting on the maintainer's `npm publish`.
