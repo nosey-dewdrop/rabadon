@@ -91,13 +91,23 @@ run_check_log()  { ( cd "$REPO" && eval "$CHECK" ) >"$1" 2>&1; }
 cd "$REPO" || exit 2
 
 # --- refuse a dirty worktree -------------------------------------------------
-DIRTY=$(git status --porcelain 2>/dev/null)
+# TRACKED changes only. `git checkout --force` overwrites tracked files and
+# leaves untracked ones alone, so refusing on untracked files would refuse
+# every real checkout on a mac (.DS_Store) while protecting nothing. They are
+# still named, because a commit that introduces the same path would clobber one.
+DIRTY=$(git status --porcelain 2>/dev/null | grep -v '^??' || true)
+UNTRACKED=$(git status --porcelain 2>/dev/null | grep '^??' || true)
 if [ -n "$DIRTY" ]; then
-  echo "REFUSED: worktree is not clean. This script runs 'git checkout --force'," >&2
-  echo "         which would destroy the following, permanently:" >&2
+  echo "REFUSED: worktree has uncommitted changes to TRACKED files. This script" >&2
+  echo "         runs 'git checkout --force', which would destroy them permanently:" >&2
   printf '%s\n' "$DIRTY" | sed 's/^/           /' >&2
   echo "         commit or stash first, then re-run." >&2
   exit 2
+fi
+if [ -n "$UNTRACKED" ]; then
+  echo "   note: untracked files present; checkout leaves them alone, but a" >&2
+  echo "         commit that adds the same path would overwrite one:" >&2
+  printf '%s\n' "$UNTRACKED" | sed 's/^/           /' >&2
 fi
 
 # --- remember where the human was, and go back there no matter how we exit ---
