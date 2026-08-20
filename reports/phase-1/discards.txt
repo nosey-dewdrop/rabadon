@@ -1,0 +1,36 @@
+# faz 1 — eleme raporu (AGENTS-PROTOCOL.md kapı 2: bu sayılar zorunlu alan)
+# Sayıları araç yazdı: python3 scripts/repair_census.py
+# Pencere: reports/phase-1/accept.sh içindeki mühürlü byte prefix'leri (26 gün dosyası).
+#   Pencereyi ben seçmedim — seçseydim işime gelen haftayı seçebilirdim.
+
+scanned_day_files=26
+scanned_day_files_hash_verified=26
+repair_start_total=435
+closed_with_terminal_event=168
+repair_class_unclassifiable=267
+
+# eleme sebep sebep — "sınıflandırılamadı" tek bir kova değil, tek bir sebep:
+# bu 267 REPAIR_START'ın hiçbirinden sonra, kendi run'ı içinde, HİÇBİR olay yok.
+# Terminal olay yok, STEP_OK yok, RUN_DONE yok. Defter susuyor.
+unclassified_reason_no_event_after_start=267
+unclassified_reason_evidence_ambiguous=0
+unclassified_reason_parse_error=0
+
+# sınıf dağılımı (yalnız kanıtı olanlar)
+repair_class_held=113
+repair_class_REPAIR_FAIL=51
+repair_class_FLAKY=0
+repair_class_test_tamper=2
+repair_class_harness_tamper=2
+repair_class_proposer_empty=0
+repair_class_timeout=0
+
+# canlı (mührün ötesi) — ileri kapanışın kanıtı
+live_repair_start=2
+live_repair_start_closed=2
+live_repair_start_open_over_300s=0
+
+# NEDEN SIFIR ELEME YOK: 267 eleme var ve hepsi tek sebepten. Kapı 2 "sıfır
+# eleme = filtre çalışmıyor" diyor; buradaki risk tersiydi — elemeyi sıfıra
+# indirmek için 267 bilinmeyene REPAIR_FAIL damgalamak. Yapılmadı, ve kabul
+# testi zaten unclassified==0'ı sert hata sayıyor.

@@ -1,0 +1,9 @@
+key	count
+held	113
+REPAIR_FAIL	51
+FLAKY	0
+test-tamper	2
+harness-tamper	2
+proposer-empty	0
+timeout	0
+unclassified	267

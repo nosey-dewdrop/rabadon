@@ -668,7 +668,7 @@ int main(int argc, char** argv) {
     // operator home green is a claim this run cannot support, and the ledger is
     // the product's word — so FLAKY gets its own reason and its own exit code (4),
     // never silence and never a verdict about a proposal that was never made.
-    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"flaky check: entry samples disagree (green, then exit " +
+    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"FLAKY\",\"why\":\"flaky check: entry samples disagree (green, then exit " +
             std::to_string(confirm.exit_code) + ")\",\"samples\":2");
     fprintf(stderr,
       "rabadon repair: FLAKY CHECK — the same check, on the same untouched tree, ran GREEN and then RED (exit %d)%s.\n"
@@ -792,7 +792,7 @@ int main(int argc, char** argv) {
   string propCmd = shell_quote(claudeBin) + " -p --output-format text --permission-mode acceptEdits " + shell_quote(prompt);
   RunResult prop = run_shell(propCmd, work, proposerTimeout, {"RABADON_OFF=1"});
   if (prop.timed_out) {
-    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"proposer timed out\"");
+    em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"timeout\",\"why\":\"proposer timed out\"");
     fprintf(stderr, "rabadon repair: proposer timed out after %ds — REPAIR_FAIL (fail closed, your tree untouched)\n", proposerTimeout);
     return 2;
   }
@@ -815,7 +815,7 @@ int main(int argc, char** argv) {
     RunResult retry = run_shell(cmd, work, checkTimeout);
     if (retry.exit_code != 0) {
       // Both samples agree. NOW it is a verdict: the proposal did not fix it.
-      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"check still red after proposal\",\"exit\":" +
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"check still red after proposal\",\"exit\":" +
               std::to_string(firstArbiterExit) + ",\"exit2\":" + std::to_string(retry.exit_code) + ",\"samples\":2");
       fprintf(stderr, "rabadon repair: the proposed fix did NOT turn the check green (exit %d, re-sampled: exit %d) — REPAIR_FAIL (fail closed, your tree untouched)\n",
               firstArbiterExit, retry.exit_code);
@@ -839,7 +839,7 @@ int main(int argc, char** argv) {
   }
   for (auto& lk : locks) {
     if (rbsha::hex(read_file(work + "/" + lk.first)) != lk.second) {
-      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"test-tamper: " + json_escape(lk.first) + " was modified\"");
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"test-tamper\",\"why\":\"test-tamper: " + json_escape(lk.first) + " was modified\"");
       fprintf(stderr, "rabadon repair: REJECTED — the proposal modified a hash-locked test file (%s). A fix that weakens the check is a fake fix.\n", lk.first.c_str());
       fprintf(stderr, "  locked sha256 %s, found %s\n  the check went GREEN, and that green is exactly what the lock refuses to sell.\n"
                       "  the rejected proposal is in: %s\n",
@@ -880,7 +880,7 @@ int main(int argc, char** argv) {
       i++; j++;
     }
     if (!rel.empty()) {
-      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"harness-tamper: " +
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"harness-tamper\",\"why\":\"harness-tamper: " +
               json_escape(rel) + " was " + verdict + "\"");
       fprintf(stderr,
         "rabadon repair: REJECTED — the proposal %s a hash-locked harness file (%s). Every test file is untouched,\n"
@@ -952,7 +952,7 @@ int main(int argc, char** argv) {
           if (pr2.exit_code != 0) {
             string why;
             for (const auto& f : flags) why += (why.empty() ? "" : "; ") + f.kind;
-            em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"held-out probe: the green is bought by "
+            em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"held-out probe: the green is bought by "
                     + json_escape(why) + "\",\"flags\":" + std::to_string(flags.size()) + ",\"samples\":2");
             fprintf(stderr,
               "rabadon repair: REJECTED — the green is bought by the patch itself, not by a fix (held-out probe).\n"
@@ -985,7 +985,7 @@ int main(int argc, char** argv) {
   {
     string patch = read_file(tmp + "/patch.out");
     if (patch.empty()) {
-      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"why\":\"green but zero diff (flaky check?)\"");
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"FLAKY\",\"why\":\"green but zero diff (flaky check?)\"");
       fprintf(stderr, "rabadon repair: the check went green with NO change — the check looks flaky, not broken. Nothing is claimed.\n");
       return 2;
     }
@@ -998,6 +998,7 @@ int main(int argc, char** argv) {
   // (locked): 1`. The counter is the number this product is sold on, so the
   // uncertified case gets its own event and the word OK stops covering it.
   em.emit(flakyArbiter ? "REPAIR_FLAKY" : "REPAIR_OK",
+          string(flakyArbiter ? "\"outcome\":\"not-held\",\"class\":\"FLAKY\"," : "\"outcome\":\"held\",") +
           "\"step\":\"session-repair\",\"cmd\":\"" + json_escape(cmd) + "\",\"patch\":\"" + json_escape(".rabadon/" + patchName) + "\",\"locks\":" + std::to_string(locks.size()) +
           ",\"harnessLocks\":" + std::to_string(harness.size()) +
           (flakyArbiter ? ",\"why\":\"flaky check: arbiter samples disagree (exit " + std::to_string(firstArbiterExit) + ", then green)\",\"samples\":2" : ""));

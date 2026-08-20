@@ -2350,6 +2350,15 @@ int main(int argc, char** argv) {
 
       if (!judgeOff && !sameIncident) {
         stt.lastDiagSig = failSig; stt.lastDiagAt = now; stt.save();
+        // Every REPAIR_START owes a closing event. Measured on this machine's
+        // 22-day spool before this was written: 435 REPAIR_START, 168 closed,
+        // 267 with no further event of any kind in the run. Nearly all of the
+        // 267 came from right here — the diagnosis succeeds, proposes no rule,
+        // and the block simply ends. `rabadon stats` then counts an attempt
+        // whose outcome nobody can name, which is the one thing a ledger for a
+        // guard tool must never do. repairClosed is the promise that whatever
+        // path this takes, it says how it ended.
+        bool repairClosed = false;
         em.emit("REPAIR_START", "\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\",\"fixing\":[\"red-tests\"]");
         std::vector<string> bullets;
         size_t from = ss.recent.size() > 15 ? ss.recent.size() - 15 : 0;
@@ -2365,7 +2374,8 @@ int main(int argc, char** argv) {
                             "\",\"ms\":" + std::to_string(now_ms() - diagT0) +
                             ",\"ok\":" + (diag.ok ? "true" : "false"));
         if (!diag.ok) {
-          em.emit("REPAIR_FAIL", "\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\",\"why\":\"diagnosis unavailable\"");
+          em.emit("REPAIR_FAIL", "\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"diagnosis unavailable\"");
+          repairClosed = true;
         } else {
           advice = "\nrabadon diagnosis:\n  where: " + diag.where +
                    "\n  cause: " + diag.cause + "\n  fix:   " + diag.fix + "\n";
@@ -2418,7 +2428,8 @@ int main(int argc, char** argv) {
               }
             }
             if (target && compiles && !provenLive) {
-              em.emit("REPAIR_FAIL", "\"step\":\"new gate\",\"attempt\":1,\"repair_kind\":\"rule\",\"why\":\"proposed rule cannot refuse its own example\"");
+              em.emit("REPAIR_FAIL", "\"step\":\"new gate\",\"attempt\":1,\"repair_kind\":\"rule\",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"proposed rule cannot refuse its own example\"");
+              repairClosed = true;
               advice += "  a rule was proposed and NOT installed: its pattern cannot refuse " +
                         deadExample + "\n";
             }
@@ -2451,12 +2462,27 @@ int main(int argc, char** argv) {
                   const string tmp = gpath + ".tmp";
                   { std::ofstream tf(tmp, std::ios::trunc); if (tf) tf << pretty; }
                   rename(tmp.c_str(), gpath.c_str());
-                  em.emit("REPAIR_OK", "\"step\":\"new gate: " + json_escape(ruleId) + "\",\"attempt\":1,\"repair_kind\":\"rule\"");
+                  em.emit("REPAIR_OK", "\"step\":\"new gate: " + json_escape(ruleId) + "\",\"attempt\":1,\"repair_kind\":\"rule\",\"outcome\":\"held\"");
+                  repairClosed = true;
                   advice += "  new gate installed: " + ruleId + " — this class of break is now caught BEFORE it happens.\n";
                 }
               }
             }
           }
+        }
+        // THE HOLE THIS PHASE WAS GIVEN. Diagnosis came back fine, proposed no
+        // rule (or one already installed), and the block simply ended — 267 of
+        // 435 repair attempts in the 22-day spool end exactly here, with no
+        // further event of any kind. A diagnosis that arrives IS what this
+        // attempt promised, so it closes held; one that never arrived closed
+        // not-held above. The outcome is STATED, never inferred from the event
+        // name: inference is what kept the hole invisible for 22 days.
+        if (!repairClosed) {
+          em.emit(diag.ok ? "REPAIR_OK" : "REPAIR_FAIL",
+                  string("\"step\":\"diagnose\",\"attempt\":1,\"repair_kind\":\"diagnosis\"") +
+                  (diag.ok ? ",\"outcome\":\"held\",\"why\":\"diagnosis delivered; no new rule installed\""
+                           : ",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"diagnosis unavailable\""));
+          repairClosed = true;
         }
       }
       // Say what is switched off, once per incident, by name. A capability that
@@ -2864,15 +2890,15 @@ int main(int argc, char** argv) {
           // and any session's edit moves it past this stamp.
           ss.lastTestPass = now_ms(); ss.lastTestFail = 0; ss.lastTestRun = now_ms();
           stt.lastTestVerified = now_ms();
-          em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\"");
+          em.emit("REPAIR_OK", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"outcome\":\"held\"");
           // fall through: the push is now legitimately allowed
         } else if (vacuous) {
-          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"why\":\"ran no tests\"");
+          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"ran no tests\"");
           block("push-gate", why, "rabadon ran the tests itself (" + runCmd + ") — it exited 0 and RAN NO TESTS.\n" +
             (out.size() > 400 ? out.substr(out.size() - 400) : out) +
             "An empty run is not a green run. Point pushGate.run at a command that executes the suite.");
         } else {
-          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"why\":\"tests not green\"");
+          em.emit("REPAIR_FAIL", "\"step\":\"push-gate\",\"attempt\":1,\"repair_kind\":\"testrun\",\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",\"why\":\"tests not green\"");
           // rabadon ran it and read a non-zero exit. That is a red every session
           // in this tree may act on, unlike one a session merely watched.
           ss.lastTestFail = now_ms(); ss.lastTestRun = now_ms();

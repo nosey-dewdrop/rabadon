@@ -308,7 +308,7 @@ int main(int argc,char** argv){
         "\nFix the PROJECT STATE so the contract passes. Do the real work — the contract runs the code and compares behavior, so faking a file or a string will NOT pass. Smallest correct fix, nothing beyond this step.",topTier);
       string rmetrics=attempt_metrics();
       rc=verify_contract(contract,reason);
-      em.ev(rc==0?"REPAIR_OK":"REPAIR_FAIL","\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)
+      em.ev(rc==0?"REPAIR_OK":"REPAIR_FAIL",string(rc==0?"\"outcome\":\"held\",":"\"outcome\":\"not-held\",\"class\":\"REPAIR_FAIL\",")+"\"step\":\""+json_escape(id)+"\",\"attempt\":"+std::to_string(attempt)
             +(topTier.empty()?"":",\"tier_name\":\""+json_escape(topTier)+"\"")+rmetrics);
     }
     if(rc!=0){
