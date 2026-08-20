@@ -41,15 +41,104 @@ done
 # What must not survive: any bare "repairs held = 0" reading, and any
 # "0 on real breakage" phrasing sitting in a planned-repair context, where it
 # reads as a contradiction of the 2 rather than as the unplanned-breakage fact.
+#
+# CLAIM/DATA SPLIT (protocol §T1.4, "iddia ile veri ayrılır"; discards.txt #8).
+# The rule above is about CLAIMS: prose, table cells, summary lines. A ledger
+# dump is DATA — `rabadon usage` really does break the count down per project
+# (stitchu 0, express 2) and printing it any other way would be either ledger
+# forgery or cherry-picking. So the per-project count ROWS INSIDE the fenced
+# ledger dump are exempt from 1a/1c — and nothing else is: prose outside the
+# block, table cells, and the block's own summary line stay strict.
+#
+# The exemption does not open a hole, because the check widens at the same
+# time: 1f asserts the ledger block's TOTAL line reads 2 (never checked before),
+# which also means the block cannot simply be deleted to dodge the red.
 # ---------------------------------------------------------------------------
 head_ "CLAIM 1 — repair count is a single, consistently qualified number (2 planned / 0 unplanned)"
+
+# Map the fenced ledger-dump blocks. A block counts as a ledger dump only if it
+# is ```-fenced AND carries the `rabadon usage — last N day(s)` banner inside.
+# Exempt rows are only the per-project counters: a whole line that is nothing
+# but `repairs held (locked): <n>`. Writes two temp files:
+#   $EXEMPT_TSV  "<path>\t<lineno>" per exempt row   (consumed by 1c)
+#   $EXEMPT_RE   "^<path>:<lineno>:" per exempt row  (consumed by 1a)
+# and prints TOTAL/ERR records on stdout for 1f.
+EXEMPT_TSV="$(mktemp -t rabadon-t1-exempt)"
+EXEMPT_RE="$(mktemp -t rabadon-t1-exemptre)"
+ledger_map="$(python3 - "$EXEMPT_TSV" "$EXEMPT_RE" "$README" "$BENCH" <<'PY'
+import re, sys
+
+tsv_path, re_path = sys.argv[1], sys.argv[2]
+
+TICK = chr(96)  # a literal backtick cannot appear in this heredoc (bash 3.2)
+fence       = re.compile("^\\s*(?:" + TICK * 3 + "|~~~)")
+banner      = re.compile(r"rabadon usage\s*[—-]\s*last\s+\d+\s+day\(s\)", re.I)
+per_project = re.compile(r"^\s+repairs?[\s_-]*held\s*\(locked\)\s*:\s*\d+\s*$", re.I)
+total_num   = re.compile(r"(?<![\w.,])(\d[\d,]*)\s+repairs?[\s_-]*held\b", re.I)
+
+def ere_escape(s):
+    return "".join("\\" + c if c in r".[]\*+?(){}|^$" else c for c in s)
+
+exempt, totals, blocks, headless = [], [], 0, []
+
+for path in sys.argv[3:]:
+    lines = open(path, encoding="utf-8").read().splitlines()
+    inside, block, opened = False, [], 0
+    for i, line in enumerate(lines, 1):
+        if fence.match(line):
+            if inside:
+                if any(banner.search(t) for _, t in block):
+                    blocks += 1
+                    got_total = False
+                    block_exempt = []
+                    for n, t in block:
+                        if per_project.match(t):
+                            block_exempt.append((path, n))
+                        elif "(locked)" not in t.lower():
+                            m = total_num.search(t)
+                            if m:
+                                got_total = True
+                                totals.append((path, n, m.group(1).replace(",", ""), t.strip()))
+                    # A real dump always prints its summary line. A ledger block
+                    # without one is a hand-made block claiming to be a dump —
+                    # which would buy the per-project exemption for free. Such a
+                    # block earns no exemption at all.
+                    if got_total:
+                        exempt.extend(block_exempt)
+                    else:
+                        headless.append((path, opened))
+                block = []
+            else:
+                opened = i
+            inside = not inside
+        elif inside:
+            block.append((i, line))
+
+with open(tsv_path, "w", encoding="utf-8") as fh:
+    for p, n in exempt:
+        fh.write(f"{p}\t{n}\n")
+with open(re_path, "w", encoding="utf-8") as fh:
+    for p, n in exempt:
+        fh.write(f"^{ere_escape(p)}:{n}:\n")
+
+if blocks == 0:
+    print("ERR\tno fenced 'rabadon usage — last N day(s)' ledger block found")
+for p, n in headless:
+    print(f"ERR\t{p}:{n}: ledger block has no total 'N repairs held' line")
+for p, n, v, t in totals:
+    print(f"TOTAL\t{p}\t{n}\t{v}\t{t}")
+print(f"INFO\texempt per-project ledger rows: {len(exempt)} in {blocks} ledger block(s)")
+PY
+)"
 
 # 1a. No bare-zero repair readings left in either file.
 zero_re='repairs?[[:space:]_-]*held[^0-9]{0,40}\b0\b|\b0\b[[:space:]]+repairs?[[:space:]_-]*held|held[[:space:]]+0[[:space:]]+hash-locked[[:space:]]+repairs|repairs-held[[:space:]]*(is|=|:)[[:space:]]*0'
 # A sentence that narrates the move itself ("has since gone 0 -> 2") is not a
 # zero reading; it is the correction. Exempted.
+# Per-project rows inside a ledger dump are data, not a claim (see above).
 zero_hits="$(grep -nEi "$zero_re" "$README" "$BENCH" \
-  | grep -vE '0[[:space:]]*(->|-->|→|to)[[:space:]]*2' || true)"
+  | grep -vE '0[[:space:]]*(->|-->|→|to)[[:space:]]*2' \
+  | { [ -s "$EXEMPT_RE" ] && grep -vE -f "$EXEMPT_RE" || cat; } || true)"
 if [ -z "$zero_hits" ]; then
   pass "1a no bare \"repairs held = 0\" reading remains in README.md / BENCHMARK.md"
 else
@@ -71,13 +160,21 @@ fi
 # 1c. Every numeric reading of "repairs held" that carries a bare count reads 2.
 #     (Numbers that are plainly not the counter — dates, hashes, test totals —
 #     are skipped; a bare small integer on such a line is the counter.)
-bad_held="$(python3 - "$README" "$BENCH" <<'PY'
+bad_held="$(python3 - "$EXEMPT_TSV" "$README" "$BENCH" <<'PY'
 import re, sys
 pat = re.compile(r"repairs?[\s_-]*held", re.I)
 num = re.compile(r"(?<![\w.@/-])(\d{1,3})(?![\w.%/-])")
-for path in sys.argv[1:]:
+# per-project rows inside the ledger dump block: data, not a claim
+exempt = set()
+for row in open(sys.argv[1], encoding="utf-8"):
+    if row.strip():
+        p, n = row.rstrip("\n").rsplit("\t", 1)
+        exempt.add((p, int(n)))
+for path in sys.argv[2:]:
     for i, line in enumerate(open(path, encoding="utf-8"), 1):
         if not pat.search(line):
+            continue
+        if (path, i) in exempt:
             continue
         if re.search(r"0\s*(->|-->|→|to)\s*2", line):
             continue  # narrates the correction, not a reading
@@ -93,6 +190,29 @@ if [ -z "$(printf '%s' "$bad_held" | tr -d '[:space:]')" ]; then
 else
   fail "1c a numeric \"repairs held\" reading shows something other than 2"
   printf '%s\n' "$bad_held" | sed 's/^/      /'
+fi
+
+# 1f. The price of the 1a/1c exemption: the ledger block's TOTAL line is itself
+#     asserted to read 2. At least one such line must exist (so the block cannot
+#     be deleted to dodge the red) and every one of them must read 2.
+totals="$(printf '%s\n' "$ledger_map" | grep '^TOTAL	' || true)"
+errs="$(printf '%s\n' "$ledger_map" | grep '^ERR	' || true)"
+info_line="$(printf '%s\n' "$ledger_map" | grep '^INFO	' | cut -f2- || true)"
+[ -n "$info_line" ] && note "$info_line" || true
+if [ -n "$errs" ]; then
+  fail "1f the ledger dump block is missing or has no total line"
+  printf '%s\n' "$errs" | cut -f2- | sed 's/^/      /'
+elif [ -z "$totals" ]; then
+  fail "1f the ledger block has no total \"N repairs held\" line to check"
+else
+  bad_total="$(printf '%s\n' "$totals" | awk -F'\t' '$4 != 2 { print $2 ":" $3 ": " $5 }')"
+  if [ -z "$bad_total" ]; then
+    n_tot="$(printf '%s\n' "$totals" | wc -l | tr -d ' ')"
+    pass "1f the ledger block's total line reads 2 repairs held ($n_tot line(s) checked)"
+  else
+    fail "1f the ledger block's total line does not read 2 repairs held"
+    printf '%s\n' "$bad_total" | sed 's/^/      /'
+  fi
 fi
 
 # 1e. The same zero written without the words "repairs held" — BENCHMARK.md §3
