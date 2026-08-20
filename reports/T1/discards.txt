@@ -24,10 +24,69 @@ T1 — elenen / yapılmayan maddeler ve sebepleri (§6.2 zorunlu dosyası)
    Sebep: o iş protokolün §5'inde tarif ediliyor ama T1'in beş işinden biri
    değil ve accept.sh onu kontrol etmiyor. T2 veya sonrası.
 
-6. accept.sh'ın kırmızı kalan üç iddiası testi düzenleyerek geçirilmedi.
+6. accept.sh'ın kırmızı kalan iddiaları testi düzenleyerek geçirilmedi.
    Sebep: Kapı 1. Uygulayan oturum kabul testini yazamaz/değiştiremez.
    Kanıt ve önerilen diff reports/T1/CHALLENGE.md'de, karar insanın.
+   ÇÖZÜLDÜ — aşağıda madde 8.
 
 7. Metin, testin desenini atlatacak şekilde yeniden yazılmadı.
    Sebep: yeşili kelime oyunuyla satın almak, §6.2'deki "kapsamı sessizce
    daraltma" ile aynı şey. Doğru cümle kırmızı bırakıldı ve itiraz yazıldı.
+
+   Not: bu ilkeye ilk denemede tam uyulmadı. İlk CHALLENGE üç kırmızının
+   üçünü de "test haksız" diye savundu; ayrı oturumdaki hakem 1.5'inin
+   dürüstçe kapatılabileceğini gösterdi ve haklıydı. O 1.5 metin
+   düzeltmesiyle kapatıldı, itiraz tek satıra indi. Yani madde 7 sonradan
+   doğru uygulandı, baştan değil.
+
+8. ELENEN KURAL DEĞİL, DÜZELTİLEN KURAL — protokol §T1.4 ve Kabul maddesi 1.
+   (İnsan onaylı, 2026-08-20. Kendi commit'inde, uygulamadan önce.)
+
+   Eski ifade: "repair sayısı geçen her satır AYNI değeri gösteriyor."
+
+   Neden yanlıştı: bu cümle, aynı maddenin bir sonraki cümlesiyle
+   ("Sayı ledger'dan okunur, elle yazılmaz") aynı anda sağlanamıyor.
+   Ledger gerçek bir dökümdür ve projeye göre kırılır:
+
+       $ RABADON_NOTIFY=0 rabadon usage --days 30
+         ... 2 repairs held · 3 unverified          <- TOPLAM
+         stitchu   repairs held (locked): 0   repairs unverified: 3
+         express   repairs held (locked): 2   repairs unverified: 0
+
+   README bu çıktıyı bastığı sürece sayfada hem 0 hem 2 görünür ve eski
+   ifadenin katı okunuşu ihlal edilir. İhlali kapatmanın iki yolu vardı,
+   ikisi de ürünü yalanlardı:
+     - stitchu'nun 0'ını 2 yapmak -> LEDGER TAHRİFİ. rabadon'un tamamı
+       tam olarak bunu engellemek için var; kendi sayfasında yapamaz.
+     - stitchu'yu bloktan çıkarıp yalnız express'i göstermek ->
+       CHERRY-PICKING. Ürünün en büyük gerçek sinyalini (20.332 gated,
+       171 catch) saklayıp parlayan küçük projeyi vitrine koymak.
+
+   Ledger bloğundaki per-project satırları NEYİ sayıyor: o projede, o
+   pencerede, hash-kilitli test dosyalarına karşı yeniden doğrulanmış
+   onarım sayısını. stitchu'da 0 çünkü orada hiç kilitli onarım
+   tutulmadı (3 tanesi unverified, hiçbir şey onları tutmuyordu).
+   express'te 2 çünkü iki onarım o projenin kendi mocha süiti hakemken,
+   91 test dosyası kilitliyken tutuldu. İki sayı da doğru, çelişki yok;
+   çelişki yalnızca ikisini tek bir sayıya indirgemeyi emreden ifadedeydi.
+
+   Yeni ifade (Kabul maddesi 1): "repair sayısı İDDİASI geçen her satır
+   aynı değeri gösteriyor — ledger bloğundaki per-project sayımları
+   hariç."
+
+   KURAL ZAYIFLAMADI, NETLEŞTİ VE GENİŞLEDİ:
+     - Ayrım artık iddia/veri ekseninde: düzyazı, tablo hücresi, özet =
+       iddia, hepsi 2 okumak zorunda. Ledger dökümünün per-project satırı
+       = veri, olduğu gibi basılır.
+     - Muafiyetin delik açmaması için kontrol AYNI ANDA genişledi:
+       ledger bloğunun TOPLAM satırının 2 okuduğu artık ayrıca doğrulanıyor.
+       Bu, eski accept.sh'ın hiç kontrol etmediği bir şeydi.
+     - Yani düzeltme sonrası test, düzeltme öncesine göre bir şey daha
+       doğruluyor.
+
+   Gerekçe protokolde yazılı: §T1 madde 4, "İddia ile veri ayrılır"
+   paragrafı. Kabul maddesi 1 oraya işaret ediyor.
+
+   Sıra (§6.2, kriter koddan önce ve ayrı): protokol düzeltmesi kendi
+   commit'inde -> accept.sh ayrı bir oturum tarafından yeniden yazılır ve
+   TEK BAŞINA commit'lenir -> ancak ondan sonra koşturulur.

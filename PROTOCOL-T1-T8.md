@@ -409,6 +409,14 @@ düzelmek ürün.
    kırılma üzerinde, expressjs/express @ a3714473, o projenin kendi mocha süiti
    hakem, 91 test dosyası kilitli. **Planlanmamış kırılmada 0.**
    Sayı ledger'dan okunur, elle yazılmaz; `bench/reproduce.sh` üretir.
+
+   **İddia ile veri ayrılır.** Yukarıdaki "her yerde aynı" kuralı **iddialara**
+   uygulanır: düzyazı cümleleri, tablo hücreleri, başlık altı özetler. Bir
+   ledger dökümünün per-project satırı iddia değil, **veridir** ve olduğu gibi
+   basılır — stitchu'da tutulmuş onarım 0, express'te 2, ikisi de doğru.
+   Dökümü tek bir sayıya uydurmak ledger tahrifidir; dökümden bir projeyi
+   çıkarmak cherry-picking'tir. İkisi de bu ürünün varlık sebebine aykırı.
+   Dökümün **toplam** satırı ise iddiadır ve 2 okur.
 5. `README.md`'deki `npm i -g rabadon` düşer (paket yayınlanmamış, Status
    bölümü zaten bunu söylüyor, kurulum bloğu tersini söylüyor). Yerine
    kaynaktan kurulum. Status'teki "portable `npm i -g` install with prebuilt
@@ -417,8 +425,11 @@ düzelmek ürün.
 **Durma.** Mevcut bir test kırılıyorsa dur. Silme, zayıflatma.
 
 **Kabul.** `reports/T1/accept.sh`, exit 0. Beş iddia:
-1. `BENCHMARK.md` + `README.md` içinde repair sayısı geçen her satır **aynı**
-   değeri gösteriyor
+1. `BENCHMARK.md` + `README.md` içinde repair sayısı **iddiası** geçen her satır
+   **aynı** değeri gösteriyor — ledger bloğundaki **per-project sayımları
+   hariç**. Hariç tutmanın gerekçesi yukarıda, madde 4'ün "iddia ile veri
+   ayrılır" paragrafında. Muafiyet bir delik açmasın diye kontrol aynı anda
+   genişler: ledger bloğunun **toplam** satırının 2 okuduğu ayrıca doğrulanır.
 2. README'de yayınlanmamış kurulum komutu yok
 3. "Supervise your coding agent" hiçbir yerde kalmamış
 4. Kanonik cümle hem `README.md` hem `package.json` içinde var; `guardrails`
