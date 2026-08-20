@@ -45,7 +45,7 @@ From the author's own week, replayable from the spool — a mid-session `wrangle
   ENV.md Deploy: wrangler deploy is the human's step; the agent must never deploy or claim the worker is live."}]}
 ```
 
-`rabadon usage` turns a month of those into the only sales artifact that matters — what it caught, in your repo, on your work. Real output, captured 2026-08-20 by `RABADON_NOTIFY=0 rabadon usage --days 30`, trimmed to two of its projects. Every count is verbatim from the ledger; the one-line reason beside each rule is written for this page, where the real output prints the offending command instead:
+`rabadon usage` turns a month of those into the only sales artifact that matters — what it caught, in your repo, on your work. Real output, captured 2026-08-20 by `RABADON_NOTIFY=0 rabadon usage --days 30`. Every count below is verbatim from the ledger. Three things were cut to fit, and cutting them silently would be the exact dishonesty this tool exists to refuse, so: it is trimmed to two of the ledger's projects; each project's rule list is trimmed to its top rules, so the rules shown add to less than the `caught before happening` total above them (stitchu: 152 of 171, the remaining 19 spread over eight more rules); and the `would have caught (watch)` breakdowns are dropped, though their total is still counted in the top line. The one-line reason beside each rule is written for this page — the real output prints the offending command instead. Run it yourself and you get the untrimmed thing:
 
 ```
 rabadon usage — last 30 day(s) · local, nothing leaves this machine
@@ -66,6 +66,8 @@ source: /Users/damummyphus/.rabadon/spool
     checks failed (caught):    422   (loops stopped: 2)
     repairs held (locked):       0
     repairs unverified:          3
+    push gates passed:          13
+    rules written:               1
 
   express                                            last event: 2026-08-20 04:55
     actions gated:               80
@@ -81,7 +83,7 @@ The drill exclusion is load-bearing: a tool that counts its own self-tests as ca
 
 So is the second line. `repairs held` and `repairs unverified` used to be one number called "repairs accepted", and that number also swept in green push-gate suites and freshly written rules — four different events sharing one name in the ledger. Split apart, the honest reading of this machine is that the repair path has produced **two** fixes proven against hash-locked test files — both on expressjs/express @ a3714473, its own mocha suite as the arbiter, 91 test files locked — and three that nothing was holding. A fix nobody could witness is not a fix rabadon gets to count.
 
-And the two carry one more qualification, which travels with the number everywhere it is printed: both were on **planned** breakage — bugs planted to drive the loop end to end. On **unplanned** breakage, a bug nobody staged, repairs held is **0**. That is the number that will decide whether the repair path is real, and it stays on this page as 0 until it isn't.
+And the two carry one more qualification, which travels with the number everywhere it is printed: both were on **planned** breakage — bugs planted to drive the loop end to end. On **unplanned** breakage — a bug nobody staged — the count is **0**. That is the number that will decide whether the repair path is real, and this page will keep printing it either way.
 
 ## The built-in laws
 

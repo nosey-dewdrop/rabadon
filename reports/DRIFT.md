@@ -9,8 +9,13 @@ CLAIM.md'sine yazılır.
 3. `make test` sayısı bir turda düştü → yeşil satın alınmış.
 
 ```
-T1 | 2026-08-20 | kabul: 16 yeşil / 3 kırmızı (KISMİ) | kapsam dışı: yok | varsayım değişti: §T1.4'ün "her satır aynı sayı" ile "sayı ledger'dan okunur" maddeleri çakışıyor — reports/T1/CHALLENGE.md
+T1 | 2026-08-20 | kabul: 17 yeşil / 2 kırmızı (KISMİ) | kapsam dışı: yok (ama kapsam içi madde 3 YAPILMADI: GitHub description+topics) | varsayım değişti: §T1.4'ün "her satır aynı sayı" ile "sayı ledger'dan okunur" maddeleri çakışıyor — reports/T1/CHALLENGE.md
 ```
 
-**Açık bayrak:** T1 kısmi kapandı. Bayrak 2 gereği CHALLENGE insan tarafından
-çözülmeden T2 başlamaz.
+**Açık bayrak:** T1 kısmi kapandı. Bayrak 2 gereği, CHALLENGE insan tarafından
+çözülmeden ve kapsam maddesi 3 yapılmadan **T2 başlamaz**.
+
+Hakem kaydı: T1'i ayrı bir oturum denetledi, Kapı 1'i temiz buldu, README ve
+BENCHMARK'a yazılan her sayıyı ledger'a karşı doğruladı (uydurma sayı yok), ve
+ilk CHALLENGE'ın üç maddesinden 1.5'ini reddetti. Reddedilenler metin
+düzeltmesiyle kapatıldı, itiraz tek satıra indi.

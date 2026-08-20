@@ -151,8 +151,8 @@ Split by what actually happened:
 The three that used to read as "repairs accepted" are all unverified, all on
 stitchu. The number that sells the product — a fix proven against test files
 that provably did not move — reads **2**, both on expressjs/express, and both on
-**planned** breakage. On **unplanned** breakage the count is **0**, and it stays
-on this page as 0 until it isn't. That second number is the one to watch; the
+**planned** breakage. On **unplanned** breakage the count is **0**, and this page
+will keep printing it either way. That second number is the one to watch; the
 first only proves the loop runs end to end.
 
 Command: `RABADON_NOTIFY=0 rabadon usage --days 30`.
