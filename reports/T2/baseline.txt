@@ -1,0 +1,234 @@
+# T2 BASELINE — measured BEFORE the round was implemented
+#
+# Written by the acceptance-test session (protocol Gate 1), which is not
+# allowed to implement T2. Every number below is the output of the command
+# printed next to it, never typed by hand. reports/T2/accept.sh reads this
+# file; if this file is edited to lower a number, that is the reward hack
+# protocol section 6.2 names ("sayiyi elle yazma" / "test sayisi dusmus").
+#
+# date: 2026-08-21
+# git HEAD: 524af1a7c763b1ad48b8a9b0143d1c5feaa41602
+# uname: Darwin 24.2.0 arm64
+
+==========================================================================
+1. make test — the number T2 must not lower
+==========================================================================
+
+full log kept next to this file, unedited:  reports/T2/baseline-make-test.txt
+
+command that produced the log:
+    make test > reports/T2/baseline-make-test.txt 2>&1; echo EXIT=$? >> ...
+
+command that produces MAKE_TEST_PASSED (run it yourself, do not trust the number):
+    grep -oE '[0-9]+ (passed|ok), *[0-9]+ failed' reports/T2/baseline-make-test.txt | grep -oE '^[0-9]+' | paste -sd+ - | bc
+
+MAKE_TEST_PASSED=2014
+
+command that produces MAKE_TEST_FAILED:
+    grep -oE '[0-9]+ (passed|ok), *[0-9]+ failed' reports/T2/baseline-make-test.txt | grep -oE '[0-9]+ failed' | grep -oE '^[0-9]+' | paste -sd+ - | bc
+
+MAKE_TEST_FAILED=0
+MAKE_TEST_EXIT=0
+MAKE_TEST_SUITE_LINES=57
+
+What the counter counts, said out loud: every line of the log matching
+    <N> passed, <M> failed      or      <N> ok, <M> failed
+contributes N. Suites in this repo report in both spellings and some print an
+unlabelled indented sub-total; the regex takes them all. It is not a claim that
+2014 is "the number of tests" in any deeper sense -- it is a number produced the
+same way before and after, which is the only property the "did not drop" claim
+needs. If T2 changes how a suite prints its total, the counter must be changed
+in BOTH places at once and the change written into reports/T2/CLAIM.md.
+
+Per-suite breakdown (label, passed, failed) -- so a drop can be located, not
+just detected:
+    version                         13 passed  0 failed
+    cli                            296 passed  0 failed
+    audit                           34 passed  0 failed
+    ledger day                      12 passed  0 failed
+    ledger_utf8_test                 3 passed  0 failed
+    baseline                        74 passed  0 failed
+    lease and force                146 passed  0 failed
+    glob escape                     35 passed  0 failed
+    temp root glob                  71 passed  0 failed
+    guard_allow_twin_test            4 passed  0 failed
+    (unlabelled)                     9 passed  0 failed
+    (unlabelled)                    11 passed  0 failed
+    truth_level_order_test           5 passed  0 failed
+    bypass                          22 passed  0 failed
+    assign-prefix                   41 passed  0 failed
+    reserved words                  55 passed  0 failed
+    unknown wrappers                63 passed  0 failed
+    loop_body_test                  57 passed  0 failed
+    script(1) wrapper               61 passed  0 failed
+    wrappers                        64 passed  0 failed
+    head as a refspec              106 passed  0 failed
+    another repo                    90 passed  0 failed
+    xcrun wrapper                   91 passed  0 failed
+    npm install                     12 passed  0 failed
+    doctor                          24 passed  0 failed
+    repair session                  33 passed  0 failed
+    repair isolation                12 passed  0 failed
+    discovery-language              21 passed  0 failed
+    sandbox                         17 passed  0 failed
+    export                          26 passed  0 failed
+    export_drop_test                 6 passed  0 failed
+    blind switch                     7 passed  0 failed
+    lamp                             8 passed  0 failed
+    watch                           14 passed  0 failed
+    serve                           16 passed  0 failed
+    (unlabelled)                    13 passed  0 failed
+    drift                            6 passed  0 failed
+    verify                           7 passed  0 failed
+    loop                            11 passed  0 failed
+    route                           48 passed  0 failed
+    llm-proposer                    11 passed  0 failed
+    truth                           12 passed  0 failed
+    net                             13 passed  0 failed
+    stats                           74 passed  0 failed
+    ---                             32 passed  0 failed
+    ---                             39 passed  0 failed
+    ---                             14 passed  0 failed
+    regression                       4 passed  0 failed
+    (unlabelled)                    10 passed  0 failed
+    publish redaction               28 passed  0 failed
+    (unlabelled)                    46 passed  0 failed
+    (unlabelled)                     1 passed  0 failed
+    (unlabelled)                    13 passed  0 failed
+    (unlabelled)                    11 passed  0 failed
+    (unlabelled)                     9 passed  0 failed
+    (unlabelled)                    16 passed  0 failed
+    identity                        37 passed  0 failed
+
+==========================================================================
+2. CLI verbs — read out of the dispatcher, not out of the protocol
+==========================================================================
+
+Source of truth: the case arms of native/rabadon-cli.sh. The dispatcher already
+derives its own verb list this way at run time (dispatch_verbs()), for the same
+reason: a typed-out list went stale and no test could tell.
+
+command:
+    python3 -c "import re;b=open('native/rabadon-cli.sh').read().split(chr(34)+chr(36)+'VERB'+chr(34)+' in')[1].split('esac')[0];print(sorted({v for l in b.split(chr(10)) for m in [re.match(r'^  ([a-z0-9|_-]+)[)]',l)] if m and '#unlisted' not in l for v in m.group(1).split('|')}))"
+
+
+DISPATCHER_VERBS_LISTED (35)
+  audit budget claims cost do doctor drift drill
+  exec export init lens lint loop net off
+  on remove repair replay report run sandbox serve
+  stats status toggle trace truth ui uninstall usage
+  verify watch wrong
+
+DISPATCHER_VERBS_UNLISTED  (accepted but not advertised; #unlisted arms) (8)
+  --help -h fleet guard help pack spin statusline
+
+NOTE, and it matters for T2: the protocol says "25 CLI verbs". The dispatcher
+accepts 35 listed + 8 unlisted. The protocol list is a subset -- it misses
+claims, cost, run, sandbox, stats, status, toggle, ui, uninstall, wrong, and
+every unlisted arm. T2 says "all the rest go under dev", so the honest target is
+the DISPATCHER list, not the protocol list. accept.sh checks both, separately.
+
+PROTOCOL_25  (parsed from the first sentence of PROTOCOL-T1-T8.md section T2) (25)
+  init on off budget lens usage report trace
+  drift drill audit replay exec do loop repair
+  verify net truth export lint doctor remove watch
+  serve
+
+SURFACE_6  (the five table rows of T2; on/off share one row, so six tokens) (6)
+  init on off usage repair doctor
+
+META_EXEMPT  (in the dispatcher, named nowhere in the T2 table; may stay on the surface or move -- accept.sh does not force either) (2)
+  status toggle
+
+PROTO_MOVED  (PROTOCOL_25 minus SURFACE_6 -- the protocol calls this "20 verbs", it is 19 tokens because on/off is one table row) (19)
+  audit budget do drift drill exec export lens
+  lint loop net remove replay report serve trace
+  truth verify watch
+
+MOVED  (DISPATCHER_VERBS_LISTED minus SURFACE_6 minus META_EXEMPT) (27)
+  audit budget claims cost do drift drill exec
+  export lens lint loop net remove replay report
+  run sandbox serve stats trace truth ui uninstall
+  verify watch wrong
+
+==========================================================================
+3. Built binaries in native/
+==========================================================================
+
+command:
+    ls -F native/ | grep -E "^rabadon-[a-z]+[*]?$" | tr -d "*" | sort
+
+NATIVE_BINARIES (18)
+  rabadon-audit rabadon-budget rabadon-claims rabadon-do rabadon-drift rabadon-export rabadon-gate rabadon-lens
+  rabadon-loop rabadon-net rabadon-repair rabadon-run rabadon-sandbox rabadon-serve rabadon-stats rabadon-trace
+  rabadon-truth rabadon-verify
+
+rabadon-loop is here today. T2 requires it gone and rabadon-pipeline in its
+place. Note there is no rabadon-do... there is; but there is no rabadon-drill,
+no rabadon-init, no rabadon-doctor: those verbs route to gate / manage.mjs.
+
+==========================================================================
+4. Source and test files — the "nothing is deleted" baseline
+==========================================================================
+
+command:
+    ls native/*.cpp | wc -l ; ls native/*_test.sh | wc -l
+
+CPP_COUNT=19
+
+CPP_FILES (19)
+  audit.cpp budget.cpp claims.cpp do.cpp drift.cpp export.cpp gate.cpp gate_bench.cpp
+  lens.cpp loop.cpp net.cpp repair.cpp run.cpp sandbox.cpp serve.cpp stats.cpp
+  trace.cpp truth.cpp verify.cpp
+
+TEST_FILE_COUNT=98
+# MAKEFILE_TEST_SCRIPTS = how many ./native/*.sh the "test:" target invokes
+MAKEFILE_TEST_SCRIPTS=95
+
+MAKEFILE_TEST_SCRIPTS_LIST (95)
+  version_test.sh cli_test.sh audit_test.sh ledger_day_test.sh
+  ledger_utf8_test.sh baseline_test.sh mirror_push_test.sh push_refspec_test.sh
+  push_config_file_test.sh push_delete_test.sh lease_force_test.sh glob_escape_test.sh
+  temp_root_glob_test.sh path_answer_test.sh guard_lint_test.sh guard_reach_test.sh
+  guard_allow_twin_test.sh guard_deny_twin_test.sh heredoc_reach_test.sh truth_level_order_test.sh
+  cmdtext_test.sh git_alias_test.sh short_cluster_test.sh long_option_prefix_test.sh
+  bypass_test.sh assign_prefix_test.sh reserved_word_test.sh unknown_wrapper_test.sh
+  shell_function_test.sh loop_body_test.sh script_wrapper_test.sh wrapper_exec_test.sh
+  arch_wrapper_test.sh head_ref_test.sh git_verbs_test.sh promise_law_test.sh
+  delete_verbs_test.sh shell_cwd_test.sh partial_ref_test.sh other_repo_test.sh
+  xcrun_wrapper_test.sh npm_install_test.sh doctor_test.sh repair_session_test.sh
+  repair_isolation_test.sh harness_lock_test.sh heldout_test.sh lock_coverage_test.sh
+  false_reject_test.sh discovery_test.sh discovery_language_test.sh sandbox_test.sh
+  export_test.sh export_drop_test.sh gate_promise_test.sh blind_switch_test.sh
+  lamp_test.sh watch_test.sh serve_test.sh sigpipe_test.sh
+  session_test.sh session_fanout_test.sh budget_test.sh postuse_test.sh
+  agents_test.sh run_test.sh contract_test.sh redbase_test.sh
+  scope_test.sh pushgate_test.sh pushgate_forge_test.sh testverdict_test.sh
+  drift_test.sh verify_test.sh loop_test.sh route_test.sh
+  llm_proposer_test.sh truth_test.sh net_test.sh stats_test.sh
+  trace_test.sh lens_test.sh regression_demo.sh precision_test.sh
+  site_claims_test.sh field_redaction_test.sh publish_redaction_test.sh publish_test.sh
+  field_census_test.sh claims_test.sh fd_dup_test.sh mode_wrong_test.sh
+  guard_subdir_test.sh rule_census_test.sh identity_test.sh
+
+loop.cpp -> pipeline.cpp is a RENAME, so CPP_COUNT must stay 19, not fall to 18.
+sandbox.cpp and serve.cpp move under dev but stay on disk. loop_test.sh and
+loop_body_test.sh may be renamed too, so accept.sh checks the COUNT, not names.
+
+==========================================================================
+5. MACHINE-READABLE — this is the section reports/T2/accept.sh parses
+==========================================================================
+
+One key per line, "KEY=v1 v2 v3". Everything above is for a human; accept.sh
+reads only these lines and the KEY=<number> lines in section 1. Keep both in
+sync if you regenerate.
+
+LIST_SURFACE=init on off usage repair doctor
+LIST_META_EXEMPT=status toggle
+LIST_DISPATCHER_LISTED=audit budget claims cost do doctor drift drill exec export init lens lint loop net off on remove repair replay report run sandbox serve stats status toggle trace truth ui uninstall usage verify watch wrong
+LIST_DISPATCHER_UNLISTED=fleet guard help pack spin statusline
+LIST_PROTOCOL_25=init on off budget lens usage report trace drift drill audit replay exec do loop repair verify net truth export lint doctor remove watch serve
+LIST_PROTO_MOVED=audit budget do drift drill exec export lens lint loop net remove replay report serve trace truth verify watch
+LIST_MOVED=audit budget claims cost do drift drill exec export lens lint loop net remove replay report run sandbox serve stats trace truth ui uninstall verify watch wrong
+LIST_MOVED_EXTRA=claims cost run sandbox stats ui uninstall wrong
+LIST_MOVED_CPP_KEEP=sandbox.cpp serve.cpp
