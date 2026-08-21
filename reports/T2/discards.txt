@@ -55,7 +55,35 @@ T2 — elenen / düzeltilen maddeler ve sebepleri (§6.2 zorunlu dosyası)
    (o dosya "never edited, only called through here" diye işaretli).
    Kayıt olarak baseline.txt'de duruyorlar.
 
-3. native/fd_dup_test.sh'ın konum bağımlılığı PARK EDİLDİ.
+3. DEĞİŞTİRİLEN TEST — native/cli_test.sh'ın keşfedilebilirlik iddiası.
+   (Kendi commit'inde, KODDAN ÖNCE. CLAUDE.md madde 2 gereği.)
+
+   Çakışma: cli_test.sh, dispatch edilen HER binary için "ana yardım
+   ekranı bu verb'ü listeliyor" diye assert ediyordu. Kırmızıya düşme
+   sebebi olarak yazdığı cümle niyeti veriyor:
+     "rabadon-X is dispatched but no help line starts with any of its
+      verbs — a stranger cannot find it"
+   T2 ise tam o ekranı beş satıra budamayı emrediyor. Yani test,
+   turun yapmak için var olduğu hamleyi yasaklıyordu.
+
+   NEDEN ZAYIFLATMA DEĞİL: testin koruduğu şey KEŞFEDİLEBİLİRLİK, ana
+   ekranın kendisi değil. T2 keşif YERİNİ değiştiriyor, şartını değil —
+   taşınan verb'ler siliniyor değil, `rabadon dev <verb>` altına iniyor
+   ve orada kendi yardım ekranları var. Test artık iki ekranı da okuyor
+   ve verb'ün İKİSİNDEN BİRİNDE listelendiğini şart koşuyor. Aynı
+   parser, aynı sıkılık.
+   Yalnız ana ekranı okumak = T2'yi imkânsız kılmak.
+   Hiçbirini okumamak = bir verb'ün sessizce erişilemez olmasına izin.
+
+   Ek olarak test GÜÇLENDİ: `rabadon dev --help` ekranının gerçekten
+   dolu olduğunu (>200 bayt) doğrulayan yeni bir iddia eklendi. Boş bir
+   `dev` yardımı, taşınan 29 verb'ün hiçbir yerde bulunamaması demektir
+   ve artık kırmızı verir. Assert sayısı düştü değil, bir arttı.
+
+   Bu commit ile kod arasında `make test` KIRMIZI kalır (dev henüz yok).
+   Bilerek: kriter koddan önce ve ayrı değişir.
+
+4. native/fd_dup_test.sh'ın konum bağımlılığı PARK EDİLDİ.
    T1'in temiz-zemin koşusunda bulundu: repo /tmp altındayken bu süit
    dört refüzü ALLOWED gösteriyor, çünkü gate /tmp'yi bilerek muaf
    tutuyor ve test fixture'ını repo dizininin içine kuruyor.

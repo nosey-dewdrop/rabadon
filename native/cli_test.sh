@@ -130,15 +130,41 @@ rec(len(helptext) > 200, "the help screen was captured (%d bytes) to check verbs
 # the first double space (the signature), split it on `|`, and the verb must be
 # the FIRST word of one of those alternatives. "on | off | toggle" lists three;
 # "rabadon lens --days 30" in the examples lists none, its first word is rabadon.
-listed_verbs = set()
-for line in helptext.splitlines():
-    if not line.startswith("  ") or not line.strip():
-        continue
-    sig = re.split(r"\s{2,}", line.strip())[0]
-    for alt in sig.split("|"):
-        words = alt.split()
-        if words:
-            listed_verbs.add(words[0])
+#
+# T2 narrowed the product surface to five lines. The verbs that came off it were
+# NOT deleted — they moved under `rabadon dev <verb>`, which has its own help
+# screen. So discoverability is still the law and this check still enforces it;
+# what changed is that there are now TWO places a stranger can find a verb, and
+# a verb must be listed in one of them. Reading only the main screen would make
+# this test forbid the very move T2 exists to make, and reading neither would
+# let a verb become unreachable in silence. Both screens, same parser.
+def listed_from(text):
+    out = set()
+    for line in text.splitlines():
+        if not line.startswith("  ") or not line.strip():
+            continue
+        sig = re.split(r"\s{2,}", line.strip())[0]
+        for alt in sig.split("|"):
+            words = alt.split()
+            if words:
+                out.add(words[0])
+    return out
+
+listed_verbs = listed_from(helptext)
+
+devhelp = ""
+try:
+    _p = subprocess.run([cli, "dev", "--help"], stdin=subprocess.DEVNULL,
+                        capture_output=True, text=True, timeout=30)
+    devhelp = (_p.stdout or "") + (_p.stderr or "")
+except Exception:
+    devhelp = ""
+rec(len(devhelp) > 200,
+    "`rabadon dev --help` was captured (%d bytes) — the second half of the "
+    "discoverability check has something to read" % len(devhelp) if len(devhelp) > 200
+    else "`rabadon dev --help` printed %d bytes: the verbs T2 moved off the main "
+         "screen have nowhere left to be found" % len(devhelp))
+listed_verbs |= listed_from(devhelp)
 
 for name in names:
     got = verbs.get(name, [])
