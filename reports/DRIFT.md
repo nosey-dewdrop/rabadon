@@ -26,7 +26,24 @@ T1 | 2026-08-20 | kabul: 20 yeşil / 0 kırmızı (TAMAMLANDI) | kapsam dışı:
 bırakılıp üstüne gidilmedi, `make test` sayısı düşmedi (hiçbir test dosyasına
 dokunulmadı).
 
-Kayda geçen iki uyarı, T2'ye taşınıyor:
+```
+T2 | 2026-08-21 | VARSAYIM DEĞİŞTİ (insan onaylı, uygulamadan önce): protokol "25 CLI verb'ü / taşınan 20" diyordu, bu rakam ölçülmemiş, hafızadan yazılmıştı. Dispatcher'da 43 verb token var; taşınan gerçek sayı 29. Ayrıca 25'ten 5 TABLO SATIRI çıkarılarak bulunmuş bir off-by-one vardı. Gerekçe: reports/T2/discards.txt madde 1.
+T2 | 2026-08-21 | kabul: 21 yeşil / 0 kırmızı (TAMAMLANDI) | kapsam dışı: yok | temiz zeminde sıfırdan derlenerek doğrulandı (21/0) | make test 2014 -> 2015 (düşmedi, arttı)
+```
+
+**Bayrak yok. T2 kapandı, T3 başlayabilir.**
+
+T2'de iki test dosyası değiştirildi (`cli_test.sh`, `unknown_verb_probe.py`),
+ikisi de koddan önce ve kendi commit'lerinde. İkisi de ana yardım ekranının her
+verb'ü listelemesini şart koşuyordu, yani turun hamlesini yasaklıyordu.
+Korudukları şey keşfedilebilirlikti, ekranın kendisi değil; ikisi de artık
+`rabadon dev --help`'i de okuyor. Eşik düşürülmedi, bir iddia eklendi, test
+sayısı arttı. Zayıflatma değil — ama bir turun test dosyasına dokunması her
+zaman bakılacak bir yerdir, kayda geçiyor.
+
+T2'nin NOT VERIFIED'ı: bağımsız hakem oturumu T2'ye bakmadı.
+
+T1'den kayda geçen iki uyarı, hâlâ açık:
 - T1'in son hali (20/0) bağımsız bir hakem oturumu tarafından denetlenmedi;
   testi yeniden yazan oturum kendi işini mutasyonla sınadı. Kendi kendini ölçmenin
   bir biçimi (§4).
