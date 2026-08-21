@@ -1,0 +1,53 @@
+T2 — elenen / düzeltilen maddeler ve sebepleri (§6.2 zorunlu dosyası)
+
+1. DÜZELTİLEN OLGU — protokolün "25 CLI verb'ü" ve "taşınan 20 verb"
+   rakamları yanlıştı. (İnsan onaylı, 2026-08-21. Kendi commit'inde,
+   uygulamadan ÖNCE.)
+
+   Nasıl bulundu: T2'nin kabul testini yazan ayrı oturuma "protokolde
+   yazan listeyi kopyalama, koddan doğrula" dendi. Doğruladı ve tutmadı.
+   Sonra bağımsız olarak ikinci kez sayıldı:
+
+     $ grep -E '^\s+[a-z|-]+\)' native/rabadon-cli.sh \
+         | sed 's/).*//' | tr -d ' \t' | tr '|' '\n' | sort -u | wc -l
+       43
+
+   Protokolün saydığı 25 verb'ün HEPSİ gerçek — uydurma yok, eksik sayım
+   var. Sayılmayan 16 token:
+     yardımda görünenler: claims cost run sandbox stats status toggle
+                          ui uninstall wrong
+     zaten #unlisted:     fleet guard pack spin statusline
+     yüzeyin kendisi:     help --help -h
+
+   İkinci hata, birincinin üstüne binmiş bir off-by-one: "taşınan 20"
+   rakamı, 25 token'dan 5 TABLO SATIRI çıkarılarak bulunmuş. Tablodaki
+   `on`/`off` tek satırda ama iki token. 25 - 6 = 19, 20 değil.
+
+   Sayının nereden geldiği önemli: protokolün geri kalanı ("35 dosya,
+   18.865 satır C++", "gate medyan 3.14 ms", "gate.cpp:3348, sekiz satır")
+   ölçülmüş ve tutuyor. Bu rakam ölçülmemiş, hafızadan yazılmış tek
+   rakamdı ve tam da bu yüzden yanlıştı.
+
+   KARAR (insan, 2026-08-21): yardımda görünen 10 sayılmamış verb de
+   `dev` altına iner. Gerekçe: T2'nin amacı yüzeyi 5'e indirmek; 10
+   belgelenmemiş verb'ü ana yüzeyde bırakmak turu anlamsız kılardı ve
+   kabul maddesi 1 zaten geçmezdi. Taşınacak gerçek sayı: 29.
+
+2. #unlisted 5 verb (fleet, guard, pack, spin, statusline) TAŞINMADI.
+   (İnsan kararı, 2026-08-21.)
+   Sebep: bunlar bugün de yüzeyde değil — `rabadon --help`'te yok,
+   README'de yok, dispatcher onları türettiği verb listesinden zaten
+   dışlıyor. T2'nin derdi bakım yükü ve kullanıcı kafa karışıklığı;
+   görünmeyen bir verb ikisini de üretmiyor. Taşımak kapsam şişirmek
+   olurdu, üstelik `bin/rabadon.mjs` anti-path'ine dokunmayı gerektirirdi
+   (o dosya "never edited, only called through here" diye işaretli).
+   Kayıt olarak baseline.txt'de duruyorlar.
+
+3. native/fd_dup_test.sh'ın konum bağımlılığı PARK EDİLDİ.
+   T1'in temiz-zemin koşusunda bulundu: repo /tmp altındayken bu süit
+   dört refüzü ALLOWED gösteriyor, çünkü gate /tmp'yi bilerek muaf
+   tutuyor ve test fixture'ını repo dizininin içine kuruyor.
+   Sebep: T2'nin kapsamı yüzey daraltma. Bu bir test-fixture kusuru ve
+   ürün davranışı değil; ama sessiz ve yanıltıcı ("dört refüz kaçtı" diye
+   okunuyor). Düzeltilmedi, gizlenmedi de — reports/T2/CLAIM.md açılış
+   kontrolünde tam gerekçesiyle yazılı.

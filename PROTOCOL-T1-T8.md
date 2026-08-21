@@ -443,9 +443,31 @@ Bitince `reports/T1/CLAIM.md` ve `reports/T1/discards.txt` yazılır.
 <!-- hedef kontrolü (§6.3): yüzey daraldı mı, hiçbir kod silinmedi mi -->
 ## T2 — yüzey daralır
 
-25 CLI verb'ü var: init, on, off, budget, lens, usage, report, trace, drift,
-drill, audit, replay, exec, do, loop, repair, verify, net, truth, export, lint,
-doctor, remove, watch, serve.
+**Düzeltildi 2026-08-21 (insan onaylı, uygulamadan önce, kendi commit'inde).**
+Bu bölüm "25 CLI verb'ü var" diye açılıyordu ve o sayı yanlıştı — koddan değil,
+hafızadan yazılmıştı. Gerekçe ve tam sayım: `reports/T2/discards.txt` madde 1,
+ölçüm `reports/T2/baseline.txt`.
+
+`native/rabadon-cli.sh`'in `case` kollarından türetilen gerçek sayım:
+**43 verb token.** Protokolün saydığı 25'in hepsi gerçek, ama 16 tanesi hiç
+sayılmamış.
+
+- **Yüzeyde kalacak 6 token** (5 satır, `on`/`off` bir satır):
+  `init`, `on`, `off`, `usage`, `repair`, `doctor`.
+- **`dev` altına inecek 29 verb:**
+  `audit budget claims cost do drift drill exec export lens lint loop net
+  remove replay report run sandbox serve stats status toggle trace truth ui
+  uninstall verify watch wrong`
+- **Dokunulmayacak 5 `#unlisted` verb:** `fleet`, `guard`, `pack`, `spin`,
+  `statusline`. Bunlar bugün de yüzeyde görünmüyor — yardımda yok, README'de
+  yok. T2'nin derdi olan bakım yükünü ve kullanıcı kafa karışıklığını
+  üretmiyorlar, dolayısıyla taşımak kapsam şişirmek olur. Kayıt olarak
+  baseline'da duruyorlar.
+- `help`/`--help`/`-h` verb değil, yüzeyin kendisi.
+
+Protokolün "taşınan 20 verb" ifadesi de bu yüzden yanlıştı ve iki ayrı hata
+taşıyordu: eksik sayımın üstüne, 25 token'dan 5 **tablo satırı** çıkarılarak
+bulunmuş bir off-by-one. Doğru sayı **29**.
 
 Bu bir güvensizlik belirtisi. Çok özellik koyan, tek özelliğinin yeterince iyi
 olduğuna inanmıyordur. Ve her verb bir bakım yüzeyi, bir dokümantasyon borcu,
@@ -480,10 +502,16 @@ tek kişilik kullanıcıya hiçbir şey vermiyor. Alıcı çıkarsa geri gelir.
 ispatlayan bir test kalır. Bir verb'ün testi kırılıyorsa dur.
 
 **Kabul.** `reports/T2/accept.sh`:
-- `rabadon --help` beş verb gösteriyor
-- Taşınan 20 verb'ün her biri `rabadon dev <verb>` ile hâlâ çalışıyor
-- `make test` sayısı **düşmedi**
+- `rabadon --help` beş satır / altı token gösteriyor, ve taşınan hiçbir verb
+  ana yardımda görünmüyor
+- Taşınan **29** verb'ün her biri `rabadon dev <verb>` ile hâlâ erişilebilir
+  (yönlendirme doğrulanır, davranış değil — `remove`/`repair` gerçek iş yapar,
+  `serve` port bağlar; onları koşturan bir test yıkıcı test olur)
+- `make test` sayısı **düşmedi** — baseline `reports/T2/baseline.txt`,
+  uygulamadan önce ölçüldü: **2014 passed, 0 failed**
 - `rabadon-pipeline` var, `rabadon-loop` yok
+- Hiçbir kod silinmedi: `pipeline.cpp` var, `sandbox.cpp` ve `serve.cpp`
+  yerinde, `*.cpp` ve `*_test.sh` sayıları düşmedi
 
 ---
 
