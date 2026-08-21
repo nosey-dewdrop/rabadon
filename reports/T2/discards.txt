@@ -35,9 +35,21 @@ T2 — elenen / düzeltilen maddeler ve sebepleri (§6.2 zorunlu dosyası)
 
 2. #unlisted 5 verb (fleet, guard, pack, spin, statusline) TAŞINMADI.
    (İnsan kararı, 2026-08-21.)
-   Sebep: bunlar bugün de yüzeyde değil — `rabadon --help`'te yok,
-   README'de yok, dispatcher onları türettiği verb listesinden zaten
-   dışlıyor. T2'nin derdi bakım yükü ve kullanıcı kafa karışıklığı;
+   Sebep: bunlar bugün de yüzeyde değil — dispatcher onları türettiği
+   verb listesinden zaten dışlıyor.
+
+   DÜZELTME (aynı gün, kabul testini güncelleyen oturum yakaladı):
+   yukarıdaki cümle beşi için değil, DÖRDÜ için doğru. `fleet` yardım
+   ekranında görünüyor:
+     $ ./native/rabadon-cli.sh --help | grep fleet
+       fleet [root]        install the hooks across every git repo under root
+   `#unlisted` etiketi dispatcher'ın ÇALIŞMA ANINDA türettiği listeyi
+   yönetiyor, elle yazılmış yardım metnini değil; ikisi birbirinden
+   kaymış. Yani `fleet` hem "listelenmemiş" hem "reklamı yapılıyor".
+   Sonuç: `fleet` verb olarak taşınmaz (karar değişmedi) ama yardım
+   ekranındaki satırı DÜŞER — bu bir verb taşımak değil, bir reklam
+   satırı silmek. Kabul maddesi 1c bunu zaten zorluyor.
+   `guard`, `pack`, `spin`, `statusline` yardım metninde gerçekten yok. T2'nin derdi bakım yükü ve kullanıcı kafa karışıklığı;
    görünmeyen bir verb ikisini de üretmiyor. Taşımak kapsam şişirmek
    olurdu, üstelik `bin/rabadon.mjs` anti-path'ine dokunmayı gerektirirdi
    (o dosya "never edited, only called through here" diye işaretli).
