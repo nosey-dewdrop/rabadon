@@ -140,6 +140,15 @@ for root, _, files in os.walk(os.path.join(ROOT, "docs")):
 readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8", errors="replace").read()
 helptext = subprocess.run([CLI, "help"], stdin=subprocess.DEVNULL, capture_output=True,
                           timeout=30, env=env, cwd=ROOT).stdout.decode("utf-8", "replace")
+# T2 cut the main screen to five commands and moved the rest under `rabadon dev`,
+# which has its own help. The law this section enforces is unchanged — a verb the
+# unknown-verb message offers must be EXPLAINED SOMEWHERE A READER CAN REACH —
+# and `rabadon dev --help` is now one of those places. Reading only the main
+# screen would rule the move itself a defect; the threshold below stays where it
+# was, because both screens together still list far more than fifteen verbs.
+helptext += subprocess.run([CLI, "dev", "--help"], stdin=subprocess.DEVNULL,
+                           capture_output=True, timeout=30, env=env,
+                           cwd=ROOT).stdout.decode("utf-8", "replace")
 
 # A verb owns the left column of a help line; the same rule section 1b uses, so
 # "lens" appearing inside an example sentence does not count as being listed.

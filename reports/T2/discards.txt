@@ -83,6 +83,27 @@ T2 — elenen / düzeltilen maddeler ve sebepleri (§6.2 zorunlu dosyası)
    Bu commit ile kod arasında `make test` KIRMIZI kalır (dev henüz yok).
    Bilerek: kriter koddan önce ve ayrı değişir.
 
+3b. DEĞİŞTİRİLEN TEST — native/unknown_verb_probe.py, aynı gerekçe.
+   (Kendi commit'inde, kod commit'inden ÖNCE.)
+
+   Uygulama sırasında iki iddia kırmızıya döndü ve ikisi de aynı kökten:
+     - "only 9 verbs parsed out of `rabadon help` — the documentation
+        check would be weak"
+     - "the message offers budget claims drift loop net serve toggle
+        truth verify wrong, which appears in no help screen, no doc and
+        no README"
+   Bilinmeyen-verb mesajı hâlâ doğru öneri veriyor (o verb'ler bare
+   yazıldığında hâlâ çalışıyor), ama artık ana ekranda listelenmiyorlar.
+
+   Bölümün kendi başlığı yasayı veriyor:
+     "every advertised verb is explained SOMEWHERE a reader can reach"
+   T2 ulaşılabilir ikinci bir yer ekledi: `rabadon dev --help`. Test o
+   ekranı da okuyacak şekilde güncellendi.
+
+   EŞİK DÜŞÜRÜLMEDİ. `>= 15` olduğu gibi duruyor; iki ekran birlikte
+   zaten 38 verb listeliyor. Eşiği düşürmek testi zayıflatmak olurdu,
+   ikinci ekranı okutmak yasayı yeni yüzeye uygulamak.
+
 4. native/fd_dup_test.sh'ın konum bağımlılığı PARK EDİLDİ.
    T1'in temiz-zemin koşusunda bulundu: repo /tmp altındayken bu süit
    dört refüzü ALLOWED gösteriyor, çünkü gate /tmp'yi bilerek muaf
