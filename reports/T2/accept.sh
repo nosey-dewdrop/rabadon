@@ -24,6 +24,17 @@
 # and precise: the dispatcher ROUTES the verb — it does not answer "unknown
 # command". Whether each verb still behaves is what `make test` is for, and
 # claim 3 asserts that number did not drop.
+#
+# UPDATED 2026-08-21, before implementation, in its own commit and by a session
+# that still cannot implement the round. The protocol's "25 CLI verbs" was
+# written from memory and was wrong; the dispatcher has 43 verb tokens. The
+# human decision that followed WIDENS this test, it does not soften it:
+#   - the moved set went from 27 to 29 (status and toggle join it),
+#   - status and toggle were struck off claim 1c's allowance, so the surface is
+#     now judged against three permitted extras instead of five,
+#   - the five #unlisted verbs stay out of scope but gained a regression claim.
+# Nothing that was asserted before is asserted more weakly now. The full reason
+# is in PROTOCOL-T1-T8.md section T2 and reports/T2/discards.txt items 1 and 2.
 
 set -euo pipefail
 
@@ -63,13 +74,48 @@ BASE_CPP="$(bnum CPP_COUNT)"
 BASE_TESTFILES="$(bnum TEST_FILE_COUNT)"
 BASE_MKSCRIPTS="$(bnum MAKEFILE_TEST_SCRIPTS)"
 
+BASE_MOVED_N="$(bnum MOVED_COUNT)"
+
 SURFACE="$(blist LIST_SURFACE)"
-META_EXEMPT="$(blist LIST_META_EXEMPT)"
 DISPATCH_LISTED="$(blist LIST_DISPATCHER_LISTED)"
 DISPATCH_UNLISTED="$(blist LIST_DISPATCHER_UNLISTED)"
-PROTO_MOVED="$(blist LIST_PROTO_MOVED)"
-MOVED="$(blist LIST_MOVED)"
-MOVED_EXTRA="$(blist LIST_MOVED_EXTRA)"
+MOVED="$(blist LIST_MOVED_29)"
+UNLISTED_KEEP="$(blist LIST_UNLISTED_KEEP)"
+
+# --- the moved list is checked before it is used ----------------------------
+# The whole test hangs off one list, so the list is the thing worth attacking:
+# drop `serve` from it and 2a goes green without serve ever moving. Three
+# guards, all before any probe runs, all fatal rather than merely red — a test
+# judging the wrong list is worse than no test.
+#   (i)  the count is the number the human decided, 29, not "however many words
+#        happen to be on the line today";
+#   (ii) the line really does have that many words;
+#   (iii) it is exactly LIST_DISPATCHER_LISTED minus LIST_SURFACE, recomputed
+#        here, so a verb cannot be dropped from the target without also being
+#        deleted from the dispatcher inventory measured before the round.
+sortu() { printf '%s\n' $1 | sort -u | tr '\n' ' ' | sed -e 's/  */ /g' -e 's/^ //' -e 's/ $//'; }
+
+if [ "$BASE_MOVED_N" -ne 29 ]; then
+  printf 'FAIL  baseline.txt says MOVED_COUNT=%s; the human decision of 2026-08-21 is 29 verbs\n' "$BASE_MOVED_N" >&2
+  printf '      see PROTOCOL-T1-T8.md section T2 and reports/T2/discards.txt item 1\n' >&2
+  exit 1
+fi
+MOVED_WORDS="$(printf '%s' "$MOVED" | wc -w | tr -d ' ')"
+if [ "$MOVED_WORDS" -ne "$BASE_MOVED_N" ]; then
+  printf 'FAIL  LIST_MOVED_29 has %s verbs, MOVED_COUNT says %s — the list was edited\n' "$MOVED_WORDS" "$BASE_MOVED_N" >&2
+  exit 1
+fi
+DERIVED=""
+for v in $DISPATCH_LISTED; do
+  case " $SURFACE " in *" $v "*) continue ;; esac
+  DERIVED="$DERIVED $v"
+done
+if [ "$(sortu "$DERIVED")" != "$(sortu "$MOVED")" ]; then
+  printf 'FAIL  LIST_MOVED_29 is not LIST_DISPATCHER_LISTED minus LIST_SURFACE\n' >&2
+  printf '      derived: %s\n' "$(sortu "$DERIVED")" >&2
+  printf '      stored:  %s\n' "$(sortu "$MOVED")" >&2
+  exit 1
+fi
 
 # --- entry point ------------------------------------------------------------
 # The repo's own dispatcher, not whatever `rabadon` on PATH happens to be. On
@@ -211,7 +257,7 @@ for v in $MOVED; do
   in_list "$v" "$HELP_TOKENS" && still_listed="$still_listed $v"
 done
 if [ -z "$still_listed" ]; then
-  pass "1b no moved verb is still advertised in --help"
+  pass "1b none of the $BASE_MOVED_N moved verbs is still advertised in --help"
 else
   fail "1b --help still advertises moved verbs:$still_listed"
   note "these must appear only under 'rabadon dev', if at all"
@@ -221,12 +267,31 @@ fi
 #     universe recorded in the baseline, so a word this test has never heard of
 #     cannot inflate the count; and the allowance below is named, not hidden.
 #
-#     ALLOWED BESIDES THE FIVE:
+#     ALLOWED BESIDES THE FIVE, and this list is deliberately three words long:
 #       dev                    the new door the moved verbs go behind
 #       help, version          every CLI has them and neither is a product verb
-#       status, toggle         in the dispatcher, named nowhere in the T2 table,
-#                              so T2 does not decide their fate either way
-ALLOWANCE="dev help version $META_EXEMPT"
+#
+#     status and toggle USED to be allowed here, on the reading that the T2
+#     table named neither so T2 decided neither. The human decision of
+#     2026-08-21 settled it the other way: both are inside the 29 that move, so
+#     both must be off the help screen. They are not exempt and nothing else is
+#     added to this line. Widening ALLOWANCE is the cheapest way to fake 1c, and
+#     `git log -p -- reports/T2/accept.sh` shows the widening in one hunk.
+#
+#     ONE THING THE IMPLEMENTING SESSION WILL HIT, so it is written here rather
+#     than discovered as a surprise: `fleet` is marked #unlisted in the
+#     dispatcher and IS NEVERTHELESS ON THE HELP SCREEN today —
+#         $ ./native/rabadon-cli.sh --help | grep -n fleet
+#         19:  fleet [root]        install the hooks across every git repo under root
+#     The #unlisted comment governs the dispatcher's derived verb list, not the
+#     hand-written help text, and the two had drifted. So 1c is red on `fleet`
+#     as well, and that is not a contradiction of discards.txt item 2: item 2
+#     says do not MOVE the five, and 2c enforces that they keep working exactly
+#     where they work today. Deleting one advertising line from the help text is
+#     not moving a verb — it is the literal content of T2 ("the surface goes
+#     down to five"). guard, pack, spin and statusline are genuinely absent from
+#     the help text; fleet was the only drifted one.
+ALLOWANCE="dev help version"
 UNIVERSE="$DISPATCH_LISTED $DISPATCH_UNLISTED dev"
 surface_found=""
 for t in $HELP_TOKENS; do
@@ -248,18 +313,23 @@ fi
 # ---------------------------------------------------------------------------
 # CLAIM 2 — every moved verb still routes under `rabadon dev <verb>`.
 #
-# Two groups, both red if they fail, reported separately so the round can see
-# which half broke:
-#   2a the verbs the protocol names (its "20", 19 tokens once on/off is one row)
-#   2b the verbs the dispatcher accepts that the protocol forgot to list
-# Neither list is typed here; both come out of baseline.txt, which derived them
-# from the case arms of native/rabadon-cli.sh.
+# One list, 29 verbs, checked above before a single probe ran. It is not typed
+# here; it comes out of baseline.txt, which derived it from the case arms of
+# native/rabadon-cli.sh.
+#
+#   2a  all 29 route under `rabadon dev`
+#   2b  the count actually probed was 29 — so a shortened list is red, not
+#       quietly green with a smaller n
+#   2c  the 5 #unlisted verbs did not REGRESS. Different claim, different shape:
+#       T2 does not move them (discards.txt item 2), so requiring them under
+#       `dev` would be requiring work the human ruled out of scope. What is
+#       required is that they still answer on the path they answer on today.
 #
 # See the header for what "routes" means and why it is not "works".
 # ---------------------------------------------------------------------------
 head_ "CLAIM 2 — moved verbs still reachable under 'rabadon dev <verb>'"
 
-# First, the door itself. If `dev` does not exist there is no point running 27
+# First, the door itself. If `dev` does not exist there is no point running 29
 # probes that all say the same thing.
 run_capped 20 "$RABADON" dev
 DEV_RC="$CAP_RC"
@@ -273,40 +343,75 @@ else
   DEV_EXISTS=1
 fi
 
-probe_group() { # probe_group <label> <verbs...>
-  label="$1"; shift
-  bad=""
-  slow=""
-  for v in "$@"; do
-    run_capped 15 "$RABADON" dev "$v" --help
-    out="$(cat "$CAP_OUT")"
-    if printf '%s' "$out" | grep -qiE "$UNKNOWN_RE"; then
-      bad="$bad $v"
-    elif [ "$CAP_RC" -eq 127 ]; then
-      bad="$bad $v"
-    elif [ "$CAP_RC" -eq 124 ]; then
-      # it ran long enough to be killed, which means it routed. serve is the
-      # expected member of this set.
-      slow="$slow $v"
-    fi
-  done
-  n=$#
-  if [ -z "$bad" ]; then
-    pass "$label all $n verbs route under 'rabadon dev'"
-    [ -n "$slow" ] && note "routed but had to be capped (long-running, expected):$slow"
-  else
-    fail "$label these do not route under 'rabadon dev':$bad"
+# probe <verb> <prefix-args...> — did the dispatcher ROUTE it? Appends to
+# bad.txt / slow.txt rather than returning, so the caller can report one line
+# for a whole group. Exit 124 (killed at the cap) counts as routed: `serve`
+# binds a port and blocks, and blocking is proof it was not rejected.
+probe() {
+  pv="$1"; shift
+  run_capped 15 "$RABADON" "$@" --help
+  pout="$(cat "$CAP_OUT")"
+  if printf '%s' "$pout" | grep -qiE "$UNKNOWN_RE"; then
+    printf '%s\n' "$pv" >> "$LAB/bad.txt"
+  elif [ "$CAP_RC" -eq 127 ]; then
+    printf '%s\n' "$pv" >> "$LAB/bad.txt"
+  elif [ "$CAP_RC" -eq 124 ]; then
+    printf '%s\n' "$pv" >> "$LAB/slow.txt"
   fi
 }
 
+flat() { tr '\n' ' ' < "$1" | sed -e 's/  */ /g' -e 's/ $//'; }
+
+PROBED_N=0
 if [ "$DEV_EXISTS" -eq 1 ]; then
-  probe_group "2a" $PROTO_MOVED
-  probe_group "2b" $MOVED_EXTRA
+  : > "$LAB/bad.txt"; : > "$LAB/slow.txt"
+  for v in $MOVED; do
+    probe "$v" dev "$v"
+    PROBED_N=$((PROBED_N + 1))
+  done
+  if [ ! -s "$LAB/bad.txt" ]; then
+    pass "2a all $PROBED_N moved verbs route under 'rabadon dev'"
+    [ -s "$LAB/slow.txt" ] && note "routed but had to be capped (long-running, expected): $(flat "$LAB/slow.txt")"
+  else
+    fail "2a these do not route under 'rabadon dev': $(flat "$LAB/bad.txt")"
+  fi
 else
-  fail "2a not run: 'rabadon dev' does not exist ($(printf '%s' "$PROTO_MOVED" | wc -w | tr -d ' ') protocol-named verbs unreachable)"
-  fail "2b not run: 'rabadon dev' does not exist ($(printf '%s' "$MOVED_EXTRA" | wc -w | tr -d ' ') further dispatcher verbs unreachable)"
-  note "protocol-named: $PROTO_MOVED"
-  note "dispatcher-only: $MOVED_EXTRA"
+  fail "2a not run: 'rabadon dev' does not exist (all $BASE_MOVED_N moved verbs unreachable)"
+  note "moved: $MOVED"
+fi
+
+# 2b. the arithmetic, said out loud. 2a reads "all N route" and N is whatever
+#     the loop happened to iterate; if the list ever shrinks, "all 3 route" is
+#     a true sentence and a green line. So the number is asserted separately
+#     against the number the human decided.
+if [ "$PROBED_N" -eq "$BASE_MOVED_N" ]; then
+  pass "2b the number of verbs actually probed is $PROBED_N, the decided $BASE_MOVED_N"
+else
+  fail "2b probed $PROBED_N verbs, the decision says $BASE_MOVED_N must move"
+fi
+
+# 2c. REGRESSION ONLY, and the difference from 2a is the point. fleet, guard,
+#     pack, spin and statusline are explicitly out of T2's scope: they are
+#     already invisible (no --help row, no README entry), so moving them buys
+#     nothing and would mean editing bin/rabadon.mjs, which is marked
+#     never-edit. The claim is therefore NOT "they are under dev". It is "they
+#     still answer where they answer today" — measured today, on this commit,
+#     all five route. If T2's refactor breaks one of them in passing, that is a
+#     regression and this line goes red.
+: > "$LAB/bad.txt"; : > "$LAB/slow.txt"
+UNLISTED_N=0
+for v in $UNLISTED_KEEP; do
+  probe "$v" "$v"
+  UNLISTED_N=$((UNLISTED_N + 1))
+done
+if [ "$UNLISTED_N" -ne 5 ]; then
+  fail "2c LIST_UNLISTED_KEEP has $UNLISTED_N verbs, it is the five #unlisted arms"
+elif [ ! -s "$LAB/bad.txt" ]; then
+  pass "2c the $UNLISTED_N #unlisted verbs still route on their own path (not moved, not broken)"
+  [ -s "$LAB/slow.txt" ] && note "routed but had to be capped: $(flat "$LAB/slow.txt")"
+else
+  fail "2c #unlisted verbs REGRESSED — they route today and do not any more: $(flat "$LAB/bad.txt")"
+  note "T2 does not move these; it must not break them either"
 fi
 
 # ---------------------------------------------------------------------------

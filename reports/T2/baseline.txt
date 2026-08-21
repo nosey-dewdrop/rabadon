@@ -126,7 +126,29 @@ NOTE, and it matters for T2: the protocol says "25 CLI verbs". The dispatcher
 accepts 35 listed + 8 unlisted. The protocol list is a subset -- it misses
 claims, cost, run, sandbox, stats, status, toggle, ui, uninstall, wrong, and
 every unlisted arm. T2 says "all the rest go under dev", so the honest target is
-the DISPATCHER list, not the protocol list. accept.sh checks both, separately.
+the DISPATCHER list, not the protocol list.
+
+RESOLVED 2026-08-21 (human decision, recorded in PROTOCOL-T1-T8.md section T2
+and reports/T2/discards.txt items 1 and 2; the protocol was corrected in its own
+commit, before implementation):
+
+  - the 10 uncounted verbs that DO show on the help screen move under `dev` too.
+    Leaving ten undocumented verbs on the main surface would make the round
+    pointless, and acceptance claim 1 could not have passed anyway.
+  - `status` and `toggle` are part of those ten. They are therefore MOVED, not
+    exempt, and they must NOT appear on the advertised surface. LIST_META_EXEMPT
+    below is kept only as a record of the pre-decision state; accept.sh no longer
+    reads it and it must not be re-added to any allowance list.
+  - the 5 `#unlisted` verbs (fleet guard pack spin statusline) are NOT moved.
+    They are already off the surface today. accept.sh asserts only that they did
+    not REGRESS: still reachable by the same path they take today. It does not
+    require them under `dev`.
+  - `help` / `--help` / `-h` are not verbs, they are the surface itself.
+
+  The one authoritative list is LIST_MOVED_29 in section 5, and it is exactly
+  LIST_DISPATCHER_LISTED minus LIST_SURFACE. accept.sh re-derives that
+  subtraction and refuses to run if the stored list disagrees, so the list
+  cannot be quietly shortened here to make the round smaller.
 
 PROTOCOL_25  (parsed from the first sentence of PROTOCOL-T1-T8.md section T2) (25)
   init on off budget lens usage report trace
@@ -137,19 +159,47 @@ PROTOCOL_25  (parsed from the first sentence of PROTOCOL-T1-T8.md section T2) (2
 SURFACE_6  (the five table rows of T2; on/off share one row, so six tokens) (6)
   init on off usage repair doctor
 
-META_EXEMPT  (in the dispatcher, named nowhere in the T2 table; may stay on the surface or move -- accept.sh does not force either) (2)
+META_EXEMPT  (SUPERSEDED 2026-08-21 -- was "may stay on the surface or move";
+the human decision moved both, so they are inside MOVED_29 and are no longer
+exempt from anything. Kept as a record of what was believed before the decision.) (2)
   status toggle
 
-PROTO_MOVED  (PROTOCOL_25 minus SURFACE_6 -- the protocol calls this "20 verbs", it is 19 tokens because on/off is one table row) (19)
+PROTO_MOVED  (HISTORICAL: PROTOCOL_25 minus SURFACE_6 -- the protocol called this "20 verbs", it is 19 tokens because on/off is one table row. Superseded by MOVED_29.) (19)
   audit budget do drift drill exec export lens
   lint loop net remove replay report serve trace
   truth verify watch
 
-MOVED  (DISPATCHER_VERBS_LISTED minus SURFACE_6 minus META_EXEMPT) (27)
+MOVED_27  (HISTORICAL: DISPATCHER_VERBS_LISTED minus SURFACE_6 minus META_EXEMPT, i.e. the pre-decision target. Superseded by MOVED_29.) (27)
   audit budget claims cost do drift drill exec
   export lens lint loop net remove replay report
   run sandbox serve stats trace truth ui uninstall
   verify watch wrong
+
+MOVED_29  (AUTHORITATIVE -- DISPATCHER_VERBS_LISTED minus SURFACE_6, nothing else
+subtracted. This is the list T2 must move and the list accept.sh judges.) (29)
+  audit budget claims cost do drift drill exec
+  export lens lint loop net remove replay report
+  run sandbox serve stats status toggle trace truth
+  ui uninstall verify watch wrong
+
+UNLISTED_KEEP  (the 5 #unlisted verbs T2 does NOT move; help/--help/-h are the
+surface itself and are not verbs, so they are not in this list) (5)
+  fleet guard pack spin statusline
+
+  MEASURED CORRECTION, 2026-08-21, found while running accept.sh: four of these
+  five are genuinely invisible, but `fleet` is NOT. It is #unlisted in the
+  dispatcher and still has a row on the help screen:
+
+      $ ./native/rabadon-cli.sh --help | grep -n fleet
+      19:  fleet [root]        install the hooks across every git repo under root
+
+  The #unlisted marker governs dispatch_verbs(), the list the dispatcher derives
+  at run time; the help text is hand-written and had drifted away from it. The
+  claim in discards.txt item 2 that these five are "not in --help" is therefore
+  true of four of them. That does not change the decision -- fleet is still not
+  MOVED, and accept.sh 2c still requires it to work on its current path -- but
+  accept.sh 1c does require its help row to go, because T2's whole content is a
+  five-row help screen. Deleting an advertising line is not moving a verb.
 
 ==========================================================================
 3. Built binaries in native/
@@ -224,11 +274,24 @@ reads only these lines and the KEY=<number> lines in section 1. Keep both in
 sync if you regenerate.
 
 LIST_SURFACE=init on off usage repair doctor
-LIST_META_EXEMPT=status toggle
 LIST_DISPATCHER_LISTED=audit budget claims cost do doctor drift drill exec export init lens lint loop net off on remove repair replay report run sandbox serve stats status toggle trace truth ui uninstall usage verify watch wrong
 LIST_DISPATCHER_UNLISTED=fleet guard help pack spin statusline
-LIST_PROTOCOL_25=init on off budget lens usage report trace drift drill audit replay exec do loop repair verify net truth export lint doctor remove watch serve
-LIST_PROTO_MOVED=audit budget do drift drill exec export lens lint loop net remove replay report serve trace truth verify watch
-LIST_MOVED=audit budget claims cost do drift drill exec export lens lint loop net remove replay report run sandbox serve stats trace truth ui uninstall verify watch wrong
-LIST_MOVED_EXTRA=claims cost run sandbox stats ui uninstall wrong
+
+# THE list T2 moves. Exactly LIST_DISPATCHER_LISTED minus LIST_SURFACE.
+# accept.sh recomputes that subtraction and goes RED if this line disagrees or
+# if MOVED_COUNT is not the number of words on it.
+LIST_MOVED_29=audit budget claims cost do drift drill exec export lens lint loop net remove replay report run sandbox serve stats status toggle trace truth ui uninstall verify watch wrong
+MOVED_COUNT=29
+
+# NOT moved by T2. Asserted as "did not regress", never as "is under dev".
+LIST_UNLISTED_KEEP=fleet guard pack spin statusline
+
 LIST_MOVED_CPP_KEEP=sandbox.cpp serve.cpp
+
+# --- historical, superseded 2026-08-21. accept.sh does not read these. Kept so
+# --- the pre-decision state is on the record and the change is one grep away.
+HIST_LIST_META_EXEMPT=status toggle
+HIST_LIST_PROTOCOL_25=init on off budget lens usage report trace drift drill audit replay exec do loop repair verify net truth export lint doctor remove watch serve
+HIST_LIST_PROTO_MOVED=audit budget do drift drill exec export lens lint loop net remove replay report serve trace truth verify watch
+HIST_LIST_MOVED_27=audit budget claims cost do drift drill exec export lens lint loop net remove replay report run sandbox serve stats trace truth ui uninstall verify watch wrong
+HIST_LIST_MOVED_EXTRA=claims cost run sandbox stats ui uninstall wrong
