@@ -27,7 +27,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-LOOP="$ROOT/native/rabadon-loop"
+LOOP="$ROOT/native/rabadon-pipeline"
 VERIFY="$ROOT/native/rabadon-verify"
 LLM="$ROOT/native/llm-proposer.sh"
 TRACE="$ROOT/native/rabadon-trace"

@@ -4,7 +4,7 @@
 # The chained day file is named by a date, and until this suite ran, the repo
 # held two answers to the question "which date". gate.cpp, repair.cpp,
 # sandbox.cpp and the JS bus all name it in UTC (gmtime / toISOString), while
-# loop.cpp and drift.cpp named it in LOCAL time (localtime_r). East of Greenwich
+# pipeline.cpp and drift.cpp named it in LOCAL time (localtime_r). East of Greenwich
 # after midnight -- the hours this project is actually written in -- those are
 # two different files, so:
 #
@@ -35,7 +35,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE/.."
 GATE=./native/rabadon-gate
-LOOP=./native/rabadon-loop
+LOOP=./native/rabadon-pipeline
 DRIFT=./native/rabadon-drift
 AUDIT=./native/rabadon-audit
 for b in "$GATE" "$LOOP" "$DRIFT" "$AUDIT"; do

@@ -1,4 +1,4 @@
-// rabadon-loop — the autonomous engine. C++17, zero deps.
+// rabadon-pipeline — the autonomous engine. C++17, zero deps.
 //
 // This is the product in one binary: a pipeline runs, a step breaks its
 // contract, rabadon repairs it, re-checks against the SAME un-gameable contract,
@@ -30,7 +30,7 @@
 //   two-arm ledger. Unset RABADON_TIERS = the old single-model behavior, byte
 //   for byte.
 //
-// Usage:  rabadon-loop <dir> <plan.json>
+// Usage:  rabadon-pipeline <dir> <plan.json>
 //   plan.json = { "steps": [ { "id","kind":"cmd"|"work","do","contract":[...] } ],
 //                 "accept": [...] }
 //   proposer  = env RABADON_PROPOSER (default: claude -p …), prompt on stdin,
@@ -133,13 +133,13 @@ struct Emitter {
 };
 
 static const char* kHelp =
-  "rabadon-loop — run a plan under the arbiter.\n"
+  "rabadon-pipeline — run a plan under the arbiter.\n"
   "Every step is checked by rabadon-verify before the next one starts. A failed\n"
   "check triggers a bounded repair, and the repair must pass the SAME check to be\n"
   "kept — so a fix that only neuters the test is refused and the run stops.\n"
   "An empty or unreadable plan fails CLOSED.\n"
   "\n"
-  "usage: rabadon-loop <dir> <plan.json>\n"
+  "usage: rabadon-pipeline <dir> <plan.json>\n"
   "\n"
   "  <dir>        the project the steps execute in.\n"
   "  <plan.json>  {\"steps\":[{\"id\",\"kind\",\"do\",\"contract\":[...]}],\"accept\":[...]}\n"
@@ -153,19 +153,19 @@ static const char* kHelp =
   "  RABADON_DIR         where the run is spooled (default ~/.rabadon).\n"
   "\n"
   "example:\n"
-  "  rabadon-loop ~/src/myrepo ~/src/myrepo/.rabadon/do-plan.json\n";
+  "  rabadon-pipeline ~/src/myrepo ~/src/myrepo/.rabadon/do-plan.json\n";
 
 int main(int argc,char** argv){
-  // `rabadon-loop --help` used to hit the arity check and exit 2 with a usage
+  // `rabadon-pipeline --help` used to hit the arity check and exit 2 with a usage
   // line that named no flag, no environment variable and no example.
   rb_help(argc, argv, kHelp);
   // this binary takes two paths and no options, so any flag is a typo. naming
   // it beats the old bare usage line, which never said WHICH word was wrong.
-  for(int i=1;i<argc;i++) if(rb_is_flag(argv[i])) rb_unknown_flag("rabadon-loop", argv[i]);
+  for(int i=1;i<argc;i++) if(rb_is_flag(argv[i])) rb_unknown_flag("rabadon-pipeline", argv[i]);
 
-  if(argc<3){ fprintf(stderr,"usage: rabadon-loop <dir> <plan.json>\n  run `rabadon-loop --help`\n"); return 2; }
+  if(argc<3){ fprintf(stderr,"usage: rabadon-pipeline <dir> <plan.json>\n  run `rabadon-pipeline --help`\n"); return 2; }
   string dir=argv[1]; string plan=read_file(argv[2]);
-  if(plan.empty()){ fprintf(stderr,"rabadon-loop: empty plan (fail-closed)\n"); return 2; }
+  if(plan.empty()){ fprintf(stderr,"rabadon-pipeline: empty plan (fail-closed)\n"); return 2; }
 
   // locate the verify binary next to this one
   string self=argv[0]; size_t sl=self.rfind('/'); string bindir=sl==string::npos?".":self.substr(0,sl);
@@ -227,7 +227,7 @@ int main(int argc,char** argv){
 
   string stepsArr=extract_array(plan,"steps");
   vector<string> steps=split_objects(stepsArr);
-  if(steps.empty()){ fprintf(stderr,"rabadon-loop: plan has no steps (fail-closed)\n"); return 2; }
+  if(steps.empty()){ fprintf(stderr,"rabadon-pipeline: plan has no steps (fail-closed)\n"); return 2; }
 
   // the tier ladder, cheap -> expensive. one entry (or unset) = no routing.
   vector<string> tiers; { const char* t=getenv("RABADON_TIERS"); tiers=split_csv(t?t:""); }

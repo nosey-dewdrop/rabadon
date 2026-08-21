@@ -13,7 +13,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-LOOP="$ROOT/native/rabadon-loop"
+LOOP="$ROOT/native/rabadon-pipeline"
 VERIFY="$ROOT/native/rabadon-verify"
 STATS="$ROOT/native/rabadon-stats"
 PROPOSER="$ROOT/native/llm-proposer.sh"
@@ -76,7 +76,7 @@ echo "────────────────────────�
 echo "  SCENARIO: honest-llm   (proposer = claude -p, bounded ${RABADON_LLM_TIMEOUT}s, RABADON_OFF=1)"
 echo "  before:  python3 test_calc.py  ->  $(cd "$d" && python3 test_calc.py 2>&1 | tail -1)   [RED, add() is broken]"
 echo "  calc.py before:  $(tr '\n' '|' < "$d/calc.py")"
-echo "  ── rabadon-loop runs (a live claude -p writes the repair) ──"
+echo "  ── rabadon-pipeline runs (a live claude -p writes the repair) ──"
 t0=$(python3 -c 'import time;print(int(time.time()))')
 RABADON_PROPOSER="$PROPOSER" "$LOOP" "$d" "$d/plan.json" 2>&1 | sed 's/^/  /'
 rc=${PIPESTATUS[0]}

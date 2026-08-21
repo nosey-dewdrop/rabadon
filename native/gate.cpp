@@ -213,7 +213,7 @@ static double get_double(const string& j, const string& key) {
 // account defaults to. That is a supervisor picking someone else's vendor. Both
 // are env now, both default to exactly what was hard-coded, so this change moves
 // no behaviour on its own — it only makes the choice sayable from outside.
-// RABADON_MODEL is deliberately NOT reused: loop.cpp and llm-proposer.sh own it
+// RABADON_MODEL is deliberately NOT reused: pipeline.cpp and llm-proposer.sh own it
 // as the per-tier proposer model, the gate inherits the session's environment,
 // and one name for two jobs would silently send the judge to the wrong model.
 static string env_or(const char* name, const char* fallback) {

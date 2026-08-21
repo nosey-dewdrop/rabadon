@@ -32,7 +32,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 
-for b in rabadon-trace rabadon-stats rabadon-export rabadon-gate rabadon-sandbox rabadon-loop; do
+for b in rabadon-trace rabadon-stats rabadon-export rabadon-gate rabadon-sandbox rabadon-pipeline; do
   [ -x "./native/$b" ] || { echo "trace_test: build first (make native/$b)"; exit 1; }
 done
 
@@ -330,7 +330,7 @@ PYRC=$?
 # and neither is in the ledger.
 #
 # The producer is repair_proof.sh's, because it is the only one that writes a
-# real REPAIR_OK / REPAIR_FAIL with no LLM in the room: rabadon-loop against a
+# real REPAIR_OK / REPAIR_FAIL with no LLM in the room: rabadon-pipeline against a
 # genuinely broken project, with the proposer scripted. The arbiter still
 # decides — the honest proposer fixes the code, the cheat one neuters the test
 # and is refused on the forbidden sha.
@@ -392,10 +392,10 @@ json.dump({"steps": steps,
 PY
   if [ "$prop" = none ]; then
     RABADON_DIR="$box" RABADON_MAX_REPAIRS=0 RABADON_PROPOSER=true \
-      "$ROOT/native/rabadon-loop" "$d" "$d/plan.json" >/dev/null 2>&1
+      "$ROOT/native/rabadon-pipeline" "$d" "$d/plan.json" >/dev/null 2>&1
   else
     RABADON_DIR="$box" RABADON_MAX_REPAIRS="${4:-1}" RABADON_PROPOSER="$SAVED/bin/$prop.sh" \
-      "$ROOT/native/rabadon-loop" "$d" "$d/plan.json" >/dev/null 2>&1
+      "$ROOT/native/rabadon-pipeline" "$d" "$d/plan.json" >/dev/null 2>&1
   fi
 }
 

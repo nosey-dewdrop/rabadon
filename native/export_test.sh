@@ -87,7 +87,7 @@ assert any("CHECK_FAIL" in n or "loop-stop" in n for n in names), names
 PY
 
 # This fixture line used to read {"tokensIn":100,"tokensOut":50} — the names
-# export.cpp read, and the names NOTHING writes. It is now loop.cpp's shape,
+# export.cpp read, and the names NOTHING writes. It is now pipeline.cpp's shape,
 # with the values checked rather than just the key set: a key-presence assertion
 # is happy with a reader that maps the wrong field.
 python3 - <<'PY' && pass "GenAI semconv token + cost attributes carry the right values" || fail "genai attrs"
@@ -187,7 +187,7 @@ PY
 #    be rendered generically, never dropped". export.cpp filtered every line
 #    through a hardcoded eight-name allow-list instead, so it dropped both the
 #    unknown verbs (the MUST) and two of SPEC's own ten — STEP_OK and
-#    REPAIR_START, which rabadon's own gate.cpp/repair.cpp/loop.cpp emit. The
+#    REPAIR_START, which rabadon's own gate.cpp/repair.cpp/pipeline.cpp emit. The
 #    G3 proof ledger (5 REPAIR_START, 2 REPAIR_OK, 3 REPAIR_FAIL) exported as
 #    5 spans: repairs that finish without ever starting.
 #
@@ -313,8 +313,8 @@ PY
 #     top of this file says "tokensIn"/"tokensOut" because that is what
 #     export.cpp read; those two keys live in .rabadon/state.json and never in
 #     a spool line. What `rabadon-gate` actually appends on Stop is
-#     `"tokens":<out>` (gate.cpp), and `rabadon-loop` appends
-#     `"tokens","in","out","usd_e6","model"` (loop.cpp). On this machine the
+#     `"tokens":<out>` (gate.cpp), and `rabadon-pipeline` appends
+#     `"tokens","in","out","usd_e6","model"` (pipeline.cpp). On this machine the
 #     ledger held 1366 lines with a `"tokens"` key and 0 with a `"tokensIn"`
 #     key, so every span that ever left carried rabadon.ev and rabadon.pipe
 #     and nothing else — the advertised GenAI mapping was true of the test and
@@ -371,17 +371,17 @@ PY
 
 # 11. the OTHER producer, and the number the product model actually sells.
 #
-#     gate.cpp writes a bare "tokens". loop.cpp writes the full split —
+#     gate.cpp writes a bare "tokens". pipeline.cpp writes the full split —
 #     "tokens","in","out","usd_e6","dur_ms","model" — on REPAIR_OK/REPAIR_FAIL
 #     and STEP_TRY. Cost was read by nobody: `usd_e6` never appeared in
 #     export.cpp at all, so the one number rabadon charges for stayed on the
 #     machine while the README sold the OTLP surface as the standard view.
 #
-#     Fixture generated again, by driving rabadon-loop through a real failing
+#     Fixture generated again, by driving rabadon-pipeline through a real failing
 #     step with a stub proposer that writes the sidecar metrics the way
 #     `claude -p --output-format json` does. No LLM, no network.
-[ -x ./native/rabadon-loop ] && [ -x ./native/rabadon-verify ] \
-  || { echo "export_test: build first (make native/rabadon-loop native/rabadon-verify)"; exit 1; }
+[ -x ./native/rabadon-pipeline ] && [ -x ./native/rabadon-verify ] \
+  || { echo "export_test: build first (make native/rabadon-pipeline native/rabadon-verify)"; exit 1; }
 LOOP_DIR="$TMP/rd-loop"; mkdir -p "$LOOP_DIR"
 # NOT under a name starting with "tmp." — drill rule 3 calls that pipe rabadon's
 # own noise and would keep the whole arm home.
@@ -404,17 +404,17 @@ cat > "$LOOP_PROJ/plan.json" <<'EOF'
 EOF
 env -u RABADON_NOW -u RABADON_OFF RABADON_DIR="$LOOP_DIR" \
   RABADON_PROPOSER="bash $LOOP_PROJ/prop.sh" \
-  ./native/rabadon-loop "$LOOP_PROJ" "$LOOP_PROJ/plan.json" >/dev/null 2>&1
+  ./native/rabadon-pipeline "$LOOP_PROJ" "$LOOP_PROJ/plan.json" >/dev/null 2>&1
 export LOOP_SPOOL_DIR="$LOOP_DIR/spool"
 
-python3 - <<'PY' && pass "rabadon-loop really wrote a priced event, in ITS key names" || fail "no loop-emitted cost line — the arm below would prove nothing"
+python3 - <<'PY' && pass "rabadon-pipeline really wrote a priced event, in ITS key names" || fail "no loop-emitted cost line — the arm below would prove nothing"
 import glob, json, os
 lines = []
 for p in glob.glob(os.path.join(os.environ["LOOP_SPOOL_DIR"], "*.jsonl")):
     lines += [json.loads(l) for l in open(p) if l.strip()]
 # POSITIVE: the producer priced the attempt and split the tokens.
 priced = [e for e in lines if e.get("usd_e6")]
-assert priced, ("rabadon-loop wrote no usd_e6", [e.get("ev") for e in lines])
+assert priced, ("rabadon-pipeline wrote no usd_e6", [e.get("ev") for e in lines])
 e = priced[0]
 assert (e["usd_e6"], e["in"], e["out"], e["tokens"]) == (12345, 1200, 345, 1545), e
 # only now the negative: the reader's old names are still absent here too.
@@ -447,7 +447,7 @@ PY
 #     Every span this exporter shipped had startTimeUnixNano == endTimeUnixNano,
 #     so a rabadon run rendered in a trace viewer as a row of zero-width marks.
 #     The question a person opens a trace to answer — which step was slow — was
-#     the one thing the document could not say, while loop.cpp had been writing
+#     the one thing the document could not say, while pipeline.cpp had been writing
 #     dur_ms beside the token count the whole time and nothing read it.
 #
 #     Same generated fixture as arm 11: the stub proposer leaves a sidecar with

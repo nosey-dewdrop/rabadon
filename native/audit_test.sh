@@ -225,7 +225,7 @@ rm -f "$LEGACY"
 
 # the loop binary writes into the same day file: it must chain too, or every
 # `rabadon loop` run would read exactly like a stripped line.
-grep -q "rbchain::append" native/loop.cpp && pass "rabadon-loop appends through the same chained writer (chain.h)" || fail "loop.cpp writes to the spool unchained"
+grep -q "rbchain::append" native/pipeline.cpp && pass "rabadon-pipeline appends through the same chained writer (chain.h)" || fail "pipeline.cpp writes to the spool unchained"
 
 # ---------------------------------------------------------------------------
 # g) A STRANGER'S SERIALIZER. SPEC §2 fixes the ledger as single-line JSON whose

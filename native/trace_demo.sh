@@ -23,7 +23,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-LOOP="$ROOT/native/rabadon-loop"
+LOOP="$ROOT/native/rabadon-pipeline"
 VERIFY="$ROOT/native/rabadon-verify"
 LLM="$ROOT/native/llm-proposer.sh"
 TRACE="$ROOT/native/rabadon-trace"
@@ -137,7 +137,7 @@ run_scenario() {  # <name> <proposer> <label>
   write_plan "$d" "$sha"
   echo "────────────────────────────────────────────────────────────────"
   echo "  SCENARIO: $name   (step-3 proposer = $label)"
-  echo "  ── rabadon-loop: 5 steps, arbiter = rabadon-verify, propose-and-hold ──"
+  echo "  ── rabadon-pipeline: 5 steps, arbiter = rabadon-verify, propose-and-hold ──"
   RABADON_PROPOSER="$prop" "$LOOP" "$d" "$d/plan.json" 2>&1 | sed 's/^/  /'
   echo "  loop exit: ${PIPESTATUS[0]}   (0 = whole pipeline accepted, 1 = fail-closed)"
   echo

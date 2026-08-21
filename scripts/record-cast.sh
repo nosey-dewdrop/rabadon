@@ -170,7 +170,7 @@ run_step "$CHT" "rabadon repair ." "same bug, a proposer that edits the TEST ins
   env RABADON_CLAUDE_BIN="$TMP/bin/cheat.sh" "$REPAIR" "$CHT" --cmd "python3 test_calc.py" --timeout 60
 # The closing frame is the tree itself, because fail-closed is a claim ABOUT the
 # tree and a verdict line is not evidence for it. The first cut of this reel
-# used native/rabadon-loop and this frame came back showing test_calc.py reduced
+# used native/rabadon-pipeline and this frame came back showing test_calc.py reduced
 # to `print("ok")` under a caption that said the repository was untouched. The
 # frame was right and the caption was wrong, which is the whole argument for
 # ending on the tree rather than on the verdict.

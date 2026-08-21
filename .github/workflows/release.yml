@@ -79,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           cp native/rabadon-gate native/rabadon-stats native/rabadon-drift \
-             native/rabadon-trace native/rabadon-verify native/rabadon-loop \
+             native/rabadon-trace native/rabadon-verify native/rabadon-pipeline \
              native/rabadon-do native/rabadon-budget native/rabadon-lens \
              native/rabadon-net native/rabadon-truth native/rabadon-serve \
              native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox \

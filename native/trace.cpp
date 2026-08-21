@@ -3,7 +3,7 @@
 // A pipeline run leaves a deterministic event stream in the spool (RUN_START,
 // STEP_START, CHECK_FAIL, REPAIR_START, REPAIR_OK/FAIL, STOP, STEP_OK, RUN_DONE).
 // The repair events also carry the model's own byte-exact accounting (tokens,
-// usd, duration_ms), fused in by rabadon-loop from the proposer's stream-json
+// usd, duration_ms), fused in by rabadon-pipeline from the proposer's stream-json
 // result event. Nothing here calls an LLM or estimates anything: every number
 // printed already exists in the ledger. Remove the LLM from the whole system and
 // this renderer still turns the same spool into the same trace — the moat test.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# rabadon-loop proof — the autonomous engine, deterministic (stub proposer, no
+# rabadon-pipeline proof — the autonomous engine, deterministic (stub proposer, no
 # LLM). Proves the whole product loop and that a gamed repair cannot win.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-LOOP="$HERE/rabadon-loop"; VERIFY="$HERE/rabadon-verify"
+LOOP="$HERE/rabadon-pipeline"; VERIFY="$HERE/rabadon-verify"
 [ -x "$LOOP" ] && [ -x "$VERIFY" ] || { echo "build first: make"; exit 1; }
 PASS=0; FAIL=0
 ok(){ PASS=$((PASS+1)); echo "  ok   - $1"; }

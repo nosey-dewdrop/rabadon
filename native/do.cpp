@@ -5,7 +5,7 @@
 //          step carries an un-gameable contract (differential / forbidden where
 //          behavior must hold; cmd/fileExists/fileContains otherwise). The plan
 //          is a PROPOSAL — it is enforced, not trusted.
-//   RUN    exec rabadon-loop, which gates every step with rabadon-verify and
+//   RUN    exec rabadon-pipeline, which gates every step with rabadon-verify and
 //          repairs-then-continues, bounded, fail-closed.
 //
 // Remove the LLM and what remains: the loop, the verify arbiter, the bounds,
@@ -48,7 +48,7 @@ static string unfence(string s){
 static const char* kHelp =
   "rabadon-do — one task in, a gate-verified pipeline out.\n"
   "One model call decomposes the task into steps whose every contract is checked\n"
-  "by machine; rabadon-loop then runs it, repairs what fails, and refuses a fix\n"
+  "by machine; rabadon-pipeline then runs it, repairs what fails, and refuses a fix\n"
   "that only pretends to pass.\n"
   "\n"
   "usage: rabadon-do \"<task>\" [dir]\n"
@@ -106,7 +106,7 @@ int main(int argc,char** argv){
   fprintf(stderr,"rabadon do: plan written to .rabadon/do-plan.json — running under the gate.\n");
 
   // hand off to the loop: it gates every step with rabadon-verify, repairs, continues
-  string loop=bindir+"/rabadon-loop";
+  string loop=bindir+"/rabadon-pipeline";
   execl(loop.c_str(),loop.c_str(),dir.c_str(),planPath.c_str(),(char*)nullptr);
   // if execl returns, fall back to system()
   string cmd="\""+loop+"\" \""+dir+"\" \""+planPath+"\"";

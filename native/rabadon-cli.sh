@@ -108,25 +108,64 @@ before it happens, records what it refused, and can prove a repair.
 usage: rabadon <command> [args]
        rabadon                     show whether supervision is on, change nothing
 
-supervision
-  on | off | toggle   turn enforcement on or off (machine-wide)
-  status              print the current mode and the file it was read from
-  version             the version of the installed native core, and where it is
-  budget [cap] [dir]  write the spend ceiling the gate halts a run at
-  drill               feed one synthetic dangerous command through the REAL gate
+  init [dir]          write the hooks into a project and author its guard.json
+  on | off            turn enforcement on or off for this project
+  usage [--days N]    what was refused, in which project, by which rule
+  repair              attempt a bounded, re-checked fix for a failing check
   doctor              check the install: binaries, hooks, sandbox backend
 
+  version             the version of the installed native core, and where it is
+  dev <command>       everything else, still here and still supported
+
+examples
+  rabadon init                    set up the project you are standing in
+  rabadon usage --days 7          what it caught this week
+  rabadon dev drill               see the refusal an agent would get
+
+Five commands is the whole product. The rest did not go anywhere — they are
+under `rabadon dev`, which lists them. Nothing was removed, and putting one
+back on this screen is one line.
+
+docs: https://github.com/nosey-dewdrop/rabadon
+HELP
+    exit 0 ;;
+  # T2 narrowed the product surface to five commands. Nothing was deleted: every
+  # verb that came off the main screen still has its case arm below, still routes
+  # when typed bare, and is listed here. This arm exists so there is ONE place a
+  # stranger is sent to find them, and so the main screen can stay five lines.
+  # `rabadon dev <verb>` re-enters this same script with the verb in front, which
+  # is why no arm below had to change and no test that types a verb bare broke.
+  dev)
+    shift
+    case "${1:-}" in
+      ''|help|--help|-h)
+        cat <<'DEVHELP'
+rabadon dev — everything that is not one of the five.
+
+These are not deprecated and not second-class. They are the tools you reach for
+when something is already wrong, or when you are working ON rabadon rather than
+with it. They were taken off the main screen because a stranger meeting the
+product should see five things, not thirty.
+
+usage: rabadon dev <command> [args]
+
+supervision
+  toggle              flip enforcement without naming a direction
+  status              print the current mode and the file it was read from
+  budget [cap] [dir]  write the spend ceiling the gate halts a run at
+  drill               feed one synthetic dangerous command through the REAL gate
+
 setting up
-  init [dir]          write the hooks into a project and author its guard.json
   lint [dir]          find rules in a project's guard.json that cannot fire
   truth [dir]         the strongest check this repo already knows how to run
-  fleet [root]        install the hooks across every git repo under root
   remove              uninstall the hooks from a project
+  uninstall           the same, spelled the way people type it
 
 seeing what happened
   lens [--days N]     sessions, tokens and cost, read off the transcripts on disk
-  usage [--days N]    what was refused, in which project, by which rule
-  report [--days N]   the same, as markdown
+  cost [--days N]     the same figures, under the name people look for
+  stats [--days N]    the counters behind `usage`
+  report [--days N]   what was refused, as markdown
   trace [run]         one run step by step: caught, repaired, refused
   drift [dir]         did this session wander off what it promised to work on
   audit [--days N]    verify the ledger has not been tampered with
@@ -140,24 +179,23 @@ acting
                       first on its PATH, so the programs it shells out to are
                       judged before they run. No hook system required.
   exec -- <cmd>       run a command under the project's law AND a kernel sandbox
+  sandbox -- <cmd>    the kernel sandbox alone, without the project's law
   do "<task>" [dir]   plan a task into steps and run them under the arbiter
   loop <dir> <plan>   run an existing plan, every step checked before the next
-  repair              attempt a bounded, re-checked fix for a failing check
   verify <dir> <c>    decide pass/fail on one contract, the arbiter alone
   net [dir]           run this repo's strongest check, record the verdict
-  watch | ui          live view of the current session
+  watch               live view of the current session
+  ui                  the same view in a browser
   serve [--port N]    the team ledger: an append-only HTTP store for runs
 
-examples
-  rabadon init                    set up the project you are standing in
-  rabadon drill                   see the refusal an agent would get
-  rabadon usage --days 7          what it caught this week
-  rabadon lens --days 30          sessions, tokens and cost for the month
-  rabadon exec -- npm run deploy  run it under the guard, refused if forbidden
-
 docs: https://github.com/nosey-dewdrop/rabadon
-HELP
-    exit 0 ;;
+DEVHELP
+        exit 0 ;;
+      dev)
+        echo "rabadon: 'dev dev' is not a command — say 'rabadon dev <command>'" >&2
+        exit 2 ;;
+    esac
+    exec "$SELF" "$@" ;;
   # the rest of the line goes to the binary too: `rabadon status --help` used to
   # drop the flag on the floor and print the mode instead, the same swallow the
   # binaries themselves were fixed for.
@@ -190,7 +228,10 @@ HELP
   budget)          B="$(nbin budget)" || exit 1; shift; exec "$B" "$@" ;;
   do)              D="$(nbin do)" || exit 1; shift; exec "$D" "$@" ;;
   drift)           D="$(nbin drift)" || exit 1; shift; exec "$D" "$@" ;;
-  loop)            L="$(nbin loop)" || exit 1; shift; exec "$L" "$@" ;;
+  # the verb stays `loop` — it is what the plan-runner does and what users type.
+  # The BINARY is rabadon-pipeline: `loop` as a file name collided with the
+  # loop-stop rule and, after T3, would collide with the real loop detector.
+  loop)            L="$(nbin pipeline)" || exit 1; shift; exec "$L" "$@" ;;
   net)             N="$(nbin net)" || exit 1; shift; exec "$N" "$@" ;;
   truth)           T="$(nbin truth)" || exit 1; shift; exec "$T" "$@" ;;
   verify)          V="$(nbin verify)" || exit 1; shift; exec "$V" "$@" ;;

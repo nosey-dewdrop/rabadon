@@ -21,7 +21,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-LOOP="$ROOT/native/rabadon-loop"
+LOOP="$ROOT/native/rabadon-pipeline"
 VERIFY="$ROOT/native/rabadon-verify"
 STATS="$ROOT/native/rabadon-stats"
 LLM="$ROOT/native/llm-proposer.sh"
@@ -123,7 +123,7 @@ run_scenario() {  # <name> <proposer> <label>
   echo "  the net runs the project's OWN suite after the work — before repair:"
   (cd "$d" && python3 test_statslib.py 2>&1) | sed 's/^/    /'
   echo "  ^ deep bug caught at check 5/6 (moving_average); mean/variance/median stayed green."
-  echo "  ── rabadon-loop: propose-and-hold, arbiter = the real suite ──"
+  echo "  ── rabadon-pipeline: propose-and-hold, arbiter = the real suite ──"
   local t0 t1 rc
   t0=$(python3 -c 'import time;print(int(time.time()))')
   RABADON_PROPOSER="$prop" "$LOOP" "$d" "$d/plan.json" 2>&1 | sed 's/^/  /'

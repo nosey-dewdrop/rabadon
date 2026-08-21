@@ -1,5 +1,5 @@
 #!/bin/bash
-# llm-proposer.sh — the REAL-LLM proposer rabadon-loop swaps in via RABADON_PROPOSER.
+# llm-proposer.sh — the REAL-LLM proposer rabadon-pipeline swaps in via RABADON_PROPOSER.
 #
 # This is the ONLY new variable between the scripted proof (repair_proof.sh) and a
 # real run: a live `claude -p` writes the fix instead of a canned script. Everything
@@ -16,7 +16,7 @@
 #     (default 180s, override with RABADON_LLM_TIMEOUT); macOS ships no `timeout(1)`.
 #   - one shot: no retry here — the loop owns the repair budget (RABADON_MAX_REPAIRS).
 #
-# Contract with rabadon-loop: the repair prompt arrives on stdin, cwd is the project
+# Contract with rabadon-pipeline: the repair prompt arrives on stdin, cwd is the project
 # dir. We make the edit and exit; the loop re-verifies against the real contract.
 set -u
 export RABADON_OFF=1      # recursion root-fix: the child's own gate must exit at once
@@ -24,9 +24,9 @@ export RABADON_JUDGE=0    # and no drift judge inside the child either
 
 CAP="${RABADON_LLM_TIMEOUT:-180}"     # seconds, wall-clock hard cap
 ALLOWED="${RABADON_LLM_TOOLS:-Read,Edit,Write}"   # honest path needs only these
-prompt="$(cat)"                        # rabadon-loop pipes the repair prompt on stdin
+prompt="$(cat)"                        # rabadon-pipeline pipes the repair prompt on stdin
 
-# VERIFIED ROUTING (second face): rabadon-loop names the tier for THIS attempt in
+# VERIFIED ROUTING (second face): rabadon-pipeline names the tier for THIS attempt in
 # RABADON_MODEL (e.g. haiku for the first try, opus after the arbiter rejects it).
 # Nothing else changes — same proposer, same bounds, same sidecar. Unset = the
 # account default, so every existing caller behaves exactly as before.
@@ -44,7 +44,7 @@ tmpout=$(mktemp /tmp/rabadon-llm-out.XXXXXX)
 # ${MODEL_ARG[@]+"${MODEL_ARG[@]}"} and NOT the plain "${MODEL_ARG[@]}" it looks
 # like. /bin/bash on macOS is 3.2.57, where expanding a zero-length array is an
 # unbound-variable abort under `set -u` — the array being assigned above does not
-# save you; only bash >=4.4 exempts it. Un-routed runs (the common case: loop.cpp
+# save you; only bash >=4.4 exempts it. Un-routed runs (the common case: pipeline.cpp
 # leaves RABADON_MODEL unset unless a tier is named) therefore killed the shell
 # right here, before claude was ever spawned, and the `&` hid the exit code. The
 # `+` form is the portable one: nothing when the array is empty, the two words
@@ -67,7 +67,7 @@ wait "$pid" 2>/dev/null
 # Step D fusing: the stream-json terminal {"type":"result"} event carries the
 # byte-exact usage + total_cost_usd + duration_ms for THIS repair — the same
 # numbers Langfuse would show, straight from the model's own accounting. Hand the
-# raw result line to rabadon-loop via a sidecar so the spool becomes a self-
+# raw result line to rabadon-pipeline via a sidecar so the spool becomes a self-
 # contained, deterministic ledger (the trace renderer never has to hunt a
 # transcript). Best-effort: absent RABADON_DIR or a text-mode proposer just
 # means the trace shows the token column as "—", never a fabricated number.

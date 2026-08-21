@@ -2,7 +2,7 @@
 CXX ?= clang++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
-all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
+all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-pipeline native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
 # the OTHER benchmark, and the one the site was quoting without owning: how long
 # rbrules::judge_command takes, in process, over the 34 real cases in the
@@ -896,14 +896,14 @@ precision: native/rabadon-gate
 	./native/precision_test.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-loop native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-pipeline native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
 .PHONY: all bench clean disclosure precision promises
 
 native/rabadon-verify: native/verify.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-loop: native/loop.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h
+native/rabadon-pipeline: native/pipeline.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-do: native/do.cpp native/cli_help.h

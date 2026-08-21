@@ -69,7 +69,7 @@ ok=0; bad=0; blocked=0; allowed=0
 pass() { ok=$((ok+1)); echo "  ok   - $1"; }
 fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
 
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/rabadon-loopbody.XXXXXX")
+LAB=$(mktemp -d "${TMPDIR:-/tmp}/rabadon-pipelinebody.XXXXXX")
 trap 'rm -rf "$LAB"' EXIT
 
 # K4: HOME lives under the lab and holds a canary, so a bloklama that fails open
@@ -109,7 +109,7 @@ echo "someone else's work" > "$OUTSIDE/data/file.txt"
 # section runs; the gate resolves the target and answers where it lands, and a
 # path under a real system directory lands outside both. K4 holds by
 # construction: there is nothing at the other end of it to lose.
-NOWHERE="/srv/rabadon-loopbody-no-such-path-$$"
+NOWHERE="/srv/rabadon-pipelinebody-no-such-path-$$"
 
 # A SUITE THAT REMEMBERS ITS LAST RUN IS NOT MEASURING THE LAW: the gate's
 # loop-stop rule refuses a command it has already seen 3x in one session, and

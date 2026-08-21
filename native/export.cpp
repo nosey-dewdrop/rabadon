@@ -400,7 +400,7 @@ struct Ev {
   long long tin = 0, tout = 0, usd_e6 = 0;
   // How long the thing this line reports actually took. The ledger writes its
   // `ts` when the event is APPENDED, which for every producer of dur_ms is
-  // after the work returned — loop.cpp calls attempt_metrics() on the proposer
+  // after the work returned — pipeline.cpp calls attempt_metrics() on the proposer
   // that just finished, net.cpp's finish() stamps now_ms() with the elapsed
   // time beside it. So the line describes the interval [ts - dur_ms, ts], and
   // the span it becomes is that interval rather than its final instant.
@@ -518,7 +518,7 @@ int main(int argc, char** argv) {
   // There used to be a third filter here: a hardcoded eight-name allow-list
   // (`kept[]`) that silently discarded anything else. It cost two of SPEC §2's
   // OWN ten values — STEP_OK and REPAIR_START, both emitted by rabadon's own
-  // gate.cpp / repair.cpp / loop.cpp — so the G3 proof ledger
+  // gate.cpp / repair.cpp / pipeline.cpp — so the G3 proof ledger
   // (reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl: 5
   // REPAIR_START, 2 REPAIR_OK, 3 REPAIR_FAIL) exported as 5 spans: repairs
   // that finish without ever starting, and every successful step invisible.
@@ -641,7 +641,7 @@ int main(int argc, char** argv) {
       // private session record, and no emitter has ever put them on a spool
       // line. What the shipped binaries write:
       //
-      //   loop.cpp:217  "tokens":<in+out+cache>, "in":<n>, "out":<n>,
+      //   pipeline.cpp:217  "tokens":<in+out+cache>, "in":<n>, "out":<n>,
       //                 "usd_e6":<n>, "dur_ms":<n>, "model":"<id>"
       //   gate.cpp:1499 "tokens":<n> alone, on the Stop ledger STEP_OK, and
       //                 that value is the session's cumulative tokensOut
@@ -873,7 +873,7 @@ int main(int argc, char** argv) {
     // span this exporter ever shipped had start == end, so a whole rabadon run
     // rendered in a trace viewer as a row of zero-width marks: the one thing a
     // person opens a trace to see, which of these steps was slow, was the one
-    // thing the document could not answer. loop.cpp has written dur_ms beside
+    // thing the document could not answer. pipeline.cpp has written dur_ms beside
     // the token count since the proposer sidecar landed and nothing read it.
     //
     // The direction is measured, not assumed. `ts` is stamped by the appender

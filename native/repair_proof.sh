@@ -2,7 +2,7 @@
 # repair_proof.sh — the FIRST real closed repair, proven end-to-end.
 #
 # This is the product's core claim made to run: a real project has a real bug
-# whose OWN test is red; rabadon-loop CATCHES it, drives a repair, and the
+# whose OWN test is red; rabadon-pipeline CATCHES it, drives a repair, and the
 # separate deterministic arbiter (rabadon-verify) accepts the fix ONLY because
 # the project's real test went green — and REJECTS a fix that games the judge.
 #
@@ -20,7 +20,7 @@ set -u
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-LOOP="$ROOT/native/rabadon-loop"
+LOOP="$ROOT/native/rabadon-pipeline"
 VERIFY="$ROOT/native/rabadon-verify"
 STATS="$ROOT/native/rabadon-stats"
 for b in "$LOOP" "$VERIFY" "$STATS"; do
@@ -92,7 +92,7 @@ run_scenario() {  # <name> <proposer>
   echo "────────────────────────────────────────────────────────────────"
   echo "  SCENARIO: $name   (proposer = ${prop##*/})"
   echo "  before:  python3 test_calc.py  ->  $(cd "$d" && python3 test_calc.py 2>&1 | tail -1)   [RED, add() is broken]"
-  echo "  ── rabadon-loop runs ──"
+  echo "  ── rabadon-pipeline runs ──"
   RABADON_PROPOSER="$prop" "$LOOP" "$d" "$d/plan.json" 2>&1 | sed 's/^/  /'
   local rc=${PIPESTATUS[0]}
   echo "  after:   python3 test_calc.py  ->  $(cd "$d" && python3 test_calc.py 2>&1 | tail -1)"

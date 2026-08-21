@@ -355,7 +355,7 @@ struct Event {
 // printed here and the spans rabadon-export ships agree on what a drill is.
 
 // A pipe label is "<project>:<surface>": the hooks write ":session"
-// (gate.cpp, drift.cpp, repair.cpp), `rabadon do` writes ":do" (loop.cpp),
+// (gate.cpp, drift.cpp, repair.cpp), `rabadon do` writes ":do" (pipeline.cpp),
 // `rabadon exec` writes ":exec" (sandbox.cpp). The surface is how the event
 // arrived, not what it happened to — so the ledger folds it off and groups by
 // the project. Listing the known suffixes was the bug: ":exec" was not on the

@@ -19,7 +19,7 @@
     "rabadon-drift",
     "rabadon-trace",
     "rabadon-verify",
-    "rabadon-loop",
+    "rabadon-pipeline",
     "rabadon-do",
     "rabadon-budget",
     "rabadon-lens",
