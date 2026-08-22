@@ -463,6 +463,10 @@ Bir tur tek bir oturumun context'ine sığmaz. Sığdırmaya çalışmak turu ya
 
 Yapan oturumun context'inde yalnız şunlar durur: planın ilgili bölümü, ajanların dönen **özetleri**, ve kararlar. Ham çıktı yapanın context'ine girmez.
 
+**Ajan sık commit eder.** Commit'lenmemiş iş sahipsizdir: 23.08'de iki kez ısırdı — bir ajan oturum limitine takılıp yarım kaldı, ve paralel koşan başka bir ajan onun commit'lenmemiş `gate.cpp` değişikliğini kendi commit'ine süpürdü. İkisinde de kod kurtarıldı ama biri iki mantıksal adım taşıyan bir commit bıraktı. Kural: çalışan her adım hemen commit'lenir, "tur bitince toplu commit" yoktur.
+
+**Aynı dosyaya dokunacak ajanlar paralel salınmaz.** Aynı anda koşacaklarsa ayrı worktree'de koşarlar (`isolation: worktree`). Çakışma ihtimali varsa sıraya alınır — paralellik, kaybolan iş kadar değerli değildir.
+
 Kural: bir ajanın dönüş raporu **40 satırı geçmez** ve ölçüm içerir. Ajan "yaptım" diyemez; ne koştuğunu ve ne çıktığını yazar. Paralel çalışabilecek parçalar aynı anda salınır.
 
 ### Danışman
