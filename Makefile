@@ -123,6 +123,27 @@ test: all
 # and refusal path, exit codes compared. If R1 can move a verdict, R1 is not a
 # recorder and this goes red.
 	./native/moves_test.sh
+# moves_test.sh guards R1's record. Nothing in this target guarded what READS
+# that record: R2's five detectors (native/signals.h) and R3's tier-1
+# fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an
+# acceptance script is a one-time argument that a round shipped -- it is not in
+# the suite, so a later round could loosen a threshold, drop the `failed >= 2`
+# clause, or invert the cascade and every check here would stay green. This is
+# the standing check. Each of the five detectors gets a fixture that fires it and
+# a nearest neighbour that must not, and the negatives carry the weight: Law 1
+# says the expensive failure is the false positive, so the fixtures that must
+# stay silent are the ones that nearly broke a rule already -- lint/build/lint/
+# build (which once fired `repeat`), a test refactor on a GREEN suite, a test
+# file that GAINS assertions, and a red->green where the SOURCE was fixed. For
+# tier 1 it asserts the cascade as a fact rather than a comment: three
+# byte-identical edits are similarity 1.00, the loudest possible tier-1 input,
+# and tier 1 must not run at all because tier 0's hash already matched. Both kill
+# switches (RABADON_SIGNALS=0, RABADON_SEM=0) and the silence contract -- no exit
+# code moves, stdout stays empty, because stdout is a hook's permission channel
+# -- are held from the outside. No assertion can pass on an empty spool: if the
+# gate never saw a fixture the negative is red, not green, which is the vacuity
+# bug moves_test.sh and reports/R2/accept.sh each shipped once.
+	./native/signals_test.sh
 # baseline_test.sh asks the push law about the three spellings it knows: --force,
 # -f, and a leading + on a refspec. this one asks about the spelling that
 # contains none of them and is the strongest of all: `git push --mirror origin`
