@@ -1,0 +1,150 @@
+# R0 BASELINE — measured on the round's own commit
+#
+# Every number below is the output of the command printed next to it, never
+# typed by hand. reports/R0/accept.sh reads this file. If this file is edited
+# to lower a number, that is the reward hack this product exists to refuse, and
+# `git log -- reports/R0/` shows it in one line.
+#
+# date: 2026-08-22
+# git HEAD at measurement: 165949ab47d4aecc65d36710757d3e6c28cf1b02
+# uname: Darwin 24.2.0 arm64
+#
+# NOTE ON R0 AND GATE 1. R0 is a handover round: it moves a document, closes two
+# hygiene debts and writes POSITIONING.md. It changes no gate behaviour, so the
+# "written before implementation by a session that cannot implement it" rule
+# that governed T1/T2 buys nothing here — there is no behaviour a baseline could
+# be gamed against. What this file pins is the one thing R0 could still break:
+# the test count. It was measured AFTER the Makefile change, under the harsher
+# condition described below, and the number is identical to the run before it.
+
+==========================================================================
+1. make test — the number no round may lower
+==========================================================================
+
+full log kept next to this file, unedited:  reports/R0/baseline-make-test.txt
+
+command that produced the log:
+    make clean && PATH="/tmp/rab_noclang:$PATH" make test \
+        > reports/R0/baseline-make-test.txt 2>&1; echo EXIT=$? >> ...
+
+  where /tmp/rab_noclang/clang++ is a shim that prints to stderr and exits 127.
+  This is the S0.2 proof standing in for "a container with only g++": it does
+  not prove g++-only Linux, it proves that NOTHING in the build or the test
+  scripts reaches for a compiler named `clang++`. The shim was never invoked
+  (0 occurrences of "clang++ SHIM" in the log). See section 3.
+
+MAKE_TEST_EXIT=0
+MAKE_TEST_PASSED=2015
+MAKE_TEST_FAILED=0
+
+  MAKE_TEST_PASSED is the sum of the per-suite "N passed, 0 failed" / "N ok,
+  0 fail" summary lines, counted exactly the way reports/T2/accept.sh counts
+  them, so the two rounds' numbers are comparable:
+      grep -oE '[0-9]+ (passed|ok), *[0-9]+ failed' LOG \
+        | grep -oE '^[0-9]+' | paste -sd+ - | bc
+
+  The log also contains 3332 individual "  ok   - ..." assertion lines. That is
+  a different, larger count (not every suite prints a summary line in the
+  matched format). Recorded here so a later reader does not think one of the
+  two numbers is wrong:
+
+MAKE_TEST_OK_LINES=3332
+
+==========================================================================
+2. the document handover
+==========================================================================
+
+  before R0: PROTOCOL-T1-T8.md sat in the repo root beside a second plan.
+  after  R0: it is at docs/internal/arsiv/PROTOCOL-T1-T8.md, first line marked
+             cancelled, and KOSU-RABADON.md is the only plan in the root.
+
+ARCHIVED_PROTOCOL=docs/internal/arsiv/PROTOCOL-T1-T8.md
+ACTIVE_PLAN=KOSU-RABADON.md
+
+  reports/T1/ and reports/T2/ are untouched: that work was done and it stands.
+  Their accept.sh scripts still name PROTOCOL-T1-T8.md by its old root path.
+  That is left alone on purpose — an acceptance script is evidence of what was
+  accepted on the day it ran, and editing one to match today's tree is the move
+  this project refuses. It is written down in reports/R0/CLAIM.md instead.
+
+==========================================================================
+3. S0.2 — the compiler fallback, as it actually stands today
+==========================================================================
+
+  PROJECT.md S0.2 offers two remedies: `${CXX:-c++}` in every test script, OR
+  `export CXX` in the Makefile. The first was already done — ten scripts under
+  native/ carry `CXX="${CXX:-c++}"` with the reason written above the line:
+
+CXX_CPLUSPLUS_FALLBACK_SCRIPTS=10
+    command: grep -rl 'CXX:-c++' native/ | wc -l
+
+  and zero scripts anywhere still fall back to a clang-only name:
+
+CXX_CLANG_FALLBACK_SITES=0
+    command: grep -rn 'CXX:-clang' --include='*.sh' --include='Makefile' \
+                 --include='*.yml' --include='*.py' . | wc -l
+
+  What was left was the Makefile's own default, `CXX ?= clang++`, which on a
+  g++-only Linux box names a command that does not exist and kills `make all`
+  before a single test runs. R0 changes it to `CXX ?= c++`.
+
+  R0 does NOT `export CXX`, and the second remedy in S0.2 is the wrong one: an
+  exported CXX overrides the ten scripts' own fallback, which is the exact
+  protection the comment at native/cmdtext_test.sh:31 was written to provide.
+  Doing both would undo the first. This is recorded as a challenge to the plan
+  in reports/R0/CLAIM.md rather than as a silent fix.
+
+  S0.2's stated proof is "`make test` exits 0 in a container with only g++".
+  That container was NOT run. What was run is the shim in section 1, on macOS.
+
+S0_2_PROVEN_ON=darwin-arm64-with-clang-shim
+S0_2_PROVEN_ON_LINUX_G_PLUS_PLUS=no
+
+  So S0.2's checkbox in PROJECT.md stays unticked. R0 removed the last reason
+  it would fail; it did not produce the evidence the plan asks for.
+
+==========================================================================
+4. S0.4 — the 7-day / 30-day mismatch
+==========================================================================
+
+  The mismatch S0.4 names is between the README's usage sample and BENCHMARK.md.
+  In today's tree the README sample already reads "last 30 day(s)" and is
+  labelled with the command and date that produced it (README:53-56), matching
+  BENCHMARK.md section 3's 30-day table.
+
+README_7DAY_SITES=0
+    command: grep -c '7 day' README.md
+
+  One "last 7 day(s)" line survives, at docs/quickstart.md:148, and it is
+  CORRECT rather than stale: `rabadon usage` really does default to a 7-day
+  window (native/stats.cpp:472, `double days = 7;`), and the sample under it is
+  explicitly labelled "(EXAMPLE OUTPUT from a fresh install)" carrying
+  fresh-install numbers — 3 refused, 41 gated — not BENCHMARK's 30-day numbers.
+  Rewriting it to 30 would make the quickstart show a window the command does
+  not use by default.
+
+QUICKSTART_7DAY_SITES=1
+QUICKSTART_7DAY_IS_HONEST=yes
+USAGE_DEFAULT_DAYS=7
+    command: grep -n 'double days = 7' native/stats.cpp
+
+  KOSU-RABADON.md section 1 says docs/quickstart.md:148 "repeats" the README's
+  error. It does not. That line in the plan is wrong and R0 does not act on it.
+
+==========================================================================
+5. POSITIONING
+==========================================================================
+
+  docs/POSITIONING.md is new in R0. Its acceptance claim is that every product
+  named in KOSU-RABADON.md section 1b carries a URL there. The product names
+  the accept script checks for:
+
+POSITIONING_PRODUCTS=ccusage codeburn ccost cccost CCTracker claude-usage-tracker Lineman LangWatch agent-guardrails Rulebricks hookify security-guidance claude-plugins-official claudemarketplaces LiteLLM
+
+  Eleven claims from section 1b could NOT be confirmed at a primary source on
+  2026-08-22 and are marked UNVERIFIED in POSITIONING.md rather than deleted.
+  Two are actively contradicted by the primary source (Lineman's per-seat
+  pricing; February 2026 hooks RCE CVEs). The list is in reports/R0/CLAIM.md.
+
+NPM_PUBLISHED=no
+    command: npm view rabadon version   ->   404
