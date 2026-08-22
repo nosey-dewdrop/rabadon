@@ -41,6 +41,7 @@
 #include "hookev.h"  // ONE place that turns any agent's event into rabadon's event
 #include "moves.h"   // R1: the move record. Recorded here, read by nothing here.
 #include "signals.h" // R2: five detectors over that record. Silent by law.
+#include "semantic.h"// R3: tier 1, the SHAPE of an edit. Adds a signal, never changes one.
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -1145,6 +1146,9 @@ struct State {
   // between a record with a known hole and a record that quietly lies. The
   // policy and its numbers are written down in docs/butce.md.
   string moves_path() const { return sessDir + "/" + sessKey + ".moves.bin"; }
+  // R3: the tier-1 fingerprints, one sidecar slot per move seq. Beside the
+  // move ring rather than inside it — see the storage note in native/semantic.h.
+  string fps_path() const { return sessDir + "/" + sessKey + ".fp.bin"; }
 
   string lastMoveHash;
 
@@ -1426,7 +1430,33 @@ struct State {
   string lastSessBytes;
   bool   lastSessValid = false;
 
+  // R1.3 — ONE EVENT, ONE SESSION-FILE WRITE.
+  //
+  // The recorder used to call save() the moment it had appended the move,
+  // because every refusal branch below it returns early and a record that only
+  // survives the allow path is a record of the wrong half of the session. A
+  // later branch then saved again, and that second save was a GENUINE write:
+  // actionCount, recent and lastCmd really do change in between, so the bytes
+  // differ and dirty-tracking cannot skip it. Two real writes for one event.
+  //
+  // The fix is not to record later, it is to WRITE later. The recorder now
+  // marks instead of writing, and the mark is discharged either by the next
+  // save() the event was going to make anyway — which then carries the record
+  // and the branch's own changes in the SAME write — or, on a path that makes
+  // no further save, by the guard in main() that runs on every exit.
+  //
+  // WHAT THE MARK DEFERS IS NOT THE RECORD. The move itself is already on disk
+  // before the mark is set: append_move() has written the ring record and its
+  // header. The only session-file field the recorder block touches is nextSeq,
+  // and load_moves() overwrites nextSeq from the ring header on every load, so
+  // the session file's copy is a duplicate of a fact that is already durable.
+  // That is why deferring is safe here and would not be for a field the ring
+  // does not carry.
+  bool pendingRecord = false;
+  void flush() { if (pendingRecord) save(); }
+
   void save() {
+    pendingRecord = false;
     const string body = write_sess(sess);
     if (!lastSessValid || body != lastSessBytes) {
       mkdir(sessDir.c_str(), 0755);
@@ -1491,6 +1521,35 @@ struct State {
   long long green_at() const {
     return sess.lastTestPass > lastTestVerified ? sess.lastTestPass : lastTestVerified;
   }
+};
+
+// ---- the guard that makes "every exit" mean EVERY exit -----------------------
+//
+// A destructor covers `return` out of main. It does NOT cover exit(), and this
+// file exits rather than returns on three paths that matter — the sealed-rule
+// block (exit 2), watch mode (exit 0) and the budget cap (exit refuse_code()).
+// Those are refusals, exactly the paths whose records must not be lost, so a
+// destructor alone would have shipped the bug this change exists to avoid.
+// exit() runs atexit handlers with main's frame still alive, so the guard
+// registers one and the destructor disarms it; whichever fires first flushes,
+// and the second finds nothing pending because save() clears the mark.
+//
+// _exit() IS NOT COVERED, DELIBERATELY. The three _exit(127) calls in this file
+// are all in a forked child whose execvp/execlp just failed (the judge, the
+// suite runner, the net). A child inherits the parent's pending mark and must
+// never write the parent's session file, so the absence of both the destructor
+// and the atexit handler there is the correct behaviour, not a gap. No path in
+// the parent process calls _exit, abort or exec.
+//
+// A signal kill or a crash between the recorder and the exit loses the pending
+// write. What it does not lose is the record: the ring append already happened,
+// and the only session-file field at stake is nextSeq, which load_moves() takes
+// from the ring header anyway.
+static State* g_flush_state = nullptr;
+static void rb_flush_pending() { if (g_flush_state) g_flush_state->flush(); }
+struct StateFlushGuard {
+  explicit StateFlushGuard(State& s) { g_flush_state = &s; atexit(rb_flush_pending); }
+  ~StateFlushGuard() { State* s = g_flush_state; g_flush_state = nullptr; if (s) s->flush(); }
 };
 
 // ---------- run the project's own suite (the push gate) ----------
@@ -2247,6 +2306,7 @@ int main(int argc, char** argv) {
   const string sidLegacy = sid.empty() ? "default" : sid.substr(0, 16);
   unlink((cwd + "/.rabadon/state-native-" + sidLegacy + ".txt").c_str());
   State stt;
+  StateFlushGuard stt_flush(stt);   // every exit path, including exit(): see above
   stt.path = cwd + "/.rabadon/state.json";
   stt.sessDir = cwd + "/.rabadon/sessions";
   stt.sessKey = session_key(sid);
@@ -2299,14 +2359,17 @@ int main(int argc, char** argv) {
   // ---------- R1: write down the move, and change nothing ----------
   // Placed here on purpose: cwd, tool, command and file path are all resolved,
   // and not one line below this point reads `ss.moves` to decide anything. The
-  // record is saved immediately rather than at the end of the branch, because
-  // the branches below return early — including every refusal — and a record
-  // that only survives the allow path is a record of half the session, which is
-  // the wrong half.
+  // record is written to the ring immediately rather than at the end of the
+  // branch, because the branches below return early — including every refusal —
+  // and a record that only survives the allow path is a record of half the
+  // session, which is the wrong half.
   //
-  // The cost is one extra write of a file this process was already going to
-  // write. If that ever shows up in gate_bench, the fix is to make save() dirty-
-  // tracked, not to stop recording refusals.
+  // The session file is a different question and it used to be answered wrong:
+  // this block also called save(), and the branches below save again with real
+  // changes of their own, so one event cost two rewrites of the largest file
+  // rabadon owns. It now marks the session dirty and StateFlushGuard writes
+  // once, on whichever exit the event takes. Recording refusals is not what got
+  // cheaper; writing them twice is what stopped.
   if (rbmoves::enabled() && (hook == "PreToolUse" || hook == "PostToolUse") &&
       (toolName == "Bash" || toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit")) {
     Sess& ms = stt.session();
@@ -2339,6 +2402,15 @@ int main(int argc, char** argv) {
       rbmoves::push(ms.moves, ms.nextSeq, m);
       open_move = &ms.moves.back();
       stt.append_move(*open_move);
+      // R3 tier 1: the shape of the text that was written, stored beside the
+      // move it belongs to. Computed once, here, on the move that is new —
+      // never on a completion, which carries no text — and only for edits,
+      // because a shell command's shape is not what tier 0 misses about it.
+      if (!isBash && rbsem::enabled()) {
+        const string& txt = E.newString.empty() ? E.content : E.newString;
+        if (!txt.empty())
+          rbsem::store(stt.fps_path(), open_move->seq, rbsem::fingerprint(txt));
+      }
     }
 
     if (hook == "PostToolUse") {
@@ -2374,7 +2446,41 @@ int main(int argc, char** argv) {
                 ",\"seqs\":[" + seqs + "]");
       }
     }
-    stt.save();
+
+    // ---------- R3: tier 1, and it runs AFTER tier 0 for a reason -----------
+    // The cascade is the whole safety argument. rbsig::detect above has already
+    // had its say and its lines are already in the spool; nothing below can
+    // reach back and change one. rbsem::detect refuses to run at all on a move
+    // whose tier-0 hash matched something in the window, so the two tiers never
+    // describe the same pair of moves. Tier 1 ADDS a line to the ledger and
+    // that is the whole extent of its authority: no return, no permission
+    // decision, no exit code, no stdout. Still silent mode, exactly as in R2.
+    //
+    // Gated by rbsig::enabled() as well as its own switch: tier 1 is a
+    // detector, and turning the detectors off has to turn all of them off.
+    if (rbsig::enabled() && rbsem::enabled()) {
+      rbsem::Loader fps(stt.fps_path());
+      for (const auto& h : rbsem::detect(ms.moves, fps)) {
+        string seqs;
+        for (size_t i = 0; i < h.seqs.size(); i++)
+          seqs += (i ? "," : "") + std::to_string(h.seqs[i]);
+        // "tier":1 is written as well as the name: a reader that has to parse a
+        // signal's NAME to learn which tier spoke gets it wrong the first time
+        // a name changes.
+        em.emit("SIGNAL",
+                "\"signal\":\"" + h.name + "\""
+                ",\"tier\":1"
+                ",\"conf\":" + std::to_string(h.conf).substr(0, 4) +
+                ",\"why\":\"" + json_escape(h.why) + "\""
+                ",\"seqs\":[" + seqs + "]");
+      }
+    }
+    // MARK, do not write. The move is already durable (append_move wrote the
+    // ring above); what is deferred is the session file, and it is discharged
+    // by the next save() this event makes or by StateFlushGuard on the way out.
+    // Every refusal path below still records, because every one of them either
+    // saves or exits, and both discharge the mark.
+    stt.pendingRecord = true;
   }
 
   // ---------- is a model allowed to answer at all? DEFAULT: NO ----------
