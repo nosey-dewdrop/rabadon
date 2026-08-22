@@ -1,3 +1,6 @@
+> **İPTAL, 2026-08-22.** Geçerli belge: repo kökündeki `KOSU-RABADON.md`.
+> Bu dosya arşivdir; T1 ve T2 turlarında yapılmış iş repoda geçerli kalır.
+
 # rabadon — ürün protokolü
 
 Tarih: 2026-08-20.

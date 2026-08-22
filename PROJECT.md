@@ -6,6 +6,14 @@ Every agent session MUST start by reading this file and MUST end by
 updating the STATUS block of the promise it touched. A session that
 does not update this file did not happen.
 
+**The current run is KOSU-RABADON.md**, in the repo root: technical rounds
+R0-R8, marketing rounds M0-M4. It replaced PROTOCOL-T1-T8.md on 2026-08-22,
+which is now cancelled and archived at `docs/internal/arsiv/PROTOCOL-T1-T8.md`.
+The T1 and T2 work stands; `reports/T1/` and `reports/T2/` are unchanged. If
+KOSU-RABADON.md and this file ever disagree, this file wins and the conflict is
+written into the round's CLAIM.md — see `reports/R0/CLAIM.md` for two that
+already happened.
+
 ## Invariants (sealed — changing any line here requires human
 ## approval and a ledger event; a planning run may not touch this block)
 
