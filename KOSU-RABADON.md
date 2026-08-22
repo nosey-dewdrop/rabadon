@@ -411,6 +411,16 @@ Kabul: Show HN yayında; ilk 30 gün üç oran ölçülmüş ve reports/M4/'e ya
 | yargıç | tur kapanışında | diff + rapor + kabul + bütçe; tarihçe değil | reports/R<n>/kapi.md |
 | danışman | SORU.md yazıldığı anda | plan + SORU + profil/ölçüm + ilgili kod; tur anlatısı değil | reports/R<n>/KARAR.md |
 
+### Ölçemeyen bir bütçe kapısı, olmayan bir kapıdan kötüdür
+
+23.08'de kanıtlandı: R1.3'ün kabul betiği, **hiç değişmemiş tek bir ikili dosyada** beş koşuda 602, 118, 213, −59, 228 µs verdi — tavan ~212. Aynı kod hem geçti hem kaldı. Uzunluk testi aynı şekilde %0.4 ile %11.7 arasında salındı, tavan %10.
+
+Bu bir tur sorunu değil, **alet sorunu**. Süreç başlatma 4.2 ms'lik çağrının ~2.3 ms'si; 200 µs'lik bir bütçeyi o gürültünün içinden ölçmeye çalışmak, terazi yerine zar atmaktır. Ve zar atan bir kapı, yokluğundan kötüdür: gerçek bir regresyonu geçirir, temiz bir turu keser, ve iki kararına da kimse güvenmez.
+
+**Kural: bir bütçe maddesi, ölçtüğü büyüklüğü çözebildiğini KANITLAMADAN kullanılmaz.** Kanıt yöntemi ekilmiş regresyondur — ölçüme bilerek bilinen bir maliyet (ör. 150 µs) eklenir ve alet onu tekrarlanabilir şekilde yakalıyor mu diye bakılır. Yakalayamıyorsa o madde yeşil dönse bile hiçbir şey söylemiyordur.
+
+**Aleti değiştirmek gevşetme değildir; iddianın KONUSUNU küçültmek gevşetmedir.** "Kayıt tavanın altında maliyetli" cümlesi aynı kalır, ölçen şey değişir. Bu ayrımı yargıç denetler (KAPI-PROMPT 4. soru).
+
 ### Sayı yazan doküman, kod büyüdükçe yalana döner
 
 23.08'de yakalandı: `make test` R3'ten **önce** kırmızıydı ve kimse fark etmemişti. Sebep `site_claims_test.sh` — README "~17k satır" diyordu, `native/` 20.231'e çıkmıştı, test bandı 18k–22k. Yani kırmızıyı yapan yeni kod değil, **eski bir cümlenin bayatlaması**ydı; her tur `native/`'e satır eklediği için bu bir zaman meselesiydi.
