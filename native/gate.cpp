@@ -513,6 +513,82 @@ static string guard_path_for(const string& cwd) {
 // the spool, whose "to" is the mode rabadon last saw itself in. Files are
 // walked newest-first and the scan stops at the first hit, so on a machine
 // that never changes mode this touches one day file and reads no further.
+//
+// R1.3 — THE TAIL, NOT THE WHOLE FILE. This read the entire day file into a
+// string on EVERY hook event, and the day file is the spool: it grows with the
+// session. Measured in-process on an instrumented copy, a 50-event sandbox
+// against a 400-event one (spool 42 KB vs 120 KB), this probe went 218 us ->
+// 807 us while every other probe moved by tens. It was the whole of the gate's
+// remaining dependence on session length, which the plan forbids outright:
+// hot-path cost cannot depend on how long the session has run.
+//
+// What it needs is the LAST marker, and the last marker is at the END. So it
+// reads a bounded window off the tail and scans that. Nothing about the answer
+// changes: the window is a suffix of the file, a partial line at its head is
+// discarded so no truncated record can be misread, and the newest MODE line in
+// a suffix IS the newest MODE line in the file whenever the suffix holds one.
+// When the window holds none — a MODE line older than 32 KB of spool — the
+// whole file is read exactly as before and the old answer comes back. The fast
+// path is an optimisation; the slow path is still the definition.
+//
+// The slow path is not rare, either, and that is worth saying plainly: a machine
+// that has never changed mode has no MODE line anywhere, so it misses the window
+// on every event. Absence cannot be proved without looking at every byte. What
+// CAN be fixed is how those bytes are read. `read_file` builds the string
+// through an ostringstream, which reallocates as it goes and cost 684 us on a
+// 120 KB spool; the reader below stats the file, sizes the string once and does
+// one read into it. Same bytes, same answer, one allocation.
+static const size_t LEDGER_TAIL_BYTES = 32768;
+
+// The last `want` bytes of a file (the whole file when `want` exceeds its size),
+// with any partial first line dropped. `whole` comes back true when the window
+// covered the file, which is the caller's signal that a miss is a real miss and
+// not a window that was too small.
+static string read_tail(const string& p, size_t want, bool* whole) {
+  *whole = true;
+  const int fd = open(p.c_str(), O_RDONLY);
+  if (fd < 0) return "";
+  struct stat st;
+  if (fstat(fd, &st) != 0 || st.st_size <= 0) { close(fd); return ""; }
+  const size_t sz = (size_t)st.st_size;
+  const bool partial = sz > want;
+  const size_t n = partial ? want : sz;
+  string buf(n, '\0');
+  size_t got = 0;
+  while (got < n) {
+    const ssize_t r = pread(fd, &buf[got], n - got, (off_t)(sz - n + got));
+    if (r <= 0) break;
+    got += (size_t)r;
+  }
+  close(fd);
+  buf.resize(got);
+  if (!partial) return buf;
+  *whole = false;
+  // The window starts mid-line. That fragment is not a record and must not be
+  // parsed as one, so it is cut; everything after the first newline is whole.
+  const size_t nl = buf.find('\n');
+  if (nl == string::npos) return "";
+  return buf.substr(nl + 1);
+}
+
+// The scan itself, unchanged, lifted out so the tail and the full read share it
+// byte for byte rather than being two implementations that have to agree.
+static string scan_ledger_mode(const string& blob) {
+  size_t pos = blob.rfind("\"ev\":\"MODE\"");
+  while (pos != string::npos) {
+    size_t ls = blob.rfind('\n', pos);
+    ls = (ls == string::npos) ? 0 : ls + 1;
+    size_t le = blob.find('\n', pos);
+    if (le == string::npos) le = blob.size();
+    const string line = blob.substr(ls, le - ls);
+    const string to = get_str(line, "to");
+    if (!to.empty()) return to;
+    if (ls == 0) break;
+    pos = blob.rfind("\"ev\":\"MODE\"", ls - 1);
+  }
+  return "";
+}
+
 static string last_ledger_mode() {
   const string sp = rabadon_home() + "/spool";
   DIR* d = opendir(sp.c_str());
@@ -525,18 +601,16 @@ static string last_ledger_mode() {
   closedir(d);
   std::sort(days.rbegin(), days.rend());
   for (const string& n : days) {
-    const string blob = read_file(sp + "/" + n);
-    size_t pos = blob.rfind("\"ev\":\"MODE\"");
-    while (pos != string::npos) {
-      size_t ls = blob.rfind('\n', pos);
-      ls = (ls == string::npos) ? 0 : ls + 1;
-      size_t le = blob.find('\n', pos);
-      if (le == string::npos) le = blob.size();
-      const string line = blob.substr(ls, le - ls);
-      const string to = get_str(line, "to");
-      if (!to.empty()) return to;
-      if (ls == 0) break;
-      pos = blob.rfind("\"ev\":\"MODE\"", ls - 1);
+    const string path = sp + "/" + n;
+    bool whole = false;
+    const string to = scan_ledger_mode(read_tail(path, LEDGER_TAIL_BYTES, &whole));
+    if (!to.empty()) return to;
+    // The window found nothing and did not cover the file: read every byte, the
+    // way this always did, so no input can get a different answer than before.
+    if (!whole) {
+      bool all = false;
+      const string full = scan_ledger_mode(read_tail(path, (size_t)-1, &all));
+      if (!full.empty()) return full;
     }
   }
   return "";
