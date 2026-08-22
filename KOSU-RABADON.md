@@ -51,7 +51,7 @@ Operatörün 4. sorusunun cevabı ("neye göre düzeltiyor?"): rabadon düzeltme
 **C. Maliyet — ccusage de facto, Lineman ücretli, Anthropic sayıyı kendisi veriyor.**
 - Anthropic'in kendi maliyet sayfası: ortalama $13/geliştirici/aktif gün, $150-250/geliştirici/ay. Microsoft bir bölümde Claude Code lisanslarını iptal etti; "kaç para yanıyor" sorusu CFO seviyesinde.
 - ccusage `~/.claude/projects/` JSONL'ini okuyor, LiteLLM fiyat tablosu kullanıyor, 16 ajan CLI'sini destekliyor. codeburn, ccost, cccost, claude-usage-tracker aynı JSONL'i okuyan türevler. Hepsi "ne harcadın" der; hiçbiri "ne harcamak zorunda değildin" demez.
-- Lineman.io: koltuk başına değil hesap başına aylık abonelik, yöntemi ikinci bir model çalıştırıp tool çıktısını sıkıştırmak; ağ erişimi şart (api.lineman.io). Bizim kurtardığımız token, onların sıkıştırdığı token değil: onlar her çağrıyı küçültür, biz gereksiz çağrıyı hiç yaptırmaz. Tamamlayıcı, rakip değil; ama fiyat tavanı olarak referans.
+- Lineman.io: **$14.99/$49.99 ay, takım geneli** — kendi fiyat sayfasının cümlesi "One price covers your whole team — we never charge per person". Koltuk fiyatı diye bir şey yok, "$49 koltuk" referansı ölü. Yöntemi ikinci bir model çalıştırıp tool çıktısını sıkıştırmak; ağ erişimi şart (api.lineman.io). Bizim kurtardığımız token, onların sıkıştırdığı token değil: onlar her çağrıyı küçültür, biz gereksiz çağrıyı hiç yaptırmaz. Tamamlayıcı, rakip değil; ama fiyat tavanı olarak referans.
 - LangWatch: abonelik oturumlarına "API liste fiyatıyla teorik maliyet" etiketi basıyor. Anthropic da kendi `/usage` dokümanında aynı sınırı kabul ediyor. Doğru pratik, biz de aynısını yaparız (Yasa 7).
 
 **D. Dağıtım — plugin marketplace dev tool dağıtımının yeni kapısı.**
@@ -292,12 +292,13 @@ Kabul (reports/R6/accept.sh):
 
 **Hız.** Kapı süresinin büyük kısmı süreç başlatma. Kalıcı daemon (rabadon-gated, unix socket) + ince istemci ile yargılama süresine iner; daemon yoksa istemci bugünkü yola düşer: fail-open değil, fail-same.
 
-**Kanıt.** İki kollu koşu: aynı görev seti, A kolu ajan yalnız, B kolu ajan + birikme motoru. Harness sıfırdan yazılmaz (SWE-smith ya da Terminal-Bench/Harbor yeniden kullanılır; Cursor'ın 25.06 yazısındaki .git temizleme ve egress kapatma hazırlığı uygulanır — Cursor'ın kendisi bunu "best-effort" diye niteliyor, biz de öyle yazarız; yoksa ajan cevabı git geçmişinden bulup her iki kolu da şişirir). Beş sayı: gerçek fix oranı (held-out testle, ajanın kendi testiyle değil), harcanan token, insan müdahalesi, yanlış pozitif oranı, ve sayaç doğrulaması — B kolunda sayacın "tahmini kurtarılan" toplamı iki kol arasındaki gerçek token farkıyla karşılaştırılır, sapma yüzdesi raporlanır. Ham JSONL reports/R7/ altına, özet değil.
+**Kanıt.** İki kollu koşu: aynı görev seti, A kolu ajan yalnız, B kolu ajan + birikme motoru. Harness sıfırdan yazılmaz. **Kullanılan harness'ın tam repo adı ve commit'i reports/R7/ altına yazılır — zorunlu.** Terminal-Bench adı tek başına bir şeye işaret etmiyor: `laude-institute/terminal-bench` v1, `harbor-framework/terminal-bench-2` v2, gerçek harness artık `harbor-framework/harbor`, ve `alibaba/terminal-bench-pro` üçüncü taraf. Hangisi olduğu yazılmadan beş sayının hiçbiri karşılaştırılabilir değildir. (SWE-smith ya da Terminal-Bench/Harbor yeniden kullanılır; Cursor'ın 25.06 yazısındaki .git temizleme ve egress kapatma hazırlığı uygulanır — Cursor'ın kendisi bunu "best-effort" diye niteliyor, biz de öyle yazarız; yoksa ajan cevabı git geçmişinden bulup her iki kolu da şişirir). Beş sayı: gerçek fix oranı (held-out testle, ajanın kendi testiyle değil), harcanan token, insan müdahalesi, yanlış pozitif oranı, ve sayaç doğrulaması — B kolunda sayacın "tahmini kurtarılan" toplamı iki kol arasındaki gerçek token farkıyla karşılaştırılır, sapma yüzdesi raporlanır. Ham JSONL reports/R7/ altına, özet değil.
 
 Kabul (reports/R7/accept.sh):
 - daemon açıkken kapı medyanı < 1 ms, gate_bench ile ölçülü
 - daemon kapalıyken davranış bugünküyle bayt bayt aynı
 - iki kolun ham verisi mevcut ve bench/reproduce.sh ile yeniden üretilebilir
+- reports/R7/ altında harness'ın tam repo adı ve commit hash'i yazılı; test bunun varlığını kontrol eder
 
 ## R8 — yayın
 
@@ -307,6 +308,8 @@ npm paketi ilk kez gerçekten çıkar. Bilinen üç kırık bu turda kapanır, y
 3. Yayın yeşil main'den, temiz tag'le yapılır; kırmızı tabandan publish yasak.
 
 Plugin paketi: repo köküne .claude-plugin/plugin.json + hooks/hooks.json girer; hook'lar npm'deki aynı binary'yi çağırır, ikinci kod yolu yoktur. Kurulum iki cümle olur: `npm i -g rabadon` ya da `/plugin marketplace add <org>/rabadon && /plugin install rabadon@rabadon`. Plugin README'si açıkça yazar: hot-path'te ağ yok, model yok, izin dosyasına yazmıyor — PromptArmor saldırı sınıfına karşı savunma cümlesi dürüst olarak söylenebildiği için söylenir.
+
+**Canonical dizin `anthropics/claude-plugins-official`'dır — PR oraya gider.** Aynı plugin isimlerini taşıyan üç repo var ve yanlışına gitmek dağıtımı boşa harcar: `anthropics/claude-code/plugins/` bir *demo* marketplace, `anthropics/claude-plugins-community` üçüncü bir dizin. Otomatik kayıtlı ve Anthropic yönetimli olan yalnız `claude-plugins-official`.
 
 Free/paid ayrımı bu turda sadece bayraktır: RABADON_TIER=free sinyalleri ve sayacı çalıştırır ama enjeksiyonu ve repair kolunu kapatır; free'de kapanış satırı "düzeltme kapalıydı, tahmini X $ yandı" der. Lisans/ödeme altyapısı bu koşunun dışıdır, bayrak yeterlidir.
 
@@ -365,10 +368,18 @@ Sıra, aynı hafta:
 4. r/ClaudeAI, r/cursor, Anthropic Discord: aynı gün, aynı beş sayı.
 5. Mevcut hasat akışı: LinkedIn/Substack uzun yazı + reels (M1 formatı).
 
-Fiyat hipotezi (M4'te test edilir, doğru kabul edilmez):
+Fiyat hipotezi: **AÇIK — M3 sonrası yeniden yazılır.**
+
+Eski hipotez ($12/ay kişisel Pro) tek bir dayanağa oturuyordu: Lineman'ın "$49 koltuk" fiyatının çok altında kalmak. O koltuk yok (§1b). Takım geneli $14.99'un karşısında $12/kişi, iki kişilik bir takımda bile bizi pahalı yapıyor — yani hipotezin gerekçesi çürüdü, sayısı değil. Sayıyı gerekçesiz taşımak Yasa 7'nin ihlali olur.
+
+Yeniden yazımın ön koşulu M3'tür: iki kollu koşu, rabadon'un bir oturumda gerçekte kaç dolar kurtardığını ölçmeden fiyatın dayanacağı tek dürüst zemin yok. M3 bittiğinde bu blok şunlarla yeniden yazılır: ölçülen kurtarma başına değer, free→Pro'nun neye karşı satıldığı, ve rakip fiyatının kendi yayınladığı hâli.
+
+Bu koşuda sabit kalan tek şey ayrımın kendisi (bayrak, R8):
 - Free: sinyaller + sayaç, düzeltme kapalı. "Tahmini X $ yandı" satırı conversion'ın kendisidir.
-- Pro: $12/ay kişisel. Enjeksiyon + repair açık. (Referans: ccusage ücretsiz; Lineman'ın en ucuz planı $14.99/ay — koltuk başına değil, hesap başına. Fiyat tavanı buna göre okunur, "$49 koltuk" diye değil.)
+- Pro: enjeksiyon + repair açık. **Fiyat: açık.**
 - Team: M4 sonrası, plugin marketplace'in team dağıtımı üstüne; fiyat ilk 20 Pro kullanıcının söylediğiyle belirlenir.
+
+M4, fiyatı açık bırakarak da koşabilir: ölçülecek üç oranın ikisi (landing → install, install → 7 gün sonra hâlâ kurulu) fiyattan bağımsızdır. Üçüncüsü (free → Pro) fiyat yazılana kadar ölçülemez ve bu, M4 raporunda eksik değil, bilinen bir boşluk olarak yazılır.
 
 Ölçülecek: landing → npm install oranı, install → 7 gün sonra hâlâ kurulu oranı, free kapanış satırını gören → Pro'ya geçen oranı. Üçü de ilk ay raporda.
 
@@ -380,7 +391,7 @@ Kabul: Show HN yayında; ilk 30 gün üç oran ölçülmüş ve reports/M4/'e ya
 
 1. R7 biter ve B kolu A koluna göre ne gerçek fix oranında ne net token'da gerçek iyileşme göstermezse, enjeksiyon tezi yanlıştır; birikme motoru sessiz moda döner, ürün konumu yeniden düşünülür. M3 yazısı yine çıkar.
 2. Sayacın tahmini, iki kollu koşudaki gerçek token farkından %50'den fazla saparsa, dolar satırı yayından çekilir; kapanış satırında yalnız hata sayısı kalır, formül düzeltilip yeniden ölçülene kadar geri gelmez. Landing'deki dolar cümlesi de aynı gün iner.
-3. M4'ten 30 gün sonra free→Pro geçiş sıfırsa fiyat hipotezi yanlıştır; sayaç satırının satmadığı kabul edilir ve ürün "takım görünürlüğü" konumuna çekilip çekilmeyeceği ayrı kararla masaya gelir. Sayı şişirerek çözülmez.
+3. M4'ten 30 gün sonra free→Pro geçiş sıfırsa fiyat hipotezi yanlıştır; sayaç satırının satmadığı kabul edilir. (Bu koşul, fiyat M3 sonrası yazılana kadar ÖLÇÜLEMEZ — açık fiyatla free→Pro diye bir geçiş yoktur. M4 raporu bunu eksik değil, bilinen boşluk diye yazar; koşulun saati fiyat yazıldığı gün başlar.) Koşul tetiklenirse ürünün "takım görünürlüğü" konumuna çekilip çekilmeyeceği ayrı kararla masaya gelir. Sayı şişirerek çözülmez.
 
 ## Bu koşuda yapılmayacaklar
 
