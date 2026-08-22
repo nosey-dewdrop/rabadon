@@ -179,3 +179,126 @@ derlendi. Bu profil koşusu `native/` altında hiçbir dosyayı değiştirmedi. 
 `nopread` (ring `pread`'i çıkarıldı), `noload` (canlı pencere yüklemesi çıkarıldı),
 `noappend` (iki `pwrite` de çıkarıldı), `nosha` (iki SHA-256 da çıkarıldı), `noio`
 (`load_moves` ve `append_move` no-op yapıldı), `timed` (yalnız RAII prob; davranış aynı).
+
+---
+
+# SONRASI — 22 Ağustos, iki neden de kaldırıldı
+
+Yukarıdaki her şey "maliyet nerede" sorusunun cevabıydı. Bu bölüm o iki yeri
+düzelttikten sonraki sayılar, aynı satırda öncesiyle yan yana.
+
+## Yöntem: bu turun sayıları da süreç İÇİ
+
+`native/gate.cpp`'nin **değiştirilmemiş iki kopyası** — biri düzeltme öncesi
+commit'ten (`c127981`), biri sonrasından — `/tmp/prof2/` altında aynı RAII prob
+yamasıyla derlendi (`c++ -std=c++17 -O2 -I native`). `native/` altında hiçbir
+dosyaya dokunulmadı. Yukarıdaki turdan bir fark var ve önemli: prob çıktısı
+artık **tamponlanıyor**, süreç sonunda tek seferde basılıyor. Önceki tur her
+prob için stderr'e bir `fprintf` yapıyordu, yani kolu daha çok problu olan taraf
+ölçüme fazladan syscall ödüyordu. Aşağıdaki "önce" sütunu bu yüzden yeniden
+ölçüldü; ilk turun sayılarıyla aynı hikâyeyi veriyor, mutlak değerleri biraz
+daha düşük.
+
+Makine bu sefer boştu, ve bu da bir fark:
+
+    $ uptime
+    23:52  up 1 day, 44 mins, 4 users, load averages: 2,46 3,47 4,13
+
+## NEDEN 1 — olay başına ikinci `save()`
+
+`State::save()`, oturum dosyası için R1.1'de dirty-takibe alınmıştı; paylaşılan
+`state.json` yarısı alınmamıştı, yani her çağrı bir temp dosya artı bir rename
+ödüyordu. Şimdi **birleştirilmiş** sonuç, o anda diskte duran baytlarla
+karşılaştırılıyor ve eşitse syscall atlanıyor. Karşılaştırılan şeyin
+birleştirme SONRASI olması şart: `cur` her çağrıda taze okunuyor, bu yüzden
+başka bir yazıcının güncellemesi karşılaştırmayı düşürür ve yazma yine yapılır.
+Birleştirme mantığının tek satırı değişmedi — yalnız yazma koşullu.
+
+200 olayla ısınmış oturum, 120 olayın medyanı, kayıt açık vs `RABADON_MOVES=0`:
+
+| prob | önce | sonra |
+|---|---|---|
+| `TOTAL_main` deltası (kaydın maliyeti) | +386.2 µs | **+245.2 µs** |
+| olay başına toplam `save()` (2 çağrı) | 611.0 µs | **339.4 µs** |
+| └ `save#1` | 354.2 µs | **191.4 µs** |
+| └ `save#2` | 308.7 µs | **164.6 µs** |
+| kayıt kapalıyken tek `save()` | 282.7 µs | **158.8 µs** |
+| `record_block` | 364.1 µs | **226.6 µs** |
+
+## NEDEN 2 — `last_ledger_mode()` her olayda tüm spool'u okuyordu
+
+Artık dosyanın **kuyruğunu** okuyor: sondan 32 KB'lık bir pencere, penceredeki
+yarım ilk satır atılıyor, en yeni `MODE` satırı orada aranıyor. Pencerede yoksa
+tüm dosya okunuyor — yani hiçbir girdi için cevap değişmiyor.
+
+Bu geri düşüş nadir DEĞİL, ve bunu açıkça yazmak gerekiyor: hiç mod
+değiştirmemiş bir makinede spool'da hiç `MODE` satırı yoktur, yani her olay
+pencereyi ışkalar. Yokluk, her bayta bakmadan kanıtlanamaz. Düzeltilebilecek
+olan şey o baytların NASIL okunduğuydu: eski `read_file` string'i bir
+`ostringstream` üzerinden büyütüyordu; yeni okuyucu dosyayı `fstat`'lıyor,
+string'i bir kez boyutlandırıyor ve tek `pread` döngüsüyle dolduruyor.
+
+Aynı davranışın kanıtı ölçüm değil, karşılaştırma: eski tam-okuma taraması ile
+yeni kuyruk taraması **154 girdide** karşılaştırıldı (boş dosya, hiç MODE,
+pencereden eski MODE, iki MODE, boş `to`, `to` alanı olmayan satır, satır sonu
+olmayan dosya, ve MODE satırını 32768. baytın iki yanında 140 bayt boyunca
+gezdiren bir sınır taraması). **0 uyuşmazlık.**
+
+50 olaylık oturum vs 400 olaylık oturum (spool 42.5 KB vs 120.9 KB), her biri
+140 olayın medyanı:
+
+| prob | önce 50 | önce 400 | önce delta | sonra 50 | sonra 400 | **sonra delta** |
+|---|---|---|---|---|---|---|
+| `TOTAL_main` | 1513.6 | 1857.9 | +344.3 (+%22.7) | 1235.7 | 1269.3 | **+33.6 (+%2.7)** |
+| `last_ledger_mode` | 148.2 | 471.6 | +323.4 | 47.5 | 126.2 | **+78.7** |
+
+Kalan +78.7 µs, yukarıda yazılan sebebin ta kendisi: MODE satırı olmayan bir
+spool'da geri düşüş her olayda koşuyor ve tüm dosyayı okur. Okuma ~9 kat
+ucuzladı, ama hâlâ O(dosya). **Uzunluk bağımlılığı bitmedi, küçüldü.**
+
+## Kabul koşusu (`reports/R1.3/accept.sh`, boş makine)
+
+    GOAL 4: kayıt kapalı medyan 4.248 ms   açık 4.544 ms   delta 296 µs
+            tavan = off-medyanın %5'i = 212 µs            -> KIRMIZI
+    GOAL 6: 4.555 ms (50 olay) vs 4.299 ms (400 olay), %5.9 ayrı, tavan %10
+                                                          -> YEŞİL
+    12 yeşil, 1 kırmızı
+
+**GOAL 6 yeşil ve bu sefer sebebi gürültü değil.** 400 olaylık kol 50 olaylık
+koldan *hızlı* çıktı; ayrışmanın işareti bile sabit değil, yani ölçülen şey artık
+uzunluk değil makinenin kendisi. Süreç içi +%2.7 bunu doğruluyor.
+
+**GOAL 4 hâlâ kırmızı, ve nerede olduğu ölçüldü.** Kaydın süreç içi maliyeti
+386 → 245 µs; kalan 245'in dağılımı: `save#2` 165, `append_move` 46,
+`load_moves` 28, `state_load` 28. Yani kalan kalemin tamamına yakını **ikinci
+`save()`'in oturum dosyasına yaptığı gerçek yazma.** O yazma dirty-takiple
+atlanamaz: kayıt bloğu ile olayın sonraki dalları arasında oturum nesnesi
+GERÇEKTEN değişiyor (`actionCount`, `recent`, `lastCmd`), yani iki çağrının
+baytları farklı. Bunu düşürmenin tek yolu save#2'yi ertelemek ya da birleştirmek
+— ikisi de davranış değişikliği (kayıt bloğu erkenden save ediyor çünkü aşağıdaki
+her ret dalı erken return'lüyor), ve bu turun yetkisi dışında. Uydurmuyorum:
+**ölçtüm, yerini söylüyorum, dokunmadım.**
+
+Bir not daha, ve kabul kararı değil: accept.sh'in GOAL 4 tavanı uçtan uca
+medyanın %5'i, yani 212 µs. KOSU-RABADON.md §4 bu paydayı zaten reddediyor
+("Bu tablodaki her sayı süreç-İÇİ ölçülür"). Süreç içi maliyet 245 µs ve o da
+212'nin üstünde, yani bu not GOAL 4'ü kurtarmıyor — sadece iki sayının farklı
+şeyleri ölçtüğünü kayda geçiriyor. Betiğe dokunulmadı.
+
+## Bu turda DOĞRULANMADI
+
+- **GOAL 4'ün kırmızılığının ne kadar kararlı olduğu.** Aynı ikili, yüklü bir
+  makinede (load ~12) 269 µs / tavan 210 µs, boş makinede 296 µs / tavan 212 µs
+  döndürdü. İki koşu da kırmızı, ama uçtan uca tek koşunun kendi gürültüsü bu
+  farkın büyüklüğünde.
+- **GOAL 6'nın kararlılığı, hâlâ.** Yükseldeki koşu (load ~12) %10.3 ile
+  KIRMIZI, boş makinedeki %5.9 ile YEŞİL geldi — düzeltme aradaydı, yani ikisi
+  doğrudan karşılaştırılamaz. Süreç içi +%2.7 sayısı tek koşuluk; beş tekrarlı
+  kararlılık taraması yapılmadı.
+- **Kuyruk penceresinin 32 KB olmasının doğru sayı olduğu.** Seçilmiş bir sayı,
+  ölçülmüş değil. Daha küçük bir pencerenin daha çok geri düşüşe, daha büyüğünün
+  daha pahalı hızlı yola yol açtığı ölçülmedi.
+- **`save#2`'yi kaldırmanın GOAL 4'ü yeşile çevireceği.** Kalan bütçeye
+  bakıldığında öyle görünüyor (245 − 165 = 80 µs), ama denenmedi ve
+  denenmeden yazılan sayı sayı değildir.
+- **Bu makine dışında hiçbir makine.** Yukarıdaki her mikrosaniye bu kutunun.
