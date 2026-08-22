@@ -62,19 +62,24 @@ inline bool enabled() {
 
 // WHICH SIGNALS ARE ALLOWED TO SPEAK. The three levels of R4, in one function:
 //   certain -> blocks, and never reaches here.
-//   likely  -> injects. Semantic repeat, oscillation, root migration, and the
+//   likely  -> injects. EXACTLY the four the plan promoted: semantic repeat,
+//              oscillation, root migration, and the
 //              red->green-where-only-the-test-side-moved subset.
-//   weak    -> ledger only; the agent never sees it. scope_drift is the whole
-//              of this class today and it is known to be the weakest rule in
-//              signals.h: it counts directories, and an honest refactor touches
-//              many.
+//   weak    -> ledger only; the agent never sees it. Two rules live here.
+//              scope_drift is known to be the weakest in signals.h: it counts
+//              directories, and an honest refactor touches many. `repeat` is
+//              here because the plan did not promote it and a level is not
+//              something an implementation gets to hand out — the same command
+//              run three times is often a watcher, a flaky suite, or a human
+//              re-reading output, and its false positive rate has never been
+//              measured. It moves up when R2's spool says it may.
 //
 // green_redefined is split by its own `why`, not by its name: the "edited while
 // the suite was red" arm is the deterministic subset that the gate BLOCKS, so
 // injecting it as well would say the same thing twice, once as a refusal and
 // once as a paragraph.
 inline bool speaks(const string& name, const string& why) {
-  if (name == "repeat" || name == "oscillation" || name == "root_migration" ||
+  if (name == "oscillation" || name == "root_migration" ||
       name == "semantic_repeat") return true;
   if (name == "green_redefined")
     return why.find("only the test side") != string::npos;

@@ -26,7 +26,7 @@ native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native
 # bump answered `make` with "up to date" and shipped a binary announcing the
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h native/signals.h native/semantic.h native/classify.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h native/signals.h native/semantic.h native/classify.h native/inject.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-claims: native/claims.cpp native/jsonl.h
