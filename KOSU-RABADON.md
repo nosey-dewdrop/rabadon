@@ -163,7 +163,7 @@ Kabul (native/moves_test.sh, en az 6 iddia):
 - 200 aşılınca en eski düşer, seq artmaya devam eder
 - kayıt açık/kapalı gate çıkış kodları bayt bayt aynı
 
-Hijyen (R0'dan devreden, kendi commit'inde): `reports/T1/accept.sh`'ın "Supervise your coding agent" taraması `PROTOCOL-T1-T8.md`'yi kök adıyla hariç tutuyor; R0 dosyayı `docs/internal/arsiv/` altına indirince filtre tutmaz oldu ve T1 tek kırmızıyla kapandı (19 yeşil / 1 kırmızı, 22.08). Üç isabetin üçü de iptal edilmiş planın *ifadeyi yasaklamak için alıntıladığı* satırlar; canlı hiçbir yüzeyde geçmiyor. Filtre arşiv yolunu kapsayacak şekilde genişletilir — **eşik gevşetilmez, taranan alan daraltılmaz**, sadece zaten hariç olan dosya taşındığı yerde tanınır. Gerekçe `reports/R0/CLAIM.md`'de. `reports/T2/accept.sh` dokunulmaz: 21 yeşil, 0 kırmızı, kabul.
+Hijyen (R0'dan devreden, kendi commit'inde): `reports/T1/accept.sh`'ın T1'de yasaklanan eski slogan için yaptığı repo taraması (claim 3; ifadenin kendisi buraya yazılmaz — yazıldığı an bu dosya taramaya takılıyor, bir kez takıldı) `PROTOCOL-T1-T8.md`'yi kök adıyla hariç tutuyor; R0 dosyayı `docs/internal/arsiv/` altına indirince filtre tutmaz oldu ve T1 tek kırmızıyla kapandı (19 yeşil / 1 kırmızı, 22.08). Üç isabetin üçü de iptal edilmiş planın *ifadeyi yasaklamak için alıntıladığı* satırlar; canlı hiçbir yüzeyde geçmiyor. Filtre arşiv yolunu kapsayacak şekilde genişletilir — **eşik gevşetilmez, taranan alan daraltılmaz**, sadece zaten hariç olan dosya taşındığı yerde tanınır. Gerekçe `reports/R0/CLAIM.md`'de. `reports/T2/accept.sh` dokunulmaz: 21 yeşil, 0 kırmızı, kabul.
 
 ## R2 — beş sinyal, sessiz mod
 

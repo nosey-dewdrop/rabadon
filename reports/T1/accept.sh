@@ -273,12 +273,24 @@ fi
 # ---------------------------------------------------------------------------
 head_ "CLAIM 3 — \"Supervise your coding agent\" removed repo-wide"
 
+# WIDENED 2026-08-22, in its own commit, for a path that moved and nothing else.
+# R0 retired PROTOCOL-T1-T8.md to docs/internal/arsiv/. The exclusion below named
+# it by its old ROOT path, so the archived plan's own three quotations of the
+# banned phrase — quoted there in order to BAN it, which is why it was excluded
+# in the first place — started counting as hits and this claim went red while
+# every live surface stayed clean (claims 4a-4c green throughout).
+#
+# The archive path is added. The threshold is not lowered, the searched set is
+# not narrowed, and no other file joins the list: this recognises a file that was
+# already excluded, at the address it moved to. Reason: reports/R0/CLAIM.md.
+#
 # Searched over git-TRACKED files: that is what "the repo" means to a reader who
 # clones it. Untracked local state (.rabadon/sessions/*.json records the very
 # grep that looks for the phrase) is not shipped and is not evidence.
 if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
   sup_hits="$(git -C "$ROOT" ls-files \
     | grep -v -e '^reports/' -e '^PROTOCOL-T1-T8\.md$' \
+              -e '^docs/internal/arsiv/PROTOCOL-T1-T8\.md$' \
     | tr '\n' '\0' \
     | xargs -0 grep -nIi 'Supervise your coding agent' 2>/dev/null || true)"
 else
