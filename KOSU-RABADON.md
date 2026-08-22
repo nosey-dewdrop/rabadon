@@ -411,6 +411,19 @@ Kabul: Show HN yayında; ilk 30 gün üç oran ölçülmüş ve reports/M4/'e ya
 | yargıç | tur kapanışında | diff + rapor + kabul + bütçe; tarihçe değil | reports/R<n>/kapi.md |
 | danışman | SORU.md yazıldığı anda | plan + SORU + profil/ölçüm + ilgili kod; tur anlatısı değil | reports/R<n>/KARAR.md |
 
+### Sayı yazan doküman, kod büyüdükçe yalana döner
+
+23.08'de yakalandı: `make test` R3'ten **önce** kırmızıydı ve kimse fark etmemişti. Sebep `site_claims_test.sh` — README "~17k satır" diyordu, `native/` 20.231'e çıkmıştı, test bandı 18k–22k. Yani kırmızıyı yapan yeni kod değil, **eski bir cümlenin bayatlaması**ydı; her tur `native/`'e satır eklediği için bu bir zaman meselesiydi.
+
+İki sonuç:
+
+1. **Bir turun "make test yeşildi" raporu, o turun kendi ölçümüyle sınırlıdır.** Tur başında koşulmayan bir suite, tur sonunda kırmızıysa suçlu tur olmayabilir. Bundan sonra her tur **başlangıç ölçümünü de** kaydeder (`reports/R<n>/baseline` ya da CLAIM.md'de tek satır), yoksa "ben mi kırdım" sorusu cevaplanamaz.
+2. **Sayı taşıyan her public cümle bir bakım borcudur.** README'deki satır sayısı, BENCHMARK'taki tablolar, landing'deki her rakam — kod büyüdükçe kayarlar. Yasa 7 bunların ledger'dan türemesini istiyor; türeyemeyen sayı (ör. "kaç satır C++") ya bir testle bağlanır ya da cümleden çıkarılır. Bant genişletmek çözüm değil, borcu ertelemektir.
+
+**Ölçüm yöntemi sayının yanına yazılır.** Aynı `make test` çıktısı, hangi özet-satırı biçimlerinin sayıldığına göre 1876, 2036 ya da 2451 verebiliyor — üçü de "doğru". Bir turun sayısı ancak **aynı yöntemle** alınmış bir sayıyla karşılaştırılabilir. Bu koşunun yöntemi:
+
+    grep -oE '[0-9]+ (passed|ok), *[0-9]+ failed' LOG | grep -oE '^[0-9]+' | paste -sd+ - | bc
+
 ### Faz dağıtımı — yapan tek context'te koşmaz
 
 Bir tur tek bir oturumun context'ine sığmaz. Sığdırmaya çalışmak turu yavaşlatır ve kaliteyi düşürür: ham dosya içeriği, uzun loglar ve test çıktıları context'i şişirir, şişen context'te karar kalitesi düşer. Yapan oturum turu parçalara böler ve her parçayı **kendi ajanına** verir:
