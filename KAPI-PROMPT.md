@@ -40,9 +40,17 @@ git status --short               # temiz mi
    çıkarıldı, bir iddia boşta geçecek hale geldi (boş girdide kendiliğinden doğru), bir fixture
    kolaylaştırıldı. Her biri için turun gerekçesi var mı, ve gerekçe *ürün* hakkında mı yoksa
    *testi geçirmek* hakkında mı? Sonuncusu → geri al.
+   **Zaman damgası, geçici yol ve sandbox adı maskeleme gevşetme değildir.** Bir iddia
+   "yazılan baytlar oynamadı" diyorsa, iki koşunun saatini ya da mktemp adını karşılaştırmak
+   depolamayı değil ortamı test eder; maskeleme iddiayı daraltmaz, ölçtüğü şeye sabitler.
+   Gevşeme, iddianın *konusunun* küçülmesidir — maskelenen alan iddianın konusuysa AŞTI yaz.
    Bu, 5. sinyalin ajanın kendisine uygulanmış hali; bu turda en sert bakacağın yer burası.
-5. **Operatör kararı.** `SORU.md`'de kaç açık soru var? **İkiden fazlaysa üçüncüsü tek başına
-   BLOK.** Bloklayan bir soru var mı?
+5. **Karar yolu.** Her `SORU.md` için bir `KARAR.md` var mı? Danışman üç adımı da yazmış mı
+   (hangi değişmez ihlal edildi / değişmezi koruyan tasarım / kabul ölçüsü)? Yapanın sunduğu
+   seçeneklerden birini seçmekle yetinmiş, değişmezi sorgulamamışsa → AŞTI.
+   OPERATÖR etiketi doğru mu? Kapalı liste: para, ürün konumu, dış yayın, sahiplik,
+   geri alınamaz. Listede olmayan bir soru OPERATÖR etiketlenmişse iş durdurulmuş demektir;
+   listede olan bir soru DEĞİL etiketlenmişse yetki aşılmış demektir. İkisi de AŞTI.
 
 ## Ayrıca, sorulmasa da bak
 

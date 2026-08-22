@@ -389,31 +389,49 @@ Kabul: Show HN yayında; ilk 30 gün üç oran ölçülmüş ve reports/M4/'e ya
 
 ---
 
-## Tur arası kapı (her R ve M turunun kapanışında, operatör beklenmeden)
+## Roller (Tur arası kapı bölümünün yerine geçer)
 
-Tur kabulü yeşil olduğunda agent bir sonraki talimatı beklemez; aşağıdaki beş soruyu `reports/R<n>/kapi.md`'ye yazılı cevaplar ve sonucuna göre kendisi devam eder.
+Üç oturum, üç yetki, hiçbiri diğerinin dosyasına yazamaz:
 
-1. **Hot-path bedeli:** bu tur gate latency'sini değiştirdi mi? Ölçülmeden "hayır" denmez. Kol başına 3 koşu, medyan. Artış 300 µs üstündeyse → R<n>.1 ara turu: bedeli düşür, yeniden ölç. Düşmezse DUR.
-2. **Plandan sapma:** planın bir maddesine uyulmadı mı? Her sapma gerekçe + kanıtla yazılır. Gerekçesiz sapma yok sayılır, geri alınır.
-3. **Çökmüş iddia:** bu turda çürütülen bir plan cümlesi, kaynak ya da sayı var mı? Varsa KOSU-RABADON.md'de o cümle aynı commit'te düzeltilir ya da "AÇIK" işaretlenir; yayınlanmış hiçbir metne bırakılmaz (Yasa 7).
-4. **Test dürüstlüğü:** bu turda bir testi ürünü değil testi tatmin etmek için gevşettim mi? Evetse geri alınır, ürün düzeltilir. (5. sinyalin kendimize uygulanmış hali.)
-5. **Operatör kararı:** yalnız operatörün verebileceği bir karar var mı (fiyat, ürün konumu, hangi dizin canlı, yayın)? Varsa `reports/R<n>/SORU.md`'ye yazılır ve:
-   - sonraki turu bloklamıyorsa → devam, soru açık kalır;
-   - bloklıyorsa → DUR, bekle.
-   - **Açık soru sayısı ikiyi geçemez.** `SORU.md`'de iki cevaplanmamış soru varken üçüncüsü doğarsa, üçüncüsü tek başına BLOK'tur — bloklamayan bir soru olsa bile. Gerekçe: açık soru borçtur ve biriktiği anda tur, operatörün göremediği varsayımların üstünde koşmaya başlar. Üçüncü soru "sonra sorarım" listesine değil, durma sebebine gider.
+| rol | ne zaman koşar | ne görür | ne yazar |
+|---|---|---|---|
+| yapan | tur boyunca | her şey | kod, test, rapor, SORU.md |
+| yargıç | tur kapanışında | diff + rapor + kabul + bütçe; tarihçe değil | reports/R<n>/kapi.md |
+| danışman | SORU.md yazıldığı anda | plan + SORU + profil/ölçüm + ilgili kod; tur anlatısı değil | reports/R<n>/KARAR.md |
 
-Karar tablosu:
-- 1-4 temiz, 5 bloklamıyor → sonraki tura geç, tohum.md yaz, commit.
-- 1 kötü → R<n>.1 ara turu, tek hedef, kendi kabul betiği, sonra kapıyı yeniden koş.
-- 2 veya 4 kötü → geri al, turu yeniden kapat.
-- 3 kötü → düzelt, aynı commit, devam.
-- 5 bloklıyor → DUR.
+### Danışman
 
-**Ara tur (R<n>.1) kuralı:** tek hedef, yeni özellik yok, kabul betiği yalnız o hedefi ölçer, kendi commit'i. R<n>.2'ye gidiyorsa DUR; iki ara tur = tasarım hatası, operatöre gider.
+Yapan oturum SORU.md yazınca DURMAZ; danışmanı çağırır ve KARAR.md gelene kadar o soruya bağlı olmayan işi yapar (test fixture, doküman, sonraki turun bütçesi).
 
-**Kapıyı turu koşan oturum koşmaz.** Kabul yeşil olduğunda kapı ayrı bir oturumda, `KAPI-PROMPT.md` ile açılır. Kendi işini denetleyen ajan, kendi kısayollarını gerekçelendirmekte iyidir — R0'ın kabul betiğini turun kendisi yazdığı için Gate 1 sapması ancak dosyaya not düşülerek kapatılabildi. Yargıç oturum turu koşan oturumun çıktısını değil, **repoyu ve ölçümleri** okur.
+    claude -p "$(cat docs/DANISMAN-PROMPT.md)" < <(cat KOSU-RABADON.md reports/R<n>/SORU.md reports/R<n>/PROFIL.md; git show HEAD:<ilgili dosyalar>)
 
-**DUR demek:** push et, SORU.md'yi yaz, bekle. Tahmin ederek devam yok.
+Danışmanın görevi A/B/C'den seçmek DEĞİL. Üç adım, sırayla, yazılı:
+
+1. Hangi değişmez ihlal ediliyor? (ör. "her olayda tüm tarihçeye dokunuluyor") Yapanın sunduğu seçeneklerin hepsi aynı değişmezi ihlal ediyorsa hepsi reddedilir.
+2. Değişmezi koruyan tasarım ne? Seçenek D yazılır, A/B/C'ye bakılmaksızın.
+3. Karar + o kararın kabul ölçüsü + bütçe satırı. "Dene bak" yok; ölçülebilir beklenti yazılır ("parse O(1) olmalı; delta ≤ %5").
+
+Danışman KARAR.md'ye yalnız şunları yazar: değişmez, tasarım, karar, kabul ölçüsü, ve OPERATÖR mü DEĞİL mi etiketi.
+
+### Operatöre giden sorular — kapalı liste, danışman karar verir
+
+Yalnız bunlar operatöre gider, gerisi danışmanda biter:
+
+- **para:** fiyat, tier sınırı, ödeme
+- **ürün konumu:** cümle, kategori, hedef kitle değişikliği
+- **dış yayın:** npm publish, Show HN, herhangi bir public metin
+- **sahiplik:** operatörün kendi verisi/dizini arasında seçim (`docs/kanit` gibi)
+- **geri alınamaz:** repo dışına etki, kullanıcı ağacına yazım, plan dosyasındaki Yasa değişikliği
+
+Danışman bir soruyu OPERATÖR etiketlerse yapan oturum o soruda durur, başka işte devam eder. Operatör günde bir kez KARAR.md'leri okur; geriye dönük veto hakkı var, veto geldiğinde o karardan sonraki commit'ler geri alınır. Okumazsa kararlar geçerli sayılır.
+
+### Aynı sorun sayacı (ara tur kuralının yerine)
+
+Bütçe maddesi aynı turda iki kez AŞTI → danışman optimizasyon değil **tasarım değişikliği** yazmak ZORUNDA (madde 2). Aynı madde üçüncü kez AŞTI → OPERATÖR, ve PROFIL.md şart. Ara tur adedine değil, **aynı ölçümün kaç kez tutmadığına** bakılır.
+
+### Yargıç değişmedi
+
+Beş soru, GEÇTİ/AŞTI/BLOK, tek dosya. KAPI-PROMPT 4. soruya eklendi: "zaman damgası, geçici yol ve sandbox adı maskeleme gevşetme değildir."
 
 ## Yanlışlanma koşulları (bugün yazıldı, sonuç görülmeden)
 
