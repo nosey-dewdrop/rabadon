@@ -1330,6 +1330,25 @@ struct State {
   // did not move. The shared file below is small and still merged every time,
   // because it has many writers and merging is what makes it correct
   // without a lock.
+  //
+  // R1.3 — THE SHARED FILE IS DIRTY-TRACKED THE SAME WAY, AND THAT HALF WAS THE
+  // WHOLE BILL. R1.1 tracked the session file only, so the second save() an
+  // event makes still paid a temp-file-plus-rename on state.json. Measured
+  // in-process (instrumented copy, 120 events after a 200-event warm-up):
+  // save() cost 902 us across two calls with recording on against 458 us across
+  // one call with it off — +444 us for a write whose bytes were, on the second
+  // call, identical to the first.
+  //
+  // What is dirty-tracked is the MERGED result, not this object's fields. The
+  // merge is what makes this file correct without a lock — many sessions write
+  // it at once, so every save re-reads it and keeps the later of each stamp —
+  // and skipping on a pre-merge comparison would drop a concurrent writer's
+  // update on the floor. So the merge runs in full, every time, exactly as
+  // before; only the write is conditional, and its condition is "the bytes I am
+  // about to write are already the bytes in the file". When that holds, the
+  // write is a no-op by definition and the rename buys nothing. `cur` is read
+  // fresh on every call, so a concurrent writer's change makes the comparison
+  // fail and the write happen.
   string lastSessBytes;
   bool   lastSessValid = false;
 
@@ -1371,7 +1390,8 @@ struct State {
       << ",\"lastNetTs\":" << fNetTs
       << ",\"lastNetVerdict\":\"" << json_escape(fNetVerd) << "\""
       << ",\"lastDiagSig\":\"" << json_escape(fDiagSig) << "\"}";
-    write_atomic(path, o.str());
+    const string shared = o.str();
+    if (shared != cur) write_atomic(path, shared);
 
     lastCodeEdit = fCodeEdit; lastTestVerified = fVerified;
     lastTestVerifiedFail = fVerFail; lastDiagAt = fDiagAt; lastDiagSig = fDiagSig;
