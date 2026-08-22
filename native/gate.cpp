@@ -42,6 +42,7 @@
 #include "moves.h"   // R1: the move record. Recorded here, read by nothing here.
 #include "signals.h" // R2: five detectors over that record. Silent by law.
 #include "semantic.h"// R3: tier 1, the SHAPE of an edit. Adds a signal, never changes one.
+#include "inject.h"  // R4: the diagnosis the agent cannot see, sized and scrubbed.
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -1097,6 +1098,22 @@ struct Sess {
   // no branch in this file reads `moves` to decide anything. See native/moves.h.
   std::vector<rbmoves::Move> moves;
   long long nextSeq = 0;
+  // ---- R4: the injection's own bookkeeping ---------------------------------
+  // A signal is found at the END of a move (root migration needs err_sig, which
+  // only PostToolUse has) and additionalContext only exists on PreToolUse. So
+  // the diagnosis is written the moment it is known and RIDES THE FRONT OF THE
+  // NEXT tool call. That is the shape of the channel, not a delay: the agent
+  // still sees it before it makes its next move.
+  string injPending;         // the assembled text, waiting for a PreToolUse
+  string injPendingSignal;   // whose it is, so the cap is charged on delivery
+  // "the same signal" is the same NAME within this session (the plan's fifth
+  // decision). Two arrays rather than a map: this struct is serialised by hand.
+  std::vector<string> injNames;
+  std::vector<int> injCounts;
+  // The readable form of the newest err_sig. The hash answers "same error?";
+  // this answers "which error?", and it is the only thing in the injection that
+  // cannot be rebuilt from the ring — Rec carries the signature, not the text.
+  string lastErrText;
 };
 
 struct State {
@@ -1282,6 +1299,19 @@ struct State {
     s.lastTestFail = get_num(obj, "lastTestFail");
     s.lastTestRun  = get_num(obj, "lastTestRun");
     s.nextSeq = get_num(obj, "nextSeq");
+    // R4. injSeen is written as "<name>=<count>" strings so this hand-rolled
+    // serialiser needs no second array type; a session written before R4 has
+    // none of these keys and reads back as "nothing injected yet", which is the
+    // truth about it.
+    s.injPending = get_str(obj, "injPending");
+    s.injPendingSignal = get_str(obj, "injPendingSignal");
+    s.lastErrText = get_str(obj, "lastErrText");
+    for (const auto& e : parse_str_array(obj, "injSeen")) {
+      const size_t eq = e.rfind('=');
+      if (eq == string::npos) continue;
+      s.injNames.push_back(e.substr(0, eq));
+      s.injCounts.push_back(atoi(e.c_str() + eq + 1));
+    }
     // Sessions written before R1.2 carry their moves inline. Read them once so
     // nobody's history resets at upgrade; they are never written back here, so
     // the inline array drains into the log on the next append.
@@ -1328,7 +1358,14 @@ struct State {
     o << "],\"recentEv\":[";
     for (size_t i = 0; i < s.recentEv.size(); i++)
       o << (i ? "," : "") << "\"" << json_escape(s.recentEv[i]) << "\"";
-    o << "],\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
+    o << "],\"injSeen\":[";
+    for (size_t i = 0; i < s.injNames.size(); i++)
+      o << (i ? "," : "") << "\"" << json_escape(s.injNames[i]) << "="
+        << (i < s.injCounts.size() ? s.injCounts[i] : 0) << "\"";
+    o << "],\"injPending\":\"" << json_escape(s.injPending) << "\""
+      << ",\"injPendingSignal\":\"" << json_escape(s.injPendingSignal) << "\""
+      << ",\"lastErrText\":\"" << json_escape(s.lastErrText) << "\"";
+    o << ",\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
       << ",\"tokensIn\":" << s.tokensIn
       << ",\"nextSeq\":" << s.nextSeq << "}";
     // R1.2: the moves themselves are NOT here any more. They live in an
@@ -2039,6 +2076,21 @@ int main(int argc, char** argv) {
     ledger_line("WRONG_REFUSAL",
                 "\"rule\":\"" + json_escape(string(argv[2])) + "\",\"why\":\"" +
                 json_escape(why) + "\"");
+    // R4: for a rule that BLOCKS, saying "that was wrong" has to also let the
+    // work happen — a refusal whose only remedy is a note in a file is a wedge,
+    // and a wedged session ends with the tool uninstalled (Law 1). So the
+    // record leaves a ONE-SHOT pass beside the ledger: the next write the rule
+    // would refuse goes through, spends the pass, and is itself recorded. One
+    // shot, because an escape that stays open is a rule that is off.
+    {
+      const string rhome = rabadon_home();
+      mkdir(rhome.c_str(), 0755);
+      string safe;
+      for (const char* p = argv[2]; *p && safe.size() < 64; p++)
+        safe += (isalnum((unsigned char)*p) || *p == '-' || *p == '_') ? *p : '_';
+      if (!safe.empty()) { FILE* f = fopen((rhome + "/wrong-" + safe).c_str(), "w");
+                           if (f) { fputs(why.c_str(), f); fclose(f); } }
+    }
     printf("rabadon: recorded a wrong refusal by %s.\n"
            "  It is on the ledger next to the refusals, which is the only place a\n"
            "  false-positive count can be read from instead of asserted.\n"
@@ -2370,6 +2422,9 @@ int main(int argc, char** argv) {
   // rabadon owns. It now marks the session dirty and StateFlushGuard writes
   // once, on whichever exit the event takes. Recording refusals is not what got
   // cheaper; writing them twice is what stopped.
+  // R4: set when a diagnosis is assembled during THIS event, so the delivery at
+  // the bottom of main knows to leave it for the next one.
+  bool injQueuedThisEvent = false;
   if (rbmoves::enabled() && (hook == "PreToolUse" || hook == "PostToolUse") &&
       (toolName == "Bash" || toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit")) {
     Sess& ms = stt.session();
@@ -2415,6 +2470,14 @@ int main(int argc, char** argv) {
 
     if (hook == "PostToolUse") {
       open_move->err_sig = rbmoves::err_sig(toolResponse, cwd);
+      // R4: keep the READABLE line beside the signature. The ring stores a hash
+      // (Rec is fixed-width and its layout is asserted byte for byte), and a
+      // hash is not something an agent can be told. One line, clipped, in the
+      // session file.
+      if (!open_move->err_sig.empty()) {
+        const string et = rbinject::readable_error(toolResponse, cwd);
+        if (!et.empty()) ms.lastErrText = et;
+      }
       // A CLAIM, from text the session produced about itself. There is no exit
       // code on this hook; naming the field anything else would launder that.
       open_move->claimed_rc = open_move->err_sig.empty() ? 0 : 1;
@@ -2434,6 +2497,69 @@ int main(int argc, char** argv) {
     // the false positive rate of these five rules has never been measured, and
     // the spool is how it gets measured — by running them where they cannot do
     // harm, on real sessions, before anything is allowed to act on them.
+    // ---------- R4: what the ledger already knows, said out loud ------------
+    // R2 and R3 stop at the spool. This is where a LIKELY-level finding becomes
+    // a sentence the agent will actually read — and where the three levels are
+    // enforced from the one place that sees every hit:
+    //   certain -> not here at all. A block is a refusal, not a paragraph.
+    //   likely  -> queued, delivered on the next PreToolUse, never a verdict.
+    //   weak    -> falls through, ledger only, the agent never sees it.
+    // Nothing below returns, blocks, or touches an exit code; reports/R4's
+    // claim 3 compares the exit codes with this on and off.
+    auto queue_injection = [&](const string& name, const string& why, size_t nseqs) {
+      // THE EVENT THAT FINDS A PATTERN NEVER SPEAKS ABOUT IT. The plan's first
+      // settled question: a diagnosis rides the front of the NEXT tool call,
+      // never the one it was computed in. Two reasons, and the second is the
+      // load-bearing one:
+      //   - root migration is only knowable on PostToolUse (err_sig lives
+      //     there) and additionalContext only exists on PreToolUse, so for that
+      //     signal there is no choice at all;
+      //   - a detector that can speak on the same event it fires on is a
+      //     detector that can change the response to the action it was
+      //     watching. Deferring by one event is what keeps "sees" and "answers"
+      //     two different steps, and it is what native/signals_test.sh checks
+      //     when it proves a firing tier-1 detector prints nothing.
+      if (!rbinject::enabled() || !rbinject::speaks(name, why)) return;
+      // the cap, charged by NAME, per session (the plan's fifth decision).
+      int* seen = nullptr;
+      for (size_t i = 0; i < ms.injNames.size(); i++)
+        if (ms.injNames[i] == name && i < ms.injCounts.size()) { seen = &ms.injCounts[i]; break; }
+      if (seen && *seen >= rbinject::CAP_PER_SIGNAL) {
+        // THE THIRD ONE IS NOT A MUTE, IT IS A HAND-OFF. It goes to the ledger
+        // because R5's repair arm triggers on exactly this: the same signal, a
+        // third time, after two injections that did not take.
+        em.emit("INJECT_CAPPED", "\"signal\":\"" + json_escape(name) +
+                "\",\"seen\":" + std::to_string(*seen));
+        return;
+      }
+      if (!ms.injPending.empty()) {
+        // one diagnosis rides one tool call. The first one queued keeps the
+        // slot; the loser is recorded rather than dropped in silence.
+        em.emit("INJECT_HELD", "\"signal\":\"" + json_escape(name) +
+                "\",\"behind\":\"" + json_escape(ms.injPendingSignal) + "\"");
+        return;
+      }
+      rbinject::Ctx c;
+      c.signal = name; c.why = why; c.attempt = (int)nseqs;
+      c.err = ms.lastErrText;
+      for (size_t i = ms.moves.size(); i-- > 0;)
+        if (rbsig::is_edit(ms.moves[i]) && !ms.moves[i].path.empty()) { c.file = ms.moves[i].path; break; }
+      for (size_t i = ms.moves.size(); i-- > 0;)
+        if (ms.moves[i].suite == 1 && !ms.moves[i].raw.empty()) { c.greenCmd = ms.moves[i].raw; break; }
+      // the red half of Law 3's pair: the NEWEST move that did not work,
+      // whether that was the suite going red or a command coming back with the
+      // error. Newest, because the pair is only worth something if the failing
+      // side is the one the agent just lived through.
+      for (size_t i = ms.moves.size(); i-- > 0;) {
+        if (ms.moves[i].raw.empty()) continue;
+        if (ms.moves[i].suite == 0) { c.redCmd = ms.moves[i].raw; c.redIsSuite = true; break; }
+        if (ms.moves[i].claimed_rc == 1) { c.redCmd = ms.moves[i].raw; c.redIsSuite = false; break; }
+      }
+      ms.injPending = rbinject::build(c);
+      ms.injPendingSignal = name;
+      injQueuedThisEvent = true;
+    };
+
     if (rbsig::enabled()) {
       for (const auto& h : rbsig::detect(ms.moves)) {
         string seqs;
@@ -2444,6 +2570,7 @@ int main(int argc, char** argv) {
                 ",\"conf\":" + std::to_string(h.conf).substr(0, 4) +
                 ",\"why\":\"" + json_escape(h.why) + "\""
                 ",\"seqs\":[" + seqs + "]");
+        queue_injection(h.name, h.why, h.seqs.size());
       }
     }
 
@@ -2473,6 +2600,7 @@ int main(int argc, char** argv) {
                 ",\"conf\":" + std::to_string(h.conf).substr(0, 4) +
                 ",\"why\":\"" + json_escape(h.why) + "\""
                 ",\"seqs\":[" + seqs + "]");
+        queue_injection(h.name, h.why, h.seqs.size());
       }
     }
     // MARK, do not write. The move is already durable (append_move wrote the
@@ -3801,6 +3929,69 @@ int main(int argc, char** argv) {
     }
   }
 
+  // ---------- R4, the certain level: a red suite closes the test file -------
+  //
+  // This is the deterministic subset of signal 5 and the ONLY thing R4 adds to
+  // the blocking family. test-tamper already refuses the two edits that visibly
+  // WEAKEN a suite — a skip marker, a lost assertion. This refuses any write to
+  // the thing that decides green while green is not being reached, weakening or
+  // not, because "make the judge say yes" does not have to look like weakening:
+  // an added assertion that encodes the broken behaviour passes both of
+  // test-tamper's tests and is the same move.
+  //
+  // IT IS DELIBERATELY A WIDER NET THAN test-tamper, WITH A KNOWN FALSE
+  // POSITIVE CLASS. Sometimes the test IS the thing that is wrong and the fix
+  // really is in that file. That case is not a bug in this rule; it is the case
+  // where a human should look, which is what this project's own law already
+  // says ("if a test is genuinely wrong, stop, write why, leave it for human
+  // review"). So the block is how the human gets called.
+  //
+  // AND A CERTAIN-LEVEL RULE WITH NO WAY OUT IS A LAW 1 VIOLATION. The way out
+  // is one command, it is named in the refusal, and it is real:
+  //
+  //     rabadon wrong red-suite-test-write "<why the test is the wrong thing>"
+  //
+  // which is the verb that already exists for a refusal that should not have
+  // happened. It writes WRONG_REFUSAL on the same hash-chained ledger as the
+  // refusal — so the false-positive count of this rule is READ from the ledger
+  // rather than asserted — and it leaves a one-shot pass that lets the next
+  // write through. One shot, not a switch: the escape is per refusal, so it
+  // cannot become a mode the session lives in.
+  //
+  // The green side is untouched on purpose. Editing tests on a passing suite is
+  // the single most valuable thing an agent does, and a rule that punished it
+  // would be uninstalled the same afternoon (Law 1).
+  if (hook == "PreToolUse" && isEditTool && !filePath.empty() &&
+      stt.tests_red() && !ruleOff("red-suite-test-write")) {
+    const string rel = rbmoves::relativise(filePath, cwd);
+    // classify() is the repo's single answer to "does this file decide green" —
+    // truth.cpp locks by it, repair.cpp refuses to touch by it and signals.h
+    // reads it. A second opinion here would be the weaker one.
+    if (rbsig::decides_green(rel)) {
+      const string pass = rabadon_home() + "/wrong-red-suite-test-write";
+      if (file_exists(pass)) {
+        // the operator has already said this refusal was wrong. Spend the pass,
+        // and say on the ledger that it was spent — an escape nobody can count
+        // is an escape nobody can audit.
+        unlink(pass.c_str());
+        em.emit("OVERRIDE_USED", "\"rule\":\"red-suite-test-write\",\"file\":\"" +
+                json_escape(rel) + "\",\"sid\":\"" + json_escape(sid) + "\"");
+        fprintf(stderr, "rabadon: red-suite-test-write was overridden for this write "
+                        "(recorded with `rabadon wrong`). The next one is refused again.\n");
+      } else {
+        block("red-suite-test-write",
+              "the suite is red and this writes to the file that decides whether it is green",
+              "the suite is red and " + rel + " is what judges it — while a suite is failing, "
+              "the code is the only side of it that can be fixed without moving the goalposts.\n"
+              "If the TEST is the thing that is wrong, that is the one case this rule cannot "
+              "see, and the way out is one command:\n"
+              "    rabadon wrong red-suite-test-write \"why the test is wrong\"\n"
+              "It records the refusal as a false positive on the ledger and lets the next write "
+              "through, once");
+      }
+    }
+  }
+
   // test-tamper: suite red + a test-file edit that weakens it
   if ((toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") && !filePath.empty()) {
     if (stt.tests_red()) {
@@ -3847,6 +4038,43 @@ int main(int argc, char** argv) {
   if (ss.recent.size() > 30) ss.recent.erase(ss.recent.begin(), ss.recent.end() - 30);
   ss.actionCount++;
   em.emit("STEP_START", "\"step\":\"" + json_escape(label) + "\"");
+
+  // ---------- R4: deliver the diagnosis, on the way through ----------------
+  //
+  // HERE, AND NOWHERE EARLIER. Every refusal in this file has already had its
+  // say above and left through exit(2); reaching this line means the action is
+  // ALLOWED. That ordering is the whole of claim 3: an injection cannot move a
+  // verdict, because by the time it is written the verdict is already 0.
+  //
+  // stdout is a hook's permission channel, so the shape is the message: the
+  // documented envelope, one JSON object, nothing else on the stream. A bare
+  // sentence printed here is not "the same thing said informally" — it is a
+  // malformed permission response that happens to contain the right words.
+  //
+  // The cap is charged on DELIVERY rather than on detection: a diagnosis
+  // assembled at the end of a session that never made another tool call cost
+  // the user nothing and must not spend one of the two.
+  if (hook == "PreToolUse" && rbinject::enabled() && !ss.injPending.empty() &&
+      !injQueuedThisEvent) {
+    const string text = ss.injPending;
+    const string name = ss.injPendingSignal;
+    ss.injPending.clear();
+    ss.injPendingSignal.clear();
+    bool counted = false;
+    for (size_t i = 0; i < ss.injNames.size(); i++)
+      if (ss.injNames[i] == name && i < ss.injCounts.size()) { ss.injCounts[i]++; counted = true; break; }
+    if (!counted) { ss.injNames.push_back(name); ss.injCounts.push_back(1); }
+    printf("{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"%s\"}}\n",
+           json_escape(text).c_str());
+    fflush(stdout);
+    // Law 6: what rabadon injects is a COST, and a cost that is not on the
+    // ledger cannot be subtracted by the counter in R6. Characters, because
+    // that is what the 400 budget is written in.
+    em.emit("INJECT",
+            "\"signal\":\"" + json_escape(name) + "\",\"chars\":" +
+            std::to_string(rbinject::nchars(text)) +
+            ",\"text\":\"" + json_escape(text) + "\"");
+  }
   stt.save();
   return 0;
 }
