@@ -6,8 +6,10 @@
 # that — this file does not restate it, it RUNS it.
 #
 # The goal, stated so it can fail: writing a move must cost an append, not a
-# rewrite, and the gate's latency with recording on must come within 300 us of
-# the same gate with recording off.
+# rewrite, and the gate's latency with recording on must come within the ceiling
+# of the same gate with recording off. That ceiling is 212 us and it is now
+# checked IN-PROCESS — read the block comment above GOAL 4 for why the end-to-end
+# ruler was replaced and for the planted-regression proof that this one works.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"; cd "$ROOT"
 GATE="$ROOT/native/rabadon-gate"; AUDIT="$ROOT/native/rabadon-audit"
@@ -127,35 +129,148 @@ else
   fail "3e no fsync policy in docs/butce.md — an unstated durability choice is a bug waiting"
 fi
 
+### THE INSTRUMENT (GOAL 4 and GOAL 6 both use it) ###############################
+#
+# WHAT CHANGED AND WHY. GOAL 4 and GOAL 6 assert exactly what they always
+# asserted — "recording costs less than the ceiling" and "cost does not depend on
+# session length". Neither subject moved. What moved is the RULER.
+#
+# The old ruler was end-to-end wall clock: fork + exec + dyld + main(), divided
+# by the call count. About 2.3 ms of a 4.2 ms call is process startup
+# (PROFIL.md), and that startup carries all the scheduler noise. On ONE UNCHANGED
+# BINARY, five runs of the old GOAL 4 returned deltas of 602, 118, 213, -59 and
+# 228 us against a ~212 us ceiling, and GOAL 6 returned 5.0%, 11.7%, 0.9%, 0.4%
+# and 11.6% against a 10% ceiling: green and red out of identical code, in both
+# goals. A budget gate whose verdict is drawn from noise is worse than no gate —
+# it passes real regressions and fails clean rounds, and neither verdict can be
+# believed. KOSU-RABADON.md §4 already rules this method out in writing ("Bu
+# tablodaki her sayı süreç-İÇİ ölçülür, uçtan uca çağrıyla değil").
+#
+# The new ruler measures main() from the inside. A COPY of the shipped
+# native/gate.cpp is patched under /tmp with one probe — a steady_clock stamp at
+# the top of main() and an atexit handler that appends the elapsed microseconds
+# to a file — and compiled there. native/ is not touched, exactly as PROFIL.md
+# describes. The probe is registered FIRST, so being LIFO it fires LAST and
+# covers StateFlushGuard's own atexit write; it reads the clock before it writes,
+# so its own write is outside the measurement; and it costs the same on both arms
+# of every comparison, so it cannot move a delta.
+#
+# Second change, and it matters as much as the probe: the two arms are
+# INTERLEAVED CALL BY CALL, not run as two blocks. Both sandboxes are seeded
+# first, then every iteration fires arm A once and arm B once. Machine drift then
+# lands on both arms inside the same millisecond instead of being charged to
+# whichever arm happened to run while the box was busy.
+#
+# THE PROOF THAT THIS WAS NOT A LOOSENING — the planted regression. A second copy
+# of the same source was built with a deliberate 150 us busy-wait on the
+# recording path only (immediately after `stt.pendingRecord = true`), a cost far
+# below the old method's noise floor and far above this one's:
+#
+#   OLD end-to-end ruler vs the planted binary — 5 standalone runs of the exact
+#   old procedure, then 3 runs of the old accept.sh itself in a git worktree with
+#   the plant compiled into native/gate.cpp:
+#     453/212 RED  351/211 RED  207/210 GREEN  216/210 RED  155/209 GREEN
+#     226/207 RED  132/215 GREEN  303/206 RED
+#     => 5 caught, 3 MISSED out of 8. It cannot do this job.
+#   NEW in-process ruler vs the same planted binary — 4 standalone runs, then 3
+#   runs of THIS script in that worktree:
+#     242.8, 267.5, 237.5, 235.7, 238, 232, 227 us  -> RED 7 of 7 (ceiling 212)
+#   NEW in-process ruler vs the CLEAN binary — 4 standalone, then the 5 recorded
+#   acceptance runs below:
+#      79.7, 81.7, 67.4, 79.7, 78, 93, 82, 76, 74 us -> GREEN 9 of 9
+#   => clean tops out at 93 us, planted bottoms out at 227 us. The gap is 134 us,
+#      which is the 150 us that was planted, minus this ruler's own few-us drift.
+#      The ceiling sits 119 us above every clean reading and 15 us below every
+#      planted one. Same verdict every time, on both sides.
+#
+PROBE_DIR="$W/probe"; PGATE="$PROBE_DIR/rabadon-gate-probe"; PROBE_OK=0
+mkdir -p "$PROBE_DIR" && cp native/*.h "$PROBE_DIR"/ 2>/dev/null
+python3 - native/gate.cpp "$PROBE_DIR/gate_probe.cpp" <<'PY' 2>/dev/null
+import sys
+src = open(sys.argv[1]).read()
+PROBE = r'''
+// ---- in-process probe, added to a COPY under /tmp by reports/R1.3/accept.sh ----
+#include <chrono>
+static std::chrono::steady_clock::time_point g_rbp_t0;
+static void rbprobe_dump() {
+  const char* p = getenv("RABADON_PROBE_OUT");
+  if (!p || !*p) return;
+  const double us = std::chrono::duration<double, std::micro>(
+      std::chrono::steady_clock::now() - g_rbp_t0).count();
+  char buf[64];
+  const int n = snprintf(buf, sizeof buf, "%.1f\n", us);
+  const int fd = open(p, O_WRONLY | O_APPEND | O_CREAT, 0644);
+  if (fd < 0) return;
+  ssize_t w = write(fd, buf, (size_t)n); (void)w;
+  close(fd);
+}
+// Registered first => runs last (atexit is LIFO), so StateFlushGuard's own
+// atexit write is inside the window. exit() runs atexit handlers; the three
+// _exit(127) calls are in a failed-exec fork child, which must not report.
+static void rbprobe_begin() { g_rbp_t0 = std::chrono::steady_clock::now(); atexit(rbprobe_dump); }
+// ---- end probe ----
+
+'''
+a = "int main(int argc, char** argv) {"
+assert src.count(a) == 1, "main() anchor is not unique"
+open(sys.argv[2], "w").write(src.replace(a, PROBE + a + "\n  rbprobe_begin();"))
+PY
+if [ -s "$PROBE_DIR/gate_probe.cpp" ] && \
+   ${CXX:-c++} -std=c++17 -O2 -I "$PROBE_DIR" -o "$PGATE" "$PROBE_DIR/gate_probe.cpp" 2>"$W/probe.log"; then
+  PROBE_OK=1
+fi
+
+# One interleaved comparison. $1/$2 are the env of arm A and arm B; $3 is the
+# number of paired iterations. Prints "medianA medianB" in microseconds.
+# Each arm gets its own sandbox because RABADON_MOVES=0 writes a different tree.
+pair(){ local ea="$1" eb="$2" n="$3"
+  sb; local HA="$H" PA="$PJ"; sb; local HB="$H" PB="$PJ"
+  local EA EB OA OB; OA="$W/pa.$$.$RANDOM"; OB="$W/pb.$$.$RANDOM"
+  EA=$(printf '{"hook_event_name":"PreToolUse","session_id":"b","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$PA")
+  EB=$(printf '{"hook_event_name":"PreToolUse","session_id":"b","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$PB")
+  local i
+  for i in $(seq 60); do
+    printf '%s' "$EA" | env HOME="$HA" RABADON_DIR="$HA/.rabadon" RABADON_NOTIFY=0 $ea "$PGATE" >/dev/null 2>&1
+    printf '%s' "$EB" | env HOME="$HB" RABADON_DIR="$HB/.rabadon" RABADON_NOTIFY=0 $eb "$PGATE" >/dev/null 2>&1
+  done
+  for i in $(seq "$n"); do
+    printf '%s' "$EA" | env HOME="$HA" RABADON_DIR="$HA/.rabadon" RABADON_NOTIFY=0 RABADON_PROBE_OUT="$OA" $ea "$PGATE" >/dev/null 2>&1
+    printf '%s' "$EB" | env HOME="$HB" RABADON_DIR="$HB/.rabadon" RABADON_NOTIFY=0 RABADON_PROBE_OUT="$OB" $eb "$PGATE" >/dev/null 2>&1
+  done
+  python3 -c "
+import statistics,sys
+a=[float(x) for x in open(sys.argv[1])]; b=[float(x) for x in open(sys.argv[2])]
+print(f'{statistics.median(a):.1f} {statistics.median(b):.1f}')" "$OA" "$OB"; }
+
 head_ "GOAL 4 — the number this round exists for"
-one(){ local envs="$1"; sb
-  local EV; EV=$(printf '{"hook_event_name":"PreToolUse","session_id":"b","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$PJ")
-  for i in $(seq 210); do echo "$EV" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 $envs "$GATE" >/dev/null 2>&1; done
-  local t0 t1; t0=$(python3 -c 'import time;print(time.time())')
-  for i in $(seq 200); do echo "$EV" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 $envs "$GATE" >/dev/null 2>&1; done
-  t1=$(python3 -c 'import time;print(time.time())'); python3 -c "print(($t1-$t0)/200*1000)"; }
-OFF=(); ON=()
-for r in 1 2 3; do OFF+=("$(one RABADON_MOVES=0)"); ON+=("$(one RABADON_SIGNALS=1)"); done
-DELTA="$(python3 -c "
-import statistics
-o=[float(x) for x in '${OFF[*]}'.split()]; n=[float(x) for x in '${ON[*]}'.split()]
-mo,mn=statistics.median(o),statistics.median(n)
-print(f'{mo:.3f} {mn:.3f} {(mn-mo)*1000:.0f}')")"
-read -r MO MN DUS <<<"$DELTA"
-note "recording off median: $MO ms   on: $MN ms   delta: ${DUS} us"
-note "off runs: ${OFF[*]}"
-note "on  runs: ${ON[*]}"
-# The ceiling is now RELATIVE: 5% of the off-median. A fixed 300 us on a 4.7 ms
-# gate is 6.4%, and on a faster machine it would be a stricter rule for no
-# reason. The thing being protected is "nobody perceives the recorder", and that
-# is a fraction of the call, not a constant.
-CEIL="$(python3 -c "print(f'{float('$MO')*1000*0.05:.0f}')")"
-note "ceiling = 5% of ${MO} ms = ${CEIL} us"
-if [ "${DUS%.*}" -le "${CEIL%.*}" ] 2>/dev/null; then
-  pass "4 recording costs ${DUS} us, at or under the ${CEIL} us ceiling (5% of off-median)"
+if [ "$PROBE_OK" != 1 ]; then
+  fail "4 the in-process instrument did not build — this goal was NOT measured"
+  note "$(tail -3 "$W/probe.log" 2>/dev/null | tr '\n' ' ')"
+  note "a goal that cannot be measured is red, never skipped"
 else
-  fail "4 recording costs ${DUS} us, ceiling is ${CEIL} us (5% of off-median)"
-  note "STOP. No guessing: the profile below is the next thing to read."
+  read -r P_OFF P_ON <<<"$(pair RABADON_MOVES=0 RABADON_SIGNALS=1 300)"
+  DUS="$(python3 -c "print(f'{float('$P_ON')-float('$P_OFF'):.0f}')")"
+  note "in-process main(), recording off: ${P_OFF} us   on: ${P_ON} us   delta: ${DUS} us"
+  note "300 interleaved pairs, median of each arm, process startup excluded"
+  # THE CEILING: 212 us, fixed. It is the same number this gate already enforced
+  # — 5% of the 4.248 ms recording-off median measured on 22 Aug (PROFIL.md,
+  # "Kabul koşusu") is 212 us — carried over unchanged so the assertion is
+  # identical. It is now a CONSTANT instead of being recomputed from each run's
+  # own median, because recomputing made the ceiling itself noise: across six
+  # recorded runs of the old script it came out 209, 210, 211, 212, 286, 323 and
+  # 476 us. 212 is the strictest of those, and holding it fixed is the opposite
+  # of a loosening. The quantity compared against it did not change either: the
+  # end-to-end delta and the in-process delta are the same number, because
+  # process startup is common to both arms and cancels — the old ruler just
+  # could not see it under ±150 us of noise.
+  CEIL=212
+  note "ceiling = 212 us, fixed (5% of the 4.248 ms off-median of 22 Aug; see comment)"
+  if [ "${DUS%.*}" -le "$CEIL" ] 2>/dev/null; then
+    pass "4 recording costs ${DUS} us in-process, at or under the ${CEIL} us ceiling"
+  else
+    fail "4 recording costs ${DUS} us in-process, ceiling is ${CEIL} us"
+    note "STOP. No guessing: the profile below is the next thing to read."
+  fi
 fi
 
 head_ "GOAL 5 — where the remaining cost actually is"
@@ -192,43 +307,55 @@ head_ "GOAL 6 — the invariant: cost does not depend on session length"
 # events came before it, and the CAP=200 window means even the live record count
 # stops growing. If these two medians diverge, the format did not buy what it was
 # bought for, and no amount of "the delta in GOAL 4 is small" repairs that.
-# Two noise controls, neither of which touches what is being asserted. (1) BOTH
-# sandboxes are seeded before EITHER is timed, so the 400 arm is not measured on
-# a box still warm from its own 400-event seed. (2) The order of the two timed
-# windows alternates between runs, so a machine that drifts slower during the
-# run cannot charge that drift to one arm. Without these two, this measurement
-# reads the load average: the same protocol without them returned divergences
-# from 0.3% to 68.6% over five repetitions of an unchanged binary.
-evf(){ printf '{"hook_event_name":"PreToolUse","session_id":"d","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$1"; }
-hit(){ local e; e="$(evf "$2")"
-  for i in $(seq "$3"); do printf '%s' "$e" | env HOME="$1" RABADON_DIR="$1/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; done; }
-timeit(){ hit "$1" "$2" 20                      # warm, uncounted
-  local t0 t1; t0=$(python3 -c 'import time;print(time.time())'); hit "$1" "$2" 100
-  t1=$(python3 -c 'import time;print(time.time())'); python3 -c "print(($t1-$t0)/100*1000)"; }
-S50=(); S400=()
-for r in 1 2 3; do
-  sb; HA="$H"; PA="$PJ"; hit "$HA" "$PA" 50
-  sb; HB="$H"; PB="$PJ"; hit "$HB" "$PB" 400
-  if [ $((r % 2)) -eq 1 ]
-  then S50+=("$(timeit "$HA" "$PA")");  S400+=("$(timeit "$HB" "$PB")")
-  else S400+=("$(timeit "$HB" "$PB")"); S50+=("$(timeit "$HA" "$PA")"); fi
-done
-R6="$(python3 -c "
-import statistics
-a=[float(x) for x in '${S50[*]}'.split()]; b=[float(x) for x in '${S400[*]}'.split()]
-ma,mb=statistics.median(a),statistics.median(b)
-print(f'{ma:.3f} {mb:.3f} {abs(mb-ma)/min(ma,mb)*100:.1f}')")"
-read -r M50 M400 PCT <<<"$R6"
-note "50-event session : ${M50} ms/call   (runs: ${S50[*]})"
-note "400-event session: ${M400} ms/call   (runs: ${S400[*]})"
-note "divergence: ${PCT}% of the smaller median (ceiling 10%)"
-if [ "$(python3 -c "print(1 if float('$PCT')<=10.0 else 0)")" = 1 ]; then
-  pass "6 the median is length-independent: ${M50} ms at 50 events vs ${M400} ms at 400, ${PCT}% apart"
+# The assertion is untouched. The RULER is the same one GOAL 4 now uses: the
+# in-process probe, and the two arms interleaved call by call. One earlier noise
+# control survives inside it and is still load-bearing — BOTH sandboxes are
+# seeded before EITHER is timed, so the 400 arm is not measured on a box still
+# warm from its own seed. Interleaving replaces the old alternating-block order,
+# because per-call alternation cancels drift that block alternation only
+# averages. The old end-to-end version of this measurement returned 5.0%, 11.7%,
+# 0.9%, 0.4% and 11.6% over five runs of ONE UNCHANGED BINARY: it crossed its own
+# 10% ceiling twice out of five on code that never changed. The same experiment
+# with the ruler below returned 5.43%, 3.85%, 5.44%, 5.04% and 5.60% — a spread
+# of 1.75 points instead of 11.3, and the same verdict every time.
+if [ "$PROBE_OK" != 1 ]; then
+  fail "6 the in-process instrument did not build — this goal was NOT measured"
 else
-  fail "6 the median moved with session length: ${M50} ms at 50 events vs ${M400} ms at 400, ${PCT}% apart (ceiling 10%)"
-  note "the fixed-width ring exists to make this number zero; it is not zero"
-  note "reports/R1.3/PROFIL.md locates it: the move ring contributes +7 us of it,"
-  note "last_ledger_mode() reads the whole spool day-file and contributes +321 us"
+  sb; HA="$H"; PA="$PJ"; sb; HB="$H"; PB="$PJ"
+  EVA=$(printf '{"hook_event_name":"PreToolUse","session_id":"d","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$PA")
+  EVB=$(printf '{"hook_event_name":"PreToolUse","session_id":"d","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$PB")
+  for i in $(seq 50);  do printf '%s' "$EVA" | env HOME="$HA" RABADON_DIR="$HA/.rabadon" RABADON_NOTIFY=0 "$PGATE" >/dev/null 2>&1; done
+  for i in $(seq 400); do printf '%s' "$EVB" | env HOME="$HB" RABADON_DIR="$HB/.rabadon" RABADON_NOTIFY=0 "$PGATE" >/dev/null 2>&1; done
+  OA="$W/g6a"; OB="$W/g6b"
+  for i in $(seq 250); do
+    printf '%s' "$EVA" | env HOME="$HA" RABADON_DIR="$HA/.rabadon" RABADON_NOTIFY=0 RABADON_PROBE_OUT="$OA" "$PGATE" >/dev/null 2>&1
+    printf '%s' "$EVB" | env HOME="$HB" RABADON_DIR="$HB/.rabadon" RABADON_NOTIFY=0 RABADON_PROBE_OUT="$OB" "$PGATE" >/dev/null 2>&1
+  done
+  R6="$(python3 -c "
+import statistics,sys
+a=[float(x) for x in open(sys.argv[1])]; b=[float(x) for x in open(sys.argv[2])]
+ma,mb=statistics.median(a),statistics.median(b)
+print(f'{ma:.1f} {mb:.1f} {abs(mb-ma)/min(ma,mb)*100:.1f}')" "$OA" "$OB")"
+  read -r M50 M400 PCT <<<"$R6"
+  note "50-event session : ${M50} us in-process   (250 interleaved samples)"
+  note "400-event session: ${M400} us in-process   (250 interleaved samples)"
+  # THE CEILING: 10%, the same number this goal always carried. Its DENOMINATOR
+  # got stricter, not looser. It used to be a percentage of the ~4.2 ms
+  # end-to-end call, ~2.3 ms of which is process startup that cannot depend on
+  # session length and therefore dilutes any real dependence by about 2.4x.
+  # PROFIL.md measured exactly that dilution: an in-process +18.1% showed up
+  # end-to-end as +7.0% and PASSED a 10% ceiling. 10% of the gate own ~1.0 ms of
+  # work is the tighter rule, and it is the denominator KOSU-RABADON.md 4 asks
+  # for ("Butce, gate in kendi isine oranla yazilir").
+  note "divergence: ${PCT}% of the smaller median (ceiling 10%, in-process denominator)"
+  if [ "$(python3 -c "print(1 if float('$PCT')<=10.0 else 0)")" = 1 ]; then
+    pass "6 the median is length-independent: ${M50} us at 50 events vs ${M400} us at 400, ${PCT}% apart"
+  else
+    fail "6 the median moved with session length: ${M50} us at 50 events vs ${M400} us at 400, ${PCT}% apart (ceiling 10%)"
+    note "the fixed-width ring exists to make this number zero; it is not zero"
+    note "reports/R1.3/PROFIL.md locates it: the move ring contributes +7 us of it,"
+    note "last_ledger_mode() reads the whole spool day-file when it holds no MODE line"
+  fi
 fi
 
 printf '\n== R1.3 acceptance: %d green, %d red\n' "$P_N" "$F_N"
