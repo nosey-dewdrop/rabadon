@@ -165,15 +165,50 @@ v1, `harbor-framework/terminal-bench-2` is v2, and the harness is now
 `harbor-framework/harbor`. `alibaba/terminal-bench-pro` is third-party. R7 must
 name which one it used or its numbers mean nothing.
 
-## Left alone on purpose
+## T1 and T2 replayed after R0 — measured, not guessed
 
-`reports/T1/accept.sh` and `reports/T2/accept.sh` still name `PROTOCOL-T1-T8.md`
-at its old root path, and both filter the repo root against a file list that
-predates `KOSU-RABADON.md`. Re-running either today would likely go red on that
-filter. They are **not** edited: an acceptance script is evidence of what was
-accepted on the day it ran, and rewriting one so today's tree passes it is the
-precise move this product exists to refuse. If T1/T2 ever need to be replayed,
-that is a new report with its own reason, not a quiet patch.
+Run on 2026-08-22, after R0's changes, with neither script edited.
+
+| script | result |
+|---|---|
+| `reports/T2/accept.sh` | **21 green, 0 red — T2 ACCEPTED** |
+| `reports/T1/accept.sh` | **19 green, 1 red — T1 NOT ACCEPTED** |
+
+The suspicion recorded earlier in this file — that both would go red on their
+root-file filters — was half wrong, and it is corrected here rather than
+quietly dropped. T2 passes untouched.
+
+T1's single red is **caused by R0 and is a false red**:
+
+```
+FAIL  3 the phrase "Supervise your coding agent" is still in the repo
+      docs/internal/arsiv/PROTOCOL-T1-T8.md:71
+      docs/internal/arsiv/PROTOCOL-T1-T8.md:404
+      docs/internal/arsiv/PROTOCOL-T1-T8.md:437
+```
+
+All three hits are inside the cancelled plan, and in all three the plan is
+*quoting the phrase in order to ban it* — the same reason T1's own accept.sh
+excluded `PROTOCOL-T1-T8.md` from that grep in the first place
+(`reports/T1/accept.sh:281`, `--exclude=PROTOCOL-T1-T8.md` at :290). R0 moved the
+file to `docs/internal/arsiv/`, so a filter written against the root path stopped
+matching it. The banned phrase is in no live surface: README, package.json and
+docs are all clean, which is what claims 4a-4c assert and they are green.
+
+So this is not a regression in T1's subject matter. It is a filter that names a
+path that moved.
+
+**Not fixed here, on purpose.** Editing an acceptance script in the same session
+that needs it green is the move this product refuses, and R0's own acceptance
+does not depend on T1's. The repair is booked as an R1 hygiene item
+(KOSU-RABADON.md R1): widen T1's exclusion from the bare filename to the archive
+path, in its own commit, with this reason, and touching nothing else in either
+script. T2 needs no change.
+
+Raw logs: `/tmp/rab_t1.log`, `/tmp/rab_t2.log` at the time of the run — not
+committed, because reports/T1 and reports/T2 are evidence of the day they were
+accepted and R0 does not write into them. Re-run to reproduce:
+`reports/T1/accept.sh; reports/T2/accept.sh`.
 
 ## NOT VERIFIED
 
@@ -183,8 +218,8 @@ that is a new report with its own reason, not a quiet patch.
   it is R8's work.
 - The `roboticforce/agent-guardrails` repo, which may be the hooks-based
   competitor §1b meant. Never fetched.
-- Whether reports/T1 and reports/T2 accept.sh actually go red today. Suspected
-  from reading their root-file filters; not run.
+- ~~Whether reports/T1 and reports/T2 accept.sh go red today.~~ Now run and
+  recorded above: T2 green, T1 one false red from the archive move.
 
 ## NEXT
 
