@@ -1,5 +1,12 @@
 # rabadon native core. one binary, zero deps.
-CXX ?= clang++
+# `c++`, not `clang++`: on a Linux box with only g++ installed, `clang++` is a
+# command that does not exist and `make all` dies before a single test runs.
+# `c++` is the standard alias and resolves to whichever compiler the machine
+# has. The ten test scripts under native/ already fall back to `c++` for the
+# same reason (native/cmdtext_test.sh:31); this line was the last place a
+# clang-only name survived. NOT exported, on purpose: exporting would push this
+# value into those scripts and take their own fallback away. (PROJECT.md S0.2)
+CXX ?= c++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
 all: native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-pipeline native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
