@@ -3929,6 +3929,37 @@ int main(int argc, char** argv) {
     }
   }
 
+  // test-tamper: suite red + a test-file edit that weakens it
+  if ((toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") && !filePath.empty()) {
+    if (stt.tests_red()) {
+      bool isTest = false;
+      if (guardRaw.find("\"testPaths\"") != string::npos) {
+        for (const auto& pat : parse_str_array(guardRaw, "testPaths"))
+          if (rx_test(pat, filePath)) { isTest = true; break; }
+      } else isTest = rx_test("test", filePath);
+      if (isTest) {
+        const string oldS = E.oldString;
+        string newS = E.newString;
+        if (newS.empty()) newS = E.content;
+        const string SKIP = "\\b(it|test|describe)\\.(skip|todo)\\b|\\bxit\\(|\\bxdescribe\\(|DISABLED_|GTEST_SKIP|@unittest\\.skip|pytest\\.mark\\.skip";
+        auto countAsserts = [](const string& s) {
+          static const std::regex re("\\b(assert|expect|require)(\\.\\w+)?\\s*\\(|\\b(EXPECT_|ASSERT_|assert_eq)\\w*!?\\s*\\(", std::regex::ECMAScript);
+          return (int)std::distance(std::sregex_iterator(s.begin(), s.end(), re), std::sregex_iterator());
+        };
+        bool addsSkip = rx_test(SKIP, newS) && !rx_test(SKIP, oldS);
+        bool dropsAsserts = !oldS.empty() && countAsserts(newS) < countAsserts(oldS);
+        if (addsSkip || dropsAsserts)
+          block("test-tamper", "tests are RED and this edit weakens the test instead of fixing the code",
+            string(addsSkip ? "a skip marker is being added to " : "assertions are being removed from ") + filePath + " while the suite is red");
+      }
+    }
+  }
+
+  // R4's red-suite-test-write runs AFTER test-tamper, deliberately. Both refuse
+  // the same family of edit, but test-tamper names the precise move (a skip
+  // marker, a lost assertion) and this one names only the file. A refusal is
+  // read by a human, so the sharper diagnosis has to be the one that speaks;
+  // the wider net exists for what the sharper rule cannot see.
   // ---------- R4, the certain level: a red suite closes the test file -------
   //
   // This is the deterministic subset of signal 5 and the ONLY thing R4 adds to
@@ -3988,32 +4019,6 @@ int main(int argc, char** argv) {
               "    rabadon wrong red-suite-test-write \"why the test is wrong\"\n"
               "It records the refusal as a false positive on the ledger and lets the next write "
               "through, once");
-      }
-    }
-  }
-
-  // test-tamper: suite red + a test-file edit that weakens it
-  if ((toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit") && !filePath.empty()) {
-    if (stt.tests_red()) {
-      bool isTest = false;
-      if (guardRaw.find("\"testPaths\"") != string::npos) {
-        for (const auto& pat : parse_str_array(guardRaw, "testPaths"))
-          if (rx_test(pat, filePath)) { isTest = true; break; }
-      } else isTest = rx_test("test", filePath);
-      if (isTest) {
-        const string oldS = E.oldString;
-        string newS = E.newString;
-        if (newS.empty()) newS = E.content;
-        const string SKIP = "\\b(it|test|describe)\\.(skip|todo)\\b|\\bxit\\(|\\bxdescribe\\(|DISABLED_|GTEST_SKIP|@unittest\\.skip|pytest\\.mark\\.skip";
-        auto countAsserts = [](const string& s) {
-          static const std::regex re("\\b(assert|expect|require)(\\.\\w+)?\\s*\\(|\\b(EXPECT_|ASSERT_|assert_eq)\\w*!?\\s*\\(", std::regex::ECMAScript);
-          return (int)std::distance(std::sregex_iterator(s.begin(), s.end(), re), std::sregex_iterator());
-        };
-        bool addsSkip = rx_test(SKIP, newS) && !rx_test(SKIP, oldS);
-        bool dropsAsserts = !oldS.empty() && countAsserts(newS) < countAsserts(oldS);
-        if (addsSkip || dropsAsserts)
-          block("test-tamper", "tests are RED and this edit weakens the test instead of fixing the code",
-            string(addsSkip ? "a skip marker is being added to " : "assertions are being removed from ") + filePath + " while the suite is red");
       }
     }
   }

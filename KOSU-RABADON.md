@@ -333,9 +333,10 @@ Kabul (reports/R7/accept.sh):
 ## R8 — yayın
 
 npm paketi ilk kez gerçekten çıkar. Bilinen üç kırık bu turda kapanır, yenisi aranmaz:
-1. darwin-arm64 ölümü: heldout/harness_lock pytest guard'ları gerçek macOS runner'da doğrulanır; runner'a pytest kurmak da meşru çözümdür, hangisi seçildiyse workflow'a yazılır.
+1. ~~darwin-arm64 ölümü~~ — **BU İDDİA ÇÜRÜDÜ (23.08, `reports/R8/PREFLIGHT.md`).** Guard'lar `heldout_test.sh:121` ve `harness_lock_test.sh:118`'de mevcut ve doğru davranıyor (oy vermek yerine skip + NOT JUDGED), release.yml'de zaten best-effort pytest kurulumu var (35541b2, 08 Ağu), ve pytest'siz macos-15 runner'ında CI **yeşil geçti** (run 32601613477). R8'in yapacağı iş yok. Doğrulanmamış tek şey: release runner'ında pytest'in VAR olduğu yol.
 2. release.yml'in 17 binary / package.json'ların 18 dosya uyuşmazlığı kapanır: rabadon-run her platform paketine girer.
 3. Yayın yeşil main'den, temiz tag'le yapılır; kırmızı tabandan publish yasak.
+   **AÇIK — "yeşil main" bugün tanımsız.** `ci.yml` her push'ta kırmızı: `make disclosure` 53 isim buluyor, 12'si listede, 41'i liste dışı, ve bu **tasarım gereği** kırmızı. Yani "yeşil main'den yayın" şu an hiçbir zaman sağlanamaz. R8 başlamadan önce bu cümlenin ne demek olduğu kararlaştırılır: ya 41 isim listeye girer/temizlenir, ya disclosure kapısı yayın kapısı olmaktan çıkarılır. Karar verilmeden R8 koşamaz.
 
 Plugin paketi: repo köküne .claude-plugin/plugin.json + hooks/hooks.json girer; hook'lar npm'deki aynı binary'yi çağırır, ikinci kod yolu yoktur. Kurulum iki cümle olur: `npm i -g rabadon` ya da `/plugin marketplace add <org>/rabadon && /plugin install rabadon@rabadon`. Plugin README'si açıkça yazar: hot-path'te ağ yok, model yok, izin dosyasına yazmıyor — PromptArmor saldırı sınıfına karşı savunma cümlesi dürüst olarak söylenebildiği için söylenir.
 
