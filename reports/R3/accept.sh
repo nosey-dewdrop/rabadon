@@ -370,23 +370,107 @@ head_ "CLAIM 3 — the added latency is MEASURED, not estimated"
 # KOSU-RABADON.md, R3: "kademe 1'in eklediği gecikme gate_bench ile ölçülür,
 # tahmin edilmez; mevcut fixture setinde medyan artışı 500 µs altında."
 #
-# Two arms over the SAME fixture set, three runs each, medians compared. An
-# estimate would be a sentence; this is a number with a losing side.
+# THE ASSERTION IS UNCHANGED: tier 1 adds less than 500 us to the median of this
+# fixture set. Two arms, same fixtures, tier 1 ON against tier 1 OFF. What
+# changed on 23 Aug is the RULER, and only the ruler.
+#
+# WHY THE OLD RULER WAS THROWN OUT. It timed the whole subprocess — fork + exec +
+# dyld + main() — and divided by the event count. About 2.3 ms of a 4.2 ms call
+# is process startup (PROFIL.md), it carries all of the machine's scheduler
+# noise, and 500 us is far below it. On ONE UNCHANGED BINARY four consecutive
+# runs printed "adds 1741.6 us" and "5198.8 us" against the 500 us budget in two
+# of them and passed in the other two — 14/0, 13/1, 13/1, 14/0 out of identical
+# code. The R3 implementation run saw the same both ways: -362/-433/-270 us on
+# the finished feature and -64/+92/+206/+608 us on a tree where tier 1 was not
+# even built. A number that swings ±5 ms cannot decide a 500 us question in
+# either direction, so the green was worth exactly as much as the red: nothing.
+#
+# THE NEW RULER measures main() from the inside, the same way reports/R1.3's
+# GOAL 4 was fixed. A COPY of the shipped native/gate.cpp is patched under a
+# mktemp dir with one probe — a steady_clock stamp at the top of main() and an
+# atexit handler that appends the elapsed microseconds to a file — and compiled
+# there with c++ -std=c++17 -O2. native/ is never touched. The probe is
+# registered FIRST so, atexit being LIFO, it fires LAST and the state flush is
+# inside the window; it reads the clock before it writes, so its own write is
+# outside it; and it costs the same on both arms, so it cannot move a delta.
+# The two arms are INTERLEAVED CALL BY CALL over the same fixture text, so
+# machine drift lands on both arms in the same millisecond instead of being
+# charged to whichever arm ran while the box was busy.
+#
+# THE PROOF THAT THIS IS NOT A LOOSENING — the planted regression. A second copy
+# of the same source was built with a 300 us busy-wait on the TIER-1 PATH ONLY
+# (immediately inside `if (!isBash && rbsem::enabled()) {`, so arm B pays it and
+# arm A does not). 300 us is far under the old ruler's noise floor and far over
+# this one's. Measured on 23 Aug on a box under load average 78:
+#
+#   OLD end-to-end ruler, its exact procedure, 5 runs each binary:
+#     clean   : -492.5  -526.4  +861.7  -13862.6  +230.9 us   -> 1 of 5 RED on
+#               code with nothing wrong with it
+#     planted : +1662.6  +783.9  +2438.3  +867.0  +530.2 us
+#     The two bands OVERLAP (clean reaches +862, planted comes down to +530) and
+#     the clean band alone spans 14.7 ms. A verdict drawn from that says nothing
+#     about the 300 us: the old ruler cannot resolve the plant in either
+#     direction, it only reports the machine.
+#   NEW in-process ruler, 600 interleaved pairs, 3 runs each binary:
+#     clean   : +119.8  +70.3  +166.6 us
+#     planted : +381.4  +433.1  +491.8 us
+#     Disjoint, 3 of 3, with 214.8 us of clear air between the worst clean run
+#     and the best planted one. The separation is 300 us minus this ruler's own
+#     drift, which is what a working instrument looks like.
+#   Note the planted binary still reads UNDER the 500 us budget, and that is the
+#   correct verdict, not a miss: 300 us of extra work on top of ~61 us really is
+#   inside the budget the plan wrote. The instrument's job is to RESOLVE the
+#   quantity; the budget's job is to decide what is too much. Before 23 Aug the
+#   first job was not being done at all.
 
 BUDGET_US=500
+
+### the in-process instrument ###############################################
+PROBE_DIR="$WORK/probe"; PGATE="$PROBE_DIR/rabadon-gate-probe"; PROBE_OK=0
+mkdir -p "$PROBE_DIR" && cp "$ROOT"/native/*.h "$PROBE_DIR"/ 2>/dev/null
+python3 - "$ROOT/native/gate.cpp" "$PROBE_DIR/gate_probe.cpp" <<'PY' 2>"$WORK/patch.log"
+import sys
+src = open(sys.argv[1]).read()
+PROBE = r'''
+// ---- in-process probe, added to a COPY under a mktemp dir by reports/R3/accept.sh ----
+#include <chrono>
+static std::chrono::steady_clock::time_point g_rbp_t0;
+static void rbprobe_dump() {
+  const char* p = getenv("RABADON_PROBE_OUT");
+  if (!p || !*p) return;
+  const double us = std::chrono::duration<double, std::micro>(
+      std::chrono::steady_clock::now() - g_rbp_t0).count();
+  char buf[64];
+  const int n = snprintf(buf, sizeof buf, "%.1f\n", us);
+  const int fd = open(p, O_WRONLY | O_APPEND | O_CREAT, 0644);
+  if (fd < 0) return;
+  ssize_t w = write(fd, buf, (size_t)n); (void)w;
+  close(fd);
+}
+// Registered first => runs last (atexit is LIFO), so the gate's own atexit
+// writes are inside the window.
+static void rbprobe_begin() { g_rbp_t0 = std::chrono::steady_clock::now(); atexit(rbprobe_dump); }
+// ---- end probe ----
+
+'''
+a = "int main(int argc, char** argv) {"
+assert src.count(a) == 1, "main() anchor is not unique"
+open(sys.argv[2], "w").write(src.replace(a, PROBE + a + "\n  rbprobe_begin();"))
+PY
+if [ -s "$PROBE_DIR/gate_probe.cpp" ] && \
+   ${CXX:-c++} -std=c++17 -O2 -I "$PROBE_DIR" -o "$PGATE" "$PROBE_DIR/gate_probe.cpp" 2>"$WORK/probe.log"; then
+  PROBE_OK=1
+fi
+
 cat > "$WORK/timer.py" <<'PY'
-import json, os, subprocess, sys, time
-gate, home, proj = sys.argv[1], sys.argv[2], sys.argv[3]
-env = dict(os.environ)
-env["HOME"] = home
-env["RABADON_DIR"] = os.path.join(home, ".rabadon")
-env["RABADON_NOTIFY"] = "0"
-for kv in sys.argv[4:]:
-    k, _, v = kv.partition("=")
-    env[k] = v
+import json, os, statistics, subprocess, sys
+# gate  homeOFF projOFF  homeON projON  outOFF outON  iters
+gate, hA, pA, hB, pB, oA, oB, iters = sys.argv[1:9]
 # The fixture set: the same edit shapes claim 1 drives, which is what "mevcut
 # fixture seti" means here — tier 1's cost is only paid on edits tier 0 missed,
 # so a set of unrelated commands would measure the wrong thing and flatter it.
+# This list is byte-for-byte the one the end-to-end version used; the fixtures
+# did not move, the clock did.
 TEXTS = [
     'function total(a, b) { const x = a + b; return x; }',
     'function total(a, b) { const x = a+b; return x; }',
@@ -401,52 +485,80 @@ TEXTS = [
     'export function span(lo, hi) { return hi - lo; }',
     'import { client } from "./client";\nexport async function listUsers(q) {\n  try { const r = await client.get("/users", { params: q }); return r.data; }\n  catch (e) { throw e; }\n}',
 ]
-n = 0
-t0 = time.perf_counter()
-for i, t in enumerate(TEXTS):
+def env(home, off, probe):
+    e = dict(os.environ)
+    e["HOME"] = home
+    e["RABADON_DIR"] = os.path.join(home, ".rabadon")
+    e["RABADON_NOTIFY"] = "0"
+    if off: e["RABADON_SEM"] = "0"          # arm A: tier 1 off, the kill switch
+    if probe: e["RABADON_PROBE_OUT"] = probe
+    else: e.pop("RABADON_PROBE_OUT", None)  # warm-up calls are not recorded
+    return e
+def fire(proj, home, off, probe, i, t):
     ev = {"hook_event_name": "PreToolUse", "session_id": "bench",
           "cwd": proj, "tool_name": "Edit",
           "tool_input": {"file_path": os.path.join(proj, "src", "f%d.js" % (i % 3)),
                          "old_string": "", "new_string": t}}
     subprocess.run([gate], input=json.dumps(ev), capture_output=True,
-                   text=True, env=env, timeout=60)
-    n += 1
-dt = time.perf_counter() - t0
-if n == 0:
-    print("n=0 us=0")
+                   text=True, env=env(home, off, probe), timeout=60)
+# Both sandboxes are warmed before EITHER is timed: page cache, the session
+# file and the fingerprint file all exist by the time the clock matters, so
+# neither arm is measured on a cold tree.
+for _ in range(2):
+    for i, t in enumerate(TEXTS):
+        fire(pA, hA, True, None, i, t); fire(pB, hB, False, None, i, t)
+# Interleaved call by call, same text on both arms in the same millisecond.
+for _ in range(int(iters)):
+    for i, t in enumerate(TEXTS):
+        fire(pA, hA, True, oA, i, t); fire(pB, hB, False, oB, i, t)
+a = [float(x) for x in open(oA)]; b = [float(x) for x in open(oB)]
+if not a or not b:
+    print("n=0")
 else:
-    print("n=%d us=%.1f" % (n, dt * 1e6 / n))
+    print("%.1f %.1f %d" % (statistics.median(a), statistics.median(b), min(len(a), len(b))))
 PY
 
-arm_median_us() { # arm_median_us [ENV=VAL ...] -> median µs per event over 3 runs
-  local vals=() r out us
-  for r in 1 2 3; do
-    sandbox
-    out="$(python3 "$WORK/timer.py" "$GATE" "$NEW_HOME" "$NEW_PROJ" "$@" 2>/dev/null)"
-    # vacuity guard: no events driven means no measurement, and a missing
-    # measurement must not read as a fast one.
-    case "$out" in *"n=0 "*|"") printf 'BROKEN'; return 1;; esac
-    [ "$(nevents)" -gt 0 ] 2>/dev/null || { printf 'BROKEN'; return 1; }
-    us="${out#*us=}"
-    vals+=("$us")
-  done
-  printf '%s\n' "${vals[@]}" | sort -n | awk 'NR==2{print}'
-}
-
-MED_ON="$(arm_median_us)"
-MED_OFF="$(arm_median_us RABADON_SEM=0)"
-if [ "$MED_ON" = "BROKEN" ] || [ "$MED_OFF" = "BROKEN" ] || [ -z "$MED_ON" ] || [ -z "$MED_OFF" ]; then
-  fail "3 the latency arms did not produce a measurement (on=[$MED_ON] off=[$MED_OFF])"
-  note "an unmeasurable delta is red: the plan forbids estimating this number"
+# 50 iterations x 12 fixtures = 600 timed calls per arm. The count is not
+# decoration: at 300 samples per arm the delta on one unchanged binary still
+# moved ±150 us run to run, and at 600 it moved ±50. The planted regression
+# above was resolved at 600, not at 300.
+ITERS=50
+if [ "$PROBE_OK" != 1 ]; then
+  fail "3 the in-process instrument did not build — this claim was NOT measured"
+  note "$(tail -3 "$WORK/probe.log" "$WORK/patch.log" 2>/dev/null | tr '\n' ' ')"
+  note "a claim that cannot be measured is red, never skipped"
 else
-  DELTA="$(python3 -c 'import sys;print("%.1f"%(float(sys.argv[1])-float(sys.argv[2])))' "$MED_ON" "$MED_OFF")"
-  note "median per event, tier 1 ON  : ${MED_ON} us"
-  note "median per event, tier 1 OFF : ${MED_OFF} us"
-  note "added by tier 1              : ${DELTA} us   (budget ${BUDGET_US} us)"
-  if python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) <= float(sys.argv[2]) else 1)' "$DELTA" "$BUDGET_US"; then
-    pass "3 tier 1 adds ${DELTA} us to the median, under the ${BUDGET_US} us budget"
+  sandbox; H_OFF="$NEW_HOME"; P_OFF="$NEW_PROJ"
+  sandbox; H_ON="$NEW_HOME";  P_ON="$NEW_PROJ"
+  R3OUT="$(python3 "$WORK/timer.py" "$PGATE" "$H_OFF" "$P_OFF" "$H_ON" "$P_ON" \
+            "$WORK/t.off" "$WORK/t.on" "$ITERS" 2>/dev/null)"
+  # vacuity guard: no samples means no measurement, and a missing measurement
+  # must not read as a fast one. NEW_HOME is the ON arm's, so nevents covers it.
+  SAMP="$(printf '%s' "$R3OUT" | awk '{print $3}')"
+  if [ -z "$R3OUT" ] || [ "${SAMP:-0}" -lt "$ITERS" ] 2>/dev/null || [ "$(nevents)" -lt 1 ] 2>/dev/null; then
+    fail "3 the latency arms did not produce a measurement (out=[$R3OUT])"
+    note "an unmeasurable delta is red: the plan forbids estimating this number"
   else
-    fail "3 tier 1 adds ${DELTA} us to the median, over the ${BUDGET_US} us budget"
+    MED_OFF="$(printf '%s' "$R3OUT" | awk '{print $1}')"
+    MED_ON="$(printf '%s' "$R3OUT" | awk '{print $2}')"
+    DELTA="$(python3 -c 'import sys;print("%.1f"%(float(sys.argv[1])-float(sys.argv[2])))' "$MED_ON" "$MED_OFF")"
+    note "in-process main(), tier 1 OFF : ${MED_OFF} us"
+    note "in-process main(), tier 1 ON  : ${MED_ON} us"
+    note "${SAMP} interleaved pairs over the 12 fixtures, process startup excluded"
+    note "added by tier 1               : ${DELTA} us   (budget ${BUDGET_US} us)"
+    # THE CEILING: 500 us, and it is not this file's number to pick. It is
+    # KOSU-RABADON.md's R3 line, quoted at the top of this claim — "mevcut
+    # fixture setinde medyan artışı 500 µs altında". It is carried over
+    # unchanged from the end-to-end version so the assertion is identical; only
+    # the ruler under it was replaced. For scale, the quantity it bounds is
+    # 61 us median in-process (p90 84 us), of which the fingerprint compute is
+    # 1.9 us and the rest is the sidecar's syscalls — so the budget sits about
+    # 8x above the thing it is guarding, and the ruler above resolves the gap.
+    if python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) <= float(sys.argv[2]) else 1)' "$DELTA" "$BUDGET_US"; then
+      pass "3 tier 1 adds ${DELTA} us to the median, under the ${BUDGET_US} us budget"
+    else
+      fail "3 tier 1 adds ${DELTA} us to the median, over the ${BUDGET_US} us budget"
+    fi
   fi
 fi
 

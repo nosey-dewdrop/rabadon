@@ -128,11 +128,20 @@ ev_err() {
 
 # capturing forms: every PreToolUse response is written to CAP so claim 1 can
 # read the text and claim 4 can count how many times it appeared.
-cap() { CAPN=$((CAPN + 1)); cat > "$CAP/$(printf '%03d' "$CAPN").out"; }
+# NOT A PIPE, and that is the whole point. Under bash the last element of a
+# pipeline runs in a SUBSHELL, so `... | cap` incremented CAPN inside a child
+# that then exited: the parent's CAPN stayed 0 and every response overwrote
+# 001.out. Only the LAST PreToolUse of each fixture was ever graded — which made
+# claims 1 and 4 jointly unsatisfiable, because claim 4 requires the third
+# occurrence to carry no injection, and claim 1 then read that empty response.
+# Proven under bash: `echo a|cap; echo b|cap; echo c|cap` leaves CAPN=0 and one
+# file. (zsh does not do this, which is how it survived being written.)
+# Command substitution keeps the counter in this shell.
+cap() { CAPN=$((CAPN + 1)); printf '%s' "$1" > "$CAP/$(printf '%03d' "$CAPN").out"; }
 
-bash_pre()  { ev PreToolUse  Bash "$1" "{\"command\":$(jstr "$2")}" | cap; }
+bash_pre()  { cap "$(ev PreToolUse  Bash "$1" "{\"command\":$(jstr "$2")}")"; }
 bash_post() { ev PostToolUse Bash "$1" "{\"command\":$(jstr "$2")}" "$3" >/dev/null; }
-edit_pre()  { ev PreToolUse  Edit "$1" "{\"file_path\":$(jstr "$NEW_PROJ/$2"),\"old_string\":\"\",\"new_string\":$(jstr "$3")}" | cap; }
+edit_pre()  { cap "$(ev PreToolUse  Edit "$1" "{\"file_path\":$(jstr "$NEW_PROJ/$2"),\"old_string\":\"\",\"new_string\":$(jstr "$3")}")"; }
 ran()       { bash_pre "$1" "$2"; bash_post "$1" "$2" "$3"; }
 
 # ---------------------------------------------------------------------------
