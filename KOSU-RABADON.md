@@ -241,6 +241,16 @@ Terfi merdiveni: bir kural, R2'nin topladığı gerçek kullanım verisinde öl�
 
 Sonuç, R4'ün terfi merdiveni için bağlayıcı: **`MIN_HITS` yük taşıyan parçadır, `THRESHOLD` değil.** `MIN_HITS`'i düşüren bir değişiklik, ajanın yaptığı en değerli işe — test yazmaya — yanlış pozitif basar. Kademe 1 kaynaklı hiçbir sinyal, `MIN_HITS` gerekçesi ayrıca ölçülmeden "olası" seviyesine terfi etmez. (`native/signals_test.sh`, "a test file grown one assertion at a time"; ikinci sıradaki aday üç adımlı operatör düzeltmesi, 0.6923.)
 
+**Plandaki beş belirsizlik, R4 kabul betiği yazılırken çıktı ve burada karara bağlandı (23.08):**
+
+1. **Enjeksiyon ne zaman düşer?** `root_migration` PostToolUse'da tespit ediliyor, `additionalContext` ise yalnız PreToolUse'da var. Yani sinyal ateşlediği olayda değil, **bir sonraki PreToolUse'da** biner. Bu bir gecikme değil, kanalın şekli; ajan zaten bir sonraki hamlesini yapmadan önce görüyor.
+2. **JSON zarfı:** belgelenmiş biçim kullanılır — `hookSpecificOutput` + `hookEventName: "PreToolUse"` + `additionalContext`. Üst düzey `additionalContext` kabul edilir ama tercih değildir.
+3. **Kapatma anahtarı:** `RABADON_INJECT=0` (`RABADON_SIGNALS` / `RABADON_SEM` ile aynı aile).
+4. **Enjekte edilen metnin dili İngilizce.** Bu metin ürün yüzeyidir ve ajana gider; README, package.json ve mevcut red mesajları ("tests are RED") İngilizce. Plan Türkçe yazılmış olması onu Türkçe yapmaz.
+5. **"Aynı sinyal" ne demek?** Aynı oturumda aynı sinyal ADI. İkinci enjeksiyondan sonrası ledger'a düşer ve R5'i tetikler.
+
+**Ve kesin seviyenin genişlemesi bir yanlış pozitif sınıfı açıyor — bilerek, gözü açık.** Bugünkü `test-tamper` yalnız *zayıflatan* düzenlemeyi reddediyor (skip işareti, düşen assertion). R4 bunu "süit kırmızıyken test/harness dosyasına HERHANGİ bir yazım" diye genişletiyor. Meşru vaka gerçek: test'in kendisi yanlıştır ve düzeltme oradadır. Bu kabul edilebilir, çünkü projenin kendi yasası (`CLAIM.md`/`CLAUDE.md`) zaten "test gerçekten yanlışsa dur, sebebini yaz, insan baksın" diyor — yani blok, insanı çağırmanın doğru yolu. Şart: stderr sebebi söyler ve **çıkış yolu vardır**; çıkış yolu olmayan bir kesin-seviye kuralı Yasa 1 ihlalidir.
+
 Durma: enjeksiyon PreToolUse additionalContext yolundan gider, stdout'a değil. Aynı sinyal aynı oturumda en fazla 2 kez enjekte edilir; üçüncüsü ledger'a düşer ve R5 tetiklenir. Enjeksiyon bloklamaz. Cursor gibi before-edit hook'u olmayan ajanlarda enjeksiyon bir sonraki mümkün noktada verilir ve bu fark docs/agent-contract.md'ye yazılır, gizlenmez.
 
 Kabul (reports/R4/accept.sh):
