@@ -91,6 +91,7 @@ On every session, no configuration:
 
 - **loop-stop** — the same command run 3× with no code change in between is a loop, not progress; refused.
 - **test-tamper** — while the suite is red, an edit that weakens a test (skip added, assertions removed) is refused. Fix the code, not the thermometer.
+- **red-suite-test-write** — while the suite is red, *any* write to a test/harness file is refused, weakening or not: an added assertion that encodes the broken behaviour passes test-tamper and is the same move. On a **green** suite the identical write goes through untouched, because editing tests is the most valuable thing an agent does. If the test really is the thing that is wrong, one command says so and lets the next write through, once: `rabadon wrong red-suite-test-write "why the test is wrong"`.
 - **push gate** — if your laws demand green tests before a push, rabadon runs the suite itself at push time and decides on the real result, never on a claim.
 - **scope fan-out** — a task spreading across a 5th top-level directory is challenged once.
 

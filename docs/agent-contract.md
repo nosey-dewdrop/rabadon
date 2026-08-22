@@ -78,6 +78,32 @@ supervises less than it claims is worse than one that says where it stops.
 | capture the session goal from the prompt | yes | yes | yes |
 | goal-drift verdict at the end of a turn | yes | yes | yes |
 | ledger, audit, export, lens | yes | yes | yes |
+| put a diagnosis into the agent's context | yes | **late** | yes, if you call it before an action |
+
+**The injection channel.** When a *likely*-level signal fires, rabadon does not
+stop the agent. It writes what the agent cannot see — the file last edited, the
+readable form of the error, the contrast ("after this move the suite was green,
+after this one red"), and which attempt this is — and delivers it on the
+**next** `PreToolUse`, in the documented envelope:
+
+```json
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"…"}}
+```
+
+It rides the *next* call and not the one it was computed in, because the signal
+that needs it most (`root_migration`) is only knowable once a command has failed,
+which is `PostToolUse`, and `additionalContext` exists only on `PreToolUse`. No
+model is called to write it: every sentence is assembled from the move record and
+the ledger. Never a line number (file-level localisation helps; line-level
+context measurably hurts), never an instruction, never more than 400 characters,
+and the same signal speaks at most twice per session — the third goes to the
+ledger only. `RABADON_INJECT=0` turns it off. It never changes an exit code.
+
+**On Cursor this arrives late, and that is not hidden.** With no
+`beforeFileEdit`, there is no pre-edit moment to ride, so the diagnosis is
+delivered at the next point that exists — the next `beforeShellExecution`. An
+agent that edits several times before running anything gets the diagnosis after
+those edits, not between them. Everything else about it is identical.
 
 **The Cursor gap is real.** Cursor has `afterFileEdit` and no `beforeFileEdit`,
 so an edit made by the agent's own edit tool is recorded but not stopped before

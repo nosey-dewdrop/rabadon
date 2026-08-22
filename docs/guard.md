@@ -64,7 +64,16 @@ operand only a shell can resolve (`$VAR`, `$(cmd)`) is not guessed at — see
   gate (an edit under a code path is what a push is gating).
 - **`testPaths`** — regexes for what counts as a test file. This arms the
   test-tamper detector: while the suite is red, an edit that weakens a test file
-  is refused.
+  is refused. It also arms **`red-suite-test-write`**: while the suite is red,
+  *any* write to a file matched here is refused, weakening or not. That is a
+  wider net than test-tamper on purpose — "make the judge say yes" does not have
+  to look like weakening — and it has a known false-positive class: sometimes the
+  test is the thing that is wrong. That case has one command, named in the
+  refusal itself: `rabadon wrong red-suite-test-write "why the test is wrong"`.
+  It writes `WRONG_REFUSAL` on the same hash-chained ledger as the refusal, so
+  this rule's false-positive count is read rather than asserted, and it leaves a
+  **one-shot** pass: the next write goes through (`OVERRIDE_USED` on the ledger)
+  and the one after that is refused again. On a green suite the rule is silent.
 - **`testCommand`** — a regex matching a test invocation.
 - **`testPassPattern`** — a regex that appears in test output **only** when the
   suite is fully green. rabadon decides on the real output, never on a claim.
