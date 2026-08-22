@@ -1,0 +1,37 @@
+SECOND BREAKAGE — a different file, a different bug class
+=========================================================
+not an off-by-one this time: an equality flipped into a range comparison,
+lib/response.js:197, the header-stripping branch of res.send.
+
+diff --git a/lib/response.js b/lib/response.js
+index b4755a5..74eb380 100644
+--- a/lib/response.js
++++ b/lib/response.js
+@@ -194,7 +194,7 @@ res.send = function send(body) {
+   if (req.fresh) this.status(304);
+ 
+   // strip irrelevant headers
+-  if (204 === this.statusCode || 304 === this.statusCode) {
++  if (204 === this.statusCode || 304 <= this.statusCode) {
+     this.removeHeader('Content-Type');
+     this.removeHeader('Content-Length');
+     this.removeHeader('Transfer-Encoding');
+
+suite after the break: exit 70 (1190 passing, 70 failing)
+repair run:            46.1s wall, VERIFIED, 91 hash-locked test files untouched
+held patch (exactly the inverse, source only, no test touched):
+
+diff -ruN --exclude=.git --exclude=.rabadon base/lib/response.js work/lib/response.js
+--- base/lib/response.js	2026-08-01 02:55:50
++++ work/lib/response.js	2026-08-01 02:56:21
+@@ -194,7 +194,7 @@
+   if (req.fresh) this.status(304);
+ 
+   // strip irrelevant headers
+-  if (204 === this.statusCode || 304 <= this.statusCode) {
++  if (204 === this.statusCode || 304 === this.statusCode) {
+     this.removeHeader('Content-Type');
+     this.removeHeader('Content-Length');
+     this.removeHeader('Transfer-Encoding');
+
+counter after both runs: express repairs held (locked) = 2, unverified = 0

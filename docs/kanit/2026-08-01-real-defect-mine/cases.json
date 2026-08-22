@@ -1,0 +1,1279 @@
+{
+  "generatedAt": "2026-08-01",
+  "what": "Acik kaynak projelerin kendi git tarihinden cikarilmis, gercek hata vakalari. Sentetik degil.",
+  "method": "Her vaka icin: (1) duzeltme commit'ine gecilir, suit kosulur, YESIL kanitlanir. (2) commit'in sadece KAYNAK yarisi geri alinir, testler oldugu gibi birakilir. (3) suit tekrar kosulur, KIRMIZI olur. Kirmizi 3 kez tekrarlanir, ayni testler duser.",
+  "overall": {
+    "totalCases": 31,
+    "totalRepos": 8,
+    "totalScannedCommits": 545,
+    "medianSourceLines": 6,
+    "medianFailingTests": 1,
+    "minSourceLines": 1,
+    "maxSourceLines": 33,
+    "minFailingTests": 1,
+    "maxFailingTests": 10,
+    "allDeterministic": true,
+    "duplicatesRemoved": 0
+  },
+  "byRepo": [
+    {
+      "repo": "expressjs/express",
+      "cases": 4,
+      "scannedCommits": 46,
+      "medianSourceLines": 6.5,
+      "medianFailingTests": 2.5,
+      "clone": "clone: /tmp/mine-express-8tcnSL/express, full history, 6158 commits, HEAD a3714473 v5.2.1"
+    },
+    {
+      "repo": "tj/commander.js",
+      "cases": 4,
+      "scannedCommits": 31,
+      "medianSourceLines": 6.5,
+      "medianFailingTests": 1.0,
+      "clone": "clone: /tmp/mine-commander-5sTOnJ, HEAD ba6d13d"
+    },
+    {
+      "repo": "lodash/lodash",
+      "cases": 4,
+      "scannedCommits": 218,
+      "medianSourceLines": 10.5,
+      "medianFailingTests": 1.5,
+      "clone": "clone: /tmp/mine-lodash-Ekjzus/repo, main @ a666ba591 (2026-07-03)"
+    },
+    {
+      "repo": "ajv-validator/ajv",
+      "cases": 3,
+      "scannedCommits": 110,
+      "medianSourceLines": 5,
+      "medianFailingTests": 2,
+      "clone": "clone: /tmp/ajvmine.efz0Yc/ajv"
+    },
+    {
+      "repo": "pallets/click",
+      "cases": 4,
+      "scannedCommits": 48,
+      "medianSourceLines": 6.5,
+      "medianFailingTests": 2.5,
+      "clone": "clone: /tmp/mine-click-wrDfU5"
+    },
+    {
+      "repo": "pallets/jinja",
+      "cases": 4,
+      "scannedCommits": 35,
+      "medianSourceLines": 8.0,
+      "medianFailingTests": 1.0,
+      "clone": "clone: /tmp/mine-jinja-Sai1MU"
+    },
+    {
+      "repo": "pallets/markupsafe",
+      "cases": 4,
+      "scannedCommits": 30,
+      "medianSourceLines": 4.5,
+      "medianFailingTests": 1.0,
+      "clone": "clone: /tmp/mine-markupsafe-JKqYjr, 844 commits"
+    },
+    {
+      "repo": "yaml/pyyaml",
+      "cases": 4,
+      "scannedCommits": 27,
+      "medianSourceLines": 1.0,
+      "medianFailingTests": 1.5,
+      "clone": "clone: /tmp/mine-pyyaml-BHYa2v/pyyaml"
+    }
+  ],
+  "cases": [
+    {
+      "key": "express-res-send-content-length-transfer-encoding",
+      "repo": "expressjs/express",
+      "fixSha": "18e5985b8a9d5e8423db0a9121f22bdaecd5b120",
+      "subject": "fix(res.send): add Content-Length header only if Transfer-Encoding is not present (#4893)",
+      "sourceFiles": [
+        "lib/response.js"
+      ],
+      "sourceLines": 7,
+      "testFiles": [
+        "test/res.send.js"
+      ],
+      "failingTests": 4,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/express-res-send-content-length-transfer-encoding.patch",
+      "evidenceGreen": "evidence/express-res-send-content-length-transfer-encoding.green.txt",
+      "evidenceRed": "evidence/express-res-send-content-length-transfer-encoding.red.txt",
+      "rawSources": {
+        "patch": "express/revert-patches.diff (bolum 18e5985b)",
+        "green": "express/raw-runs/18e5985b.green.txt",
+        "red": [
+          "express/raw-runs/18e5985b.red1.txt",
+          "express/raw-runs/18e5985b.red2.txt",
+          "express/raw-runs/18e5985b.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "express-redirect-no-anchor-href",
+      "repo": "expressjs/express",
+      "fixSha": "54271f69b511fea198471e6ff3400ab805d6b553",
+      "subject": "fix: don't render redirect values in anchor href",
+      "sourceFiles": [
+        "lib/response.js"
+      ],
+      "sourceLines": 2,
+      "testFiles": [
+        "test/res.redirect.js"
+      ],
+      "failingTests": 4,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/express-redirect-no-anchor-href.patch",
+      "evidenceGreen": "evidence/express-redirect-no-anchor-href.green.txt",
+      "evidenceRed": "evidence/express-redirect-no-anchor-href.red.txt",
+      "rawSources": {
+        "patch": "express/revert-patches.diff (bolum 54271f69)",
+        "green": "express/raw-runs/54271f69.green.txt",
+        "red": [
+          "express/raw-runs/54271f69.red1.txt",
+          "express/raw-runs/54271f69.red2.txt",
+          "express/raw-runs/54271f69.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "express-route-missing-method",
+      "repo": "expressjs/express",
+      "fixSha": "74beeac0718c928b4ba249aba3652c52fbe32ca8",
+      "subject": "Fix routing requests without method",
+      "sourceFiles": [
+        "lib/router/route.js"
+      ],
+      "sourceLines": 9,
+      "testFiles": [
+        "test/Router.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/express-route-missing-method.patch",
+      "evidenceGreen": "evidence/express-route-missing-method.green.txt",
+      "evidenceRed": "evidence/express-route-missing-method.red.txt",
+      "rawSources": {
+        "patch": "express/revert-patches.diff (bolum 74beeac0)",
+        "green": "express/raw-runs/74beeac0.green.txt",
+        "red": [
+          "express/raw-runs/74beeac0.red1.txt",
+          "express/raw-runs/74beeac0.red2.txt",
+          "express/raw-runs/74beeac0.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "express-unanchored-regexp-prefix-match",
+      "repo": "expressjs/express",
+      "fixSha": "99a369f3d51bafcf0c09657250067249f19d04f5",
+      "subject": "Fix incorrect middleware execution with unanchored RegExps",
+      "sourceFiles": [
+        "lib/router/index.js"
+      ],
+      "sourceLines": 6,
+      "testFiles": [
+        "test/app.router.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "sadece-silme",
+      "patch": "patches/express-unanchored-regexp-prefix-match.patch",
+      "evidenceGreen": "evidence/express-unanchored-regexp-prefix-match.green.txt",
+      "evidenceRed": "evidence/express-unanchored-regexp-prefix-match.red.txt",
+      "rawSources": {
+        "patch": "express/revert-patches.diff (bolum 99a369f3)",
+        "green": "express/raw-runs/99a369f3.green.txt",
+        "red": [
+          "express/raw-runs/99a369f3.red1.txt",
+          "express/raw-runs/99a369f3.red2.txt",
+          "express/raw-runs/99a369f3.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "commander-configureoutput-shared-object",
+      "repo": "tj/commander.js",
+      "fixSha": "68199e64b31851839c03dff1567a81d7714baa08",
+      "subject": "Make .configureOutput() create copy of settings instead of in-place change (#2350)",
+      "sourceFiles": [
+        "lib/command.js"
+      ],
+      "sourceLines": 6,
+      "testFiles": [
+        "tests/command.configureOutput.test.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/commander-configureoutput-shared-object.patch",
+      "evidenceGreen": "evidence/commander-configureoutput-shared-object.green.txt",
+      "evidenceRed": "evidence/commander-configureoutput-shared-object.red.txt",
+      "rawSources": {
+        "patch": "commander/68199e64b.srcdiff dosyasinin ters yonu (git apply -R ile uygulandi)",
+        "green": "commander/68199e64b.green.log",
+        "red": [
+          "commander/68199e64b.red1.log",
+          "commander/68199e64b.red2.log",
+          "commander/68199e64b.red3.log"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "TERS YON — kosu ayni yamayi 'git apply -R' ile uygulamis; islem ozdes, dosya artik geri-alma yonunde",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "commander-help-option-description-leading-space",
+      "repo": "tj/commander.js",
+      "fixSha": "672e3806c68421f91b3a1f628f6207b8b26d1a2c",
+      "subject": "Trim description when there's only extra info (#2348)",
+      "sourceFiles": [
+        "lib/help.js"
+      ],
+      "sourceLines": 6,
+      "testFiles": [
+        "tests/help.optionDescription.test.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/commander-help-option-description-leading-space.patch",
+      "evidenceGreen": "evidence/commander-help-option-description-leading-space.green.txt",
+      "evidenceRed": "evidence/commander-help-option-description-leading-space.red.txt",
+      "rawSources": {
+        "patch": "commander/672e3806c.srcdiff dosyasinin ters yonu (git apply -R ile uygulandi)",
+        "green": "commander/672e3806c.green.log",
+        "red": [
+          "commander/672e3806c.red1.log",
+          "commander/672e3806c.red2.log",
+          "commander/672e3806c.red3.log"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "TERS YON — kosu ayni yamayi 'git apply -R' ile uygulamis; islem ozdes, dosya artik geri-alma yonunde",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "commander-subprocess-signal-exit-code",
+      "repo": "tj/commander.js",
+      "fixSha": "5aaca0d666271f56fcc79044391765db527123f2",
+      "subject": "Exit with non-zero code when subprocess terminated by signal (#2023)",
+      "sourceFiles": [
+        "lib/command.js"
+      ],
+      "sourceLines": 16,
+      "testFiles": [
+        "tests/command.executableSubcommand.signals.test.js",
+        "tests/fixtures/pm",
+        "tests/fixtures/pm-fail.js",
+        "tests/fixtures/pm-terminate.js"
+      ],
+      "failingTests": 3,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/commander-subprocess-signal-exit-code.patch",
+      "evidenceGreen": "evidence/commander-subprocess-signal-exit-code.green.txt",
+      "evidenceRed": "evidence/commander-subprocess-signal-exit-code.red.txt",
+      "rawSources": {
+        "patch": "commander/5aaca0d66.srcdiff dosyasinin ters yonu (git apply -R ile uygulandi)",
+        "green": "commander/5aaca0d66.green.log",
+        "red": [
+          "commander/5aaca0d66.red1.log",
+          "commander/5aaca0d66.red2.log",
+          "commander/5aaca0d66.red3.log"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "TERS YON — kosu ayni yamayi 'git apply -R' ile uygulamis; islem ozdes, dosya artik geri-alma yonunde",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "commander-implies-string-argument",
+      "repo": "tj/commander.js",
+      "fixSha": "f4c7349a78a54ad424824d675da9158eba942e15",
+      "subject": "Assume a string parameter to implies is name of boolean option. (#1854)",
+      "sourceFiles": [
+        "lib/option.js"
+      ],
+      "sourceLines": 7,
+      "testFiles": [
+        "tests/options.implies.test.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/commander-implies-string-argument.patch",
+      "evidenceGreen": "evidence/commander-implies-string-argument.green.txt",
+      "evidenceRed": "evidence/commander-implies-string-argument.red.txt",
+      "rawSources": {
+        "patch": "commander/f4c7349a7.srcdiff dosyasinin ters yonu (git apply -R ile uygulandi)",
+        "green": "commander/f4c7349a7.green.log",
+        "red": [
+          "commander/f4c7349a7.red1.log",
+          "commander/f4c7349a7.red2.log",
+          "commander/f4c7349a7.red3.log"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "TERS YON — kosu ayni yamayi 'git apply -R' ile uygulamis; islem ozdes, dosya artik geri-alma yonunde",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "lodash-zipObjectDeep-proto-pollution",
+      "repo": "lodash/lodash",
+      "fixSha": "c84fe82760fb2d3e03a63379b297a1cc1a2fce12",
+      "subject": "fix(zipObjectDeep): prototype pollution (#4759)",
+      "sourceFiles": [
+        "lodash.js"
+      ],
+      "sourceLines": 4,
+      "testFiles": [
+        "test/test.js"
+      ],
+      "failingTests": 10,
+      "deterministic": true,
+      "changeKind": "sadece-silme",
+      "patch": "patches/lodash-zipObjectDeep-proto-pollution.patch",
+      "evidenceGreen": "evidence/lodash-zipObjectDeep-proto-pollution.green.txt",
+      "evidenceRed": "evidence/lodash-zipObjectDeep-proto-pollution.red.txt",
+      "rawSources": {
+        "patch": "lodash/case1/revert.patch",
+        "green": "lodash/case1/green.out",
+        "red": [
+          "lodash/case1/red1.out",
+          "lodash/case1/red2.out",
+          "lodash/case1/red3.out"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "lodash-isEqual-circular-refs",
+      "repo": "lodash/lodash",
+      "fixSha": "0cec225778d4ac26c2bac95031ecc92a94f08bbb",
+      "subject": "Fix lodash.isEqual for circular references (#4320) (#4515)",
+      "sourceFiles": [
+        "lodash.js"
+      ],
+      "sourceLines": 18,
+      "testFiles": [
+        "test/test.js"
+      ],
+      "failingTests": 2,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/lodash-isEqual-circular-refs.patch",
+      "evidenceGreen": "evidence/lodash-isEqual-circular-refs.green.txt",
+      "evidenceRed": "evidence/lodash-isEqual-circular-refs.red.txt",
+      "rawSources": {
+        "patch": "lodash/case2/revert.patch",
+        "green": "lodash/case2/green.out",
+        "red": [
+          "lodash/case2/red1.out",
+          "lodash/case2/red2.out",
+          "lodash/case2/red3.out"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "lodash-orderBy-iteratee-path-arrays",
+      "repo": "lodash/lodash",
+      "fixSha": "659e8c019ccaf0515fb3d47ceb50cb67abd18885",
+      "subject": "Ensure `orderBy` will accept iteratee path arrays #4438 (#4513)",
+      "sourceFiles": [
+        "lodash.js"
+      ],
+      "sourceLines": 15,
+      "testFiles": [
+        "test/test.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/lodash-orderBy-iteratee-path-arrays.patch",
+      "evidenceGreen": "evidence/lodash-orderBy-iteratee-path-arrays.green.txt",
+      "evidenceRed": "evidence/lodash-orderBy-iteratee-path-arrays.red.txt",
+      "rawSources": {
+        "patch": "lodash/case3/revert.patch",
+        "green": "lodash/case3/green.out",
+        "red": [
+          "lodash/case3/red1.out",
+          "lodash/case3/red2.out",
+          "lodash/case3/red3.out"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "lodash-defaultsDeep-constructor-pollution",
+      "repo": "lodash/lodash",
+      "fixSha": "1f8ea07746963a535385a5befc19fa687a627d2b",
+      "subject": "fix: prototype pollution in _.defaultsDeep (#4336)",
+      "sourceFiles": [
+        "lodash.js"
+      ],
+      "sourceLines": 6,
+      "testFiles": [
+        "test/test.js"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/lodash-defaultsDeep-constructor-pollution.patch",
+      "evidenceGreen": "evidence/lodash-defaultsDeep-constructor-pollution.green.txt",
+      "evidenceRed": "evidence/lodash-defaultsDeep-constructor-pollution.red.txt",
+      "rawSources": {
+        "patch": "lodash/case4/revert.patch",
+        "green": "lodash/case4/green.out",
+        "red": [
+          "lodash/case4/red1.out",
+          "lodash/case4/red2.out",
+          "lodash/case4/red3.out"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "ajv-format-proto-pollution",
+      "repo": "ajv-validator/ajv",
+      "fixSha": "e8d2bdc501b3ba6f03922db5e595770d4763d9da",
+      "subject": "test/fix prototype pollution via $data ref with format keyword (#2607)",
+      "sourceFiles": [
+        "lib/core.ts"
+      ],
+      "sourceLines": 1,
+      "testFiles": [
+        "spec/issues/format_prototype_pollution.spec.ts"
+      ],
+      "failingTests": 2,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/ajv-format-proto-pollution.patch",
+      "evidenceGreen": "evidence/ajv-format-proto-pollution.green.txt",
+      "evidenceRed": "evidence/ajv-format-proto-pollution.red.txt",
+      "rawSources": {
+        "patch": "ajv/e8d2bdc5/revert_source.patch",
+        "green": "ajv/e8d2bdc5/green.txt",
+        "red": [
+          "ajv/e8d2bdc5/red_run1.txt",
+          "ajv/e8d2bdc5/red_run2.txt",
+          "ajv/e8d2bdc5/red_run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "ajv-pattern-redos-cve-2025-69873",
+      "repo": "ajv-validator/ajv",
+      "fixSha": "720a23fa453ffae8340e92c9b0fe886c54cfe0d5",
+      "subject": "fix(pattern): use configured RegExp engine with $data keyword to mitigate ReDoS attacks (CVE-2025-69873) (#2586)",
+      "sourceFiles": [
+        "lib/vocabularies/validation/pattern.ts"
+      ],
+      "sourceLines": 19,
+      "testFiles": [
+        "spec/issues/cve_2025_69873_redos_attack.spec.ts"
+      ],
+      "failingTests": 4,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/ajv-pattern-redos-cve-2025-69873.patch",
+      "evidenceGreen": "evidence/ajv-pattern-redos-cve-2025-69873.green.txt",
+      "evidenceRed": "evidence/ajv-pattern-redos-cve-2025-69873.red.txt",
+      "rawSources": {
+        "patch": "ajv/720a23fa/revert_source.patch",
+        "green": "ajv/720a23fa/green.txt",
+        "red": [
+          "ajv/720a23fa/red_run1.txt",
+          "ajv/720a23fa/red_run2.txt",
+          "ajv/720a23fa/red_run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "ajv-discriminator-compileasync-ref",
+      "repo": "ajv-validator/ajv",
+      "fixSha": "5f20d5f90adc6ea58e512f5da72638c7a96d93d9",
+      "subject": "compileAsync a schema with discriminator and $ref, fixes #2427  (#2433)",
+      "sourceFiles": [
+        "lib/vocabularies/discriminator/index.ts"
+      ],
+      "sourceLines": 5,
+      "testFiles": [
+        "spec/discriminator.spec.ts"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/ajv-discriminator-compileasync-ref.patch",
+      "evidenceGreen": "evidence/ajv-discriminator-compileasync-ref.green.txt",
+      "evidenceRed": "evidence/ajv-discriminator-compileasync-ref.red.txt",
+      "rawSources": {
+        "patch": "ajv/5f20d5f9/revert_source.patch",
+        "green": "ajv/5f20d5f9/green.txt",
+        "red": [
+          "ajv/5f20d5f9/red_run1.txt",
+          "ajv/5f20d5f9/red_run2.txt",
+          "ajv/5f20d5f9/red_run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "click-argument-double-bracket-metavar",
+      "repo": "pallets/click",
+      "fixSha": "762c97eef7c1b3779678992f26a553a2a8c80793",
+      "subject": "Fix double-bracketing of choices in synopsis",
+      "sourceFiles": [
+        "src/click/core.py"
+      ],
+      "sourceLines": 7,
+      "testFiles": [
+        "tests/test_basic.py"
+      ],
+      "failingTests": 2,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/click-argument-double-bracket-metavar.patch",
+      "evidenceGreen": "evidence/click-argument-double-bracket-metavar.green.txt",
+      "evidenceRed": "evidence/click-argument-double-bracket-metavar.red.txt",
+      "rawSources": {
+        "patch": "click/case_762c97eef7.json -> revert_patch",
+        "green": "click/case_762c97eef7.json -> green_out",
+        "red": [
+          "click/case_762c97eef7.json -> red_runs[]",
+          "click/ev_762c97eef7.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "click-write-usage-spurious-chars",
+      "repo": "pallets/click",
+      "fixSha": "0551bf53588ae87f462d336f24f853a156fefe3a",
+      "subject": "Fix `HelpFormatter.write_usage` producing spurious characters",
+      "sourceFiles": [
+        "src/click/formatting.py"
+      ],
+      "sourceLines": 8,
+      "testFiles": [
+        "tests/test_formatting.py"
+      ],
+      "failingTests": 7,
+      "deterministic": true,
+      "changeKind": "sadece-silme",
+      "patch": "patches/click-write-usage-spurious-chars.patch",
+      "evidenceGreen": "evidence/click-write-usage-spurious-chars.green.txt",
+      "evidenceRed": "evidence/click-write-usage-spurious-chars.red.txt",
+      "rawSources": {
+        "patch": "click/case_0551bf5358.json -> revert_patch",
+        "green": "click/case_0551bf5358.json -> green_out",
+        "red": [
+          "click/case_0551bf5358.json -> red_runs[]",
+          "click/ev_0551bf5358.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "click-help-hint-shadowed-option-name",
+      "repo": "pallets/click",
+      "fixSha": "1241abaed4e441582a21f4bf90c8482de02b92df",
+      "subject": "Use non-shadowed help option name in error hint",
+      "sourceFiles": [
+        "src/click/exceptions.py"
+      ],
+      "sourceLines": 6,
+      "testFiles": [
+        "tests/test_formatting.py"
+      ],
+      "failingTests": 3,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/click-help-hint-shadowed-option-name.patch",
+      "evidenceGreen": "evidence/click-help-hint-shadowed-option-name.green.txt",
+      "evidenceRed": "evidence/click-help-hint-shadowed-option-name.red.txt",
+      "rawSources": {
+        "patch": "click/case_1241abaed4.json -> revert_patch",
+        "green": "click/case_1241abaed4.json -> green_out",
+        "red": [
+          "click/case_1241abaed4.json -> red_runs[]",
+          "click/ev_1241abaed4.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "click-show-default-empty-string-type-check",
+      "repo": "pallets/click",
+      "fixSha": "d340b0c1202284a1b9d0ca892549208527d586ce",
+      "subject": "Fix speculative speculative empty string check",
+      "sourceFiles": [
+        "src/click/core.py"
+      ],
+      "sourceLines": 2,
+      "testFiles": [
+        "tests/test_options.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/click-show-default-empty-string-type-check.patch",
+      "evidenceGreen": "evidence/click-show-default-empty-string-type-check.green.txt",
+      "evidenceRed": "evidence/click-show-default-empty-string-type-check.red.txt",
+      "rawSources": {
+        "patch": "click/case_d340b0c120.json -> revert_patch",
+        "green": "click/case_d340b0c120.json -> green_out",
+        "red": [
+          "click/case_d340b0c120.json -> red_runs[]",
+          "click/ev_d340b0c120.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "jinja-attr-filter-sandbox-escape",
+      "repo": "pallets/jinja",
+      "fixSha": "065334d1ee5b7210e1a0a93c37238c86858f2af7",
+      "subject": "attr filter uses env.getattr",
+      "sourceFiles": [
+        "src/jinja2/filters.py"
+      ],
+      "sourceLines": 33,
+      "testFiles": [
+        "tests/test_security.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/jinja-attr-filter-sandbox-escape.patch",
+      "evidenceGreen": "evidence/jinja-attr-filter-sandbox-escape.green.txt",
+      "evidenceRed": "evidence/jinja-attr-filter-sandbox-escape.red.txt",
+      "rawSources": {
+        "patch": "jinja/065334d1ee.revert.patch",
+        "green": "jinja/065334d1ee.green.txt",
+        "red": [
+          "jinja/065334d1ee.red1.txt",
+          "jinja/065334d1ee.red2.txt",
+          "jinja/065334d1ee.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "jinja-missing-singleton-pickle-copy",
+      "repo": "pallets/jinja",
+      "fixSha": "7232b8246200155226adb672db8b3ef305cf29da",
+      "subject": "Fix pickle/copy support for the `missing` singleton",
+      "sourceFiles": [
+        "src/jinja2/utils.py"
+      ],
+      "sourceLines": 9,
+      "testFiles": [
+        "tests/test_utils.py"
+      ],
+      "failingTests": 7,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/jinja-missing-singleton-pickle-copy.patch",
+      "evidenceGreen": "evidence/jinja-missing-singleton-pickle-copy.green.txt",
+      "evidenceRed": "evidence/jinja-missing-singleton-pickle-copy.red.txt",
+      "rawSources": {
+        "patch": "jinja/7232b82462.revert.patch",
+        "green": "jinja/7232b82462.green.txt",
+        "red": [
+          "jinja/7232b82462.red1.txt",
+          "jinja/7232b82462.red2.txt",
+          "jinja/7232b82462.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "jinja-fstring-curly-brace-codegen",
+      "repo": "pallets/jinja",
+      "fixSha": "56a724644b1ad9cb03745c10cca732715cdc79e9",
+      "subject": "fix f-string syntax error in code generation",
+      "sourceFiles": [
+        "src/jinja2/compiler.py"
+      ],
+      "sourceLines": 7,
+      "testFiles": [
+        "tests/test_compile.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/jinja-fstring-curly-brace-codegen.patch",
+      "evidenceGreen": "evidence/jinja-fstring-curly-brace-codegen.green.txt",
+      "evidenceRed": "evidence/jinja-fstring-curly-brace-codegen.red.txt",
+      "rawSources": {
+        "patch": "jinja/56a724644b.revert.patch",
+        "green": "jinja/56a724644b.green.txt",
+        "red": [
+          "jinja/56a724644b.red1.txt",
+          "jinja/56a724644b.red2.txt",
+          "jinja/56a724644b.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "jinja-select-filter-drops-context",
+      "repo": "pallets/jinja",
+      "fixSha": "d05bd3858c3f4990e91201dae058147caf317462",
+      "subject": "Pass context when using select",
+      "sourceFiles": [
+        "src/jinja2/filters.py"
+      ],
+      "sourceLines": 2,
+      "testFiles": [
+        "tests/test_regression.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/jinja-select-filter-drops-context.patch",
+      "evidenceGreen": "evidence/jinja-select-filter-drops-context.green.txt",
+      "evidenceRed": "evidence/jinja-select-filter-drops-context.red.txt",
+      "rawSources": {
+        "patch": "jinja/d05bd3858c.revert.patch",
+        "green": "jinja/d05bd3858c.green.txt",
+        "red": [
+          "jinja/d05bd3858c.red1.txt",
+          "jinja/d05bd3858c.red2.txt",
+          "jinja/d05bd3858c.red3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "markupsafe-striptags-collapse-spaces",
+      "repo": "pallets/markupsafe",
+      "fixSha": "0b6bee071fbd8d3171fb1ac4fb669baace808438",
+      "subject": "collapse spaces after stripping tags",
+      "sourceFiles": [
+        "src/markupsafe/__init__.py"
+      ],
+      "sourceLines": 5,
+      "testFiles": [
+        "tests/test_markupsafe.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/markupsafe-striptags-collapse-spaces.patch",
+      "evidenceGreen": "evidence/markupsafe-striptags-collapse-spaces.green.txt",
+      "evidenceRed": "evidence/markupsafe-striptags-collapse-spaces.red.txt",
+      "rawSources": {
+        "patch": "markupsafe/revert-0b6bee071f.patch",
+        "green": "markupsafe/green-0b6bee071f.txt",
+        "red": [
+          "markupsafe/red-0b6bee071f-run1.txt",
+          "markupsafe/red-0b6bee071f-run2.txt",
+          "markupsafe/red-0b6bee071f-run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "markupsafe-striptags-dotall-newlines",
+      "repo": "pallets/markupsafe",
+      "fixSha": "e49d257126d09937b1bf5e2b2173238df729fb13",
+      "subject": "match newlines when stripping tags",
+      "sourceFiles": [
+        "src/markupsafe/__init__.py"
+      ],
+      "sourceLines": 4,
+      "testFiles": [
+        "tests/test_markupsafe.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/markupsafe-striptags-dotall-newlines.patch",
+      "evidenceGreen": "evidence/markupsafe-striptags-dotall-newlines.green.txt",
+      "evidenceRed": "evidence/markupsafe-striptags-dotall-newlines.red.txt",
+      "rawSources": {
+        "patch": "markupsafe/revert-e49d257126.patch",
+        "green": "markupsafe/green-e49d257126.txt",
+        "red": [
+          "markupsafe/red-e49d257126-run1.txt",
+          "markupsafe/red-e49d257126-run2.txt",
+          "markupsafe/red-e49d257126-run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "markupsafe-mod-single-placeholder",
+      "repo": "pallets/markupsafe",
+      "fixSha": "3d809aed7b7b6af5c371bab68666857087335af9",
+      "subject": "raise error on missing single placeholder",
+      "sourceFiles": [
+        "src/markupsafe/__init__.py"
+      ],
+      "sourceLines": 7,
+      "testFiles": [
+        "tests/test_markupsafe.py"
+      ],
+      "failingTests": 2,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/markupsafe-mod-single-placeholder.patch",
+      "evidenceGreen": "evidence/markupsafe-mod-single-placeholder.green.txt",
+      "evidenceRed": "evidence/markupsafe-mod-single-placeholder.red.txt",
+      "rawSources": {
+        "patch": "markupsafe/revert-3d809aed7b.patch",
+        "green": "markupsafe/green-3d809aed7b.txt",
+        "red": [
+          "markupsafe/red-3d809aed7b-run1.txt",
+          "markupsafe/red-3d809aed7b-run2.txt",
+          "markupsafe/red-3d809aed7b-run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "markupsafe-speedups-str-subclass-check",
+      "repo": "pallets/markupsafe",
+      "fixSha": "8cb1691ca038ca39942e088b956f5b94d8f636bf",
+      "subject": "relax speedups str check",
+      "sourceFiles": [
+        "src/markupsafe/_speedups.c"
+      ],
+      "sourceLines": 2,
+      "testFiles": [
+        "tests/test_escape.py"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/markupsafe-speedups-str-subclass-check.patch",
+      "evidenceGreen": "evidence/markupsafe-speedups-str-subclass-check.green.txt",
+      "evidenceRed": "evidence/markupsafe-speedups-str-subclass-check.red.txt",
+      "rawSources": {
+        "patch": "markupsafe/revert-8cb1691ca0.patch",
+        "green": "markupsafe/green-8cb1691ca0.txt",
+        "red": [
+          "markupsafe/red-8cb1691ca0-run1.txt",
+          "markupsafe/red-8cb1691ca0-run2.txt",
+          "markupsafe/red-8cb1691ca0-run3.txt"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "pyyaml-merge-key-dos",
+      "repo": "yaml/pyyaml",
+      "fixSha": "34a9bf82357f4952d8f194a5a31f1c39743652d0",
+      "subject": "Dos in merge key (#937)",
+      "sourceFiles": [
+        "lib/yaml/constructor.py"
+      ],
+      "sourceLines": 15,
+      "testFiles": [
+        "tests/test_merge.py",
+        "tests/legacy_tests/data/construct-merge.data",
+        "tests/legacy_tests/data/construct-merge.code",
+        "tests/legacy_tests/test_constructor.py"
+      ],
+      "failingTests": 4,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/pyyaml-merge-key-dos.patch",
+      "evidenceGreen": "evidence/pyyaml-merge-key-dos.green.txt",
+      "evidenceRed": "evidence/pyyaml-merge-key-dos.red.txt",
+      "rawSources": {
+        "patch": "pyyaml/pyyaml-case1-revert.patch",
+        "green": "pyyaml/pyyaml-mining-evidence.txt (CASE 1, GREEN blogu)",
+        "red": [
+          "pyyaml/pyyaml-mining-evidence.txt (CASE 1, RED blogu)"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "pyyaml-enum-representer",
+      "repo": "yaml/pyyaml",
+      "fixSha": "961ce9dcf53dcef41f6268bbbb7c6a685a46c899",
+      "subject": "Fix issue with representing Enum types",
+      "sourceFiles": [
+        "lib/yaml/representer.py"
+      ],
+      "sourceLines": 1,
+      "testFiles": [
+        "tests/lib/test_constructor.py",
+        "tests/data/construct-python-name-module.code",
+        "tests/data/construct-python-name-module.data"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/pyyaml-enum-representer.patch",
+      "evidenceGreen": "evidence/pyyaml-enum-representer.green.txt",
+      "evidenceRed": "evidence/pyyaml-enum-representer.red.txt",
+      "rawSources": {
+        "patch": "pyyaml/pyyaml-case2-revert.patch",
+        "green": "pyyaml/pyyaml-mining-evidence.txt (CASE 2, GREEN blogu)",
+        "red": [
+          "pyyaml/pyyaml-mining-evidence.txt (CASE 2, RED blogu)"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "pyyaml-slots-setattr",
+      "repo": "yaml/pyyaml",
+      "fixSha": "5a0cfab86f6bccd5e5bec5c239ccfb94f8f0fe11",
+      "subject": "Fix handling of __slots__ (#161)",
+      "sourceFiles": [
+        "lib3/yaml/constructor.py"
+      ],
+      "sourceLines": 1,
+      "testFiles": [
+        "tests/lib3/test_constructor.py",
+        "tests/data/construct-python-object.code",
+        "tests/data/construct-python-object.data"
+      ],
+      "failingTests": 2,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/pyyaml-slots-setattr.patch",
+      "evidenceGreen": "evidence/pyyaml-slots-setattr.green.txt",
+      "evidenceRed": "evidence/pyyaml-slots-setattr.red.txt",
+      "rawSources": {
+        "patch": "pyyaml/pyyaml-case3-revert.patch",
+        "green": "pyyaml/pyyaml-mining-evidence.txt (CASE 3, GREEN blogu)",
+        "red": [
+          "pyyaml/pyyaml-mining-evidence.txt (CASE 3, RED blogu)"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    },
+    {
+      "key": "pyyaml-float-resolver-dot",
+      "repo": "yaml/pyyaml",
+      "fixSha": "8f27932796623d58fe9e226e141cd27a6f0befec",
+      "subject": "Fix float resolver for '.' and '._'",
+      "sourceFiles": [
+        "lib/yaml/resolver.py"
+      ],
+      "sourceLines": 1,
+      "testFiles": [
+        "tests/data/yaml11.schema-skip"
+      ],
+      "failingTests": 1,
+      "deterministic": true,
+      "changeKind": "degistirme",
+      "patch": "patches/pyyaml-float-resolver-dot.patch",
+      "evidenceGreen": "evidence/pyyaml-float-resolver-dot.green.txt",
+      "evidenceRed": "evidence/pyyaml-float-resolver-dot.red.txt",
+      "rawSources": {
+        "patch": "pyyaml/pyyaml-case4-revert.patch",
+        "green": "pyyaml/pyyaml-mining-evidence.txt (CASE 4, GREEN blogu)",
+        "red": [
+          "pyyaml/pyyaml-mining-evidence.txt (CASE 4, RED blogu)"
+        ]
+      },
+      "patchOrigin": "git show -R <fixSha> -- <kaynak dosyalar>, klon uzerinden yeniden uretildi ve dogrulandi",
+      "patchVsRunApplied": "AYNI — kosuda uygulanan yama ile birebir",
+      "patchAppliesCleanly": true
+    }
+  ],
+  "duplicates": [],
+  "nearCollisions": [
+    {
+      "a": "express-redirect-no-anchor-href",
+      "b": "express-res-send-content-length-transfer-encoding",
+      "file": "lib/response.js",
+      "ranges": "969-976 vs 162-172",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "commander-subprocess-signal-exit-code",
+      "b": "commander-configureoutput-shared-object",
+      "file": "lib/command.js",
+      "ranges": "1040-1055 vs 239-250",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-isEqual-circular-refs",
+      "b": "lodash-zipObjectDeep-proto-pollution",
+      "file": "lodash.js",
+      "ranges": "5634-5645 vs 3990-4000",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-isEqual-circular-refs",
+      "b": "lodash-zipObjectDeep-proto-pollution",
+      "file": "lodash.js",
+      "ranges": "5800-5811 vs 3990-4000",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-orderBy-iteratee-path-arrays",
+      "b": "lodash-zipObjectDeep-proto-pollution",
+      "file": "lodash.js",
+      "ranges": "3719-3740 vs 3990-4000",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-orderBy-iteratee-path-arrays",
+      "b": "lodash-isEqual-circular-refs",
+      "file": "lodash.js",
+      "ranges": "3719-3740 vs 5634-5645",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-orderBy-iteratee-path-arrays",
+      "b": "lodash-isEqual-circular-refs",
+      "file": "lodash.js",
+      "ranges": "3719-3740 vs 5800-5811",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-zipObjectDeep-proto-pollution",
+      "file": "lodash.js",
+      "ranges": "6589-6596 vs 3990-4000",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-zipObjectDeep-proto-pollution",
+      "file": "lodash.js",
+      "ranges": "6597-6607 vs 3990-4000",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-isEqual-circular-refs",
+      "file": "lodash.js",
+      "ranges": "6589-6596 vs 5634-5645",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-isEqual-circular-refs",
+      "file": "lodash.js",
+      "ranges": "6589-6596 vs 5800-5811",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-isEqual-circular-refs",
+      "file": "lodash.js",
+      "ranges": "6597-6607 vs 5634-5645",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-isEqual-circular-refs",
+      "file": "lodash.js",
+      "ranges": "6597-6607 vs 5800-5811",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-orderBy-iteratee-path-arrays",
+      "file": "lodash.js",
+      "ranges": "6589-6596 vs 3719-3740",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "lodash-defaultsDeep-constructor-pollution",
+      "b": "lodash-orderBy-iteratee-path-arrays",
+      "file": "lodash.js",
+      "ranges": "6597-6607 vs 3719-3740",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "click-show-default-empty-string-type-check",
+      "b": "click-argument-double-bracket-metavar",
+      "file": "src/click/core.py",
+      "ranges": "3110-3117 vs 3571-3585",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "jinja-select-filter-drops-context",
+      "b": "jinja-attr-filter-sandbox-escape",
+      "file": "src/jinja2/filters.py",
+      "ranges": "1780-1787 vs 6-13",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "jinja-select-filter-drops-context",
+      "b": "jinja-attr-filter-sandbox-escape",
+      "file": "src/jinja2/filters.py",
+      "ranges": "1780-1787 vs 1412-1437",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "markupsafe-striptags-dotall-newlines",
+      "b": "markupsafe-striptags-collapse-spaces",
+      "file": "src/markupsafe/__init__.py",
+      "ranges": "13-21 vs 158-165",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "markupsafe-striptags-dotall-newlines",
+      "b": "markupsafe-striptags-collapse-spaces",
+      "file": "src/markupsafe/__init__.py",
+      "ranges": "13-21 vs 192-200",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "markupsafe-mod-single-placeholder",
+      "b": "markupsafe-striptags-collapse-spaces",
+      "file": "src/markupsafe/__init__.py",
+      "ranges": "102-116 vs 158-165",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "markupsafe-mod-single-placeholder",
+      "b": "markupsafe-striptags-collapse-spaces",
+      "file": "src/markupsafe/__init__.py",
+      "ranges": "102-116 vs 192-200",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    },
+    {
+      "a": "markupsafe-mod-single-placeholder",
+      "b": "markupsafe-striptags-dotall-newlines",
+      "file": "src/markupsafe/__init__.py",
+      "ranges": "102-116 vs 13-21",
+      "rangeVerdict": "farkli satir araligi",
+      "changeVerdict": "farkli degisiklik"
+    }
+  ],
+  "dedup": {
+    "kural": "Iki vaka ancak (ayni repo) + (ayni kaynak dosya) + (cakisan eski-satir araligi) + (ayni degisen satir kumesi) ise ayni sayilir.",
+    "incelenenAyniDosyaCifti": 23,
+    "elenen": 0
+  },
+  "integrityFindings": [
+    "pallets/jinja: madenci ajanin bildirdigi iki tam SHA yanlisti (dogru on-ek, uydurma kuyruk). Klon uzerinde 'git rev-parse --disambiguate' ile dogru SHA'lar bulundu ve duzeltildi: 7232b824623e...a86dae -> 7232b8246200155226adb672db8b3ef305cf29da, 56a724644b6b...0b7c -> 56a724644b1ad9cb03745c10cca732715cdc79e9. Konu/diff/kanit dosyalari zaten dogru commit'e aitti.",
+    "pallets/click d340b0c1: commit basligindaki cift 'speculative speculative' kelimesi yazim hatasi degil, upstream commit basliginda gercekten oyle.",
+    "tj/commander.js: 4 vakanin yamasi kosuda ILERI yonde tutulup 'git apply -R' ile uygulanmisti. patches/ altindaki dosyalar artik geri-alma yonunde yeniden uretildi; uygulanan islem ozdes, kirmizi kanit gecerli."
+  ],
+  "verification": {
+    "yontem": "Her vaka icin klonda 'git log -1 <sha>' ile SHA+baslik dogrulandi, 'git show -R <sha> -- <kaynak>' ile yama yeniden uretilip diskteki ile karsilastirildi.",
+    "sonuc": {
+      "express-res-send-content-length-transfer-encoding": "ayni",
+      "express-redirect-no-anchor-href": "ayni",
+      "express-route-missing-method": "ayni",
+      "express-unanchored-regexp-prefix-match": "ayni",
+      "commander-configureoutput-shared-object": "ters-yon",
+      "commander-help-option-description-leading-space": "ters-yon",
+      "commander-subprocess-signal-exit-code": "ters-yon",
+      "commander-implies-string-argument": "ters-yon",
+      "lodash-zipObjectDeep-proto-pollution": "ayni",
+      "lodash-isEqual-circular-refs": "ayni",
+      "lodash-orderBy-iteratee-path-arrays": "ayni",
+      "lodash-defaultsDeep-constructor-pollution": "ayni",
+      "ajv-format-proto-pollution": "ayni",
+      "ajv-pattern-redos-cve-2025-69873": "ayni",
+      "ajv-discriminator-compileasync-ref": "ayni",
+      "click-argument-double-bracket-metavar": "ayni",
+      "click-write-usage-spurious-chars": "ayni",
+      "click-help-hint-shadowed-option-name": "ayni",
+      "click-show-default-empty-string-type-check": "ayni",
+      "jinja-attr-filter-sandbox-escape": "ayni",
+      "jinja-missing-singleton-pickle-copy": "ayni",
+      "jinja-fstring-curly-brace-codegen": "ayni",
+      "jinja-select-filter-drops-context": "ayni",
+      "markupsafe-striptags-collapse-spaces": "ayni",
+      "markupsafe-striptags-dotall-newlines": "ayni",
+      "markupsafe-mod-single-placeholder": "ayni",
+      "markupsafe-speedups-str-subclass-check": "ayni",
+      "pyyaml-merge-key-dos": "ayni",
+      "pyyaml-enum-representer": "ayni",
+      "pyyaml-slots-setattr": "ayni",
+      "pyyaml-float-resolver-dot": "ayni"
+    },
+    "yamaUygulanabilirlik": "Her yama, duzeltme commit'indeki kaynak dosya icerigi uzerine 'git apply --check -p1' ile sinandi: 31/31 temiz uygulaniyor."
+  }
+}

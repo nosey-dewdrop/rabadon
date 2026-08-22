@@ -1,0 +1,24 @@
+diff --git a/lodash.js b/lodash.js
+index 5c308f605..92c566ac9 100644
+--- a/lodash.js
++++ b/lodash.js
+@@ -6589,7 +6589,7 @@
+     }
+ 
+     /**
+-     * Gets the value at `key`, unless `key` is "__proto__" or "constructor".
++     * Gets the value at `key`, unless `key` is "__proto__".
+      *
+      * @private
+      * @param {Object} object The object to query.
+@@ -6597,10 +6597,6 @@
+      * @returns {*} Returns the property value.
+      */
+     function safeGet(object, key) {
+-      if (key === 'constructor' && typeof object[key] === 'function') {
+-        return;
+-      }
+-      
+       if (key == '__proto__') {
+         return;
+       }

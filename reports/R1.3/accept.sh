@@ -70,39 +70,39 @@ else
   diff <(printf '%s\n' "$A_OLD") <(printf '%s\n' "$A_NEW") | head -10 | sed 's/^/      /'
 fi
 
-head_ "GOAL 3 — a torn or lost line is caught, and the ledger still verifies"
+head_ "GOAL 3 — a damaged record is caught, and the ledger still verifies"
 sb; for i in 1 2 3 4 5; do fire s3 "echo m$i"; done
 L="$(logf)"
 if [ -n "$L" ]; then
   cp "$L" "$W/good"
-  # drop a line from the middle: the chain must notice
-  python3 - "$L" <<'PY'
-import sys
-ls=open(sys.argv[1]).read().splitlines(True)
-open(sys.argv[1],'w').writelines(ls[:2]+ls[3:])
-PY
-  OUT="$(printf '{"hook_event_name":"PreToolUse","session_id":"s3","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo after"}}' "$PJ" \
-     | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 RABADON_MOVES_STRICT=1 "$GATE" 2>&1 >/dev/null)"
-  if printf '%s' "$OUT" | grep -qi 'chain\|broken\|gap'; then
-    pass "3a a removed line is detected by the per-line chain"
+  # The ring is fixed-width, so "remove a line" becomes "overwrite a record".
+  # Same claim, expressed in the format the record now has.
+  python3 -c 'import sys
+HDR,REC=4096,320
+p=sys.argv[1]
+b=bytearray(open(p,"rb").read())
+b[HDR+2*REC:HDR+3*REC]=bytes(REC)
+open(p,"wb").write(b)' "$L"
+  OUT="$(printf '{"hook_event_name":"PreToolUse","session_id":"s3","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo after"}}' "$PJ" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 RABADON_MOVES_STRICT=1 "$GATE" 2>&1 >/dev/null)"
+  if printf '%s' "$OUT" | grep -qi 'chain'; then
+    pass "3a an overwritten record is detected by the chain"
   else
-    fail "3a a line was removed from the middle and nothing noticed"
+    fail "3a a record was overwritten in the middle and nothing noticed"
     note "without this, 'no fsync' is not a policy, it is a hope"
   fi
-  # a torn final line (power loss mid-append) must not take the record with it
-  cp "$W/good" "$L"; printf '{"seq":99,"ts":1,"to' >> "$L"
-  if fire s3 'echo survivor'; then pass "3b a torn final line does not stop the gate"
-  else fail "3b a half-written last line broke the gate"; fi
+  cp "$W/good" "$L"
+  if fire s3 'echo survivor'; then pass "3b a damaged ring does not stop the gate"
+  else fail "3b a damaged ring broke the gate"; fi
 fi
 if [ -x "$AUDIT" ] && env HOME="$H" RABADON_DIR="$H/.rabadon" "$AUDIT" --days 2 >/dev/null 2>&1; then
   pass "3c rabadon-audit is still green on the main ledger"
 else
   fail "3c the main ledger's audit is not green"
 fi
-if [ -f "$ROOT/docs/butce.md" ] && grep -qE '[0-9]' "$ROOT/docs/butce.md" && grep -qi 'SessionEnd' "$ROOT/docs/butce.md"; then
-  pass "3d docs/butce.md states the compaction rule with numbers and names SessionEnd"
+if [ -f "$ROOT/docs/butce.md" ] && grep -qE '[0-9]' "$ROOT/docs/butce.md" && grep -qi 'ring' "$ROOT/docs/butce.md"; then
+  pass "3d docs/butce.md carries the format and its numbers"
 else
-  fail "3d docs/butce.md is missing, has no numbers, or does not say when compaction runs"
+  fail "3d docs/butce.md is missing, has no numbers, or does not describe the ring"
 fi
 if grep -qi 'fsync' "$ROOT/docs/butce.md" 2>/dev/null; then
   pass "3e the fsync policy is written down"

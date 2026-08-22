@@ -47,6 +47,7 @@
 #include "sha256.h"
 #include "jsonl.h"
 #include "cli_help.h"
+#include "moves.h"
 
 using std::string;
 
@@ -150,6 +151,43 @@ int main(int argc, char** argv) {
   // `rabadon-audit --help` used to be ignored by this loop and fall through to
   // the ledger walk: exit 0, an integrity report, and the flag never honoured.
   rb_help(argc, argv, kHelp);
+
+  // --export <ring>: render the binary move ring as JSONL. R1.3 made the record
+  // fixed-width binary so the hot path never parses text; a human and a test
+  // still need to read it, and this is the one place text is produced. Reading
+  // is not the hot path, so it can afford to be convenient.
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--export") == 0 && i + 1 < argc) {
+      const char* path = argv[i + 1];
+      FILE* f = fopen(path, "rb");
+      if (!f) { fprintf(stderr, "audit --export: cannot open %s\n", path); return 1; }
+      rbmoves::Hdr h{};
+      if (fread(&h, 1, sizeof h, f) != sizeof h || memcmp(h.magic, "RBMV1", 5) != 0) {
+        fprintf(stderr, "audit --export: %s is not a move ring\n", path); fclose(f); return 1;
+      }
+      const long long total = h.count;
+      const long long keep = total < (long long)rbmoves::CAP ? total : (long long)rbmoves::CAP;
+      std::vector<rbmoves::Rec> ring(rbmoves::CAP);
+      if (fseek(f, (long)rbmoves::HDR_BYTES, SEEK_SET) != 0) { fclose(f); return 1; }
+      if (fread(ring.data(), 1, rbmoves::CAP * sizeof(rbmoves::Rec), f) == 0 && keep > 0) { fclose(f); return 1; }
+      fclose(f);
+      const long long first = total - keep;
+      for (long long k = 0; k < keep; k++) {
+        const rbmoves::Rec& r = ring[(size_t)((first + k) % (long long)rbmoves::CAP)];
+        rbmoves::Move m; rbmoves::from_rec(r, m);
+        // raw only on the newest RAW_KEEP, same rule every reader gets
+        const bool oldEnough = (keep - k) > (long long)rbmoves::RAW_KEEP;
+        printf("{\"seq\":%lld,\"ts\":%lld,\"tool\":\"%s\",\"path\":\"%s\","
+               "\"sig\":\"%s\",\"raw\":\"%s\",\"claimed_rc\":%d,"
+               "\"err_sig\":\"%s\",\"suite\":%d,\"asserts\":%d,\"prev\":\"%s\"}\n",
+               m.seq, m.ts, m.tool.c_str(), m.path.c_str(), m.sig.c_str(),
+               oldEnough ? "" : m.raw.c_str(), m.claimed_rc,
+               m.err_sig.c_str(), m.suite, m.asserts,
+               rbmoves::get(r.prev, sizeof r.prev).c_str());
+      }
+      return 0;
+    }
+  }
 
   double days = 7;
   bool replay = false;

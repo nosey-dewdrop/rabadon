@@ -49,25 +49,29 @@ record bounded.
 `seq` never resets. It is the only field that can still order two moves after
 eviction has thrown the older one away.
 
-## Compaction — at SessionEnd, never on the hot path
+## Yok artık: sıkıştırma
 
-Trigger: the `Stop` / `SessionEnd` hook. Nothing else compacts, and no tool event
-ever does.
+R1.3 kaydı **sabit genişlikli ikili bir halkaya** taşıdı: 200 kayıt × 320 bayt, 4096 baytlık
+bir başlığın arkasında. Dosya sabit boyutlu (4096 + 64.000 = 68.096 bayt) ve oturum ne kadar
+uzarsa uzasın büyümüyor. Sıkıştırılacak bir şey yok, o yüzden sıkıştırma da yok.
 
-What it does: rewrites the log as exactly what a reader would have been handed —
-the newest 200 moves, raw on the newest 50 — through a temp file and a rename, so
-a crash mid-compaction leaves the **old** log intact rather than half of a new
-one. This is the one operation here that is not an append, and it is the one
-place the cost does not matter, because the agent has already stopped.
+Neden metin bırakıldı: üç tur boyunca üç ayrı yeri ucuzlattık (tam-dosya yazımı → append,
+çift yazım → tek, N hash → 1 hash) ve ölçüm her seferinde aynı şeyi söyledi — 200 satırlık
+günlük 5.943 ms, 400 satırlık 6.647 ms. Maliyet optimize edilen yerlerde değil, **her olayda
+tüm tarihçeye dokunmakta**ydı, ve dokunmayı pahalı yapan şey metindi. Artık yükleme, bilinen
+boyutta tek bir `pread` ve ardından `memcpy`: tarama yok, alan arama yok, alan başına
+ayırma yok.
 
-Bound after compaction: **200 lines**, of which at most 50 carry raw text of at
-most 200 characters. A compacted log is therefore a few tens of KB, and a session
-that never ends cleanly grows by roughly one line per tool event until it does.
+**Atomiklik başlık `count`'udur.** Kayıt önce yazılır, `count` sonra artırılır. Elektrik
+yarıda giderse yarım kayıt `count`'un dışında kalır — yani hiç var olmamıştır. Yarım kayıt
+ayrıştırma sorunu diye bir şey yok, çünkü ayrıştırma yok.
+
+**Metin bir dışa aktarımdır, depolama biçimi değil.** `rabadon audit --export <ring>` insan
+ve test için JSONL üretir. Hot-path hiçbir zaman JSON üretmez.
 
 ## Durability: no fsync, on purpose
 
-`append_move()` opens with `O_APPEND`, writes once, closes. **It does not
-fsync.**
+`append_move()` writes the record, then the header, and closes. **It does not fsync.**
 
 The reasoning, stated so it can be argued with:
 

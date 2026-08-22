@@ -1,0 +1,15 @@
+diff --git a/lodash.js b/lodash.js
+index 8b0caea3f..c724b6b8f 100644
+--- a/lodash.js
++++ b/lodash.js
+@@ -3990,10 +3990,6 @@
+         var key = toKey(path[index]),
+             newValue = value;
+ 
+-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+-          return object;
+-        }
+-
+         if (index != lastIndex) {
+           var objValue = nested[key];
+           newValue = customizer ? customizer(objValue, key, nested) : undefined;

@@ -32,7 +32,7 @@ native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain
 native/rabadon-claims: native/claims.cpp native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h
+native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h native/moves.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h native/heldout.h

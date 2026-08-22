@@ -1070,130 +1070,102 @@ struct State {
   // line is DETECTED rather than silently believed, which is the difference
   // between a record with a known hole and a record that quietly lies. The
   // policy and its numbers are written down in docs/butce.md.
-  string moves_path() const { return sessDir + "/" + sessKey + ".moves.jsonl"; }
+  string moves_path() const { return sessDir + "/" + sessKey + ".moves.bin"; }
 
   string lastMoveHash;
 
-  static string move_line(const rbmoves::Move& m, const string& prev) {
-    std::ostringstream o;
-    o << "{\"seq\":" << m.seq << ",\"ts\":" << m.ts
-      << ",\"tool\":\"" << json_escape(m.tool) << "\""
-      << ",\"path\":\"" << json_escape(m.path) << "\""
-      << ",\"sig\":\"" << json_escape(m.sig) << "\""
-      << ",\"raw\":\"" << json_escape(m.raw) << "\""
-      << ",\"claimed_rc\":" << m.claimed_rc
-      << ",\"err_sig\":\"" << json_escape(m.err_sig) << "\""
-      << ",\"suite\":" << m.suite << ",\"asserts\":" << m.asserts
-      << ",\"prev\":\"" << prev << "\"}";
-    return o.str();
-  }
-
-  static void read_move(const string& r, rbmoves::Move& m) {
-    m.seq = get_num(r, "seq");
-    m.ts  = get_num(r, "ts");
-    m.tool = get_str(r, "tool");
-    m.path = get_str(r, "path");
-    m.sig  = get_str(r, "sig");
-    m.raw  = get_str(r, "raw");
-    m.claimed_rc = (int)get_num(r, "claimed_rc");
-    m.err_sig = get_str(r, "err_sig");
-    m.suite = (int)get_num(r, "suite");
-    m.asserts = (int)get_num(r, "asserts");
-    // absent is unknown, never zero: 0 means green and means succeeded.
-    if (r.find("\"claimed_rc\"") == string::npos) m.claimed_rc = -1;
-    if (r.find("\"suite\"") == string::npos) m.suite = -1;
-    if (r.find("\"asserts\"") == string::npos) m.asserts = -1;
-  }
-
-  // Replay: later line with the same seq supersedes the earlier one, keep the
-  // newest CAP by seq. A torn final line is dropped rather than fatal — a
-  // half-written record must never stop the gate from judging the next command.
+  // ONE read of a KNOWN SIZE, then memcpy. No scanning, no field lookup, no
+  // per-field allocation. This is the whole reason the format changed: the work
+  // done here is the same on the first tool call of a session and on the four
+  // hundredth. reports/R1.3/accept.sh measures exactly that.
   void load_moves() {
-    const string all = read_file(moves_path());
-    if (all.empty()) return;
-    // R1.3 — NO HASHING ON THE HOT PATH.
-    // R1.2 verified the whole chain on every load: one SHA-256 per line, on
-    // every tool event, growing with the session. That was the cost, and it was
-    // larger than the write it replaced. The chain is still WRITTEN on every
-    // append — `prev` is in every line — but it is only CHECKED where checking
-    // is the point: under RABADON_MOVES_STRICT, and by rabadon-audit.
-    //
-    // What the hot path still needs is one hash: the last complete line's, so
-    // the next append can chain to it. One, not N.
-    const bool strict = []{ const char* v = getenv("RABADON_MOVES_STRICT"); return v && v[0] == '1'; }();
-    std::vector<rbmoves::Move> ordered;
-    string prevHash;
-    string lastLine;
-    bool broke = false;
-    size_t i = 0;
-    while (i < all.size()) {
-      size_t e = all.find('\n', i);
-      const bool torn = (e == string::npos);
-      const string line = all.substr(i, (torn ? all.size() : e) - i);
-      i = torn ? all.size() : e + 1;
-      if (line.empty()) continue;
-      if (torn || line[line.size() - 1] != '}') break;   // half-written tail
-      if (strict) {
-        if (get_str(line, "prev") != prevHash) broke = true;
-        prevHash = rbsha::hex(line).substr(0, 16);
+    const int fd = open(moves_path().c_str(), O_RDONLY);
+    if (fd < 0) return;
+    rbmoves::Hdr h{};
+    if (pread(fd, &h, sizeof h, 0) != (ssize_t)sizeof h ||
+        memcmp(h.magic, "RBMV1", 5) != 0) { close(fd); return; }
+    const long long total = h.count;
+    const long long keep  = total < (long long)rbmoves::CAP ? total : (long long)rbmoves::CAP;
+    std::vector<rbmoves::Rec> recs((size_t)keep);
+    // The ring is contiguous on disk; read the whole thing in one call and pick
+    // the live window out of memory rather than issuing `keep` small reads.
+    if (keep > 0) {
+      std::vector<rbmoves::Rec> ring(rbmoves::CAP);
+      const ssize_t want = (ssize_t)(rbmoves::CAP * sizeof(rbmoves::Rec));
+      const ssize_t got = pread(fd, ring.data(), want, rbmoves::HDR_BYTES);
+      if (got <= 0) { close(fd); return; }
+      const long long first = total - keep;           // oldest surviving
+      for (long long i = 0; i < keep; i++)
+        recs[(size_t)i] = ring[(size_t)((first + i) % (long long)rbmoves::CAP)];
+    }
+    close(fd);
+
+    sess.moves.clear();
+    sess.moves.reserve(recs.size());
+    for (const auto& r : recs) {
+      rbmoves::Move m; rbmoves::from_rec(r, m);
+      sess.moves.push_back(m);
+    }
+    // raw text only on the newest RAW_KEEP — the reader defines the record, and
+    // every reader is handed the same thing (docs/butce.md).
+    if (sess.moves.size() > rbmoves::RAW_KEEP)
+      for (size_t k = 0; k + rbmoves::RAW_KEEP < sess.moves.size(); k++) sess.moves[k].raw.clear();
+
+    sess.nextSeq = h.nextSeq;
+    if (!sess.moves.empty()) {
+      rbmoves::Rec last; rbmoves::to_rec(sess.moves.back(), last);
+      lastMoveHash = rbsha::hex(string((const char*)&recs.back(), sizeof(rbmoves::Rec))).substr(0, 16);
+    }
+
+    // The chain is WRITTEN always and CHECKED only where checking is the point:
+    // under RABADON_MOVES_STRICT, and by rabadon-audit. A broken chain is a fact
+    // about the record, never a reason to refuse the user's command.
+    const char* sv = getenv("RABADON_MOVES_STRICT");
+    if (sv && sv[0] == '1' && recs.size() > 1) {
+      for (size_t i = 1; i < recs.size(); i++) {
+        const string want = rbsha::hex(string((const char*)&recs[i - 1], sizeof(rbmoves::Rec))).substr(0, 16);
+        if (rbmoves::get(recs[i].prev, sizeof recs[i].prev) != want) {
+          fprintf(stderr, "rabadon: move ring chain broken (a record is missing or was edited): %s\n",
+                  moves_path().c_str());
+          break;
+        }
       }
-      lastLine = line;
-      rbmoves::Move m; read_move(line, m);
-      bool replaced = false;
-      for (auto& o : ordered) if (o.seq == m.seq) { o = m; replaced = true; break; }
-      if (!replaced) ordered.push_back(m);
-    }
-    lastMoveHash = prevHash;
-    // The caps are the READER's job now. The log on disk may hold more than CAP
-    // lines between compactions — that is what makes an append cheap — so
-    // "the record" is defined as what a reader is handed, and every reader is
-    // handed the same thing: the newest CAP moves, raw text on the newest
-    // RAW_KEEP. Compaction at SessionEnd then makes the file match what readers
-    // already see, rather than being the thing that enforces it.
-    if (ordered.size() > rbmoves::CAP)
-      ordered.erase(ordered.begin(), ordered.begin() + (ordered.size() - rbmoves::CAP));
-    if (ordered.size() > rbmoves::RAW_KEEP)
-      for (size_t k = 0; k + rbmoves::RAW_KEEP < ordered.size(); k++) ordered[k].raw.clear();
-    sess.moves = ordered;
-    if (!sess.moves.empty() && sess.nextSeq <= sess.moves.back().seq)
-      sess.nextSeq = sess.moves.back().seq + 1;
-    // Loud only when asked. A broken chain is a fact about the record, not a
-    // reason to refuse the user's command, so the gate says so on stderr under
-    // RABADON_MOVES_STRICT and otherwise carries the hole forward silently —
-    // R2's detectors read a record that is short, never one that is wrong.
-    if (broke) {
-      if (strict)
-        fprintf(stderr, "rabadon: move log chain broken (a line is missing or was edited): %s\n",
-                moves_path().c_str());
     }
   }
 
-  // Rewrite the log down to what the reader would keep anyway. Written to a
-  // temp and renamed, so a crash mid-compaction leaves the OLD log intact
-  // rather than half of a new one — the one place this record can afford the
-  // cost of being careful, because nothing is waiting on it.
-  void compact_moves() {
-    if (sess.moves.empty()) return;
-    string out; string prev;
-    for (const auto& m : sess.moves) {
-      const string line = move_line(m, prev);
-      out += line; out += "\n";
-      prev = rbsha::hex(line).substr(0, 16);
-    }
-    write_atomic(moves_path(), out);
-    lastMoveHash = prev;
-  }
-
+  // Append: write the record, THEN bump the count. A record half-written when
+  // the machine dies is a record outside the count, which means it never was.
   void append_move(const rbmoves::Move& m) {
     mkdir(sessDir.c_str(), 0755);
-    const string line = move_line(m, lastMoveHash);
-    const int fd = open(moves_path().c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    const int fd = open(moves_path().c_str(), O_RDWR | O_CREAT, 0644);
     if (fd < 0) return;                    // fail open: never block on the record
-    const string out = line + "\n";
-    ssize_t w = write(fd, out.data(), out.size());
-    (void)w;
+    rbmoves::Hdr h{};
+    if (pread(fd, &h, sizeof h, 0) != (ssize_t)sizeof h || memcmp(h.magic, "RBMV1", 5) != 0) {
+      memset(&h, 0, sizeof h);
+      memcpy(h.magic, "RBMV1", 5);
+      h.count = 0; h.nextSeq = 0;
+    }
+    rbmoves::Rec r; rbmoves::to_rec(m, r);
+    rbmoves::put(r.prev, sizeof r.prev, lastMoveHash);
+
+    // A completion rewrites the NEWEST record in place. Safe because it is the
+    // newest: nothing has chained to it yet, so no `prev` downstream goes stale.
+    const bool completing = (h.count > 0 && m.seq == h.nextSeq - 1);
+    const long long idx = completing ? (h.count - 1) % (long long)rbmoves::CAP
+                                     : h.count % (long long)rbmoves::CAP;
+    if (completing) {
+      rbmoves::Rec cur{};
+      if (pread(fd, &cur, sizeof cur, rbmoves::HDR_BYTES + idx * (long long)sizeof cur) == (ssize_t)sizeof cur)
+        memcpy(r.prev, cur.prev, sizeof r.prev);   // keep the link it was written with
+    }
+    if (pwrite(fd, &r, sizeof r, rbmoves::HDR_BYTES + idx * (long long)sizeof r) != (ssize_t)sizeof r) {
+      close(fd); return;
+    }
+    if (!completing) { h.count++; h.nextSeq = m.seq + 1; }
+    else if (h.nextSeq < m.seq + 1) h.nextSeq = m.seq + 1;
+    pwrite(fd, &h, sizeof h, 0);
     close(fd);                             // no fsync: see docs/butce.md
-    lastMoveHash = rbsha::hex(line).substr(0, 16);
+    lastMoveHash = rbsha::hex(string((const char*)&r, sizeof r)).substr(0, 16);
   }
 
   Sess& session() { return sess; }
@@ -2425,9 +2397,8 @@ int main(int argc, char** argv) {
   // time, never correctness. Rewriting it is the one operation that is not an
   // append, so it happens exactly where a millisecond does not matter: after the
   // agent has stopped. Numbers and the trigger are in docs/butce.md.
-  if (hook == "Stop" || hook == "SessionEnd") {
-    if (rbmoves::enabled()) stt.compact_moves();
-  }
+  // R1.3: no compaction. The ring is a fixed 200 records; there is nothing to
+  // compact and nothing that grows.
 
   // ---------- PostToolUse: observe + track session state ----------
   // The action already ran; exit 2 here is FEEDBACK to the agent, not a block.

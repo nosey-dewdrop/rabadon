@@ -1,0 +1,17 @@
+diff --git a/lib/command.js b/lib/command.js
+index 0d14ee4..efbb8f6 100644
+--- a/lib/command.js
++++ b/lib/command.js
+@@ -239,11 +239,7 @@ class Command extends EventEmitter {
+   configureOutput(configuration) {
+     if (configuration === undefined) return this._outputConfiguration;
+ 
+-    this._outputConfiguration = Object.assign(
+-      {},
+-      this._outputConfiguration,
+-      configuration,
+-    );
++    Object.assign(this._outputConfiguration, configuration);
+     return this;
+   }
+ 

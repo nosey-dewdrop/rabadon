@@ -1,0 +1,17 @@
+diff --git a/lib/help.js b/lib/help.js
+index a862078..e448015 100644
+--- a/lib/help.js
++++ b/lib/help.js
+@@ -352,11 +352,7 @@ class Help {
+       extraInfo.push(`env: ${option.envVar}`);
+     }
+     if (extraInfo.length > 0) {
+-      const extraDescription = `(${extraInfo.join(', ')})`;
+-      if (option.description) {
+-        return `${option.description} ${extraDescription}`;
+-      }
+-      return extraDescription;
++      return `${option.description} (${extraInfo.join(', ')})`;
+     }
+ 
+     return option.description;

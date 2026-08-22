@@ -62,7 +62,7 @@ using std::string;
 // native/moves_test.sh; changing one here without changing it there is caught.
 static const size_t CAP = 200;
 static const size_t RAW_KEEP = 50;
-static const size_t RAW_CLIP = 200;   // characters of raw text kept per move
+static const size_t RAW_CLIP = 95;    // characters of raw text kept per move (fits Rec::raw)
 
 struct Move {
   long long seq = 0;          // never resets; the only ordering left after eviction
@@ -260,6 +260,104 @@ inline int count_asserts(const string& s) {
 
 inline string clip(const string& s) {
   return s.size() <= RAW_CLIP ? s : s.substr(0, RAW_CLIP);
+}
+
+// ---------------------------------------------------------------------------
+// R1.3 — THE RECORD ON DISK IS FIXED-WIDTH BINARY, AND THAT IS THE WHOLE POINT.
+//
+// Three rounds made three different things cheaper — whole-file writes became
+// appends, double writes became one, N hashes became one — and every
+// measurement said the same sentence: a 200-line log cost 5.943 ms and a
+// 400-line log cost 6.647 ms. Same command, same fixture. The cost was not in
+// any of the things being optimised, it was in TOUCHING THE WHOLE HISTORY, and
+// text is what made touching it expensive.
+//
+// So the record stops being text. CAP records of exactly REC_BYTES each, in a
+// ring, behind a fixed header. Loading is one read of a known size followed by
+// memcpy — no scanning, no field lookup, no allocation per field. It costs the
+// same on the first tool call of a session as on the four hundredth, which is
+// the invariant this round exists to restore: hot-path cost cannot depend on
+// session length.
+//
+// ATOMICITY IS THE HEADER COUNT. The record is written first and `count` is
+// incremented after. A record half-written when the power goes is a record
+// outside the count, which means it never existed. There is no torn-record
+// parsing problem because there is no parsing.
+//
+// THE CHAIN STILL EXISTS. Every record carries `prev`, the hash of the record
+// written before it. The hot path computes one hash — its own link — and never
+// verifies the chain; rabadon-audit walks it. A completion (PostToolUse learning
+// the exit claim, the error signature, the suite verdict) rewrites the NEWEST
+// record in place, which is safe precisely because it is the newest: no later
+// record has chained to it yet.
+//
+// TEXT IS AN EXPORT, NOT A STORAGE FORMAT. `rabadon audit --export` renders
+// JSONL for humans and for tests. Nothing on the hot path ever produces JSON.
+#pragma pack(push, 1)
+struct Rec {
+  long long seq;          // 8
+  long long ts;           // 8
+  int       claimed_rc;   // 4
+  int       suite;        // 4
+  int       asserts;      // 4
+  int       tool;         // 4   1=Bash 2=Edit 3=Write 4=MultiEdit
+  char      sig[17];      // 17
+  char      err[17];      // 17
+  char      prev[17];     // 17
+  char      _pad;         // 1   -> 84
+  char      path[140];    // 140 -> 224
+  char      raw[96];      // 96  -> 320
+};
+#pragma pack(pop)
+
+static const size_t REC_BYTES = 320;
+static const size_t HDR_BYTES = 4096;
+
+struct Hdr {
+  char      magic[8];     // "RBMV1\0\0\0"
+  long long count;        // total records ever appended; index = (count-1) % CAP
+  long long nextSeq;
+};
+
+inline int tool_code(const string& t) {
+  if (t == "Bash") return 1;
+  if (t == "Edit") return 2;
+  if (t == "Write") return 3;
+  if (t == "MultiEdit") return 4;
+  return 0;
+}
+inline const char* tool_name(int c) {
+  switch (c) { case 1: return "Bash"; case 2: return "Edit";
+               case 3: return "Write"; case 4: return "MultiEdit"; default: return ""; }
+}
+inline void put(char* dst, size_t cap, const string& v) {
+  const size_t n = v.size() < cap - 1 ? v.size() : cap - 1;
+  memcpy(dst, v.data(), n);
+  memset(dst + n, 0, cap - n);
+}
+inline string get(const char* src, size_t cap) {
+  size_t n = 0; while (n < cap && src[n]) n++;
+  return string(src, n);
+}
+
+inline void to_rec(const Move& m, Rec& r) {
+  memset(&r, 0, sizeof r);
+  r.seq = m.seq; r.ts = m.ts;
+  r.claimed_rc = m.claimed_rc; r.suite = m.suite; r.asserts = m.asserts;
+  r.tool = tool_code(m.tool);
+  put(r.sig, sizeof r.sig, m.sig);
+  put(r.err, sizeof r.err, m.err_sig);
+  put(r.path, sizeof r.path, m.path);
+  put(r.raw, sizeof r.raw, m.raw);
+}
+inline void from_rec(const Rec& r, Move& m) {
+  m.seq = r.seq; m.ts = r.ts;
+  m.claimed_rc = r.claimed_rc; m.suite = r.suite; m.asserts = r.asserts;
+  m.tool = tool_name(r.tool);
+  m.sig = get(r.sig, sizeof r.sig);
+  m.err_sig = get(r.err, sizeof r.err);
+  m.path = get(r.path, sizeof r.path);
+  m.raw = get(r.raw, sizeof r.raw);
 }
 
 } // namespace rbmoves

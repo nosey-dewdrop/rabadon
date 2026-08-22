@@ -37,6 +37,8 @@ export LC_ALL=C
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 GATE="${RABADON_GATE:-$HERE/rabadon-gate}"
+# the export door the reader below goes through (R1.3)
+export RB_AUDIT="${RABADON_AUDIT:-$HERE/rabadon-audit}"
 
 MOVES_CAP=200
 MOVES_RAW=50
@@ -117,33 +119,28 @@ for base in (os.path.join(proj, ".rabadon", "sessions"),
     # beside it. This is the READER learning where the record lives; not one
     # assertion below changed, and reports/R1.2/accept.sh proves that by
     # comparing the assertion texts against the previous commit.
+    # R1.3: the record on disk is fixed-width binary so the hot path never parses
+    # text. Reading it is what `rabadon audit --export` is for, and this reader
+    # goes through exactly that door — the same one a human uses. Not one
+    # assertion below changed; reports/R1.3/accept.sh proves that by comparing
+    # assertion texts against the previous commit.
+    import subprocess, glob
+    exp = os.environ.get("RB_AUDIT", "")
     for base in (os.path.join(proj, ".rabadon", "sessions"),
                  os.path.join(rabdir, "sessions")):
-        if not os.path.isdir(base):
-            continue
-        for fn in os.listdir(base):
-            if not fn.endswith(".moves.jsonl"):
+        for fn in glob.glob(os.path.join(base, "*.moves.bin")):
+            try:
+                out = subprocess.run([exp, "--export", fn], capture_output=True, text=True).stdout
+            except Exception:
                 continue
-            byseq = {}
-            for line in open(os.path.join(base, fn)):
+            for line in out.splitlines():
                 line = line.strip()
-                if not line or not line.endswith("}"):
-                    continue          # torn tail
-                try:
-                    r = json.loads(line)
-                except Exception:
+                if not line:
                     continue
-                byseq[r.get("seq")] = r   # a later line with one seq wins
-            recs = sorted(byseq.values(), key=lambda r: r.get("seq", 0))
-            # The record is what a READER is handed, and every reader applies the
-            # same two caps: the newest 200 moves, raw text on the newest 50.
-            # The log on disk may hold more between compactions — that is what
-            # makes an append cheap. reports/R1.2/accept.sh asserts the file
-            # itself is bounded after a session ends.
-            recs = recs[-200:]
-            for r in recs[:-50]:
-                r["raw"] = ""
-            moves.extend(recs)
+                try:
+                    moves.append(json.loads(line))
+                except Exception:
+                    pass
 moves.sort(key=lambda x: x.get("seq", 0))
 m = moves
 try:

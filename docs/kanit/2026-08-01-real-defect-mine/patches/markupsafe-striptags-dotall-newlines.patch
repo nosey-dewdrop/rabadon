@@ -1,0 +1,15 @@
+diff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py
+index 1f9d8cd..a95eb1e 100644
+--- a/src/markupsafe/__init__.py
++++ b/src/markupsafe/__init__.py
+@@ -13,8 +13,8 @@ if t.TYPE_CHECKING:
+ 
+ __version__ = "2.1.2.dev0"
+ 
+-_strip_comments_re = re.compile(r"<!--.*?-->", re.DOTALL)
+-_strip_tags_re = re.compile(r"<.*?>", re.DOTALL)
++_strip_comments_re = re.compile(r"<!--.*?-->")
++_strip_tags_re = re.compile(r"<.*?>")
+ 
+ 
+ def _simple_escaping_wrapper(name: str) -> t.Callable[..., "Markup"]:

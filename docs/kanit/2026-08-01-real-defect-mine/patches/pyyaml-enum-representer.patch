@@ -1,0 +1,13 @@
+diff --git a/lib/yaml/representer.py b/lib/yaml/representer.py
+index 808ca06..3b0b192 100644
+--- a/lib/yaml/representer.py
++++ b/lib/yaml/representer.py
+@@ -369,7 +369,7 @@ Representer.add_representer(complex,
+ Representer.add_representer(tuple,
+         Representer.represent_tuple)
+ 
+-Representer.add_multi_representer(type,
++Representer.add_representer(type,
+         Representer.represent_name)
+ 
+ Representer.add_representer(collections.OrderedDict,
