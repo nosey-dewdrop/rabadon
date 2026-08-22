@@ -153,7 +153,9 @@ struct Move {
 };
 ```
 
-Son 200 hamle; raw sadece son 50 için serileştirilir; ~60 KB.
+Son 200 hamle; raw sadece son 50 için serileştirilir.
+
+**Uygulandığı hali (R1.3, ölçülmüş):** kayıt JSON değil, **sabit genişlikli ikili halka** — 4096 B başlık + 200 × 320 B, dosya sabit 68 KB, oturum ne kadar uzarsa uzasın büyümüyor. Metin depolama biçimi değil, `rabadon audit --export` ile üretilen bir dışa aktarım. Nedeni ölçümdür: JSON'la maliyet oturum uzunluğuna bağlıydı (200 satır 5.943 ms, 400 satır 6.647 ms), ikili halkayla halkanın kendi payı **~6 µs**'ye indi (pread 1.68 + append 2.18 + SHA 1.95). Ayrıntı `docs/butce.md`.
 
 Kademe 0 normalizasyon, yeni bağımlılık yok, mevcut sha256:
 - Bash: whitespace daralt, mutlak yolları göreceleştir, geçici dizinleri `<tmp>` maskele, sayıları koru (port anlamlıdır).
@@ -302,7 +304,7 @@ Kabul (reports/R6/accept.sh):
 
 ## R7 — hız ve iki kollu kanıt
 
-**Hız.** Kapı süresinin büyük kısmı süreç başlatma. Kalıcı daemon (rabadon-gated, unix socket) + ince istemci ile yargılama süresine iner; daemon yoksa istemci bugünkü yola düşer: fail-open değil, fail-same.
+**Hız.** Kapı süresinin büyük kısmı süreç başlatma — ve bu artık **ölçüldü**: 4.2 ms'lik bir çağrının ~2.3 ms'si fork/exec/dyld (R1.3 profili, `reports/R1.3/PROFIL.md`). Yani daemon'ın kazanacağı şey tahmin değil, bilinen bir sayı; gate'in kendi işi ~1.9 ms ve optimize edilecek yer orası. Kalıcı daemon (rabadon-gated, unix socket) + ince istemci ile yargılama süresine iner; daemon yoksa istemci bugünkü yola düşer: fail-open değil, fail-same.
 
 **Kanıt.** İki kollu koşu: aynı görev seti, A kolu ajan yalnız, B kolu ajan + birikme motoru. Harness sıfırdan yazılmaz. **Kullanılan harness'ın tam repo adı ve commit'i reports/R7/ altına yazılır — zorunlu.** Terminal-Bench adı tek başına bir şeye işaret etmiyor: `laude-institute/terminal-bench` v1, `harbor-framework/terminal-bench-2` v2, gerçek harness artık `harbor-framework/harbor`, ve `alibaba/terminal-bench-pro` üçüncü taraf. Hangisi olduğu yazılmadan beş sayının hiçbiri karşılaştırılabilir değildir. (SWE-smith ya da Terminal-Bench/Harbor yeniden kullanılır; Cursor'ın 25.06 yazısındaki .git temizleme ve egress kapatma hazırlığı uygulanır — Cursor'ın kendisi bunu "best-effort" diye niteliyor, biz de öyle yazarız; yoksa ajan cevabı git geçmişinden bulup her iki kolu da şişirir). Beş sayı: gerçek fix oranı (held-out testle, ajanın kendi testiyle değil), harcanan token, insan müdahalesi, yanlış pozitif oranı, ve sayaç doğrulaması — B kolunda sayacın "tahmini kurtarılan" toplamı iki kol arasındaki gerçek token farkıyla karşılaştırılır, sapma yüzdesi raporlanır. Ham JSONL reports/R7/ altına, özet değil.
 
