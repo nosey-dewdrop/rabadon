@@ -45,9 +45,20 @@ if [ -n "$L" ]; then
   # two different milliseconds, so an unmasked compare tests the clock rather
   # than the storage. Everything the claim is about — seq, tool, sig, prev — is
   # still compared byte for byte.
-  mask(){ sed -E 's/"ts":[0-9]+/"ts":T/g'; }
-  H1=$(head -c "$B1" "$L" | mask | shasum | cut -d' ' -f1)
-  sb; fire s2 'echo one'; L2="$(logf)"; H0=$(mask <"$L2" | shasum | cut -d' ' -f1)
+  # The mask used to be `sed 's/"ts":[0-9]+/"ts":T/'` over the whole file. Against
+  # a binary ring that sed emits "RE error: illegal byte sequence" and prints
+  # NOTHING, so both sides hashed the empty string and 1b passed without ever
+  # comparing a byte. Same claim, expressed in the format the record now has:
+  # hash record #0 itself (offset 4096, length 320) with only its ts field (bytes
+  # 8..16 of the record) zeroed. The 4096-byte header is deliberately NOT part of
+  # the comparison — it carries `count`, which is supposed to change on append.
+  rec0(){ python3 -c 'import sys,hashlib
+HDR,REC=4096,320
+b=bytearray(open(sys.argv[1],"rb").read()[HDR:HDR+REC])
+b[8:16]=bytes(8)
+print(hashlib.sha256(bytes(b)).hexdigest())' "$1"; }
+  H1=$(rec0 "$L")
+  sb; fire s2 'echo one'; L2="$(logf)"; H0=$(rec0 "$L2")
   if [ "$H1" = "$H0" ]; then pass "1b the first line's bytes are untouched after two more moves"
   else fail "1b the earlier bytes changed — this is still a rewrite"; fi
   if [ "$B3" -gt "$B2" ] && [ "$B2" -gt "$B1" ]; then pass "1c each move grows the file (${B1} -> ${B2} -> ${B3} bytes)"
