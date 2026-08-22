@@ -134,6 +134,20 @@ def walk(x):
         for k,v in x.items():
             if k=="s": continue                 # drop the leaked node alias
             if k=="recentEv": continue          # dedupe bookkeeping, not verdict state
+            # R1's move record, and native-only BY DESIGN. This file is a
+            # differential against the RETIRING node engine, and its subject is
+            # parity of meaning: same verdict, same shared facts. The record is
+            # additive state the node gate never had and never will, and no
+            # branch in the native gate reads it to decide anything. Comparing
+            # it would assert that the surviving engine may not learn anything
+            # the retired one did not know, which is not what this file guards.
+            #
+            # The record is NOT left unchecked — native/moves_test.sh asserts
+            # every field of it, including that exit codes are byte-identical
+            # with recording on and off, on the allow path and the refusal path.
+            # The assertion moved; it was not dropped. Same sentence required
+            # for anything added to this line.
+            if k in ("moves","nextSeq"): continue
             if k in VOL:
                 setv=(isinstance(v,(int,float)) and v!=0) or (isinstance(v,str) and v)
                 if setv: o[k]="SET"
@@ -173,6 +187,11 @@ for s in sess:
     for k,v in s.items():
         if isinstance(v,(int,float)) and isinstance(d.get(k),(int,float)): d[k]=max(d[k],v)
         else: d.setdefault(k,v)
+# R1's move record: native-only by design, asserted in native/moves_test.sh.
+# The reason is written once, in norm_state above; this is the same rule for
+# the other flattened view.
+for k in ("moves", "nextSeq"):
+    d.pop(k, None)
 print(json.dumps(d))
 PYEOF
 }
