@@ -102,6 +102,14 @@ Kullanıcı her oturum sonunda kendi parasının yandığını ledger'dan türet
 | birikme motoru | her tool call | hedef < 1 ms | birikmeyi görür, teşhisi ajana enjekte eder, ajan anında tamir eder |
 | onarım (repair) | sinyal tetikli, politika kapılı | saniye-dakika | kontrollü deney |
 
+**Bu tablodaki her sayı süreç-İÇİ ölçülür, uçtan uca çağrıyla değil.** 22.08'de ölçüldü ve bu bir düzeltmedir, tercih değil: R3'ün kabul betiği **var olmayan** bir özelliğin maliyetini uçtan uca ON 3937 µs / OFF 4002 µs, yani **delta −64 µs** diye ölçtü. Sıfır maliyetli bir şeyin ölçümü gürültünün içinde kayboldu, çünkü süreç başlatma çağrının neredeyse tamamı. Bu yöntemle 500 µs'lik bir bütçe hiçbir şey ölçmez — geçer ve hiçbir şey kanıtlamaz.
+
+Bundan sonra üç kural:
+
+1. **Bütçe, gate'in kendi işine oranla yazılır.** Uçtan uca medyanın yüzdesi yanıltıcıdır ve **lehimize** yanıltıcıdır: 4.5 ms'lik bir çağrının %5'i 226 µs görünür, ama o çağrının çoğu süreç başlatmadır, yani gate'in gerçek işine oranla aynı ek çok daha büyüktür. Yüzde, ölçtüğümüz şeyin paydası doğruysa anlamlıdır.
+2. **Süreç başlatmayı ölçen bir sayı, ürün hakkında bir sayı değildir.** Süreç başlatmayı ortadan kaldıran tek şey R7'nin daemon'ı; ona kadar her bütçe kalemi süreç-içi ölçülür ve raporda "süreç başlatma hariç" diye etiketlenir.
+3. **Bugüne kadar yazılmış her bütçe sayısı uçtan uca ölçülmüştür** (R1'in 1571 µs'si, R1.3'ün 838 µs'si dahil) ve süreç-içi ölçülen yeni sayılarla doğrudan karşılaştırılamaz. Karşılaştırma yapılacaksa eski ölçüm yeni yöntemle tekrarlanır.
+
 ---
 
 # TEKNİK TURLAR
@@ -400,6 +408,21 @@ Kabul: Show HN yayında; ilk 30 gün üç oran ölçülmüş ve reports/M4/'e ya
 | yapan | tur boyunca | her şey | kod, test, rapor, SORU.md |
 | yargıç | tur kapanışında | diff + rapor + kabul + bütçe; tarihçe değil | reports/R<n>/kapi.md |
 | danışman | SORU.md yazıldığı anda | plan + SORU + profil/ölçüm + ilgili kod; tur anlatısı değil | reports/R<n>/KARAR.md |
+
+### Faz dağıtımı — yapan tek context'te koşmaz
+
+Bir tur tek bir oturumun context'ine sığmaz. Sığdırmaya çalışmak turu yavaşlatır ve kaliteyi düşürür: ham dosya içeriği, uzun loglar ve test çıktıları context'i şişirir, şişen context'te karar kalitesi düşer. Yapan oturum turu parçalara böler ve her parçayı **kendi ajanına** verir:
+
+| parça | ajan ne yapar | ne yapmaz |
+|---|---|---|
+| kabul betiği | turun sınavını yazar, kırmızı olduğunu doğrular | ürün kodu yazmaz |
+| uygulama | tek hedef, kabul betiği elinde, yeşile çevirir | kabul betiğini düzenlemez |
+| ölçüm / profil | sayı üretir, neyi izole edemediğini söyler | yorum yazmaz |
+| araştırma | birincil kaynak + URL, doğrulanmayanı işaretler | sayı uydurmaz |
+
+Yapan oturumun context'inde yalnız şunlar durur: planın ilgili bölümü, ajanların dönen **özetleri**, ve kararlar. Ham çıktı yapanın context'ine girmez.
+
+Kural: bir ajanın dönüş raporu **40 satırı geçmez** ve ölçüm içerir. Ajan "yaptım" diyemez; ne koştuğunu ve ne çıktığını yazar. Paralel çalışabilecek parçalar aynı anda salınır.
 
 ### Danışman
 
