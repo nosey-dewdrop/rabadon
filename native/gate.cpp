@@ -1205,9 +1205,30 @@ struct State {
     sweep();
   }
 
+  // R1.1 — DIRTY-TRACKED. The session file grew from a handful of counters to a
+  // 200-move record, and it was being serialised and written on every call to
+  // save(). Some events call save() more than once (the R1 recorder writes
+  // immediately, because every refusal path returns early and a record that
+  // survives only the allow path is a record of the wrong half; later branches
+  // then save again for their own reasons). That made one tool event cost two
+  // full rewrites of the largest file rabadon owns.
+  //
+  // The fix is not to record less. It is to write once: serialise, compare
+  // against what this process last wrote, and skip the syscall when the bytes
+  // did not move. The shared file below is small and still merged every time,
+  // because it has many writers and merging is what makes it correct
+  // without a lock.
+  string lastSessBytes;
+  bool   lastSessValid = false;
+
   void save() {
-    mkdir(sessDir.c_str(), 0755);
-    write_atomic(sess_path(), write_sess(sess));
+    const string body = write_sess(sess);
+    if (!lastSessValid || body != lastSessBytes) {
+      mkdir(sessDir.c_str(), 0755);
+      write_atomic(sess_path(), body);
+      lastSessBytes = body;
+      lastSessValid = true;
+    }
 
     // The shared file still has many writers, so it is merged rather than
     // replaced: re-read it, keep the later of every stamp, and let each string
