@@ -400,6 +400,7 @@ Tur kabulü yeşil olduğunda agent bir sonraki talimatı beklemez; aşağıdaki
 5. **Operatör kararı:** yalnız operatörün verebileceği bir karar var mı (fiyat, ürün konumu, hangi dizin canlı, yayın)? Varsa `reports/R<n>/SORU.md`'ye yazılır ve:
    - sonraki turu bloklamıyorsa → devam, soru açık kalır;
    - bloklıyorsa → DUR, bekle.
+   - **Açık soru sayısı ikiyi geçemez.** `SORU.md`'de iki cevaplanmamış soru varken üçüncüsü doğarsa, üçüncüsü tek başına BLOK'tur — bloklamayan bir soru olsa bile. Gerekçe: açık soru borçtur ve biriktiği anda tur, operatörün göremediği varsayımların üstünde koşmaya başlar. Üçüncü soru "sonra sorarım" listesine değil, durma sebebine gider.
 
 Karar tablosu:
 - 1-4 temiz, 5 bloklamıyor → sonraki tura geç, tohum.md yaz, commit.
@@ -409,6 +410,8 @@ Karar tablosu:
 - 5 bloklıyor → DUR.
 
 **Ara tur (R<n>.1) kuralı:** tek hedef, yeni özellik yok, kabul betiği yalnız o hedefi ölçer, kendi commit'i. R<n>.2'ye gidiyorsa DUR; iki ara tur = tasarım hatası, operatöre gider.
+
+**Kapıyı turu koşan oturum koşmaz.** Kabul yeşil olduğunda kapı ayrı bir oturumda, `KAPI-PROMPT.md` ile açılır. Kendi işini denetleyen ajan, kendi kısayollarını gerekçelendirmekte iyidir — R0'ın kabul betiğini turun kendisi yazdığı için Gate 1 sapması ancak dosyaya not düşülerek kapatılabildi. Yargıç oturum turu koşan oturumun çıktısını değil, **repoyu ve ölçümleri** okur.
 
 **DUR demek:** push et, SORU.md'yi yaz, bekle. Tahmin ederek devam yok.
 
