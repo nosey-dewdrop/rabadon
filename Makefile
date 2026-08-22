@@ -26,7 +26,7 @@ native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native
 # bump answered `make` with "up to date" and shipped a binary announcing the
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
-native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-claims: native/claims.cpp native/jsonl.h
@@ -118,6 +118,11 @@ test: all
 # readable head of the command, so "clamp" cannot degrade into "drop".
 	./native/ledger_utf8_test.sh
 	./native/baseline_test.sh
+# moves_test.sh — R1's record. It asserts what gets written AND that writing it
+# changed nothing: the same commands run with the record on and off, allow path
+# and refusal path, exit codes compared. If R1 can move a verdict, R1 is not a
+# recorder and this goes red.
+	./native/moves_test.sh
 # baseline_test.sh asks the push law about the three spellings it knows: --force,
 # -f, and a leading + on a refspec. this one asks about the spelling that
 # contains none of them and is the strongest of all: `git push --mirror origin`

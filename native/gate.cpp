@@ -39,6 +39,7 @@
 #include "baseline.h" // the three laws that hold with no guard.json at all
 #include "rules.h"   // guard.json rule parsing + matching — shared with `rabadon exec`
 #include "hookev.h"  // ONE place that turns any agent's event into rabadon's event
+#include "moves.h"   // R1: the move record. Recorded here, read by nothing here.
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -1016,6 +1017,10 @@ struct Sess {
   // produced — so this is a claim, and it is the claim of the thing being
   // checked. It belongs to the session that made it and to nobody else.
   long long lastTestPass = 0, lastTestFail = 0, lastTestRun = 0;
+  // R1: what this session actually did, in order. Recorded, never acted on —
+  // no branch in this file reads `moves` to decide anything. See native/moves.h.
+  std::vector<rbmoves::Move> moves;
+  long long nextSeq = 0;
 };
 
 struct State {
@@ -1079,6 +1084,27 @@ struct State {
     s.lastTestPass = get_num(obj, "lastTestPass");
     s.lastTestFail = get_num(obj, "lastTestFail");
     s.lastTestRun  = get_num(obj, "lastTestRun");
+    s.nextSeq = get_num(obj, "nextSeq");
+    for (const auto& r : parse_obj_array(obj, "moves")) {
+      rbmoves::Move m;
+      m.seq = get_num(r, "seq");
+      m.ts  = get_num(r, "ts");
+      m.tool = get_str(r, "tool");
+      m.path = get_str(r, "path");
+      m.sig  = get_str(r, "sig");
+      m.raw  = get_str(r, "raw");
+      m.claimed_rc = (int)get_num(r, "claimed_rc");
+      m.err_sig = get_str(r, "err_sig");
+      m.suite = (int)get_num(r, "suite");
+      // A file written by an older build has no claimed_rc/suite keys, and
+      // get_num returns 0 for a key that is not there. 0 means "green" for
+      // suite and "succeeded" for claimed_rc, so reading a missing key as 0
+      // would invent results nobody measured. Absent stays unknown.
+      if (r.find("\"claimed_rc\"") == string::npos) m.claimed_rc = -1;
+      if (r.find("\"suite\"") == string::npos) m.suite = -1;
+      s.moves.push_back(m);
+    }
+    if (s.nextSeq == 0 && !s.moves.empty()) s.nextSeq = s.moves.back().seq + 1;
   }
 
   static string write_sess(const Sess& s) {
@@ -1101,7 +1127,21 @@ struct State {
     for (size_t i = 0; i < s.recentEv.size(); i++)
       o << (i ? "," : "") << "\"" << json_escape(s.recentEv[i]) << "\"";
     o << "],\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
-      << ",\"tokensIn\":" << s.tokensIn << "}";
+      << ",\"tokensIn\":" << s.tokensIn
+      << ",\"nextSeq\":" << s.nextSeq << ",\"moves\":[";
+    for (size_t i = 0; i < s.moves.size(); i++) {
+      const rbmoves::Move& m = s.moves[i];
+      o << (i ? "," : "")
+        << "{\"seq\":" << m.seq << ",\"ts\":" << m.ts
+        << ",\"tool\":\"" << json_escape(m.tool) << "\""
+        << ",\"path\":\"" << json_escape(m.path) << "\""
+        << ",\"sig\":\"" << json_escape(m.sig) << "\""
+        << ",\"raw\":\"" << json_escape(m.raw) << "\""
+        << ",\"claimed_rc\":" << m.claimed_rc
+        << ",\"err_sig\":\"" << json_escape(m.err_sig) << "\""
+        << ",\"suite\":" << m.suite << "}";
+    }
+    o << "]}";
     return o.str();
   }
 
@@ -2026,6 +2066,55 @@ int main(int argc, char** argv) {
   const string guardRaw = read_file(guardPath);
   const auto disabled = parse_disabled(guardRaw);
 
+  // ---------- R1: write down the move, and change nothing ----------
+  // Placed here on purpose: cwd, tool, command and file path are all resolved,
+  // and not one line below this point reads `ss.moves` to decide anything. The
+  // record is saved immediately rather than at the end of the branch, because
+  // the branches below return early — including every refusal — and a record
+  // that only survives the allow path is a record of half the session, which is
+  // the wrong half.
+  //
+  // The cost is one extra write of a file this process was already going to
+  // write. If that ever shows up in gate_bench, the fix is to make save() dirty-
+  // tracked, not to stop recording refusals.
+  if (rbmoves::enabled() && (hook == "PreToolUse" || hook == "PostToolUse") &&
+      (toolName == "Bash" || toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit")) {
+    Sess& ms = stt.session();
+    const bool isBash = (toolName == "Bash");
+    const string relPath = filePath.empty() ? string() : rbmoves::relativise(filePath, cwd);
+    const string sig = isBash ? rbmoves::sig_bash(command, cwd)
+                              : rbmoves::sig_edit(relPath, E.newString.empty() ? E.content : E.newString, cwd);
+
+    // PostToolUse completes the move PreToolUse opened. Matching on the
+    // signature rather than on tool_use_id because a hook may arrive without
+    // one (see the dedupe note above), and a post event that cannot find its
+    // pre event opens its own move rather than being dropped.
+    rbmoves::Move* open_move = nullptr;
+    if (hook == "PostToolUse" && !ms.moves.empty()) {
+      for (size_t i = ms.moves.size(); i-- > 0 && i + 4 >= ms.moves.size();)
+        if (ms.moves[i].sig == sig) { open_move = &ms.moves[i]; break; }
+    }
+
+    if (!open_move) {
+      rbmoves::Move m;
+      m.ts = now_ms();
+      m.tool = toolName;
+      m.path = relPath;
+      m.sig = sig;
+      m.raw = rbmoves::clip(isBash ? command : relPath);
+      rbmoves::push(ms.moves, ms.nextSeq, m);
+      open_move = &ms.moves.back();
+    }
+
+    if (hook == "PostToolUse") {
+      open_move->err_sig = rbmoves::err_sig(toolResponse, cwd);
+      // A CLAIM, from text the session produced about itself. There is no exit
+      // code on this hook; naming the field anything else would launder that.
+      open_move->claimed_rc = open_move->err_sig.empty() ? 0 : 1;
+    }
+    stt.save();
+  }
+
   // ---------- is a model allowed to answer at all? DEFAULT: NO ----------
   // This used to be opt-OUT. Installing rabadon signed you up for two `claude
   // -p` calls on your own account, from inside a hook, that nothing announced:
@@ -2458,6 +2547,20 @@ int main(int argc, char** argv) {
       ss.lastTestRun = now;
       if (passed) { ss.lastTestPass = now; ss.lastTestFail = 0; }
       else if (sawFailure) ss.lastTestFail = now;
+
+      // R1: stamp the same verdict onto the move that produced it. Deliberately
+      // HERE and not in the recorder above: "was that a test run, and did it
+      // pass" is answered once, by the classifier that owns the question, with
+      // all of its hard-won exceptions (a stated EXIT=0, a self-counted zero, a
+      // crash string cancelling a green). A second answer computed next to the
+      // move record would be a second truth about the same output, and the
+      // weaker one would be the one the signals later read.
+      //
+      // Neither passed nor sawFailure means the output did not say. The move
+      // keeps suite = -1, because "the run did not report" and "the run was
+      // green" are different facts and only one of them is safe to assume.
+      if (!ss.moves.empty() && (passed || sawFailure))
+        ss.moves.back().suite = passed ? 1 : 0;
       stt.save();
 
       if (passed) {

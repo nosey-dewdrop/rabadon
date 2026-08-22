@@ -196,9 +196,9 @@ esac
 # CLAIM 3 — PostToolUse lands on the move that PreToolUse opened.
 
 fresh
-pre_bash s-rc 'pytest -q' >/dev/null
+pre_bash s-rc 'npm test' >/dev/null
 SEQ_BEFORE="$(moves_py s-rc 'm[-1]["seq"] if m else -1')"
-post_bash s-rc 'pytest -q' '1 failed, 3 passed' >/dev/null
+post_bash s-rc 'npm test' '1 failed, 3 passed' >/dev/null
 SEQ_AFTER="$(moves_py s-rc 'm[-1]["seq"] if m else -1')"
 if [ "$SEQ_BEFORE" = "$SEQ_AFTER" ] && [ "$SEQ_BEFORE" != "-1" ]; then
   pass "PostToolUse completes the move PreToolUse opened, it does not add a second one"
@@ -223,8 +223,14 @@ else
 fi
 
 fresh
-pre_bash s-gr 'pytest -q' >/dev/null
-post_bash s-gr 'pytest -q' '4 passed in 0.12s' >/dev/null
+pre_bash s-gr 'npm test' >/dev/null
+# The green phrase matters. The classifier requires EVIDENCE of a pass — a
+# counted zero or an explicit green phrase — and treats "the pattern did not
+# match" as unknown rather than as green. '4 passed in 0.12s' says neither, and
+# is left unknown on purpose. Asserting green on it here would have meant
+# loosening the classifier to satisfy a test, which is the move this repo names
+# and refuses. So the fixture speaks the classifier's language instead.
+post_bash s-gr 'npm test' '12 passed, 0 failed' >/dev/null
 SU2="$(moves_py s-gr 'm[-1]["suite"] if m else "NONE"')"
 if [ "$SU2" = "1" ]; then
   pass "a passing test run is recorded as a green suite"
@@ -249,13 +255,13 @@ fi
 # CLAIM 4 — the error signature buckets the error, not the run.
 
 fresh
-pre_bash s-er 'pytest -q' >/dev/null
-post_bash s-er 'pytest -q' 'File "/tmp/aaa/app.py", line 42, in main
+pre_bash s-er 'node build.js' >/dev/null
+post_bash s-er 'node build.js' 'File "/tmp/aaa/app.py", line 42, in main
 TypeError: unsupported operand type(s)' >/dev/null
 ES1="$(moves_py s-er 'm[-1]["err_sig"] if m else "NONE"')"
 fresh
-pre_bash s-er2 'pytest -q' >/dev/null
-post_bash s-er2 'pytest -q' 'File "/tmp/bbb/app.py", line 97, in main
+pre_bash s-er2 'node build.js' >/dev/null
+post_bash s-er2 'node build.js' 'File "/tmp/bbb/app.py", line 97, in main
 TypeError: unsupported operand type(s)' >/dev/null
 ES2="$(moves_py s-er2 'm[-1]["err_sig"] if m else "NONE"')"
 if [ "$ES1" != "NONE" ] && [ -n "$ES1" ] && [ "$ES1" = "$ES2" ]; then
