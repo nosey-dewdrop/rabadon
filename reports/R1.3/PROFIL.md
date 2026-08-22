@@ -1,3 +1,8 @@
+> **BAYAT UYARISI (23.08).** Aşağıdaki "Kabul koşusu" tablosu, accept.sh'ın UÇTAN UCA ölçtüğü döneme aittir
+> ve artık geçerli değil. O tablodaki salınım (602/118/213/−59/228 µs) ürünün değil, **aletin** davranışıydı.
+> Bugünkü ölçüm süreç-içidir: GOAL 4 → 78/93/82/76/74 µs (tavan 212), GOAL 6 → %4.1/4.9/4.8/4.3/3.5 (tavan %10),
+> beş koşuda beş kez **R1.3 ACCEPTED**. Aşağısı geçmiş bir ölçümün kaydıdır, canlı bir iddia değil.
+
 # R1.3 — kalan maliyet nerede? (ölçüldü, tahmin edilmedi)
 
 Bu dosyanın önceki hali JSONL günlük dönemini anlatıyordu ("400 satır / 67.090 bayt",
