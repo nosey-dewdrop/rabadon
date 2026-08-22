@@ -40,6 +40,7 @@
 #include "rules.h"   // guard.json rule parsing + matching — shared with `rabadon exec`
 #include "hookev.h"  // ONE place that turns any agent's event into rabadon's event
 #include "moves.h"   // R1: the move record. Recorded here, read by nothing here.
+#include "signals.h" // R2: five detectors over that record. Silent by law.
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -1102,6 +1103,8 @@ struct State {
       // would invent results nobody measured. Absent stays unknown.
       if (r.find("\"claimed_rc\"") == string::npos) m.claimed_rc = -1;
       if (r.find("\"suite\"") == string::npos) m.suite = -1;
+      m.asserts = (int)get_num(r, "asserts");
+      if (r.find("\"asserts\"") == string::npos) m.asserts = -1;
       s.moves.push_back(m);
     }
     if (s.nextSeq == 0 && !s.moves.empty()) s.nextSeq = s.moves.back().seq + 1;
@@ -1139,7 +1142,7 @@ struct State {
         << ",\"raw\":\"" << json_escape(m.raw) << "\""
         << ",\"claimed_rc\":" << m.claimed_rc
         << ",\"err_sig\":\"" << json_escape(m.err_sig) << "\""
-        << ",\"suite\":" << m.suite << "}";
+        << ",\"suite\":" << m.suite << ",\"asserts\":" << m.asserts << "}";
     }
     o << "]}";
     return o.str();
@@ -2102,6 +2105,10 @@ int main(int argc, char** argv) {
       m.path = relPath;
       m.sig = sig;
       m.raw = rbmoves::clip(isBash ? command : relPath);
+      if (!isBash) {
+        const string& txt = E.newString.empty() ? E.content : E.newString;
+        if (!txt.empty()) m.asserts = rbmoves::count_asserts(txt);
+      }
       rbmoves::push(ms.moves, ms.nextSeq, m);
       open_move = &ms.moves.back();
     }
@@ -2111,6 +2118,30 @@ int main(int argc, char** argv) {
       // A CLAIM, from text the session produced about itself. There is no exit
       // code on this hook; naming the field anything else would launder that.
       open_move->claimed_rc = open_move->err_sig.empty() ? 0 : 1;
+    }
+
+    // ---------- R2: look at the record, tell the ledger, tell nobody else ----
+    // Evaluated after the newest move is written, because every rule asks only
+    // "did the newest move complete this pattern" — that keeps it O(window) and
+    // stops one old pattern re-firing on every later event for the rest of the
+    // session.
+    //
+    // SILENT IS THE POINT. Nothing below returns, sets a permission decision,
+    // or writes to stdout. A signal reaches the spool and stops there. Law 1:
+    // the false positive rate of these five rules has never been measured, and
+    // the spool is how it gets measured — by running them where they cannot do
+    // harm, on real sessions, before anything is allowed to act on them.
+    if (rbsig::enabled()) {
+      for (const auto& h : rbsig::detect(ms.moves)) {
+        string seqs;
+        for (size_t i = 0; i < h.seqs.size(); i++)
+          seqs += (i ? "," : "") + std::to_string(h.seqs[i]);
+        em.emit("SIGNAL",
+                "\"signal\":\"" + h.name + "\""
+                ",\"conf\":" + std::to_string(h.conf).substr(0, 4) +
+                ",\"why\":\"" + json_escape(h.why) + "\""
+                ",\"seqs\":[" + seqs + "]");
+      }
     }
     stt.save();
   }

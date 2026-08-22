@@ -74,6 +74,11 @@ struct Move {
   int claimed_rc = -1;        // -1 unknown. A CLAIM, not an exit status.
   string err_sig;             // empty = no error seen
   int suite = -1;             // -1 unknown, 0 red, 1 green
+  // How many assertions the text written into this file contains. -1 = not
+  // asked (this move wrote no text). R2 compares consecutive edits to one test
+  // file: a suite that loses assertions is a suite that got easier, and that
+  // is invisible in a diff summary and invisible in an exit code.
+  int asserts = -1;
 };
 
 // ---------------------------------------------------------------------------
@@ -234,6 +239,23 @@ inline void push(std::vector<Move>& v, long long& nextSeq, Move m) {
   // raw text only on the newest RAW_KEEP; older entries keep everything else.
   if (v.size() > RAW_KEEP)
     for (size_t i = 0; i + RAW_KEEP < v.size(); i++) v[i].raw.clear();
+}
+
+// Counted, not parsed. A real parser per language is a dependency and a
+// maintenance surface; what this needs is a number that MOVES in the right
+// direction when a suite is weakened. Overcounting a word inside a string is
+// harmless here because only the DELTA between two edits of one file is read,
+// and both sides are counted by the same crude rule.
+inline int count_asserts(const string& s) {
+  static const char* MARKS[] = { "expect(", "assert", "ASSERT", "EXPECT",
+                                 "toBe", "toEqual", "should.", "shouldBe",
+                                 "require(", "check(" };
+  int n = 0;
+  for (const char* mk : MARKS) {
+    const size_t len = strlen(mk);
+    for (size_t i = s.find(mk); i != string::npos; i = s.find(mk, i + len)) n++;
+  }
+  return n;
 }
 
 inline string clip(const string& s) {
