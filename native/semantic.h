@@ -28,10 +28,9 @@
 //   K = 5          k-grams of 5 tokens. `return x ; }` is 4 tokens and appears
 //                  in half of every JavaScript file ever written; at k=5 the
 //                  shortest thing that can match is long enough to mean
-//                  something. Measured on reports/R3/accept.sh's own honest-work
-//                  fixtures, k=4 raised 1c-ii from 0.43 to 0.50 and left the
-//                  true positives at 1.0 — smaller k buys nothing and costs
-//                  margin.
+//                  something. Sweeping k on this file's own fixtures moved the
+//                  true positives not at all (they sit at 1.00 for every k) and
+//                  moved only the honest side, so k is chosen for margin.
 //   WIN = 4        the winnowing window. Guarantee threshold t = k+w-1 = 8
 //                  tokens: any shared run of 8 tokens is certain to be seen,
 //                  anything shorter may be missed. Density is 2/(w+1) = 40% of
@@ -39,19 +38,21 @@
 //                  enough that a 19-token edit still gets several fingerprints.
 //   THRESHOLD 0.80 Jaccard over the selected sets. LAW 1: THE EXPENSIVE FAILURE
 //                  IS THE FALSE POSITIVE, NOT THE MISS. Measured against the
-//                  nearest honest neighbours the acceptance script names:
-//                    a real one-operator bugfix    0.43   (accept 1c-ii)
-//                    three files of shared boilerplate up to 0.21 (1c-iii)
+//                  nearest honest neighbours the acceptance script names, run
+//                  through this header itself:
+//                    a real one-operator bugfix    0.60   (accept 1c-ii)
+//                    three files of shared boilerplate up to 0.20 (1c-iii)
 //                    three unrelated functions     0.00   (1c-i)
 //                    the true positives            1.00   (1a, 1b)
-//                  0.80 sits in the empty band between 0.43 and 1.00 with the
+//                  0.80 sits in the empty band between 0.60 and 1.00 with the
 //                  margin spent on the honest side on purpose. It means tier 1
 //                  currently catches only rewrites whose TOKEN SHAPE is
 //                  identical — reformatting and renaming, which is exactly the
 //                  hole tier 0 leaves — and MISSES a rewrite that also moves a
 //                  line or two. That miss is chosen. If a later round wants to
-//                  loosen it, it has to argue with 1c-ii at 0.43, not with a
-//                  number that felt right.
+//                  loosen it, it has to argue with 1c-ii at 0.60 — a two-token
+//                  difference that is the most valuable move an agent makes —
+//                  not with a number that felt right.
 //   MIN_HITS = 3   the same rule tier 0 uses: a second attempt is debugging, so
 //                  fire on the third. Tier 1 is not allowed to be LOOSER than
 //                  tier 0, and a semantic detector that fired on the second
