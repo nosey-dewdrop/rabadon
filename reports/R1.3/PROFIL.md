@@ -302,3 +302,134 @@ medyanın %5'i, yani 212 µs. KOSU-RABADON.md §4 bu paydayı zaten reddediyor
   bakıldığında öyle görünüyor (245 − 165 = 80 µs), ama denenmedi ve
   denenmeden yazılan sayı sayı değildir.
 - **Bu makine dışında hiçbir makine.** Yukarıdaki her mikrosaniye bu kutunun.
+
+---
+
+# SONRASI-2 — 23 Ağustos, `save#2` denendi
+
+Bir üst bölümün son maddesi "`save#2`'yi kaldırmanın GOAL 4'ü yeşile
+çevireceği — denenmedi" diyordu. Denendi. Bu bölüm o denemenin sayıları,
+öncekiyle aynı satırda.
+
+## Ne değişti: kayıt bloğu artık YAZMIYOR, işaretliyor
+
+Kayıt bloğu `stt.save()` çağırıyordu, aşağıdaki dallar kendi değişiklikleriyle
+tekrar save ediyordu, ve o ikinci yazma gerçekti — `actionCount`, `recent`,
+`lastCmd` arada değişiyor, yani baytlar farklı, yani dirty-takip onu atlayamaz.
+Tek olay, iki gerçek yazma.
+
+Kayıt bloğu artık `stt.pendingRecord = true` diyor. İşaret ya olayın zaten
+yapacağı bir sonraki `save()` tarafından kapatılıyor — o save kaydı ve dalın
+kendi değişikliklerini AYNI yazmada taşıyor — ya da hiç save yapmayan bir
+yolda `main()`'in başındaki `StateFlushGuard`'ın yıkıcısı tarafından.
+
+**Ertelenen şey kayıt DEĞİL.** İşaret konmadan önce `append_move()` ring
+kaydını ve başlığını diske yazmış oluyor. Kayıt bloğunun oturum dosyasında
+dokunduğu tek alan `nextSeq`, ve `load_moves()` her yüklemede `nextSeq`'i ring
+başlığından okuyor — yani oturum dosyasındaki kopyası zaten dayanıklı bir
+gerçeğin tekrarı. Erteleme burada bu yüzden güvenli, ring'in taşımadığı bir
+alan için olmazdı.
+
+`exit()` yerel yıkıcıları çalıştırmaz, ve bu dosya üç yerde return değil exit
+ediyor: mühürlü kural (exit 2), watch modu (exit 0), bütçe tavanı
+(exit refuse_code()) — üçü de ret yolu, yani kaydı kaybetmemesi gereken
+yolların ta kendisi. Guard bu yüzden hem yıkıcı hem `atexit` kaydı tutuyor;
+`exit()` atexit'i main'in çerçevesi hâlâ ayaktayken çalıştırır, hangisi önce
+tetiklenirse yazar, ikincisi işareti temizlenmiş bulur. Üç `_exit(127)`
+çağrısının üçü de exec'i başarısız olmuş fork çocuğunda — çocuk ebeveynin
+oturum dosyasını yazmamalı, yani orada ne yıkıcının ne atexit'in çalışmaması
+doğru davranış, boşluk değil.
+
+## Davranış aynı mı: ölçüm değil, karşılaştırma
+
+Tek satırlık A/B (yalnız `stt.save()` ↔ `stt.pendingRecord = true`) iki ayrı
+binary olarak derlendi ve **10 senaryoda** bıraktıkları `.rabadon` ağacı bayt
+bayt karşılaştırıldı: oturum json'ı, move ring'i, spool günlüğü ve `.head`'i,
+`state.json`. Maskelenen tek şey saat türevi: ring'de `ts` ve `prev`, spool'da
+`ts`/`run`/`pipe`/`prev` ve sandbox yolları. `seq`, `tool`, `sig`, `err`,
+`asserts`, `path`, `raw`, `ev`, `step`, `rule`, olay sayısı ve **her çağrının
+çıkış kodu** bayt bayt karşılaştırıldı.
+
+    izin yolu (5 olay)                                  PASS
+    ret yolu (rm -rf /, force-push, chmod 777)          PASS
+    watch modu (exit 0 dalı)                            PASS
+    bütçe tavanı (exit refuse_code dalı)                PASS
+    RABADON_MOVES=0 / SIGNALS=0 / MOVES_STRICT=1        PASS
+    60 olaylık oturum                                   PASS
+    tests-RED reddi (dalında save OLMAYAN return)       PASS
+    karışık izin + ret + post                           PASS
+    -> 10 senaryo, 0 uyuşmazlık
+
+**Ret yolu hâlâ kaydediyor, ve bunun kanıtı argüman değil koşu:** ret
+senaryolarında iki binary'nin ring'i bayt bayt aynı ve çıkış kodları aynı
+([0,2,2,0]).
+
+Guard'ın kendisi hakkında dürüst olan: **807 olaylık bir taramada (5 env x 20
+komut x 4 araç x 2 hook, artı Stop/SessionStart/UserPromptSubmit/SubagentStop/
+PreCompact/Notification, artı bütçe tavanı) guard bir kez bile yazmadı** —
+ulaşabildiğim her yolda olay zaten bir `save()` yapıyor. Guard'ı devre dışı
+bırakan bir negatif kontrol de 10 senaryonun hepsinde eşdeğer çıktı. Yani
+guard bugün yük taşımıyor; ileride save yapmayan bir erken return eklenirse
+işaretin sessizce düşmemesi için duruyor.
+
+## Süreç içi sayılar (aynı `/tmp` enstrümante-kopya yöntemi)
+
+Bu turun A/B'si TEK SATIR: aynı kaynak ağacın iki kopyası, biri
+`stt.pendingRecord = true`, öteki `stt.save()`. Arada R3 tier-1 gate'e girdi,
+o yüzden "önce" sütunu bir üst bölümün sayıları değil, **bugünkü ağacın**
+yeniden ölçülmüş öncesi. 200 olayla ısınmış oturum, 120 olayın medyanı, iki
+dönüşümlü tur:
+
+| prob | önce | sonra |
+|---|---|---|
+| olay başına `save()` çağrısı | **2** | **1** |
+| `save#1` | 178.2 / 165.9 µs | 167.1 / 162.3 µs |
+| `save#2` | **160.6 / 157.8 µs** | **yok** |
+| `TOTAL_main` deltası (kaydın maliyeti) | +257.2 / +234.8 µs | **+62.2 / +59.9 µs** |
+| `record_block` | 246.3 / 222.6 µs | **57.5 / 57.2 µs** |
+| `save` deltası (açık − kapalı) | +178.9 / +160.7 µs | **−3.0 / −4.1 µs** |
+
+Kaydın süreç içi maliyeti **~246 → ~61 µs**. KOSU-RABADON.md §4'ün istediği
+süreç içi ölçüde 212 µs tavanının **151 µs altında**. Kalan 61'in dağılımı
+değişmedi: `append_move` ~49, `load_moves` ~29, `state_load` ~29, `build`
+~3 — yani kalan kalem artık ring'in kendisi, ve o R1.3'ün ödemeye razı olduğu
+kalem.
+
+## Kabul koşusu — ve uçtan uca gürültünün büyüklüğü
+
+`reports/R1.3/accept.sh`, aynı binary, beş koşu (ilki yüklü makinede, load ~5;
+kalan dördü load ~3.5):
+
+| koşu | GOAL 4 delta | GOAL 4 tavan | GOAL 6 ayrışma |
+|---|---|---|---|
+| 1 (yüklü) | 602 µs | 476 µs — KIRMIZI | %5.0 — yeşil |
+| 2 | **118 µs** | 209 µs — YEŞİL | %11.7 — kırmızı |
+| 3 | 213 µs | 209 µs — KIRMIZI | %0.9 — yeşil |
+| 4 | **−59 µs** | 286 µs — YEŞİL | %0.4 — yeşil |
+| 5 | 228 µs | 323 µs — YEŞİL | %11.6 — kırmızı |
+
+Öncesi tek koşuda 296 µs / tavan 212 idi. Sonrası dört sakin koşunun üçü
+tavanın altında, biri 4 µs üstünde. **Bunu "GOAL 4 yeşil oldu" diye yazmıyorum:
+uçtan uca yöntem bu makinede ±150 µs oynuyor ve marj o oynamayla aynı boyda.**
+Kararı taşıyan sayı süreç içi olan: 246 → 61 µs, ve o tek yönlü.
+
+GOAL 6 beş koşuda %0.4 – %11.7 arası gezdi ve tavanı iki kez geçti. Bu
+değişikliğin GOAL 6 ile ilgisi yok — kaldırılan şey uzunluktan bağımsız sabit
+bir yazma — ve bir üst bölümün "GOAL 6'nın kararlılığı DOĞRULANMADI" maddesi
+aynen ayakta: aynı ikili beş koşuda hem yeşil hem kırmızı veriyor.
+
+## Bu turda DOĞRULANMADI
+
+- **Guard'ın gerçekten yük taşıdığı bir yol.** 807 olayda hiç tetiklenmedi;
+  statik olarak dalında `save()` bulunmayan iki `return refuse_code()` var
+  (PostToolUse net-kırmızı ve tests-RED), ama fikstürle o iki dala
+  pendingRecord açıkken ulaşamadım. Guard oraya ulaşılırsa yazar; **ulaşıldığı
+  ölçülmedi.**
+- **Çökme/sinyal penceresi.** Kayıt bloğu ile çıkış arasında SIGKILL/segfault
+  olursa bekleyen oturum yazması kaybolur. Kaybolmayan şey kayıt: ring
+  append'i zaten olmuş, ve riskteki tek alan `nextSeq`, onu da `load_moves()`
+  ring başlığından okuyor. **Bu akıl yürütme kodu okuyarak yapıldı, bir çökme
+  enjekte edilerek denenmedi.**
+- **GOAL 4'ün uçtan uca kararlı yeşil olduğu.** Dört sakin koşunun biri 213 µs
+  ile 209 µs tavanını 4 µs geçti. Tek koşu bu makinede karar değil.
+- **Bu makine dışında hiçbir makine.** Yukarıdaki her mikrosaniye bu kutunun.
