@@ -237,6 +237,10 @@ Yazılmayacak:
 
 Terfi merdiveni: bir kural, R2'nin topladığı gerçek kullanım verisinde ölçülmüş yanlış pozitif oranı %10 altına inmeden üst seviyeye geçmez.
 
+**Kademe 1'in eşiği sanılan yeri korumuyor — ölçüldü, 23.08.** Bir geliştiricinin test dosyasını adım adım büyütmesi (altı ekleme, tek dosya) ardışık sürümlerde **0.88 token örtüşmesi** üretiyor; eşik 0.80. Yani eşik onu geçiriyor. Sessiz kalmasının tek sebebi `MIN_HITS = 3`: dosya büyüdükçe eski sürümlere benzerlik düşüyor ve üç isabet hiç dolmuyor.
+
+Sonuç, R4'ün terfi merdiveni için bağlayıcı: **`MIN_HITS` yük taşıyan parçadır, `THRESHOLD` değil.** `MIN_HITS`'i düşüren bir değişiklik, ajanın yaptığı en değerli işe — test yazmaya — yanlış pozitif basar. Kademe 1 kaynaklı hiçbir sinyal, `MIN_HITS` gerekçesi ayrıca ölçülmeden "olası" seviyesine terfi etmez. (`native/signals_test.sh`, "a test file grown one assertion at a time"; ikinci sıradaki aday üç adımlı operatör düzeltmesi, 0.6923.)
+
 Durma: enjeksiyon PreToolUse additionalContext yolundan gider, stdout'a değil. Aynı sinyal aynı oturumda en fazla 2 kez enjekte edilir; üçüncüsü ledger'a düşer ve R5 tetiklenir. Enjeksiyon bloklamaz. Cursor gibi before-edit hook'u olmayan ajanlarda enjeksiyon bir sonraki mümkün noktada verilir ve bu fark docs/agent-contract.md'ye yazılır, gizlenmez.
 
 Kabul (reports/R4/accept.sh):
