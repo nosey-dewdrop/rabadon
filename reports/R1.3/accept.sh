@@ -24,13 +24,19 @@ sb(){ H="$(mktemp -d "$W/h.XXXXXX")"; PJ="$(mktemp -d "$W/p.XXXXXX")"
   mkdir -p "$H/.rabadon/spool" "$PJ/.git"; printf 'ref: refs/heads/main\n' >"$PJ/.git/HEAD"; : >"$H/.rabadon/enabled"; }
 fire(){ printf '{"hook_event_name":"PreToolUse","session_id":"%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":%s}}' \
   "$1" "$PJ" "$(jstr "$2")" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; }
-logf(){ ls "$PJ"/.rabadon/sessions/*.moves.jsonl 2>/dev/null | head -1; }
+# R1.3 moved the record from a JSONL text log to a fixed-width binary ring, and
+# the file it is stored in was renamed with it: <key>.moves.bin. This glob still
+# said .jsonl, so it matched nothing, `logf` returned the empty string, and every
+# block guarded by `[ -n "$L" ]` was skipped in silence — GOAL 3 never ran at all
+# and GOAL 5's wc had no file to count. A glob that matches nothing is the worst
+# kind of green: the script reported success on measurements it never took.
+logf(){ ls "$PJ"/.rabadon/sessions/*.moves.bin 2>/dev/null | head -1; }
 
 head_ "GOAL 1 — a move is appended, not rewritten"
 sb; fire s1 'echo one'
 L="$(logf)"
 if [ -n "$L" ]; then pass "1a the record is its own append-only log ($(basename "$L"))"
-else fail "1a no *.moves.jsonl next to the session — the record is still inside the session object"; fi
+else fail "1a no *.moves.bin next to the session — the record is still inside the session object"; fi
 if [ -n "$L" ]; then
   B1=$(wc -c <"$L"); fire s1 'echo two'; B2=$(wc -c <"$L"); fire s1 'echo three'; B3=$(wc -c <"$L")
   # An append leaves every earlier byte where it was. A rewrite does not.
@@ -149,7 +155,10 @@ sb
 EVX=$(printf '{"hook_event_name":"PreToolUse","session_id":"prof","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$PJ")
 for i in $(seq 400); do echo "$EVX" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; done
 LOGF="$(logf)"
-note "log after 400 events: $(wc -l <"$LOGF" | tr -d ' ') lines, $(wc -c <"$LOGF" | tr -d ' ') bytes"
+# `wc -l` on a binary ring counts stray 0x0a bytes, not records. The ring is
+# fixed-width, so the record count is arithmetic on the size.
+LBYTES=$(wc -c <"$LOGF" | tr -d ' ')
+note "ring after 400 events: $(( (LBYTES - 4096) / 320 )) records, ${LBYTES} bytes (capped at CAP=200)"
 t0=$(python3 -c 'import time;print(time.time())')
 for i in $(seq 100); do echo "$EVX" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; done
 t1=$(python3 -c 'import time;print(time.time())')
