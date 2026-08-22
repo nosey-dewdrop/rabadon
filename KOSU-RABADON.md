@@ -201,7 +201,9 @@ Kabul:
 - `x = a + b` ve `x = a+b` → tekrar
 - `foo(x)` ve `bar(y)` (aynı yapı, farklı isim) → tekrar
 - gerçekten farklı iki düzeltme → tekrar değil
-- kademe 1'in eklediği gecikme gate_bench ile ölçülür, tahmin edilmez; mevcut fixture setinde medyan artışı 500 µs altında
+- kademe 1'in eklediği gecikme **ölçülür, tahmin edilmez**; mevcut fixture setinde medyan artışı 500 µs altında.
+  **DÜZELTME (22.08, R3 kabul betiği yazılırken çıktı):** plan bunu "gate_bench ile ölçülür" diyordu, o cümle yanlış. `gate_bench` `rbrules::judge_command`'i ölçüyor ve sinyal yolunu hiç çalıştırmıyor — kademe 1'in maliyetini görmesi yapısal olarak mümkün değil. İki seçenek var ve R3 uygulanırken biri seçilip yazılacak: (a) `gate_bench.cpp`'ye sinyal kolu eklenir ve ölçüm oraya taşınır, (b) ölçüm süreç-içi zamanlayıcıyla yapılır.
+  **Ve bu bir bütçe sorunu:** süreç başlatma ~4 ms, 500 µs bütçesini yutuyor. Uçtan uca gate çağrısıyla ölçülen bir delta, gerçek bir 400 µs regresyonunu gürültünün üstüne çıkaramaz (R3 kabul betiği bugün ON 3937 µs / OFF 4002 µs, delta −64 µs ölçtü: yok olan bir özelliğin maliyeti sıfır etrafında gürültü). R3 uygulanırken ölçüm süreç-içine alınmazsa kabul maddesi 3 ölçmüş gibi yapıp hiçbir şey ölçmez.
 
 ## R4 — enjeksiyon: hata olduğu anda tamir edilir
 
