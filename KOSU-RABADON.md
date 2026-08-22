@@ -467,7 +467,14 @@ Yapan oturumun context'inde yalnız şunlar durur: planın ilgili bölümü, aja
 
 **Aynı dosyaya dokunacak ajanlar paralel salınmaz.** Aynı anda koşacaklarsa ayrı worktree'de koşarlar (`isolation: worktree`). Çakışma ihtimali varsa sıraya alınır — paralellik, kaybolan iş kadar değerli değildir.
 
-Kural: bir ajanın dönüş raporu **40 satırı geçmez** ve ölçüm içerir. Ajan "yaptım" diyemez; ne koştuğunu ve ne çıktığını yazar. Paralel çalışabilecek parçalar aynı anda salınır.
+**Bir tur = bir ajan, uçtan uca.** Yapan oturum turu parçalara bölüp her parçayı okumaz; turu komple bir ajana verir. Ajan kabul betiğini yazar, kırmızı olduğunu görür, uygular, yeşile çevirir, doğrular, commit'ler. Yapan oturumun context'ine giren tek şey **hüküm satırıdır**:
+
+    R<n>: KABUL — kabul X/Y, make test N, ek maliyet Z µs
+    R<n>: DUR — <tek cümle sebep>, ayrıntı reports/R<n>/
+
+Ayrıntı dosyada durur; yapan oturum ancak DUR gelirse dosyayı açar. Ajan raporu **10 satırı geçmez.** Tablolar, ölçüm çıktıları, git logları rapora değil `reports/R<n>/` altına yazılır.
+
+Neden: yapan oturumun context'i doldukça karar kalitesi düşer, ve dolduran şey ajan sayısı değil, **ajandan geri okunan metnin boyu**. 23.08'de bu yaşandı: dört ajan doğru çalıştı, yapan oturum dört uzun raporu içine aldı ve şişti. Ajan "yaptım" diyemez; ne koştuğunu ve ne çıktığını yazar. Paralel çalışabilecek parçalar aynı anda salınır.
 
 ### Danışman
 
