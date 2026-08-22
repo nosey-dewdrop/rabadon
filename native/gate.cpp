@@ -1111,8 +1111,19 @@ struct State {
   void load_moves() {
     const string all = read_file(moves_path());
     if (all.empty()) return;
+    // R1.3 — NO HASHING ON THE HOT PATH.
+    // R1.2 verified the whole chain on every load: one SHA-256 per line, on
+    // every tool event, growing with the session. That was the cost, and it was
+    // larger than the write it replaced. The chain is still WRITTEN on every
+    // append — `prev` is in every line — but it is only CHECKED where checking
+    // is the point: under RABADON_MOVES_STRICT, and by rabadon-audit.
+    //
+    // What the hot path still needs is one hash: the last complete line's, so
+    // the next append can chain to it. One, not N.
+    const bool strict = []{ const char* v = getenv("RABADON_MOVES_STRICT"); return v && v[0] == '1'; }();
     std::vector<rbmoves::Move> ordered;
     string prevHash;
+    string lastLine;
     bool broke = false;
     size_t i = 0;
     while (i < all.size()) {
@@ -1122,8 +1133,11 @@ struct State {
       i = torn ? all.size() : e + 1;
       if (line.empty()) continue;
       if (torn || line[line.size() - 1] != '}') break;   // half-written tail
-      if (get_str(line, "prev") != prevHash) broke = true;
-      prevHash = rbsha::hex(line).substr(0, 16);
+      if (strict) {
+        if (get_str(line, "prev") != prevHash) broke = true;
+        prevHash = rbsha::hex(line).substr(0, 16);
+      }
+      lastLine = line;
       rbmoves::Move m; read_move(line, m);
       bool replaced = false;
       for (auto& o : ordered) if (o.seq == m.seq) { o = m; replaced = true; break; }
@@ -1148,8 +1162,7 @@ struct State {
     // RABADON_MOVES_STRICT and otherwise carries the hole forward silently —
     // R2's detectors read a record that is short, never one that is wrong.
     if (broke) {
-      const char* v = getenv("RABADON_MOVES_STRICT");
-      if (v && v[0] == '1')
+      if (strict)
         fprintf(stderr, "rabadon: move log chain broken (a line is missing or was edited): %s\n",
                 moves_path().c_str());
     }
