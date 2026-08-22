@@ -61,6 +61,8 @@
 #include "sha256.h"
 #include "chain.h"   // the ledger's one writer: chained line + .head sidecar
 #include "heldout.h" // the behavioural probe: a green must survive the patch's crutches
+#include "policy.h"  // R5: repair.mode, and the request the gate left behind
+#include "inject.h"  // R5: scrub() — Law 2 has ONE implementation in this repo
 #include "cli_help.h"
 
 using std::string;
@@ -215,6 +217,64 @@ static void print_tail(const string& what, const string& tail) {
   const string t = tail.size() > keep ? tail.substr(tail.size() - keep) : tail;
   fprintf(stderr, "  --- %s, last %zu bytes ---\n", what.c_str(), t.size());
   fprintf(stderr, "%s\n  --- end ---\n", t.c_str());
+}
+
+// ---------- LAW 2, applied to the text that leaves this process ----------
+// The proposer prompt carries the arbiter's failing output, and that output is
+// somebody else's bytes: a python traceback names `line 3`, a compiler names
+// `foo.c:44:9`. Handing those over is not merely useless — on SWE-bench
+// Verified, line-level localisation LOWERS the score against file-level. And a
+// line number out of rabadon is a claim about where the bug IS, which rabadon
+// does not know; it knows where the error SURFACED, a different fact.
+//
+// scrub() is rbinject::scrub, the same function R4 uses on the injected
+// context. One implementation, or the two surfaces drift and the weaker one
+// becomes the law. It squeezes whitespace, so it is applied PER LINE and the
+// lines are rejoined: a prompt collapsed onto one line is a prompt whose law
+// list has stopped being a list.
+static string scrub_lines(const string& in) {
+  string out;
+  size_t i = 0;
+  for (;;) {
+    const size_t e = in.find('\n', i);
+    const bool last = (e == string::npos);
+    out += rbinject::scrub(in.substr(i, (last ? in.size() : e) - i));
+    if (last) break;
+    out += '\n';
+    i = e + 1;
+  }
+  return out;
+}
+
+// The other half of Law 2, and the half that is REQUIRED: file-level context.
+// Stripping the line number and handing over nothing else would leave the
+// proposer with less than it had. A path is listed only if it EXISTS in this
+// tree — a name lifted out of a stack trace that resolves to nothing here is a
+// guess, and a guess in a guard tool's voice is the thing this file refuses.
+static std::vector<string> files_in_play(const string& dir, const string& tail,
+                                         const std::vector<string>& testFiles) {
+  std::vector<string> out;
+  auto add = [&](string p) {
+    if (p.empty() || p.size() > 400) return;
+    if (p.compare(0, dir.size(), dir) == 0 && p.size() > dir.size() && p[dir.size()] == '/')
+      p = p.substr(dir.size() + 1);
+    if (p[0] == '/' || p.find("..") != string::npos) return;
+    for (const auto& q : out) if (q == p) return;
+    struct stat st;
+    if (stat((dir + "/" + p).c_str(), &st) != 0 || !S_ISREG(st.st_mode)) return;
+    out.push_back(p);
+  };
+  string tok;
+  for (size_t i = 0; i <= tail.size(); i++) {
+    const char c = i < tail.size() ? tail[i] : '\0';
+    if (isalnum((unsigned char)c) || c == '.' || c == '/' || c == '_' || c == '-' || c == '+') {
+      tok += c;
+      continue;
+    }
+    if (!tok.empty()) { add(tok); tok.clear(); }
+  }
+  for (const auto& f : testFiles) add(f);
+  return out;
 }
 
 static string shell_quote(const string& s) {
@@ -507,12 +567,20 @@ static const char* kHelp =
   "editing or skipping a test is refused, and the refusal is recorded.\n"
   "\n"
   "usage: rabadon-repair [dir] [--cmd \"<check command>\"] [--timeout <sec>]\n"
+  "       rabadon-repair [dir] --approve | --apply\n"
   "\n"
   "  [dir]              the project to repair (default: the current directory).\n"
   "  --cmd \"<command>\"  the check to run. omitted: rabadon-truth discovers the\n"
   "                     strongest runnable check this repo already has.\n"
   "  --timeout <sec>    proposer budget in seconds (default 240).\n"
+  "  --approve          run the repair the arm asked about (repair.mode = ask).\n"
+  "  --apply            apply the newest held patch. THE ONLY THING IN RABADON\n"
+  "                     THAT EDITS YOUR TREE, and a human types it.\n"
   "  -h, --help         this screen.\n"
+  "\n"
+  "when the arm starts itself: repair.mode in $RABADON_DIR/config.json, set once by\n"
+  "`rabadon init` — ask (default) | auto-propose (unattended) | off. It triggers only\n"
+  "when the same error has survived a third different move AFTER two injections.\n"
   "\n"
   "exit: 0 a patch was held · non-zero nothing was held (the tree is untouched).\n"
   "\n"
@@ -540,10 +608,13 @@ int main(int argc, char** argv) {
 
   string dir = ".";
   string cmd;
+  bool approve = false, apply = false;
   int proposerTimeout = 240, checkTimeout = 600;
   for (int i = 1; i < argc; i++) {
     string a = argv[i];
     if (a == "--cmd" && i + 1 < argc) cmd = argv[++i];
+    else if (a == "--approve") approve = true;
+    else if (a == "--apply") apply = true;
     else if (a == "--timeout" && i + 1 < argc) proposerTimeout = atoi(argv[++i]);
     // `-h` used to reach the check discovery and exit 3, "no runnable check
     // found" — a verdict about your repo, printed in answer to a help request.
@@ -581,6 +652,75 @@ int main(int argc, char** argv) {
   em.spoolPath = rdir + "/spool/" + string(day) + ".jsonl";
   em.pipe = project + ":session";
   em.runId = "rp-" + std::to_string(now_ms() % 100000000) + "-" + std::to_string(getpid());
+
+  // ---- 0a. --apply: THE ONLY CODE PATH IN RABADON THAT TOUCHES YOUR TREE ---
+  // Propose-and-hold is the law, in every mode, including the unattended one.
+  // The counterweight to that law is this door, and it is a door a human walks
+  // through: `rabadon repair --apply`, typed, in the morning, once. There is no
+  // caller of it inside rabadon — not the gate, not the arm, not a hook.
+  if (apply) {
+    // newest patch wins: the arm may have held several across a long night, and
+    // the one worth looking at first is the last one it earned.
+    string newest;
+    {
+      DIR* d = opendir((dir + "/.rabadon").c_str());
+      if (d) {
+        struct dirent* e;
+        while ((e = readdir(d)) != nullptr) {
+          const string n = e->d_name;
+          if (n.compare(0, 7, "repair-") != 0 || !ends_with(n, ".patch")) continue;
+          if (n > newest) newest = n;   // repair-<ms>.patch sorts by time
+        }
+        closedir(d);
+      }
+    }
+    if (newest.empty()) {
+      fprintf(stderr, "rabadon repair: no held patch in %s/.rabadon — nothing to apply.\n", dir.c_str());
+      return 3;
+    }
+    const string rel = ".rabadon/" + newest;
+    RunResult ap = run_shell("patch -p1 --forward < " + shell_quote(dir + "/" + rel), dir, 120);
+    if (ap.exit_code != 0) {
+      em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-applied\",\"class\":\"apply-failed\""
+              ",\"why\":\"patch -p1 refused the held patch\",\"patch\":\"" + json_escape(rel) + "\"");
+      fprintf(stderr, "rabadon repair: `patch -p1 < %s` failed (exit %d) — your tree is as `patch` left it.\n",
+              rel.c_str(), ap.exit_code);
+      print_tail("patch", ap.tail);
+      return 2;
+    }
+    em.emit("REPAIR_APPLIED", "\"step\":\"session-repair\",\"outcome\":\"applied\",\"by\":\"human, `rabadon repair --apply`\""
+            ",\"patch\":\"" + json_escape(rel) + "\"");
+    printf("rabadon repair — applied %s to %s.\n"
+           "  This is the only thing in rabadon that edits your tree, and you just typed it.\n"
+           "  Re-run your check before you trust it.\n", rel.c_str(), dir.c_str());
+    return 0;
+  }
+
+  // ---- 0b. --approve: the door `ask` mode leaves standing --------------
+  // In ask mode the gate did not run anything; it wrote down WHAT it would run
+  // and said so on stderr. Approval answers that specific question rather than
+  // starting a fresh one hours later against a session that has moved on, so
+  // the check comes out of the request unless the operator overrode it here.
+  if (approve) {
+    const string rqPath = dir + "/.rabadon/repair-request.json";
+    const string rq = read_file(rqPath);
+    if (rq.empty()) {
+      fprintf(stderr, "rabadon repair: nothing is awaiting approval in %s.\n"
+                      "  The arm asks only when the same error has survived a third different move after two hints,\n"
+                      "  and only when repair.mode is \"ask\" (%s).\n"
+                      "  To repair right now anyway: rabadon repair %s\n",
+              dir.c_str(), rbpolicy::config_path().c_str(), dir.c_str());
+      return 3;
+    }
+    if (cmd.empty()) cmd = get_field(rq, "cmd");
+    em.emit("REPAIR_APPROVED", "\"step\":\"session-repair\",\"mode\":\"ask\",\"outcome\":\"approved\""
+            ",\"by\":\"human, `rabadon repair --approve`\""
+            ",\"why\":\"" + json_escape(get_field(rq, "why")) + "\"");
+    // The request is consumed: an approval left lying around is an approval a
+    // later, unrelated escalation could inherit.
+    unlink(rqPath.c_str());
+    printf("rabadon repair — approved: %s\n", get_field(rq, "why").c_str());
+  }
 
   // ---- 1. the check ----
   std::vector<string> testFiles;
@@ -787,10 +927,48 @@ int main(int argc, char** argv) {
     "- NEVER edit, add or delete a test-harness file either: package.json, pytest.ini, tox.ini, setup.cfg, pyproject.toml, conftest.py, Cargo.toml, phpunit.xml, pom.xml, build.gradle, settings.gradle, gradle.properties, junit-platform.properties, go.work, the root Makefile, or any jest/vitest/vite/mocha/karma/playwright/cypress/ava config or setup file. Those are hash-locked the same way, and ADDING one counts as touching it.\n"
     "- Only edit files inside the current working directory.\n"
     "- Do not run the check yourself; the arbiter re-runs it after you.\n"
-    "check command: " + cmd + "\n"
-    "failing output (tail):\n" + before.tail + "\n";
+    "check command: " + cmd + "\n";
+  {
+    // FILE, NEVER A LINE. What rabadon is willing to name is here, said out
+    // loud, so a reader of this prompt can see the boundary rather than infer
+    // it from an absence.
+    const std::vector<string> fip = files_in_play(dir, before.tail, testFiles);
+    if (!fip.empty()) {
+      prompt += "files in play (rabadon names files, never lines — it knows where the error surfaced, not where the bug is):\n";
+      const size_t kMax = 20;
+      for (size_t i = 0; i < fip.size() && i < kMax; i++) prompt += "  " + fip[i] + "\n";
+      if (fip.size() > kMax) prompt += "  … and " + std::to_string(fip.size() - kMax) + " more\n";
+    }
+  }
+  prompt += "failing output from that check, as the arbiter saw it (tail):\n" + before.tail + "\n";
+  // LAST, over the whole assembled string, for the same reason inject.h does it
+  // last: the failing output and the check command are bytes nothing here owns.
+  prompt = scrub_lines(prompt);
   string propCmd = shell_quote(claudeBin) + " -p --output-format text --permission-mode acceptEdits " + shell_quote(prompt);
-  RunResult prop = run_shell(propCmd, work, proposerTimeout, {"RABADON_OFF=1"});
+  // maxTail 0: the proposer's output is DATA here, not a log tail — it is one
+  // of the two numbers the COST below is measured from, and a truncated
+  // measurement of your own spending is an advertisement.
+  RunResult prop = run_shell(propCmd, work, proposerTimeout, {"RABADON_OFF=1"}, 0);
+
+  // ---- Yasa 6: the repair arm is the ONLY place rabadon spends tokens, so it
+  // is the only place the counter can be caught lying. It goes on the ledger as
+  // a COST whatever the verdict turns out to be — a call that timed out or got
+  // rejected was still paid for, and a counter that only books its successes is
+  // not a counter. It is an ESTIMATE and it says so: `claude -p --output-format
+  // text` returns prose, not a usage block, so what is actually MEASURED here
+  // is characters in and characters out, both exact, and tokens are those over
+  // four. Both raw counts are on the line so a reader can redo the division.
+  {
+    const long long cin = (long long)rbinject::nchars(prompt);
+    const long long cout = (long long)rbinject::nchars(prop.tail);
+    em.emit("COST",
+            "\"step\":\"session-repair\",\"arm\":\"repair\",\"what\":\"proposer call\""
+            ",\"chars_in\":" + std::to_string(cin) +
+            ",\"chars_out\":" + std::to_string(cout) +
+            ",\"tokens\":" + std::to_string((cin + cout + 3) / 4) +
+            ",\"estimated\":1"
+            ",\"basis\":\"chars/4; the proposer is run with --output-format text and returns no usage block, so the exact numbers are the two char counts\"");
+  }
   if (prop.timed_out) {
     em.emit("REPAIR_FAIL", "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"timeout\",\"why\":\"proposer timed out\"");
     fprintf(stderr, "rabadon repair: proposer timed out after %ds — REPAIR_FAIL (fail closed, your tree untouched)\n", proposerTimeout);

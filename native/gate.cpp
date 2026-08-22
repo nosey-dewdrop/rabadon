@@ -43,6 +43,7 @@
 #include "signals.h" // R2: five detectors over that record. Silent by law.
 #include "semantic.h"// R3: tier 1, the SHAPE of an edit. Adds a signal, never changes one.
 #include "inject.h"  // R4: the diagnosis the agent cannot see, sized and scrubbed.
+#include "policy.h"  // R5: repair.mode — consent decided once by `rabadon init`.
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -1114,6 +1115,36 @@ struct Sess {
   // this answers "which error?", and it is the only thing in the injection that
   // cannot be rebuilt from the ring — Rec carries the signature, not the text.
   string lastErrText;
+  // ---- R5: the repair arm's trigger, and why it needs a REMEMBERED MOMENT ---
+  // The trigger is both halves of one sentence: the same error came out of a
+  // third different move AND the injections did not help. The second half is
+  // not a counter, it is a POINT IN TIME — the first move at which the signal
+  // fired again and R4 had NOTHING LEFT TO ADD. Everything after that point is
+  // the agent working on with whatever advice it already had, and only that
+  // stretch can answer "did the cheap remedy help".
+  //
+  // Without this field the two halves collapse into one: root_migration is
+  // already three different moves by the time the FIRST injection is queued, so
+  // "root_migration fired and the budget is used" would fire while an injection
+  // the agent has not acted on yet is still in flight. That is the arm billing
+  // for what an injection was in the middle of doing for free.
+  //
+  // WHY "NOTHING LEFT TO ADD" AND NOT "TWO INJECTIONS WERE DELIVERED". Measured
+  // on this repo's own R5 fixture, six consecutive runs: the number of
+  // injections that physically reach the agent is 1 or 2 depending on a race
+  // that has nothing to do with the signal. The always-on net finishes its
+  // check partway through the session, the suite is red, and from that point
+  // every PreToolUse is REFUSED before it reaches the delivery line — so the
+  // second diagnosis is assembled, queued, and never handed over (INJECT_HELD),
+  // and a trigger keyed on the delivered count simply never fires on a warm
+  // machine. Both endings are the same fact about the session: R4 has answered
+  // this signal with everything it has, and the error is still coming. That is
+  // what is recorded here, and the ledger line says which of the two it was.
+  long long injMuteFromSeq = -1;  // first move where R4 had nothing left to add
+  string    injMuteSignal;        // for which signal
+  int       repairFired = 0;      // once per session. A trigger that re-fires
+                                  // every event is a trigger that spends a
+                                  // model call per tool call.
 };
 
 struct State {
@@ -1306,6 +1337,14 @@ struct State {
     s.injPending = get_str(obj, "injPending");
     s.injPendingSignal = get_str(obj, "injPendingSignal");
     s.lastErrText = get_str(obj, "lastErrText");
+    // R5. A session written before R5 has none of these keys; get_num answers 0
+    // and get_str answers "", so injCapMoveSeq would read back as move 0 — "the
+    // cap was reached at the very first move", which is the ONE value that
+    // would make the trigger fire immediately on an upgraded session. The
+    // absent case is spelled out rather than defaulted.
+    s.repairFired = (int)get_num(obj, "repairFired");
+    s.injMuteSignal = get_str(obj, "injMuteSignal");
+    s.injMuteFromSeq = s.injMuteSignal.empty() ? -1 : (long long)get_num(obj, "injMuteFromSeq");
     for (const auto& e : parse_str_array(obj, "injSeen")) {
       const size_t eq = e.rfind('=');
       if (eq == string::npos) continue;
@@ -1364,7 +1403,10 @@ struct State {
         << (i < s.injCounts.size() ? s.injCounts[i] : 0) << "\"";
     o << "],\"injPending\":\"" << json_escape(s.injPending) << "\""
       << ",\"injPendingSignal\":\"" << json_escape(s.injPendingSignal) << "\""
-      << ",\"lastErrText\":\"" << json_escape(s.lastErrText) << "\"";
+      << ",\"lastErrText\":\"" << json_escape(s.lastErrText) << "\""
+      << ",\"injMuteSignal\":\"" << json_escape(s.injMuteSignal) << "\""
+      << ",\"injMuteFromSeq\":" << s.injMuteFromSeq
+      << ",\"repairFired\":" << s.repairFired;
     o << ",\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
       << ",\"tokensIn\":" << s.tokensIn
       << ",\"nextSeq\":" << s.nextSeq << "}";
@@ -2520,6 +2562,16 @@ int main(int argc, char** argv) {
       //     two different steps, and it is what native/signals_test.sh checks
       //     when it proves a firing tier-1 detector prints nothing.
       if (!rbinject::enabled() || !rbinject::speaks(name, why)) return;
+      // R5's half of the trigger, recorded from the one place that knows it:
+      // this signal fired AGAIN and the injection channel could not answer it.
+      // Marked here rather than at any of the return sites below so the two
+      // shapes it takes — budget spent (CAPPED) and a diagnosis still stuck in
+      // the queue (HELD) — are one fact with one name.
+      auto mark_mute = [&]() {
+        if (ss.injMuteFromSeq >= 0 && ss.injMuteSignal == name) return;
+        ss.injMuteSignal = name;
+        ss.injMuteFromSeq = ss.moves.empty() ? ss.nextSeq : ss.moves.back().seq;
+      };
       // the cap, charged by NAME, per session (the plan's fifth decision).
       int* seen = nullptr;
       for (size_t i = 0; i < ms.injNames.size(); i++)
@@ -2530,6 +2582,7 @@ int main(int argc, char** argv) {
         // third time, after two injections that did not take.
         em.emit("INJECT_CAPPED", "\"signal\":\"" + json_escape(name) +
                 "\",\"seen\":" + std::to_string(*seen));
+        mark_mute();
         return;
       }
       if (!ms.injPending.empty()) {
@@ -2537,6 +2590,7 @@ int main(int argc, char** argv) {
         // slot; the loser is recorded rather than dropped in silence.
         em.emit("INJECT_HELD", "\"signal\":\"" + json_escape(name) +
                 "\",\"behind\":\"" + json_escape(ms.injPendingSignal) + "\"");
+        if (ms.injPendingSignal == name) mark_mute();
         return;
       }
       rbinject::Ctx c;
@@ -2560,6 +2614,144 @@ int main(int argc, char** argv) {
       injQueuedThisEvent = true;
     };
 
+    // ---------- R5: the trigger the repair arm never had --------------------
+    //
+    // The controlled experiment (clone, hash-lock, propose on the COPY, re-run
+    // the SAME check) has been real since G3. What was missing was the moment
+    // it starts. Today a human types `rabadon repair`, and by the time a human
+    // notices, the error has already compounded through the next ten moves —
+    // the exact disease this product sells a cure for, running inside the cure.
+    //
+    // THE CONDITION IS BOTH HALVES, AND ONE HALF IS NOT ENOUGH.
+    //   (a) the same error came out of a THIRD different move, and
+    //   (b) the injections did not help.
+    // root_migration alone is a signal, not an emergency: it is TRUE on the
+    // first sighting, and spending a model call there spends the user's money
+    // on something the free remedy — R4's injection — was about to fix. So (b)
+    // is not "the cap counter reached 2", it is "three different moves have
+    // come and gone SINCE R4 ran out of things to say about this signal, and
+    // the error is still the same one". injMuteFromSeq is that dividing line;
+    // ROOT_MIN_PATHS is reused for the count, because "how many different moves
+    // is enough to call an error stuck" is a question this repo has already
+    // answered once and must not answer twice.
+    //
+    // AT LEAST ONE INJECTION MUST HAVE ACTUALLY REACHED THE AGENT. Without that
+    // guard, a session the gate has been refusing from its very first tool call
+    // would escalate to a paid model call having never once told the agent what
+    // it was missing — charging the user for advice rabadon never managed to
+    // give away for free.
+    //
+    // ONCE PER SESSION. The signal keeps firing on every later move; a trigger
+    // without repairFired would start a proposer per tool call.
+    auto maybe_repair = [&](const string& name) {
+      if (name != "root_migration") return;          // the plan's one trigger
+      if (hook != "PostToolUse") return;             // err_sig only exists here
+      if (ss.repairFired) return;
+      if (ms.moves.empty()) return;
+      const string es = ms.moves.back().err_sig;
+      if (es.empty()) return;
+      // (b) R4 has answered this signal with everything it had, and at least
+      // one of those answers reached the agent.
+      int spent = 0;
+      for (size_t i = 0; i < ss.injNames.size(); i++)
+        if (ss.injNames[i] == name && i < ss.injCounts.size()) { spent = ss.injCounts[i]; break; }
+      if (spent < 1) return;
+      if (ss.injMuteFromSeq < 0 || ss.injMuteSignal != name) return;
+      // (a) a third different move, SINCE that moment, with the same error
+      std::set<string> sigsSince;
+      for (const auto& mv : ms.moves)
+        if (mv.seq >= ss.injMuteFromSeq && mv.err_sig == es) sigsSince.insert(mv.sig);
+      if ((int)sigsSince.size() < rbsig::ROOT_MIN_PATHS) return;
+
+      ss.repairFired = 1;                            // whatever the mode says
+      const rbpolicy::Repair pol = rbpolicy::repair();
+      const string why = "one error survived " + std::to_string(sigsSince.size()) +
+                         " more different moves after " + std::to_string(spent) +
+                         " injection(s) reached the agent and rabadon ran out of things to add";
+
+      // OFF MEANS OFF. Not a quieter arm, not a ledger line with the word
+      // repair in it — nothing. The SIGNAL lines are already on the ledger
+      // above, which is the whole of what `off` promises: the detectors keep
+      // running, the arm is not there.
+      if (pol.mode == rbpolicy::MODE_OFF) return;
+
+      if (pol.mode == rbpolicy::MODE_ASK) {
+        // THE ASK IS A RECORD, NOT A DIALOG. This is a hook: there is no human
+        // at a prompt to answer, and stdout is the agent's permission channel,
+        // so a question printed there would be a malformed permission response.
+        // The one line goes to stderr, where the operator's transcript keeps
+        // it, and the REQUEST — what would be repaired, and with which check —
+        // is written down so `rabadon repair --approve` answers THIS question
+        // rather than re-deriving one of its own hours later.
+        //
+        // The word "proposer" is deliberately absent from this event: the
+        // ledger's proposer-call count is what claim 2 reads, and an ask that
+        // registers as a call is an audit trail that lies in the safe
+        // direction, which is still a lie.
+        mkdir((cwd + "/.rabadon").c_str(), 0755);
+        {
+          std::ofstream rq(cwd + "/.rabadon/repair-request.json", std::ios::trunc);
+          if (rq) rq << "{\"v\":1,\"ts\":" << now_ms()
+                     << ",\"signal\":\"root_migration\""
+                     << ",\"why\":\"" << json_escape(why) << "\""
+                     << ",\"cmd\":\"" << json_escape(pol.check) << "\"}\n";
+        }
+        em.emit("REPAIR_ASK",
+                "\"step\":\"session-repair\",\"mode\":\"ask\",\"signal\":\"root_migration\""
+                ",\"state\":\"awaiting approval\",\"why\":\"" + json_escape(why) + "\"" +
+                (pol.check.empty() ? "" : ",\"cmd\":\"" + json_escape(pol.check) + "\""));
+        fprintf(stderr,
+                "rabadon: %s. Two hints did not move it, so the next cheap thing is gone.\n"
+                "  rabadon can try a bounded repair in an ISOLATED COPY and hold the patch — your tree is not touched.\n"
+                "  approve it:  rabadon repair --approve\n"
+                "  (this question is a policy: repair.mode in %s)\n",
+                why.c_str(), rbpolicy::config_path().c_str());
+        return;
+      }
+
+      // ---- auto-propose: unattended, and therefore propose-and-hold -------
+      // Runs without asking. It STILL may not touch the tree: rabadon-repair
+      // proposes inside a /tmp copy and writes .rabadon/repair-<ts>.patch, and
+      // there is no code path in either binary that applies a patch on its own.
+      // `rabadon repair --apply` is the only applier, and a human types it.
+      const string repairBin = self_dir() + "/rabadon-repair";
+      if (!file_exists(repairBin)) {
+        em.emit("REPAIR_FAIL",
+                "\"step\":\"session-repair\",\"outcome\":\"not-held\",\"class\":\"unavailable\""
+                ",\"why\":\"rabadon-repair is not installed beside the gate\"");
+        return;
+      }
+      // The trigger event is written HERE, synchronously, before the fork. The
+      // arm runs detached and may take minutes; a ledger that only learns about
+      // it when it finishes cannot answer "what started this" for a run that
+      // was killed halfway.
+      em.emit("REPAIR_TRIGGER",
+              "\"step\":\"session-repair\",\"mode\":\"auto-propose\",\"signal\":\"root_migration\""
+              ",\"why\":\"" + json_escape(why) + "\""
+              ",\"hold\":\"propose-and-hold: the patch is held, never applied\"" +
+              (pol.check.empty() ? "" : ",\"cmd\":\"" + json_escape(pol.check) + "\""));
+      pid_t k = fork();
+      if (k == 0) {
+        setsid();
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) dup2(devnull, 0);
+        // NEVER the gate's stdout: that stream is the hook's permission
+        // channel, and a repair narration on it is a malformed verdict.
+        const int lg = open((rbpolicy::home() + "/repair-arm.log").c_str(),
+                            O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (lg >= 0) { dup2(lg, 1); dup2(lg, 2); if (lg > 2) close(lg); }
+        else if (devnull >= 0) { dup2(devnull, 1); dup2(devnull, 2); }
+        if (devnull > 2) close(devnull);
+        setenv("RABADON_OFF", "1", 1);   // the arm's own shell-outs are not agent moves
+        if (pol.check.empty())
+          execl(repairBin.c_str(), repairBin.c_str(), cwd.c_str(), (char*)nullptr);
+        else
+          execl(repairBin.c_str(), repairBin.c_str(), cwd.c_str(), "--cmd", pol.check.c_str(), (char*)nullptr);
+        _exit(127);
+      }
+      // do not wait: the arm outlives this hook on purpose, exactly like the net
+    };
+
     if (rbsig::enabled()) {
       for (const auto& h : rbsig::detect(ms.moves)) {
         string seqs;
@@ -2571,6 +2763,7 @@ int main(int argc, char** argv) {
                 ",\"why\":\"" + json_escape(h.why) + "\""
                 ",\"seqs\":[" + seqs + "]");
         queue_injection(h.name, h.why, h.seqs.size());
+        maybe_repair(h.name);
       }
     }
 
