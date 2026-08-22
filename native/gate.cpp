@@ -1050,6 +1050,139 @@ struct State {
 
   string sess_path() const { return sessDir + "/" + sessKey + ".json"; }
 
+  // ---- R1.2: the move log ---------------------------------------------------
+  // One line per move, appended, never rewritten. Recording a move used to mean
+  // serialising the whole session object and replacing the file through a temp
+  // and a rename; with 200 moves that is 60 KB of write per tool event, and it
+  // measured 1.4 ms. An append is a write() of about 200 bytes.
+  //
+  // A COMPLETION IS AN APPEND TOO. PostToolUse learns the exit claim, the error
+  // signature and the suite verdict of a move that is already on disk. It does
+  // not seek back and patch that line — it appends a NEW line with the same
+  // seq, and the reader lets the later line win. Append-only means append-only;
+  // a log you edit in place is a file with extra steps and a torn-write window.
+  //
+  // NO FSYNC, ON PURPOSE, AND THE CHAIN IS WHY THAT IS ALLOWED. fsync on every
+  // tool event would hand back the millisecond this round exists to remove, and
+  // the thing being protected is a diagnostic record, not the user's source. The
+  // honest cost of that choice is that a crash can lose the tail of the log. So
+  // every line carries `prev`, the hash of the line before it: a lost or torn
+  // line is DETECTED rather than silently believed, which is the difference
+  // between a record with a known hole and a record that quietly lies. The
+  // policy and its numbers are written down in docs/butce.md.
+  string moves_path() const { return sessDir + "/" + sessKey + ".moves.jsonl"; }
+
+  string lastMoveHash;
+
+  static string move_line(const rbmoves::Move& m, const string& prev) {
+    std::ostringstream o;
+    o << "{\"seq\":" << m.seq << ",\"ts\":" << m.ts
+      << ",\"tool\":\"" << json_escape(m.tool) << "\""
+      << ",\"path\":\"" << json_escape(m.path) << "\""
+      << ",\"sig\":\"" << json_escape(m.sig) << "\""
+      << ",\"raw\":\"" << json_escape(m.raw) << "\""
+      << ",\"claimed_rc\":" << m.claimed_rc
+      << ",\"err_sig\":\"" << json_escape(m.err_sig) << "\""
+      << ",\"suite\":" << m.suite << ",\"asserts\":" << m.asserts
+      << ",\"prev\":\"" << prev << "\"}";
+    return o.str();
+  }
+
+  static void read_move(const string& r, rbmoves::Move& m) {
+    m.seq = get_num(r, "seq");
+    m.ts  = get_num(r, "ts");
+    m.tool = get_str(r, "tool");
+    m.path = get_str(r, "path");
+    m.sig  = get_str(r, "sig");
+    m.raw  = get_str(r, "raw");
+    m.claimed_rc = (int)get_num(r, "claimed_rc");
+    m.err_sig = get_str(r, "err_sig");
+    m.suite = (int)get_num(r, "suite");
+    m.asserts = (int)get_num(r, "asserts");
+    // absent is unknown, never zero: 0 means green and means succeeded.
+    if (r.find("\"claimed_rc\"") == string::npos) m.claimed_rc = -1;
+    if (r.find("\"suite\"") == string::npos) m.suite = -1;
+    if (r.find("\"asserts\"") == string::npos) m.asserts = -1;
+  }
+
+  // Replay: later line with the same seq supersedes the earlier one, keep the
+  // newest CAP by seq. A torn final line is dropped rather than fatal — a
+  // half-written record must never stop the gate from judging the next command.
+  void load_moves() {
+    const string all = read_file(moves_path());
+    if (all.empty()) return;
+    std::vector<rbmoves::Move> ordered;
+    string prevHash;
+    bool broke = false;
+    size_t i = 0;
+    while (i < all.size()) {
+      size_t e = all.find('\n', i);
+      const bool torn = (e == string::npos);
+      const string line = all.substr(i, (torn ? all.size() : e) - i);
+      i = torn ? all.size() : e + 1;
+      if (line.empty()) continue;
+      if (torn || line[line.size() - 1] != '}') break;   // half-written tail
+      if (get_str(line, "prev") != prevHash) broke = true;
+      prevHash = rbsha::hex(line).substr(0, 16);
+      rbmoves::Move m; read_move(line, m);
+      bool replaced = false;
+      for (auto& o : ordered) if (o.seq == m.seq) { o = m; replaced = true; break; }
+      if (!replaced) ordered.push_back(m);
+    }
+    lastMoveHash = prevHash;
+    // The caps are the READER's job now. The log on disk may hold more than CAP
+    // lines between compactions — that is what makes an append cheap — so
+    // "the record" is defined as what a reader is handed, and every reader is
+    // handed the same thing: the newest CAP moves, raw text on the newest
+    // RAW_KEEP. Compaction at SessionEnd then makes the file match what readers
+    // already see, rather than being the thing that enforces it.
+    if (ordered.size() > rbmoves::CAP)
+      ordered.erase(ordered.begin(), ordered.begin() + (ordered.size() - rbmoves::CAP));
+    if (ordered.size() > rbmoves::RAW_KEEP)
+      for (size_t k = 0; k + rbmoves::RAW_KEEP < ordered.size(); k++) ordered[k].raw.clear();
+    sess.moves = ordered;
+    if (!sess.moves.empty() && sess.nextSeq <= sess.moves.back().seq)
+      sess.nextSeq = sess.moves.back().seq + 1;
+    // Loud only when asked. A broken chain is a fact about the record, not a
+    // reason to refuse the user's command, so the gate says so on stderr under
+    // RABADON_MOVES_STRICT and otherwise carries the hole forward silently —
+    // R2's detectors read a record that is short, never one that is wrong.
+    if (broke) {
+      const char* v = getenv("RABADON_MOVES_STRICT");
+      if (v && v[0] == '1')
+        fprintf(stderr, "rabadon: move log chain broken (a line is missing or was edited): %s\n",
+                moves_path().c_str());
+    }
+  }
+
+  // Rewrite the log down to what the reader would keep anyway. Written to a
+  // temp and renamed, so a crash mid-compaction leaves the OLD log intact
+  // rather than half of a new one — the one place this record can afford the
+  // cost of being careful, because nothing is waiting on it.
+  void compact_moves() {
+    if (sess.moves.empty()) return;
+    string out; string prev;
+    for (const auto& m : sess.moves) {
+      const string line = move_line(m, prev);
+      out += line; out += "\n";
+      prev = rbsha::hex(line).substr(0, 16);
+    }
+    write_atomic(moves_path(), out);
+    lastMoveHash = prev;
+  }
+
+  void append_move(const rbmoves::Move& m) {
+    mkdir(sessDir.c_str(), 0755);
+    const string line = move_line(m, lastMoveHash);
+    const int fd = open(moves_path().c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0) return;                    // fail open: never block on the record
+    const string out = line + "\n";
+    ssize_t w = write(fd, out.data(), out.size());
+    (void)w;
+    close(fd);                             // no fsync: see docs/butce.md
+    lastMoveHash = rbsha::hex(line).substr(0, 16);
+  }
+
   Sess& session() { return sess; }
 
   // ---- the shared file -----------------------------------------------------
@@ -1086,6 +1219,9 @@ struct State {
     s.lastTestFail = get_num(obj, "lastTestFail");
     s.lastTestRun  = get_num(obj, "lastTestRun");
     s.nextSeq = get_num(obj, "nextSeq");
+    // Sessions written before R1.2 carry their moves inline. Read them once so
+    // nobody's history resets at upgrade; they are never written back here, so
+    // the inline array drains into the log on the next append.
     for (const auto& r : parse_obj_array(obj, "moves")) {
       rbmoves::Move m;
       m.seq = get_num(r, "seq");
@@ -1131,20 +1267,10 @@ struct State {
       o << (i ? "," : "") << "\"" << json_escape(s.recentEv[i]) << "\"";
     o << "],\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
       << ",\"tokensIn\":" << s.tokensIn
-      << ",\"nextSeq\":" << s.nextSeq << ",\"moves\":[";
-    for (size_t i = 0; i < s.moves.size(); i++) {
-      const rbmoves::Move& m = s.moves[i];
-      o << (i ? "," : "")
-        << "{\"seq\":" << m.seq << ",\"ts\":" << m.ts
-        << ",\"tool\":\"" << json_escape(m.tool) << "\""
-        << ",\"path\":\"" << json_escape(m.path) << "\""
-        << ",\"sig\":\"" << json_escape(m.sig) << "\""
-        << ",\"raw\":\"" << json_escape(m.raw) << "\""
-        << ",\"claimed_rc\":" << m.claimed_rc
-        << ",\"err_sig\":\"" << json_escape(m.err_sig) << "\""
-        << ",\"suite\":" << m.suite << ",\"asserts\":" << m.asserts << "}";
-    }
-    o << "]}";
+      << ",\"nextSeq\":" << s.nextSeq << "}";
+    // R1.2: the moves themselves are NOT here any more. They live in an
+    // append-only log beside this file. Rewriting a 60 KB object to record one
+    // 200-byte fact cost 1.4 ms of every tool event; an append costs a write().
     return o.str();
   }
 
@@ -1202,6 +1328,7 @@ struct State {
     const string sj = read_file(sess_path());
     if (!sj.empty()) { read_sess(sj, sess); sessLoaded = true; }
     else migrate_from_shared(j, legacyKey);
+    load_moves();
     sweep();
   }
 
@@ -2132,6 +2259,7 @@ int main(int argc, char** argv) {
       }
       rbmoves::push(ms.moves, ms.nextSeq, m);
       open_move = &ms.moves.back();
+      stt.append_move(*open_move);
     }
 
     if (hook == "PostToolUse") {
@@ -2139,6 +2267,9 @@ int main(int argc, char** argv) {
       // A CLAIM, from text the session produced about itself. There is no exit
       // code on this hook; naming the field anything else would launder that.
       open_move->claimed_rc = open_move->err_sig.empty() ? 0 : 1;
+      // A completion is an append with the same seq, not a patch of the line
+      // already on disk. The reader lets the later line win.
+      stt.append_move(*open_move);
     }
 
     // ---------- R2: look at the record, tell the ledger, tell nobody else ----
@@ -2273,6 +2404,16 @@ int main(int argc, char** argv) {
         if (rbpath::resolve_real(netRoot) != here) netRed = false;
       }
     }
+  }
+
+  // ---------- R1.2: compaction, at the end of the session and nowhere else ----
+  // The log only grows while the session runs; the cap is applied by the READER
+  // on every event (load_moves keeps the newest 200), so a long log costs read
+  // time, never correctness. Rewriting it is the one operation that is not an
+  // append, so it happens exactly where a millisecond does not matter: after the
+  // agent has stopped. Numbers and the trigger are in docs/butce.md.
+  if (hook == "Stop" || hook == "SessionEnd") {
+    if (rbmoves::enabled()) stt.compact_moves();
   }
 
   // ---------- PostToolUse: observe + track session state ----------
@@ -2611,8 +2752,10 @@ int main(int argc, char** argv) {
       // Neither passed nor sawFailure means the output did not say. The move
       // keeps suite = -1, because "the run did not report" and "the run was
       // green" are different facts and only one of them is safe to assume.
-      if (!ss.moves.empty() && (passed || sawFailure))
+      if (!ss.moves.empty() && (passed || sawFailure)) {
         ss.moves.back().suite = passed ? 1 : 0;
+        stt.append_move(ss.moves.back());   // R1.2: a verdict is an append too
+      }
       stt.save();
 
       if (passed) {

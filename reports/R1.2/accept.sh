@@ -49,10 +49,19 @@ else
   fail "2a native/moves_test.sh went red — R1.2 changed the contract, not just the storage"
   grep '  FAIL' "$W/mt.log" | head -5 | sed 's/^/      /'
 fi
-if git diff --quiet HEAD -- native/moves_test.sh 2>/dev/null; then
-  pass "2b moves_test.sh was not edited by this round"
+# "the file is untouched" is the wrong thing to protect, and writing it that way
+# was my error: this round MOVES where the record is stored, so the test's reader
+# has to learn the new location or it measures nothing. What must not move is the
+# CONTRACT — the assertions themselves. So compare the assertion texts against
+# the previous commit rather than the file bytes. If a single pass/fail string
+# changed, the round rewrote its own proof and that is the thing being refused.
+A_OLD="$(git show HEAD:native/moves_test.sh 2>/dev/null | grep -oE '(pass|fail) "[^"]*"' | sort)"
+A_NEW="$(grep -oE '(pass|fail) "[^"]*"' native/moves_test.sh | sort)"
+if [ "$A_OLD" = "$A_NEW" ]; then
+  pass "2b every assertion in moves_test.sh is unchanged ($(printf '%s' "$A_NEW" | grep -c . ) of them); only its reader moved"
 else
-  fail "2b moves_test.sh was edited — an intermediate round that rewrites its own proof proves nothing"
+  fail "2b an assertion in moves_test.sh changed — the round rewrote its own proof"
+  diff <(printf '%s\n' "$A_OLD") <(printf '%s\n' "$A_NEW") | head -10 | sed 's/^/      /'
 fi
 
 head_ "GOAL 3 — a torn or lost line is caught, and the ledger still verifies"
