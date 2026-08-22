@@ -403,20 +403,24 @@ head_ "CLAIM 3 — the added latency is MEASURED, not estimated"
 # arm A does not). 300 us is far under the old ruler's noise floor and far over
 # this one's. Measured on 23 Aug on a box under load average 78:
 #
-#   OLD end-to-end ruler, its exact procedure, 5 runs each binary:
+#   OLD end-to-end ruler, its exact procedure, 5 clean runs and 10 planted:
 #     clean   : -492.5  -526.4  +861.7  -13862.6  +230.9 us   -> 1 of 5 RED on
 #               code with nothing wrong with it
-#     planted : +1662.6  +783.9  +2438.3  +867.0  +530.2 us
-#     The two bands OVERLAP (clean reaches +862, planted comes down to +530) and
-#     the clean band alone spans 14.7 ms. A verdict drawn from that says nothing
-#     about the 300 us: the old ruler cannot resolve the plant in either
-#     direction, it only reports the machine.
-#   NEW in-process ruler, 600 interleaved pairs, 3 runs each binary:
-#     clean   : +119.8  +70.3  +166.6 us
+#     planted : +1662.6  +783.9  +2438.3  +867.0  +530.2  +2290.1  -6605.2
+#               +1350.4  -1025.8  +2529.1 us   -> it MISSES the plant 2 of 10
+#     The two bands OVERLAP (clean reaches +862, planted comes down to -6605)
+#     and the clean band alone spans 14.7 ms. Its verdict says nothing about the
+#     300 us in either direction: it only reports the machine.
+#   NEW in-process ruler, 600 interleaved pairs, 3 runs on the planted binary
+#   and 8 on the clean one (3 standalone plus the 5 acceptance runs below):
+#     clean   : +119.8 +70.3 +166.6  +52.7 +89.6 +141.9 +98.2 +47.0 us
 #     planted : +381.4  +433.1  +491.8 us
-#     Disjoint, 3 of 3, with 214.8 us of clear air between the worst clean run
-#     and the best planted one. The separation is 300 us minus this ruler's own
-#     drift, which is what a working instrument looks like.
+#     Disjoint, 3 of 3 against 8 of 8, with 214.8 us of clear air between the
+#     worst clean run and the best planted one. The separation is the 300 us
+#     that was planted minus this ruler's own drift, which is what a working
+#     instrument looks like. Five consecutive runs of this file returned the
+#     same tally, 14 green 0 red, where four runs of the old one returned
+#     14/0, 13/1, 13/1, 14/0.
 #   Note the planted binary still reads UNDER the 500 us budget, and that is the
 #   correct verdict, not a miss: 300 us of extra work on top of ~61 us really is
 #   inside the budget the plan wrote. The instrument's job is to RESOLVE the
