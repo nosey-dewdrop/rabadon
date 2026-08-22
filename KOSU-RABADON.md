@@ -389,6 +389,29 @@ Kabul: Show HN yayında; ilk 30 gün üç oran ölçülmüş ve reports/M4/'e ya
 
 ---
 
+## Tur arası kapı (her R ve M turunun kapanışında, operatör beklenmeden)
+
+Tur kabulü yeşil olduğunda agent bir sonraki talimatı beklemez; aşağıdaki beş soruyu `reports/R<n>/kapi.md`'ye yazılı cevaplar ve sonucuna göre kendisi devam eder.
+
+1. **Hot-path bedeli:** bu tur gate latency'sini değiştirdi mi? Ölçülmeden "hayır" denmez. Kol başına 3 koşu, medyan. Artış 300 µs üstündeyse → R<n>.1 ara turu: bedeli düşür, yeniden ölç. Düşmezse DUR.
+2. **Plandan sapma:** planın bir maddesine uyulmadı mı? Her sapma gerekçe + kanıtla yazılır. Gerekçesiz sapma yok sayılır, geri alınır.
+3. **Çökmüş iddia:** bu turda çürütülen bir plan cümlesi, kaynak ya da sayı var mı? Varsa KOSU-RABADON.md'de o cümle aynı commit'te düzeltilir ya da "AÇIK" işaretlenir; yayınlanmış hiçbir metne bırakılmaz (Yasa 7).
+4. **Test dürüstlüğü:** bu turda bir testi ürünü değil testi tatmin etmek için gevşettim mi? Evetse geri alınır, ürün düzeltilir. (5. sinyalin kendimize uygulanmış hali.)
+5. **Operatör kararı:** yalnız operatörün verebileceği bir karar var mı (fiyat, ürün konumu, hangi dizin canlı, yayın)? Varsa `reports/R<n>/SORU.md`'ye yazılır ve:
+   - sonraki turu bloklamıyorsa → devam, soru açık kalır;
+   - bloklıyorsa → DUR, bekle.
+
+Karar tablosu:
+- 1-4 temiz, 5 bloklamıyor → sonraki tura geç, tohum.md yaz, commit.
+- 1 kötü → R<n>.1 ara turu, tek hedef, kendi kabul betiği, sonra kapıyı yeniden koş.
+- 2 veya 4 kötü → geri al, turu yeniden kapat.
+- 3 kötü → düzelt, aynı commit, devam.
+- 5 bloklıyor → DUR.
+
+**Ara tur (R<n>.1) kuralı:** tek hedef, yeni özellik yok, kabul betiği yalnız o hedefi ölçer, kendi commit'i. R<n>.2'ye gidiyorsa DUR; iki ara tur = tasarım hatası, operatöre gider.
+
+**DUR demek:** push et, SORU.md'yi yaz, bekle. Tahmin ederek devam yok.
+
 ## Yanlışlanma koşulları (bugün yazıldı, sonuç görülmeden)
 
 1. R7 biter ve B kolu A koluna göre ne gerçek fix oranında ne net token'da gerçek iyileşme göstermezse, enjeksiyon tezi yanlıştır; birikme motoru sessiz moda döner, ürün konumu yeniden düşünülür. M3 yazısı yine çıkar.
