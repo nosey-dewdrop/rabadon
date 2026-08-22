@@ -183,6 +183,54 @@ note "long log, chain check ON  (STRICT)  : ${STRICT} ms/call  <- parse + SHA pe
 note "so the SHA the hot path no longer pays: $(python3 -c "print(f'{(float('$STRICT')-float('$LONG'))*1000:.0f}')") us"
 pass "5 parse-only and parse+SHA are reported separately (numbers above)"
 
+head_ "GOAL 6 — the invariant: cost does not depend on session length"
+# This is the criterion KARAR.md opens with — "the same median at 50 events and
+# at 400 events" — and until now it was the one thing the script never measured.
+# It is the whole reason the record became a fixed-width ring: the old JSONL log
+# was re-read and re-parsed line by line, so a long session paid more than a
+# short one for nothing. A ring reads ONE pread of a KNOWN size whether 50 or 400
+# events came before it, and the CAP=200 window means even the live record count
+# stops growing. If these two medians diverge, the format did not buy what it was
+# bought for, and no amount of "the delta in GOAL 4 is small" repairs that.
+# Two noise controls, neither of which touches what is being asserted. (1) BOTH
+# sandboxes are seeded before EITHER is timed, so the 400 arm is not measured on
+# a box still warm from its own 400-event seed. (2) The order of the two timed
+# windows alternates between runs, so a machine that drifts slower during the
+# run cannot charge that drift to one arm. Without these two, this measurement
+# reads the load average: the same protocol without them returned divergences
+# from 0.3% to 68.6% over five repetitions of an unchanged binary.
+evf(){ printf '{"hook_event_name":"PreToolUse","session_id":"d","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hello world"}}' "$1"; }
+hit(){ local e; e="$(evf "$2")"
+  for i in $(seq "$3"); do printf '%s' "$e" | env HOME="$1" RABADON_DIR="$1/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; done; }
+timeit(){ hit "$1" "$2" 20                      # warm, uncounted
+  local t0 t1; t0=$(python3 -c 'import time;print(time.time())'); hit "$1" "$2" 100
+  t1=$(python3 -c 'import time;print(time.time())'); python3 -c "print(($t1-$t0)/100*1000)"; }
+S50=(); S400=()
+for r in 1 2 3; do
+  sb; HA="$H"; PA="$PJ"; hit "$HA" "$PA" 50
+  sb; HB="$H"; PB="$PJ"; hit "$HB" "$PB" 400
+  if [ $((r % 2)) -eq 1 ]
+  then S50+=("$(timeit "$HA" "$PA")");  S400+=("$(timeit "$HB" "$PB")")
+  else S400+=("$(timeit "$HB" "$PB")"); S50+=("$(timeit "$HA" "$PA")"); fi
+done
+R6="$(python3 -c "
+import statistics
+a=[float(x) for x in '${S50[*]}'.split()]; b=[float(x) for x in '${S400[*]}'.split()]
+ma,mb=statistics.median(a),statistics.median(b)
+print(f'{ma:.3f} {mb:.3f} {abs(mb-ma)/min(ma,mb)*100:.1f}')")"
+read -r M50 M400 PCT <<<"$R6"
+note "50-event session : ${M50} ms/call   (runs: ${S50[*]})"
+note "400-event session: ${M400} ms/call   (runs: ${S400[*]})"
+note "divergence: ${PCT}% of the smaller median (ceiling 10%)"
+if [ "$(python3 -c "print(1 if float('$PCT')<=10.0 else 0)")" = 1 ]; then
+  pass "6 the median is length-independent: ${M50} ms at 50 events vs ${M400} ms at 400, ${PCT}% apart"
+else
+  fail "6 the median moved with session length: ${M50} ms at 50 events vs ${M400} ms at 400, ${PCT}% apart (ceiling 10%)"
+  note "the fixed-width ring exists to make this number zero; it is not zero"
+  note "reports/R1.3/PROFIL.md locates it: the move ring contributes +7 us of it,"
+  note "last_ledger_mode() reads the whole spool day-file and contributes +321 us"
+fi
+
 printf '\n== R1.3 acceptance: %d green, %d red\n' "$P_N" "$F_N"
 [ "$F_N" -gt 0 ] && { printf 'R1.3 NOT ACCEPTED\n'; exit 1; }
 printf 'R1.3 ACCEPTED\n'; exit 0
