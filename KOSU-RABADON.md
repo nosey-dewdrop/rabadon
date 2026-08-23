@@ -479,6 +479,13 @@ Neden: yapan oturumun context'i doldukça karar kalitesi düşer, ve dolduran ş
 
 ### Danışman
 
+**MUTLAK KURAL — İSTİSNASIZ, SONSUZA DEK.** Bir soru doğduğunda operatöre sorulmaz. Danışman ajanına sorulur. "Bu senin kararın", "hangisini istersin", "onaylıyor musun", "devam edeyim mi" — bunların hiçbiri yazılmaz. Operatör bu kuralı üç kez koydu ve üçünde de ihlal edildi; ihlalin bedeli operatörün günüdür, ajanınki değil.
+
+Kapalı listedeki beş madde bile önce **danışmana** gider; danışman OPERATÖR etiketlerse dosyaya yazılır ve iş başka yönden devam eder. Operatörün önüne konan şey soru değil, **karar ve gerekçesidir**.
+
+Emin olmadığın an, doğru hamle sormak değil danışman salmaktır.
+
+
 Yapan oturum SORU.md yazınca DURMAZ; danışmanı çağırır ve KARAR.md gelene kadar o soruya bağlı olmayan işi yapar (test fixture, doküman, sonraki turun bütçesi).
 
     claude -p "$(cat docs/DANISMAN-PROMPT.md)" < <(cat KOSU-RABADON.md reports/R<n>/SORU.md reports/R<n>/PROFIL.md; git show HEAD:<ilgili dosyalar>)
