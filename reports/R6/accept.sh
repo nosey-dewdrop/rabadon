@@ -235,16 +235,26 @@ PY
 
 # --- reading the counter's own numbers back --------------------------------
 jq_counter() { # jq_counter <json> <dotted.path>
-  python3 - "$2" <<PY 2>/dev/null
+  # `python3 -c`, NOT `python3 -` with a heredoc. The heredoc IS stdin, and
+  # `python3 -` reads its PROGRAM from stdin — so the piped JSON landed at the
+  # front of the source text and every call died with a SyntaxError, exit 1, no
+  # output, for every input including {"a":{"b":7}}. Claims 2a-2h, 3a, 3b and 4c
+  # were unreachable no matter what the product did, and 5b fell with them
+  # because EXP_NET is built from 2a's rates. Proof:
+  # reports/R6/defect-jq_counter.sh. The JSON now arrives on stdin, where the
+  # program expects it. This grades MORE assertions, not fewer; no assertion
+  # text changed.
+  local prog='
 import json,sys
 try: d=json.loads(sys.stdin.read())
 except Exception: sys.exit(1)
 cur=d
-for k in sys.argv[1].split('.'):
+for k in sys.argv[1].split("."):
     if not isinstance(cur,dict) or k not in cur: sys.exit(1)
     cur=cur[k]
 print("" if cur is None else cur)
-PY
+'
+  python3 -c "$prog" "$2" 2>/dev/null
 }
 # the dollar figure printed on the closing line, as a number
 line_usd() { printf '%s' "$1" | grep -oE '[-]?[0-9]+[.,][0-9]+ ?\$' | head -1 | tr ',' '.' | tr -d ' $'; }
