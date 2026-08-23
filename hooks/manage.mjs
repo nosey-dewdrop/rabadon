@@ -95,6 +95,42 @@ async function cmdInit(args) {
     }
   }
 
+  // 1b) the repair arm's consent, decided ONCE, here — R5.
+  //
+  // A tool that asks before every action is a tool whose question gets answered
+  // "yes" without being read, so the repair arm's permission is a POLICY in
+  // rabadon's home rather than a prompt at signal time. It is deliberately not
+  // asked interactively: `rabadon init` has to produce a working install with
+  // no questions asked, and the default it writes — "ask" — cannot spend a cent
+  // on its own. Changing it is one line in one file, and that file is named on
+  // the way out.
+  //
+  // Home, not the project: "may rabadon call a model while I am asleep" is a
+  // fact about the operator, not about a repo, and it must not change because
+  // you cloned something that ships a config.
+  const rbHome = process.env.RABADON_DIR || path.join(os.homedir(), '.rabadon');
+  const cfgFile = path.join(rbHome, 'config.json');
+  let repairMode = 'ask';
+  try {
+    fs.mkdirSync(rbHome, { recursive: true });
+    if (fs.existsSync(cfgFile)) {
+      // never overwrite a decision the operator already made
+      const cur = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+      repairMode = (cur.repair && cur.repair.mode) || 'ask';
+      if (!cur.repair || !cur.repair.mode) {
+        cur.repair = { ...(cur.repair || {}), mode: 'ask' };
+        fs.writeFileSync(cfgFile, JSON.stringify(cur, null, 2) + '\n');
+      }
+    } else {
+      fs.writeFileSync(cfgFile, JSON.stringify({ repair: { mode: 'ask' } }, null, 2) + '\n');
+    }
+  } catch (e) {
+    // a policy that could not be written is no reason to leave the project
+    // unguarded — but it must never read as "written". With no file the arm
+    // falls back to "ask", which is the same safe answer.
+    console.error(`rabadon init: could not write ${cfgFile} (${e.message}) — the repair arm stays on "ask".`);
+  }
+
   // 2) lint what we are about to enforce
   const lr = lint(dir);
   if (!lr.ok) {
@@ -130,6 +166,7 @@ async function cmdInit(args) {
   console.log('  wired in:');
   console.log(`    ${guardFile}   — the law, REVIEW it (deny rules + protected paths)`);
   console.log(`    ${where}   — gate hooks merged${r.backedUp ? ` (original: ${path.basename(where)}.bak-rabadon)` : ''}${r.repaired ? ' [repaired a stale install]' : ''}`);
+  console.log(`    ${cfgFile}   — repair.mode = "${repairMode}"  (ask | auto-propose | off)`);
   if (cur && cur.changed) console.log(`    ${cur.hooksPath}   — the same gate, for Cursor${cur.backedUp ? ' (original: hooks.json.bak-rabadon)' : ''}`);
   console.log('');
   console.log('  see it work in 30 seconds:');
@@ -142,6 +179,14 @@ async function cmdInit(args) {
   console.log('    rabadon remove       take it all back out (add --global here if you used it)');
   console.log('');
   console.log('  disable exactly one rule with  "disabled": ["<rule-id>"]  in .rabadon/guard.json.');
+  console.log('');
+  console.log('  the repair arm (the one place rabadon may call a model), set once, in config.json:');
+  console.log('    "ask"           default. one line when the same error survives a third different');
+  console.log('                    move after two hints; it runs on `rabadon repair --approve`.');
+  console.log('    "auto-propose"  for unattended runs. runs without asking and NEVER touches your');
+  console.log('                    tree — the patch waits at .rabadon/repair-<ts>.patch until you');
+  console.log('                    type `rabadon repair --apply`.');
+  console.log('    "off"           the arm is not there. the signals still reach the ledger.');
   process.exit(0);
 }
 

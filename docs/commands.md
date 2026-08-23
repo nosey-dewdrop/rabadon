@@ -284,7 +284,37 @@ Needs the `claude` CLI (or `RABADON_CLAUDE_BIN`) as the proposer.
 
 Flags: `--cmd "<check>"` (the deterministic check to run; otherwise inferred
 from the test suite or the net's last red verdict) · `--timeout <sec>`
-(proposer wall clock, default 240).
+(proposer wall clock, default 240) · `--approve` (run the repair the arm asked
+about in `ask` mode) · `--apply` (apply the newest held patch — **the only thing
+in rabadon that edits your tree**, and a human types it).
+
+**The arm also starts itself, under a policy you set once.** `rabadon init`
+writes `repair.mode` into `$RABADON_DIR/config.json` and never asks again:
+
+| mode | what happens when the trigger fires |
+| --- | --- |
+| `ask` (default) | one line on stderr and a `REPAIR_ASK` ledger event. Nothing runs until `rabadon repair --approve`. |
+| `auto-propose` | runs without asking, and **never touches your tree** — the patch waits at `.rabadon/repair-<ts>.patch` for `rabadon repair --apply`. |
+| `off` | the arm is disabled. The signals still reach the ledger. |
+
+A value that is none of those three is read as `off`, and said out loud: a
+policy nobody can parse is not permission to spend.
+
+The trigger is both halves of one sentence, and one half is not enough: the
+`root_migration` signal — **the same error out of a third different move** —
+*and* the injections did not help, meaning R4 has already answered that signal
+with everything it had, at least one of those answers reached the agent, and the
+error has since come out of three more different moves. Firing on the first
+sighting would bill for what an injection fixes for free. It fires at most once
+per session, and the proposer call it makes is booked on the ledger as a `COST`
+carrying characters in, characters out, and a token figure marked
+`"estimated":1`.
+
+The text handed to the proposer names **files, never lines** (Law 2): every
+`file.py:44`, `line 3` and `L44` is stripped out of the whole assembled prompt,
+and the files the failing output names — the ones that actually exist in the
+tree — are listed instead. The arbiter's raw output is framed by rabadon's own
+words, never forwarded on its own.
 
 Exit: `0` held a patch, or the check was already green · `2` REPAIR_FAIL (still
 red, test-tampered, or a zero-diff flake) · `3` no runnable check, no proposer,

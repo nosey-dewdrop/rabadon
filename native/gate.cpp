@@ -1403,10 +1403,20 @@ struct State {
         << (i < s.injCounts.size() ? s.injCounts[i] : 0) << "\"";
     o << "],\"injPending\":\"" << json_escape(s.injPending) << "\""
       << ",\"injPendingSignal\":\"" << json_escape(s.injPendingSignal) << "\""
-      << ",\"lastErrText\":\"" << json_escape(s.lastErrText) << "\""
-      << ",\"injMuteSignal\":\"" << json_escape(s.injMuteSignal) << "\""
-      << ",\"injMuteFromSeq\":" << s.injMuteFromSeq
-      << ",\"repairFired\":" << s.repairFired;
+      << ",\"lastErrText\":\"" << json_escape(s.lastErrText) << "\"";
+    // R5, WRITTEN ONLY WHEN ARMED. Every other field in this object collapses
+    // to a zero/empty default when nothing has happened, and native/postuse_
+    // test.sh's differential relies on exactly that: a key the native gate
+    // writes as 0/"" reads as a key the retiring node gate never wrote, so
+    // parity of MEANING survives. injMuteFromSeq's unset value is -1, because
+    // move seq 0 is a real move and cannot double as "never" — and -1 is not a
+    // default, so writing it unconditionally made every session's state differ
+    // from node's for a fact node has no opinion about. It is written only once
+    // there is something to say. Absent reads back as -1 (see the loader).
+    if (s.injMuteFromSeq >= 0 || s.repairFired)
+      o << ",\"injMuteSignal\":\"" << json_escape(s.injMuteSignal) << "\""
+        << ",\"injMuteFromSeq\":" << s.injMuteFromSeq
+        << ",\"repairFired\":" << s.repairFired;
     o << ",\"tsOffset\":" << s.tsOffset << ",\"tokensOut\":" << s.tokensOut
       << ",\"tokensIn\":" << s.tokensIn
       << ",\"nextSeq\":" << s.nextSeq << "}";
