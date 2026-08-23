@@ -104,9 +104,15 @@ These are the product, not edge cases:
 A net-negative session is one rabadon did not pay for. Printing it is the reason
 the positive number is worth anything.
 
-Every estimated number carries the word **tahmini** / **estimated**. On a
-subscription plan the figure is an estimate at API list price and the line says
-so (Law 7).
+Every estimated number carries the word **tahmini** / **estimated**.
+
+rabadon cannot see which plan the session was billed on, and it does not guess.
+It prices from the **API list price** table, so on a subscription the figure is
+theoretical at list price (Law 7). That basis is stated where the derivation
+lives — `usage --explain` prints it as `basis: API list price (api_list)` and
+`usage --json` carries `.counter.prices.basis`. The closing line itself is not
+qualified beyond `tahmini`; changing that one advertised sentence is a decision
+for a human, not for this file.
 
 ## Where it runs
 

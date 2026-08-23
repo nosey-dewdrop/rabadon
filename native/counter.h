@@ -183,6 +183,13 @@ inline string explain(const Counter& c) {
          ", cache_write " + num(c.rates.cache_write) +
          ", cache_read " + num(c.rates.cache_read) +
          "   <- four classes; cache_read is NOT input\n";
+    // Law 7. rabadon cannot see which plan the session was billed on, and it
+    // does not guess: the table it prices from is the API list price, so the
+    // figure is theoretical at API list price for anyone on a subscription.
+    // Said here, where the derivation is, and not as an unqualified word on the
+    // shop-window line.
+    o += "   basis:  API list price (api_list). rabadon cannot see the billing plan;\n"
+         "           on a subscription this figure is theoretical at list price.\n";
   } else {
     o += "   prices: unresolved for this model — no dollar figure is printed\n";
   }
@@ -267,7 +274,7 @@ inline string json_object(const Counter& c) {
   o += ",\"cached\":\"" + json_escape_(c.price_cache) + "\"";
   o += ",\"snapshot\":\"" + string(rbprice::SNAPSHOT) + "\"";
   o += ",\"matched\":" + (c.price_key.empty() ? string("null") : "\"" + json_escape_(c.price_key) + "\"");
-  o += ",\"unit\":\"usd_per_mtok\",\"rates\":";
+  o += ",\"unit\":\"usd_per_mtok\",\"basis\":\"api_list\",\"rates\":";
   if (c.has_rates)
     o += "{\"input\":" + num(c.rates.in) + ",\"output\":" + num(c.rates.out) +
          ",\"cache_write\":" + num(c.rates.cache_write) +
