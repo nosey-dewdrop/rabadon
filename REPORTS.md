@@ -8,6 +8,53 @@ Ne oldu, tarih sırasıyla. **En yeni üstte. Sadece eklenir, hiçbir şey silin
 
 ---
 
+## 2026-08-23
+**Yapıldı:** R5 — onarım kolunun tur içi tetiği ve politika kapısı.
+`native/policy.h` (yeni): `repair.mode` = ask | auto-propose | off, `$RABADON_DIR/
+config.json`'dan okunur, `rabadon init` bir kez yazar (varsayılan `ask`, hiç soru
+sormadan). Üç değerden biri olmayan bir mod sessizce izin sayılmaz, `off` okunur
+ve stderr'e söylenir. Gate'te tetik: `root_migration` **ve** R4'ün o sinyale
+diyecek bir şeyi kalmaması + en az bir enjeksiyonun ajana ulaşmış olması + aynı
+hatanın o andan sonra **üç farklı hamleden** daha çıkması. Oturumda bir kez.
+auto-propose'da `rabadon-repair` fork edilir (net gibi detached), ask'ta
+`.rabadon/repair-request.json` + `REPAIR_ASK` yazılır, off'ta hiçbir şey.
+`rabadon-repair --approve` ve `--apply` eklendi; `--apply` rabadon'da kullanıcı
+ağacına dokunan **tek** yol ve onu insan yazar. Önerici metni `rbinject::scrub`
+ile satır satır temizleniyor (Yasa 2) ve ağaçta gerçekten var olan dosyalar
+listeleniyor; proposer çağrısı ledger'a `COST` olarak yazılıyor (chars_in/
+chars_out ölçülmüş, `tokens` `"estimated":1` etiketli).
+**Ölçüm (in-process, /tmp altında enstrümante kopya, `native/` temiz):** eklenen
+iş, sinyal yolundaki her PostToolUse olayında p50 **125 ns**, p90 **1.2 µs**
+(120 örnek, 10 oturum). Tetiğin ateşlendiği tek olay 0.39–1.22 ms — politika
+dosyası okuma + fork/exec; kol detached, hook beklemez.
+`make test` 2075 geçti, 0 kaldı (öncesiyle aynı). moves 21/0, signals 39/0,
+R2 19 yeşil, R3 14 yeşil, R4 20 yeşil.
+**Çıkan gerçek — `reports/R5/accept.sh`'te iki kusur, kanıtlanmış, dosya
+DEĞİŞTİRİLMEDİ (12 yeşil / 6 kırmızı):**
+1. *Claim 5 ve 6 sırayla ölçülemez.* İkisi de `$PROMPT` ve `$NEW_HOME`'u canlı
+   okuyor, ama araya giren `CLAIM 4`'ün `sandbox off` çağrısı `reset_proposer`
+   ile `$PROMPT`'u boşaltıyor ve `$NEW_HOME`'u yeni bir sandbox'a bağlıyor —
+   `repair_cost_tokens` artık off sandbox'ının spool'unu okuyor. Claim 4a
+   "proposer hiç çağrılmadı" diye ısrar ettiği için o pencerede bir çağrı
+   olması da imkânsız: iki iddia birbirini dışlıyor. Kanıt: accept.sh'in
+   **tek bir iddia metnine dokunulmadan** sadece CLAIM 5+6 bloğu CLAIM 4'ün
+   önüne alınmış kopyası **17 yeşil / 1 kırmızı** veriyor; 5a/5b/5c ve 6a/6b
+   yeşile dönüyor, 4a/4b yeni yerinde yine yeşil kalıyor.
+2. *Claim 1b'nin tanığı oturuma göre kapsanmamış.* `proposer_calls_fs` makine
+   genelinde tek bir dosyayı sayıyor. 1a'nın auto-propose kolu (doğru şekilde)
+   detached koşuyor ve proposer'ı tetikten ~0.6 s sonra çağırıyor; 1b'nin
+   sandbox'ı ~0.4 s sonra kuruluyor, yani 1a'nın çağrısı 1b'nin penceresine
+   düşebiliyor. Kanıt: kaçak çağrının `cwd`'si `/private/tmp/rabadon-repair.*/
+   work` (bir onarım kolunun çalışma kopyası) ve 1b'nin kendi spool'unda tek bir
+   `REPAIR_*` satırı yok — gate, fork'tan ÖNCE senkron `REPAIR_TRIGGER` yazdığı
+   için o kol 1b'ye ait olamaz. Aynı iddianın oturuma kapsanmış yarısı
+   (`n_repair_ev`) doğru şekilde 0 okuyor. 10 koşuda ~4 kez kırmızı.
+   Senkron bir kol yarışı kapatırdı ama hook'u onarım boyunca dondururdu
+   (CLAUDE.md performans yasası), o yüzden kol detached bırakıldı.
+**Sonraki:** İnsan kararı — accept.sh'te CLAIM 5+6 bloğunun CLAIM 4'ten önce
+alınması ve 1b'nin makine-genel tanığının oturuma kapsanması (ikisi de kendi
+commit'inde, kriter önce değişir).
+
 ## 2026-08-22
 **Yapıldı:** R0 kapandı — `reports/R0/accept.sh` 17 yeşil, 0 kırmızı, exit 0.
 KOSU-RABADON.md tek plan oldu (PROTOCOL-T1-T8 arşivde, iptal işaretli, PROJECT.md
