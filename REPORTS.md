@@ -8,6 +8,60 @@ Ne oldu, tarih sırasıyla. **En yeni üstte. Sadece eklenir, hiçbir şey silin
 
 ---
 
+## 2026-08-23 (2) — R6 sayaç
+**Yapıldı:** R6 tamamlandı. Kapanış satırı gerçek fixture'da:
+
+    rabadon: 2 hata zinciri kesildi, 1'i anında düzeltildi, tahmini 0.36 $ kurtarıldı.
+
+Sayının tamamı ledger'dan: median(kesilmemiş zincir) 6 (5 örnek: 4,6,6,8,10) ×
+2 kesilen zincir × oturumun kendi ortalama çağrı maliyeti 0.03 $ = 0.36 $ brüt,
+eksi 0.0006 $ enjeksiyon gideri (üst sınır: 400 karakter × 2 enjeksiyon / 4
+karakter-token, input fiyatıyla) = **0.3594 $**. Elle aynı sayı: sonnet-4-5
+(3 / 15 / 3.75 / 0.30 $/Mtok, dört ayrı sınıf) ile bir tur =
+(1000×3 + 2000×3.75 + 40000×0.30 + 500×15)/1e6 = 0.03 $. cache-read input'a
+katılsaydı sayı ~4 katı çıkardı; 2d bunu ayrıca ölçüyor. `fixed_instantly` = 1:
+ikinci zincirde ajan "fixed it — all good" yazdı, aynı TypeError iki hamle sonra
+döndü, sayaç ona inanmadı.
+Önceki ajanın (60090c1) `counter.h` / `prices.h` / `gate.cpp` / `stats.cpp`
+işi doğruydu ve olduğu gibi tutuldu. Benim değiştirdiğim üç şey:
+(1) `Makefile`'da `rabadon-gate` ve `rabadon-stats` `counter.h`/`prices.h`'e
+bağlı değildi — başlığı düzenleyip `make` demek hiçbir şeyi yeniden derlemiyordu,
+sessiz bir eski-binary tuzağı; (2) Yasa 7'nin "API liste fiyatıyla teorik"
+etiketi hiçbir yerde basılmıyordu ama `docs/COUNTER.md` basıldığını söylüyordu —
+etiket `usage --explain`'e (`basis: API list price (api_list)`) ve `--json`'a
+(`.counter.prices.basis`) eklendi, doküman gerçeğe çekildi; (3) aşağıdaki kusurun
+koşulabilir kanıtı.
+**Ölçüm (in-process, /tmp altındaki enstrümante kopya, `native/` temiz):**
+`rb_counter_compute` oturum kapanışında p50 **978 µs**, p90 1116 µs, max 1750 µs
+(10 kapanış, 184 satırlık ledger + 5 geçmiş oturum). Hot-path'e **sıfır**: kod
+yalnız `SessionEnd`/`Stop` dalında; R6 6c ledger büyüdükçe PreToolUse'un
+büyümediğini ayrıca ölçüyor (3.97 ms taze → 3.68 ms yüklü).
+`make test` 2075 geçti, 0 kaldı (taban korundu). moves 21/0, signals 39/0,
+R2 19 yeşil, R4 20 yeşil, R5 18 yeşil, R3 14 yeşil.
+**Çıkan gerçek — `reports/R6/accept.sh`'te bir kusur, kanıtlanmış, dosya
+DEĞİŞTİRİLMEDİ (26 yeşil / 12 kırmızı):**
+*`jq_counter` boruyla gelen JSON'u hiç görmüyor.* Yardımcı `python3 - "$2" <<PY`
+yazıyor: heredoc sürecin **stdin**'i, ve `python3 -` programını stdin'den okuyor,
+sonuna kadar. Program çalıştığında `sys.stdin.read()` boş string dönüyor, boruyla
+gönderilen JSON o fd'ye hiç girmiyor; `json.loads("")` patlıyor, yardımcı çıktısız
+exit 1 veriyor — **her girdi için**, `{"a":{"b":7}}` dahil. Bu yüzden 2a-2h, 3a,
+3b, 4c ürün ne yaparsa yapsın yeşile dönemiyor; 5b de onlarla düşüyor, çünkü
+`EXP_NET` 2a'nın okuduğu fiyatlardan hesaplanıyor.
+Kanıt: `reports/R6/defect-jq_counter.sh`. Önce yardımcıyı birebir kopyalayıp
+doğru girdiye karşı koşuyor (çıktı boş, exit 1), sonra accept.sh'in **tek**
+farkı `python3 -` yerine `python3 -c` olan bir kopyasını koşuyor: **38 yeşil,
+0 kırmızı, R6 ACCEPTED**. `diff` çıktısı betiğin içinde basılıyor, başka hiçbir
+iddia metnine dokunulmuyor.
+**NOT VERIFIED:** temiz konteynerde/temiz clone'da koşulmadı (sadece bu makine,
+macOS 24.2, bash 3.2 + python3). `prices.h` anlık görüntüsü (2026-08-22) LiteLLM
+tablosuna karşı otomatik doğrulanmıyor; Anthropic'in yayınlanmış liste fiyatlarıyla
+elle karşılaştırıldı, tutuyor. Abonelik/API ayrımı tespit edilmiyor (edilemez),
+bu yüzden etiket koşulsuz basılıyor.
+**Sonraki:** İnsan kararı — (a) accept.sh'te `jq_counter`'ın kendi commit'inde
+düzeltilmesi (kriter önce değişir), (b) Yasa 7 etiketinin kapanış satırının
+kendisine de girip girmeyeceği; o satır ürünün reklamı, tek başıma değiştirmedim.
+README'ye sayaç cümlesi, accept.sh yeşile dönmeden girmiyor (KOSU §0).
+
 ## 2026-08-23
 **Yapıldı:** R5 — onarım kolunun tur içi tetiği ve politika kapısı.
 `native/policy.h` (yeni): `repair.mode` = ask | auto-propose | off, `$RABADON_DIR/
