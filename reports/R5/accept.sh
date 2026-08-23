@@ -106,7 +106,7 @@ FAKE="$WORK/bin/claude"
 mkdir -p "$WORK/bin"
 cat > "$FAKE" <<EOF
 #!/usr/bin/env bash
-printf 'call\n' >> "$CALLS"
+printf 'call %s\n' "\${RABADON_DIR:-none}" >> "$CALLS"
 printf '%s\0' "\$@" > "$PROMPT"
 sleep 2.5
 if [ -f src/calc.py ]; then
@@ -117,9 +117,16 @@ EOF
 chmod +x "$FAKE"
 
 reset_proposer() { : > "$CALLS"; : > "$PROMPT"; }
+# SCOPED TO THIS SANDBOX, and that is a correctness fix, not a convenience.
+# The repair arm is DETACHED on purpose — a synchronous arm would freeze the
+# hook for the length of a repair, which the performance law forbids. So an
+# arm started by one claim can call the proposer ~0.6s later, while the NEXT
+# claim's sandbox is already up ~0.4s in, and a machine-global counter charges
+# that call to the wrong claim. Seen ~4 runs in 10. Each call now records the
+# RABADON_DIR it ran under, and each claim counts only its own.
 proposer_calls_fs() {
   local n=0
-  [ -f "$CALLS" ] && n="$(grep -c 'call' "$CALLS" 2>/dev/null)"
+  [ -f "$CALLS" ] && n="$(grep -c "call $NEW_HOME/.rabadon\$" "$CALLS" 2>/dev/null)"
   case "${n:-0}" in ''|*[!0-9]*) n=0;; esac
   printf '%s' "$n"
 }
@@ -493,31 +500,13 @@ else
 fi
 
 # ===========================================================================
-head_ "CLAIM 4 — off mode: the arm is not there"
-
-sandbox off
-cycle s-off 1
-cycle s-off 2
-cycle s-off 3
-OFF_PROP_L="$(n_proposer_ledger)"; OFF_PROP_F="$(proposer_calls_fs)"; OFF_REP="$(n_repair_ev)"
-if ! live || ! escalated; then
-  fail "4a the off fixture never escalated — an arm that was never reached was never proved off; signals: [$(signals)]"
-elif [ "${OFF_PROP_L:-0}" -eq 0 ] && [ "${OFF_PROP_F:-0}" -eq 0 ] && [ "${OFF_REP:-0}" -eq 0 ]; then
-  pass "4a off mode escalated to the trigger and the proposer was never called"
-else
-  fail "4a off mode ran the arm anyway (ledger proposer: $OFF_PROP_L, actual: $OFF_PROP_F, repair events: $OFF_REP)"
-  note "off has to mean off, or no one will ever believe any of the other two settings"
-fi
-
-# off is not mute. The signals still have to reach the ledger, or turning the arm
-# off quietly turns the detectors off too and the counter loses a session.
-if escalated; then
-  pass "4b off mode still writes the signals to the ledger"
-else
-  fail "4b off mode swallowed the signals as well as the arm — signals: [$(signals)]"
-fi
-
-# ===========================================================================
+# ORDER MATTERS HERE, and it is not cosmetic. CLAIM 4's `sandbox off` calls
+# reset_proposer, which empties $PROMPT and rebinds $NEW_HOME to a fresh
+# sandbox — and claims 5 and 6 read both LIVE. Worse, 4a asserts the proposer
+# was never called, which is exactly the call 5a needs to exist: in the original
+# order the two claims are mutually exclusive for ANY correct implementation.
+# So 5 and 6 are read while their fixture is still standing, and 4 runs after.
+# Not one assertion's text changed — only when each is read.
 head_ "CLAIM 5 — the text handed to the proposer obeys Yasa 2"
 
 # The fixture's error output carries `line 3` on purpose. A prompt built by
@@ -577,6 +566,31 @@ if [ "${TOK:-0}" -gt 0 ] 2>/dev/null; then
   pass "6b the cost is a number, not a flag"
 else
   fail "6b no measured token figure attributable to the repair arm"
+fi
+
+# ===========================================================================
+head_ "CLAIM 4 — off mode: the arm is not there"
+
+sandbox off
+cycle s-off 1
+cycle s-off 2
+cycle s-off 3
+OFF_PROP_L="$(n_proposer_ledger)"; OFF_PROP_F="$(proposer_calls_fs)"; OFF_REP="$(n_repair_ev)"
+if ! live || ! escalated; then
+  fail "4a the off fixture never escalated — an arm that was never reached was never proved off; signals: [$(signals)]"
+elif [ "${OFF_PROP_L:-0}" -eq 0 ] && [ "${OFF_PROP_F:-0}" -eq 0 ] && [ "${OFF_REP:-0}" -eq 0 ]; then
+  pass "4a off mode escalated to the trigger and the proposer was never called"
+else
+  fail "4a off mode ran the arm anyway (ledger proposer: $OFF_PROP_L, actual: $OFF_PROP_F, repair events: $OFF_REP)"
+  note "off has to mean off, or no one will ever believe any of the other two settings"
+fi
+
+# off is not mute. The signals still have to reach the ledger, or turning the arm
+# off quietly turns the detectors off too and the counter loses a session.
+if escalated; then
+  pass "4b off mode still writes the signals to the ledger"
+else
+  fail "4b off mode swallowed the signals as well as the arm — signals: [$(signals)]"
 fi
 
 # ===========================================================================
