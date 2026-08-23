@@ -43,6 +43,8 @@
 #include <unistd.h>
 #include "cli_help.h"
 #include "drill.h"
+#include "prices.h"
+#include "counter.h"
 
 using std::string;
 using std::u16string;
@@ -349,6 +351,13 @@ struct Event {
   string repair_kind;
   long long locks = 0;
   bool marker_hit = false;
+  // R6: the counter's own event, kept whole. `rabadon usage` READS the number
+  // the gate already committed to the ledger at session close — it does not
+  // recompute it. A surface that recomputes is a second implementation of the
+  // arithmetic, and the two would disagree the first time one of them changed.
+  bool has_counter = false;
+  JV counter;
+  string sess;
 };
 
 // The four drill rules live in drill.h — one implementation, so the number
@@ -443,6 +452,109 @@ static string json_escape(const string& s) {
   return out;
 }
 
+// ---------- R6: the counter, read back off the ledger ----------------------
+// The gate computes the counter once, at session close, where the session's own
+// moves are in hand, and commits it to the ledger as a COUNTER event. This
+// surface READS that event. It does not recompute anything: a second
+// implementation of the same arithmetic is a second answer waiting to disagree
+// with the first, and the whole claim of R6 is that there is one number and it
+// can be traced to one line of one file.
+static bool jv_num(const JV& o, const char* k, double& out) {
+  const JV* v = o.get(k);
+  if (!v || v->t != JV::NUM) return false;
+  out = v->num();
+  return true;
+}
+static string jv_str(const JV& o, const char* k) {
+  const JV* v = o.get(k);
+  return (v && v->t == JV::STR) ? u16_to_utf8(json_body_to_u16(v->s)) : string();
+}
+static void counter_from_jv(const JV& o, rbcount::Counter& c) {
+  double d = 0;
+  c.sess = jv_str(o, "sess");
+  if (jv_num(o, "chains_cut", d)) c.chains_cut = (long long)d;
+  if (jv_num(o, "fixed", d)) c.fixed_instantly = (long long)d;
+  if (jv_num(o, "injections", d)) c.injections = (long long)d;
+  c.has_saved = jv_num(o, "saved_usd", d);
+  if (c.has_saved) c.saved_usd = d;
+  if (jv_num(o, "gross_usd", d)) c.gross_usd = d;
+  c.reason = jv_str(o, "reason");
+  c.has_median = jv_num(o, "median_uncut", d);
+  if (c.has_median) c.median_uncut = d;
+  if (jv_num(o, "median_n", d)) c.median_n = (long long)d;
+  if (const JV* sm = o.get("samples")) if (sm->t == JV::ARR)
+    for (const JV& x : sm->a) if (x.t == JV::NUM) c.samples.push_back(x.num());
+  c.has_avg = jv_num(o, "avg_call_usd", d);
+  if (c.has_avg) c.avg_call_usd = d;
+  if (jv_num(o, "session_usd", d)) c.session_usd = d;
+  if (jv_num(o, "calls", d)) c.calls = (long long)d;
+  if (jv_num(o, "tok_in", d)) c.tok_in = (long long)d;
+  if (jv_num(o, "tok_cw", d)) c.tok_cw = (long long)d;
+  if (jv_num(o, "tok_cr", d)) c.tok_cr = (long long)d;
+  if (jv_num(o, "tok_out", d)) c.tok_out = (long long)d;
+  if (jv_num(o, "inject_usd", d)) c.inject_usd = d;
+  c.inject_bound = jv_str(o, "inject_bound");
+  if (c.inject_bound.empty()) c.inject_bound = "upper";
+  if (jv_num(o, "repair_usd", d)) c.repair_usd = d;
+  if (jv_num(o, "repair_tok_in", d)) c.repair_tok_in = (long long)d;
+  if (jv_num(o, "repair_tok_out", d)) c.repair_tok_out = (long long)d;
+  c.model = jv_str(o, "model");
+  c.price_key = jv_str(o, "price_key");
+  c.price_cache = jv_str(o, "prices_cached");
+  if (const JV* r = o.get("rates")) if (r->t == JV::OBJ) {
+    rbprice::Rates rr;
+    if (jv_num(*r, "input", rr.in) && jv_num(*r, "output", rr.out) &&
+        jv_num(*r, "cache_write", rr.cache_write) && jv_num(*r, "cache_read", rr.cache_read)) {
+      c.rates = rr; c.has_rates = true;
+    }
+  }
+  c.spool = jv_str(o, "spool");
+  if (const JV* rf = o.get("refs")) if (rf->t == JV::ARR)
+    for (const JV& x : rf->a) if (x.t == JV::STR) c.refs.push_back(u16_to_utf8(json_body_to_u16(x.s)));
+}
+
+// THE WEEK, NOT THE SESSION. `rabadon usage` reports a window, so the counts
+// and the dollars are SUMS over every session that closed inside it, and the
+// per-session facts that are not summable — the measured median, this session's
+// average call cost, the model and its rates — come from the newest close in
+// the window. One caveat is load-bearing: if ANY session in the window could not
+// be priced, the window's total is not a total. It is printed as absent, with
+// that session's reason, rather than as a smaller number that looks complete.
+static rbcount::Counter aggregate_counter(const std::vector<rbcount::Counter>& v) {
+  rbcount::Counter out;
+  if (v.empty()) {
+    out.reason = "no-close";
+    out.price_cache = rbprice::ensure_cache();
+    return out;
+  }
+  out = v.back();                       // the newest close carries the per-session facts
+  out.chains_cut = 0; out.fixed_instantly = 0; out.injections = 0;
+  out.calls = 0; out.tok_in = out.tok_cw = out.tok_cr = out.tok_out = 0;
+  out.repair_tok_in = out.repair_tok_out = 0;
+  out.inject_usd = out.repair_usd = out.gross_usd = out.session_usd = out.saved_usd = 0;
+  out.refs.clear();
+  out.has_saved = true;
+  for (const rbcount::Counter& c : v) {
+    out.chains_cut += c.chains_cut;
+    out.fixed_instantly += c.fixed_instantly;
+    out.injections += c.injections;
+    out.calls += c.calls;
+    out.tok_in += c.tok_in; out.tok_cw += c.tok_cw;
+    out.tok_cr += c.tok_cr; out.tok_out += c.tok_out;
+    out.repair_tok_in += c.repair_tok_in; out.repair_tok_out += c.repair_tok_out;
+    out.inject_usd += c.inject_usd;
+    out.repair_usd += c.repair_usd;
+    out.gross_usd += c.gross_usd;
+    out.session_usd += c.session_usd;
+    for (const string& r : c.refs) out.refs.push_back(r);
+    if (c.has_saved) out.saved_usd += c.saved_usd;
+    else { out.has_saved = false; out.reason = c.reason; }
+  }
+  if (out.has_saved) out.reason.clear();
+  if (out.price_cache.empty()) out.price_cache = rbprice::ensure_cache();
+  return out;
+}
+
 static const char* kHelp =
   "rabadon-stats — what this machine actually spent, from the local ledger.\n"
   "Sessions, tokens by class, cost, tools and duration, read from transcripts that\n"
@@ -455,6 +567,8 @@ static const char* kHelp =
   "                  error (exit 1), not an empty report — the message lists\n"
   "                  the project names that ARE in the window.\n"
   "  --full          every row, not just the top of the table.\n"
+  "  --explain       re-derive the session-close counter step by step, citing the\n"
+  "                  ledger lines every subtotal came from.\n"
   "  --json          machine-readable.\n"
   "  --md            markdown, for pasting into a report.\n"
   "  -h, --help      this screen.\n"
@@ -470,7 +584,7 @@ int main(int argc, char** argv) {
   rb_help(argc, argv, kHelp);
 
   double days = 7;
-  bool full = false, json = false, md = false;
+  bool full = false, json = false, md = false, explain = false;
   // "was --project given" is its own bit, not the emptiness of the value. When
   // the empty string was the sentinel, `--project "$P"` with an unset P asked
   // for one project and got the WHOLE machine's usage at exit 0, under a
@@ -496,6 +610,7 @@ int main(int argc, char** argv) {
       }
       i++;
     } else if (strcmp(argv[i], "--full") == 0) full = true;
+    else if (strcmp(argv[i], "--explain") == 0) explain = true;
     else if (strcmp(argv[i], "--json") == 0) json = true;
     else if (strcmp(argv[i], "--md") == 0) md = true;
     else if (strcmp(argv[i], "--project") == 0 && i + 1 < argc) { only_project = argv[++i]; want_project = true; }
@@ -594,6 +709,8 @@ int main(int argc, char** argv) {
         if (const JV* rk = root.get("repair_kind")) if (rk->t == JV::STR) e.repair_kind = u16_to_utf8(json_body_to_u16(rk->s));
         if (const JV* lk = root.get("locks")) if (lk->t == JV::NUM) e.locks = (long long)lk->num();
       }
+      if (const JV* sj = root.get("sess")) if (sj->t == JV::STR) e.sess = u16_to_utf8(json_body_to_u16(sj->s));
+      if (e.ev == "COUNTER") { e.has_counter = true; e.counter = root; }
       e.drill = e.drill_emit;
       e.marker_hit = !e.drill_emit && rb_drill_marker(line);
       events.push_back(std::move(e));
@@ -656,8 +773,21 @@ int main(int argc, char** argv) {
     projects.push_back(Proj{}); projects.back().name = name;
     return projects.back();
   };
+  std::vector<std::pair<string, rbcount::Counter>> closes;   // newest close per session
   for (const Event& e : events) {
     if (e.drill) { drills++; continue; }
+    if (e.has_counter) {
+      // one close per session: a session that answered both SessionEnd and Stop
+      // wrote the same total twice, and adding it twice is the first way a
+      // weekly number inflates without anybody typing a wrong digit.
+      rbcount::Counter c;
+      counter_from_jv(e.counter, c);
+      if (c.sess.empty()) c.sess = e.sess;
+      const string key = c.sess.empty() ? e.run : c.sess;
+      for (size_t i = 0; i < closes.size(); i++)
+        if (closes[i].first == key) { closes.erase(closes.begin() + (long)i); break; }
+      closes.push_back({ key, c });
+    }
     Proj& s = proj_for(project_of(e.has_pipe, e.pipe));
     if (e.ts > s.lastTs) s.lastTs = e.ts;
     if (e.ev == "STEP_START") s.gated++;
@@ -751,6 +881,23 @@ int main(int argc, char** argv) {
     tPushGates += p.pushGates; tRules += p.rulesWritten;
   }
 
+  rbcount::Counter CTR;
+  {
+    std::vector<rbcount::Counter> v;
+    for (auto& kv : closes) v.push_back(kv.second);
+    CTR = aggregate_counter(v);
+  }
+
+  // ---- render: --explain ----
+  // The counter, re-derived out loud. This is the surface Law 5 promises: every
+  // subtotal, the ledger line it came from, and the same number the closing
+  // line printed at the bottom of it.
+  if (explain) {
+    const string out = rbcount::explain(CTR);
+    fwrite(out.data(), 1, out.size(), stdout);
+    return 0;
+  }
+
   // ---- render: --json ----
   if (json) {
     string out = "{\"days\":" + js_num_str(days) + ",\"spool\":\"" + json_escape(spool) + "\",";
@@ -780,7 +927,8 @@ int main(int argc, char** argv) {
       };
       out += "\"rules\":" + rules_json(p.rules) + ",\"watchRules\":" + rules_json(p.wouldRules) + "}";
     }
-    out += "]}\n";
+    out += "],\"counter\":" + rbcount::json_object(CTR);
+    out += "}\n";
     fwrite(out.data(), 1, out.size(), stdout);
     return 0;
   }

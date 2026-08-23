@@ -15,6 +15,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <cstring>
 #include <ctime>
 #include <regex>
@@ -44,6 +45,8 @@
 #include "semantic.h"// R3: tier 1, the SHAPE of an edit. Adds a signal, never changes one.
 #include "inject.h"  // R4: the diagnosis the agent cannot see, sized and scrubbed.
 #include "policy.h"  // R5: repair.mode — consent decided once by `rabadon init`.
+#include "prices.h"  // R6: the offline price table — four classes, no network.
+#include "counter.h" // R6: the one honest line at session close, and its arithmetic.
 #include "testout.h" // did the runner execute any tests — shared with `rabadon net`
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
@@ -1796,6 +1799,323 @@ static const char* kHelp =
   "example:\n"
   "  rabadon-gate --lint ~/src/myrepo\n";
 
+// ===========================================================================
+// R6 — THE COUNTER. Computed once, at session close, never on the hot path.
+//
+// Everything below reads: the ledger (which chains were cut, and by what), this
+// project's move rings (what happened AFTER each injection, and how long chains
+// that were never cut ran for), the agent's own transcript (what a call
+// actually costs this session) and the offline price table. It writes: one
+// COUNTER event and one line on stdout.
+//
+// It is in gate.cpp rather than in stats.cpp because this is the only process
+// that knows which session just ended and can see that session's moves. `rabadon
+// usage` reads the COUNTER event back — so the surface never recomputes a number
+// the ledger already committed to, and the two cannot drift apart.
+// ---------------------------------------------------------------------------
+
+// one ledger line, with enough of its address to be cited
+struct RbLedgerLine {
+  string file;      // basename of the day file
+  long long lineNo = 0;
+  string ev, sess, signal, err;
+  long long lseq = 0;      // the event's own seq inside the day file
+  long long mseq = -1;     // the MOVE seq an INJECT rode on (INJECT only)
+  long long charsIn = 0, charsOut = 0;   // COST lines
+  string arm;
+};
+
+static std::vector<string> rb_spool_days(const string& spoolDir) {
+  std::vector<string> out;
+  DIR* d = opendir(spoolDir.c_str());
+  if (!d) return out;
+  while (struct dirent* e = readdir(d)) {
+    const string n = e->d_name;
+    if (n.size() >= 6 && n.compare(n.size() - 6, 6, ".jsonl") == 0 &&
+        n.find(".unchained.") == string::npos)
+      out.push_back(n);
+  }
+  closedir(d);
+  std::sort(out.begin(), out.end());
+  // A session does not span weeks. Reading the newest few day files bounds this
+  // walk no matter how long the ledger has been running.
+  const size_t KEEP = 8;
+  if (out.size() > KEEP) out.erase(out.begin(), out.end() - KEEP);
+  return out;
+}
+
+static void rb_read_ledger(const string& spoolDir, std::vector<RbLedgerLine>& out) {
+  for (const string& f : rb_spool_days(spoolDir)) {
+    const string body = read_file(spoolDir + "/" + f);
+    size_t pos = 0; long long no = 0;
+    while (pos < body.size()) {
+      size_t nl = body.find('\n', pos);
+      if (nl == string::npos) nl = body.size();
+      const string line = body.substr(pos, nl - pos);
+      pos = nl + 1;
+      no++;
+      if (line.empty()) continue;
+      RbLedgerLine L;
+      L.file = f; L.lineNo = no;
+      L.ev = get_str(line, "ev");
+      if (L.ev.empty()) continue;
+      L.sess = get_str(line, "sess");
+      L.lseq = get_num(line, "seq");
+      if (L.ev == "SIGNAL" || L.ev.compare(0, 6, "INJECT") == 0)
+        L.signal = get_str(line, "signal");
+      if (L.ev == "INJECT") {
+        L.err = get_str(line, "err");
+        // "mseq" and not "seq": the ledger's own seq is the event counter, and
+        // a counter that read one for the other would look at the wrong moves.
+        L.mseq = line.find("\"mseq\"") == string::npos ? -1 : get_num(line, "mseq");
+      }
+      if (L.ev == "COST") {
+        L.arm = get_str(line, "arm");
+        L.charsIn = get_num(line, "chars_in");
+        L.charsOut = get_num(line, "chars_out");
+      }
+      out.push_back(std::move(L));
+    }
+  }
+}
+
+// A CHAIN, as the plan defines it: a repeat / oscillation / root-migration
+// sequence. `repeat` is in this list because it is one of the three the plan
+// names, even though R4 does not let it speak — a chain that was cut by a BLOCK
+// is still a chain that was cut.
+static bool rb_chain_signal(const string& n) {
+  return n == "repeat" || n == "oscillation" || n == "root_migration" ||
+         n == "semantic_repeat";
+}
+
+// the move ring of some OTHER session in this project, read straight off disk
+static bool rb_load_ring(const string& path, std::vector<rbmoves::Move>& out) {
+  const int fd = open(path.c_str(), O_RDONLY);
+  if (fd < 0) return false;
+  rbmoves::Hdr h{};
+  if (pread(fd, &h, sizeof h, 0) != (ssize_t)sizeof h || memcmp(h.magic, "RBMV1", 5) != 0) {
+    close(fd); return false;
+  }
+  const long long have = h.count < (long long)rbmoves::CAP ? h.count : (long long)rbmoves::CAP;
+  const long long first = h.count < (long long)rbmoves::CAP ? 0 : h.count % (long long)rbmoves::CAP;
+  for (long long i = 0; i < have; i++) {
+    const long long idx = (first + i) % (long long)rbmoves::CAP;
+    rbmoves::Rec r{};
+    if (pread(fd, &r, sizeof r, rbmoves::HDR_BYTES + idx * (long long)sizeof r) != (ssize_t)sizeof r) break;
+    rbmoves::Move m; rbmoves::from_rec(r, m);
+    out.push_back(m);
+  }
+  close(fd);
+  return true;
+}
+
+// A CHAIN LENGTH, measured: a run of consecutive moves carrying the SAME error
+// signature. That is what "the same thing kept failing" looks like in the
+// record, and its length is how many calls the agent spent on it. A session
+// with no repeated error contributes no chain at all — a quiet session is not
+// a chain of length zero, it is not a chain.
+static void rb_chain_lengths(const std::vector<rbmoves::Move>& mv, std::vector<double>& out) {
+  string cur; long long n = 0;
+  for (const auto& m : mv) {
+    if (!m.err_sig.empty() && m.err_sig == cur) { n++; continue; }
+    if (n > 0) out.push_back((double)n);
+    cur = m.err_sig;
+    n = m.err_sig.empty() ? 0 : 1;
+  }
+  if (n > 0) out.push_back((double)n);
+}
+
+// Claude Code's own layout: ~/.claude/projects/<cwd with / and . turned into
+// ->/<session id>.jsonl. Used when the close event carries no transcript_path
+// of its own — the Stop hook does not always send one, and a counter that goes
+// blind because a field was omitted would be silently cheaper than the truth.
+static string rb_lens_transcript(const string& cwd, const string& sid) {
+  if (sid.empty()) return "";
+  string base;
+  const char* env = getenv("RABADON_LENS_DIR");
+  if (env && env[0]) base = env;
+  else {
+    const char* h = getenv("HOME");
+    if (!h || !h[0]) return "";
+    base = string(h) + "/.claude/projects";
+  }
+  string slug;
+  for (char ch : cwd) slug += (ch == '/' || ch == '.') ? '-' : ch;
+  return base + "/" + slug + "/" + sid + ".jsonl";
+}
+
+static double rb_median(std::vector<double> v) {
+  if (v.empty()) return 0;
+  std::sort(v.begin(), v.end());
+  const size_t n = v.size();
+  return (n % 2) ? v[n / 2] : (v[n / 2 - 1] + v[n / 2]) / 2.0;
+}
+
+static void rb_counter_compute(const string& spoolDir, const string& sid,
+                               const string& sessDir, const string& sessKey,
+                               const std::vector<rbmoves::Move>& moves,
+                               const string& transcriptPath, const string& cwd,
+                               rbcount::Counter& c) {
+  c.sess = sid;
+  c.spool = spoolDir;
+
+  std::vector<RbLedgerLine> led;
+  rb_read_ledger(spoolDir, led);
+
+  // ---- 1. which sessions were ever cut, and what this session's cuts were ----
+  std::set<string> cutSessions;
+  for (const auto& L : led)
+    if ((L.ev == "INJECT" || L.ev == "STOP") && !L.sess.empty()) cutSessions.insert(L.sess);
+
+  struct Cut { string file; long long lineNo, lseq, mseq; string signal, err; bool fromInject; };
+  std::vector<Cut> cuts;
+  bool open = false;
+  string openSignal;
+  for (const auto& L : led) {
+    if (L.sess != sid) continue;
+    if (L.ev == "SIGNAL" && rb_chain_signal(L.signal)) { open = true; openSignal = L.signal; continue; }
+    if (L.ev == "INJECT") {
+      cuts.push_back({ L.file, L.lineNo, L.lseq, L.mseq, L.signal, L.err, true });
+      c.injections++;
+      open = false;
+      continue;
+    }
+    // A block only counts as a chain cut when a chain was actually open. Every
+    // other refusal — a protected path, a budget cap — stopped an action, not a
+    // sequence, and counting it here is exactly how a counter inflates.
+    if (L.ev == "STOP" && open) {
+      cuts.push_back({ L.file, L.lineNo, L.lseq, -1, openSignal, "", false });
+      open = false;
+      continue;
+    }
+    if (L.ev == "COST" && L.arm == "repair") {
+      c.repair_tok_in += (L.charsIn + rbcount::CHARS_PER_TOKEN - 1) / rbcount::CHARS_PER_TOKEN;
+      c.repair_tok_out += (L.charsOut + rbcount::CHARS_PER_TOKEN - 1) / rbcount::CHARS_PER_TOKEN;
+    }
+  }
+  c.chains_cut = (long long)cuts.size();
+
+  // ---- 2. which of them were fixed INSTANTLY, off the moves, not the agent ---
+  for (const auto& cut : cuts) {
+    bool fixed = false;
+    string verdict;
+    if (!cut.fromInject) {
+      verdict = "blocked, no injection to judge a repair by";
+    } else if (cut.mseq < 0) {
+      verdict = "no move seq on the INJECT line, so the repair cannot be judged";
+    } else {
+      // THE THREE MOVES AFTER THE INJECTION THAT ACTUALLY PRODUCED A RESULT.
+      // An edit observes nothing: it cannot make an error come back and it
+      // cannot make a suite green, so counting edits toward the window would
+      // let an agent "fix" a chain by typing three times. claimed_rc is -1
+      // exactly when the move never reported an outcome, and that is the line
+      // between a move that answers this question and a move that does not.
+      // The move the diagnosis RODE ON is excluded for the same reason: it was
+      // already decided on when the text arrived at the front of it.
+      bool sawErr = false, sawRed = false, sawGreen = false;
+      int looked = 0;
+      for (const auto& m : moves) {
+        if (m.seq <= cut.mseq) continue;
+        if (m.claimed_rc < 0) continue;
+        if (++looked > 3) break;
+        if (!cut.err.empty() && m.err_sig == cut.err) sawErr = true;
+        if (m.suite == 0) sawRed = true;
+        if (m.suite == 1) sawGreen = true;
+      }
+      fixed = !sawErr && !sawRed;
+      verdict = sawErr ? "NOT fixed — the same err_sig came back inside 3 moves"
+              : sawRed ? "NOT fixed — the suite was red inside 3 moves"
+              : sawGreen ? "fixed instantly — err_sig gone and the suite went green"
+                         : "fixed instantly — err_sig gone (no suite ran to confirm)";
+    }
+    if (fixed) c.fixed_instantly++;
+    c.refs.push_back(string(cut.fromInject ? "INJECT" : "STOP") + " " + cut.file +
+                     " line " + std::to_string(cut.lineNo) +
+                     " seq " + std::to_string(cut.lseq) +
+                     (cut.mseq >= 0 ? " move " + std::to_string(cut.mseq) : string()) +
+                     " signal " + (cut.signal.empty() ? "?" : cut.signal) +
+                     " -> " + verdict);
+  }
+
+  // ---- 3. the MEASURED length of chains that ran to completion UNCUT --------
+  // Other sessions of this project, on this machine, that were never cut. Their
+  // rings are already on disk; nothing is estimated and nothing is assumed.
+  {
+    DIR* d = opendir(sessDir.c_str());
+    if (d) {
+      std::vector<string> rings;
+      while (struct dirent* e = readdir(d)) {
+        const string n = e->d_name;
+        if (n.size() > 10 && n.compare(n.size() - 10, 10, ".moves.bin") == 0) rings.push_back(n);
+      }
+      closedir(d);
+      std::sort(rings.begin(), rings.end());
+      for (const string& n : rings) {
+        const string base = n.substr(0, n.size() - 10);          // "<sid>-<hash12>"
+        if (base == sessKey) continue;                            // this session
+        if (base.size() < 13) continue;
+        const string osid = base.substr(0, base.size() - 13);     // drop "-<hash12>"
+        if (osid == sid || cutSessions.count(osid)) continue;     // cut, or ourselves
+        std::vector<rbmoves::Move> mv;
+        if (!rb_load_ring(sessDir + "/" + n, mv)) continue;
+        rb_chain_lengths(mv, c.samples);
+      }
+    }
+  }
+  c.median_n = (long long)c.samples.size();
+  if (c.median_n >= rbcount::MIN_HISTORY) {
+    c.has_median = true;
+    c.median_uncut = rb_median(c.samples);
+  }
+
+  // ---- 4. what a call costs THIS session, from the agent's own transcript ---
+  string tp = transcriptPath;
+  if (tp.empty() || !file_exists(tp)) tp = rb_lens_transcript(cwd, sid);
+  string tbody;
+  if (!tp.empty() && file_exists(tp)) tbody = read_file(tp);
+  if (!tbody.empty()) {
+    long long calls = 0;
+    const Usage u = sum_usage_calls(tbody, calls);
+    c.calls = calls;
+    c.tok_in = u.in; c.tok_cw = u.cacheCreate; c.tok_cr = u.cacheRead; c.tok_out = u.out;
+    c.model = last_model(tbody);
+  }
+  c.has_rates = rbprice::lookup(c.model, c.rates, c.price_key, c.price_cache);
+  if (c.price_cache.empty()) c.price_cache = rbprice::ensure_cache();
+
+  if (c.calls > 0 && c.has_rates) {
+    // FOUR CLASSES. cache_read is a tenth of input and it is most of the volume
+    // in a long session; adding it to input is the single cheapest way for this
+    // number to be several times too big, in our favour.
+    c.session_usd = ((double)c.tok_in * c.rates.in +
+                     (double)c.tok_cw * c.rates.cache_write +
+                     (double)c.tok_cr * c.rates.cache_read +
+                     (double)c.tok_out * c.rates.out) / 1e6;
+    c.avg_call_usd = c.session_usd / (double)c.calls;
+    c.has_avg = true;
+  }
+
+  // ---- 5. what rabadon itself spent, at the CEILING -------------------------
+  if (c.has_rates) {
+    c.inject_usd = ((double)rbcount::UPPER_CHARS * (double)c.injections /
+                    (double)rbcount::CHARS_PER_TOKEN) * c.rates.in / 1e6;
+    c.repair_usd = ((double)c.repair_tok_in * c.rates.in +
+                    (double)c.repair_tok_out * c.rates.out) / 1e6;
+  }
+  c.inject_bound = "upper";
+
+  // ---- 6. the number, or the reason there is none ---------------------------
+  if (c.chains_cut <= 0)        c.reason = rbcount::R_NO_CHAINS;
+  else if (tbody.empty())       c.reason = rbcount::R_NO_TRANSCRIPT;
+  else if (!c.has_rates || !c.has_avg) c.reason = rbcount::R_NO_PRICE;
+  else if (!c.has_median)       c.reason = rbcount::R_NO_HISTORY;
+  else {
+    c.gross_usd = c.median_uncut * (double)c.chains_cut * c.avg_call_usd;
+    c.saved_usd = c.gross_usd - c.inject_usd - c.repair_usd;
+    c.has_saved = true;
+  }
+}
+
 int main(int argc, char** argv) {
   g_self = argv[0];
   // SECURITY, fail-CLOSED: the gate emits its verdict over a unix socket to any
@@ -2335,7 +2655,7 @@ int main(int argc, char** argv) {
   // PostToolUse is native now (S3): test analysis, incident diagnosis,
   // re-anchor — the LLM stays off the hot path (bounded `claude -p`).
   if (hook != "PreToolUse" && hook != "PostToolUse" && hook != "UserPromptSubmit" &&
-      hook != "SessionStart" && hook != "Stop") return 0;
+      hook != "SessionStart" && hook != "Stop" && hook != "SessionEnd") return 0;
 
   const string toolName = E.toolName;
   const string command = E.command;
@@ -3580,6 +3900,41 @@ int main(int argc, char** argv) {
     return 0;
   }
 
+  // ---------- R6: the counter, at session close and nowhere else -------------
+  //
+  // ONE LINE, ON STDOUT, ONLY HERE. It is the product's shop window and it is
+  // also the cheapest place in this repo to lie, so every number in it is
+  // derived from the ledger by rb_counter_compute above and re-derivable in
+  // front of the reader with `rabadon usage --explain`. The COUNTER event is
+  // written first: the surface reads the number back off the ledger rather than
+  // recomputing it, so the line and `rabadon usage` cannot drift apart.
+  //
+  // NOT ON THE HOT PATH. This walks the ledger and every ring in the project;
+  // it costs what it costs precisely because it runs once, when the session is
+  // already over and nobody is waiting on a tool call.
+  //
+  // SessionEnd is the plan's hook. Stop is the fallback for agents that do not
+  // send one — and Claude Code sends both, so the close event that arrives
+  // first prints it.
+  auto close_counter = [&]() {
+    const size_t slash = em.spoolPath.rfind('/');
+    const string spoolDir = slash == string::npos ? em.spoolPath : em.spoolPath.substr(0, slash);
+    rbcount::Counter c;
+    rb_counter_compute(spoolDir, sid, stt.sessDir, stt.sessKey, ss.moves,
+                       E.transcriptPath, cwd, c);
+    em.emit("COUNTER", rbcount::event_body(c));
+    const string one = rbcount::line(c);
+    fwrite(one.data(), 1, one.size(), stdout);
+    fputc('\n', stdout);
+    fflush(stdout);
+  };
+
+  if (hook == "SessionEnd") {
+    close_counter();
+    stt.save();
+    return 0;
+  }
+
   // ---------- Stop: token ledger + devridaim handoff ----------
   if (hook == "Stop") {
     // token ledger — REAL usage from the transcript, read incrementally from
@@ -3658,6 +4013,7 @@ int main(int argc, char** argv) {
        << "- the guard is law (.rabadon/guard.json); rules born from incidents carry authoredBy: incident.\n";
     { std::ofstream hf(cwd + "/.rabadon/handoff.md", std::ios::trunc); if (hf) hf << ho.str(); }
     stt.save();
+    close_counter();
     em.emit("RUN_DONE", "\"verdict\":\"SESSION_TURN_DONE\",\"tokens\":0,\"depth\":0");
     return 0;
   }
@@ -4278,9 +4634,22 @@ int main(int argc, char** argv) {
     // Law 6: what rabadon injects is a COST, and a cost that is not on the
     // ledger cannot be subtracted by the counter in R6. Characters, because
     // that is what the 400 budget is written in.
+    //
+    // R6 adds the two facts that make "was it fixed" answerable from the ledger
+    // instead of from the agent's own account of itself: WHICH move this
+    // diagnosis rode on (mseq — not the event's own `seq`, which counts events)
+    // and WHICH error the chain was about. The counter then looks at the three
+    // moves after mseq and asks whether that signature came back. Both are
+    // already in this process's hands; neither costs a read.
+    long long injMoveSeq = ss.moves.empty() ? -1 : ss.moves.back().seq;
+    string injErrSig;
+    for (size_t i = ss.moves.size(); i-- > 0;)
+      if (!ss.moves[i].err_sig.empty()) { injErrSig = ss.moves[i].err_sig; break; }
     em.emit("INJECT",
             "\"signal\":\"" + json_escape(name) + "\",\"chars\":" +
             std::to_string(rbinject::nchars(text)) +
+            ",\"mseq\":" + std::to_string(injMoveSeq) +
+            ",\"err\":\"" + json_escape(injErrSig) + "\"" +
             ",\"text\":\"" + json_escape(text) + "\"");
   }
   stt.save();

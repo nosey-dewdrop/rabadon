@@ -55,6 +55,9 @@ struct HookEvent {
   // be a second refactor riding on this one, and would touch the rule engine
   // this change is supposed to leave alone.
   //   "PreToolUse" "PostToolUse" "UserPromptSubmit" "SessionStart" "Stop"
+  //   "SessionEnd"  — R6's close hook. Stop fires at the end of every turn;
+  //   SessionEnd fires once, when the session is actually over, which is the
+  //   only moment a session-total is a session-total.
   string hook;
 
   string cwd;
@@ -86,7 +89,7 @@ inline Dialect detect(const string& raw) {
   if (raw.find("\"rabadon\"") != string::npos) return DIALECT_GENERIC;
   const string h = rbrules::get_str(raw, "hook_event_name");
   if (h == "PreToolUse" || h == "PostToolUse" || h == "UserPromptSubmit" ||
-      h == "SessionStart" || h == "Stop")
+      h == "SessionStart" || h == "Stop" || h == "SessionEnd")
     return DIALECT_CLAUDE;
   if (h == "beforeShellExecution" || h == "afterShellExecution" ||
       h == "beforeMCPExecution"   || h == "afterMCPExecution"   ||
@@ -183,7 +186,12 @@ inline HookEvent parse_cursor(const string& raw) {
     e.prompt = rbrules::get_str(raw, "prompt");
   } else if (h == "sessionStart") {
     e.hook = "SessionStart";
-  } else if (h == "stop" || h == "sessionEnd") {
+  } else if (h == "sessionEnd") {
+    // Cursor's close event, mapped to the close event — not to Stop. R6 prints
+    // the session's total here, and a total printed at the end of every turn is
+    // a different number wearing the same sentence.
+    e.hook = "SessionEnd";
+  } else if (h == "stop") {
     e.hook = "Stop";
   }
   return e;
@@ -209,6 +217,7 @@ inline HookEvent parse_generic(const string& raw) {
   else if (ev == "prompt") e.hook = "UserPromptSubmit";
   else if (ev == "session_start") e.hook = "SessionStart";
   else if (ev == "stop") e.hook = "Stop";
+  else if (ev == "session_end") e.hook = "SessionEnd";
 
   const string t = rbrules::get_str(raw, "tool");
   if (t == "bash") e.toolName = "Bash";
