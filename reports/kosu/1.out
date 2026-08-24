@@ -1,0 +1,125 @@
+I'll start by reading the run document.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+Found a discrepancy in the pre-flight record already. Let me check it before anything else.
+[tool: Bash]
+Confirmed: `DISABLE_AUTOUPDATER=1` is **not** in `kos.sh` nor in my env — ONKONTROL.md line 14 claims it is. Version pinning is absent. I'll fix that and run the B6 drills.
+[tool: Write]
+[tool: Bash]
+[tool: Edit]
+Now the fix for the missing version pin — atomic rename so the *live* driver's inode isn't disturbed.
+[tool: Bash]
+[tool: Bash]
+[tool: Agent]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Smoke test failed at the first drill. Diagnosing rather than guessing.
+[tool: Bash]
+Found the failure mode in the trace: `chg=./.kosu-nabiz.41364` — the watchdog's **own pulse marker** matches its own `-cnewer` test. Let me confirm empirically.
+[tool: Bash]
+**Root cause found.** On macOS/BSD, `find -cnewer REF` matches the reference file *itself* (GNU find does not). So `chg` is always non-empty → **the stall watchdog never fires on macOS**. The loop's last defense against a TTY-hung tool is dead — including in the driver running right now.
+[tool: Bash]
+Now a fast regression check for exactly this bug, added to the harness before the slow drills:
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Both failures are my harness's assertions, not `kos.sh`. Cleaning up orphans and confirming:
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+The seal holds — unsealed `CEVAP` did not move the loop for a full poll cycle.
+[tool: Bash]
+All three FAILs are my harness's assertions, not `kos.sh`. Fixing them properly rather than explaining them away:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+All green so far. Writing the report while the operator drill finishes.
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+**19/19 PASS, rc=0.** Correcting the report's counts and the false claim in ONKONTROL.md, then committing.
+[tool: Bash]
+[tool: Bash]
+## Tur 1 — B6 smoke (A4'ün ilk açık işi)
+
+**Kabul: `scripts/kos-smoke.sh` → 19 assert, 19 PASS, 0 FAIL, rc=0.** Ham çıktı `reports/kosu/SMOKE.out`, rapor `reports/kosu/SMOKE.md`, teşhis hafızası `reports/kosu/DENEMELER.md`. Commit `29bed73`, push OK.
+
+### İki gerçek hata bulundu ve düzeltildi
+
+**1. Watchdog macOS'ta ÖLÜYDÜ.** macOS/BSD `find`'da `-cnewer REF` **referansın kendisini de eşleştirir** (GNU find etmez). Nabız markeri prune edilmediği için `chg` her turda doluydu → `stall` hiç artmadı → **STALL KILL hiç ateşlenmedi**. Ölçüm:
+
+```
+$ touch ./.mark; sleep 1; find . -type f -cnewer ./.mark -print
+./.mark
+```
+
+Kanıt ikinci koldan da geldi: ilk koşuda sahte asılı çocuk **PPID=1 yetim** olarak hayatta kaldı. Yani "yetim claude gece boyu para yakamaz" zırhı fiilen yoktu. Düzeltme: `-name '.kosu-nabiz.*' -prune`, hem `scripts/kos.sh`'e hem KOSU-RABADON-2.md §B2'ye (doc == script `diff` ile doğrulandı). Regresyon testi B6.0 olarak harness'a kondu.
+
+**2. Sürüm sabitleme yoktu ama var deniyordu.** ONKONTROL.md satır 14 "kos.sh `export DISABLE_AUTOUPDATER=1` ile başlıyor" diyordu; script'te, doc'ta ve sürücünün ortamında **yoktu**. Eklendi, ONKONTROL.md düzeltildi.
+
+### Neden ayrı harness?
+
+B6.3 ve B6.5 **sürücünün** davranışı; yapan oturum sürücünün çocuğu olduğu için kendi ebeveyninin watchdog'unu test edemez. Harness /tmp'de tek kullanımlık git deposu + sahte `claude` ile **gerçek kos.sh'i** koşturur. `kos.sh` değiştirilmedi; operatör anketinin `sleep 300`'ü **kısaltılmadı** — mühürsüz `CEVAP` tam 330 sn boyunca döngüyü kımıldatmadı, `ONAY` kımıldattı.
+
+### B6 KAPANMADI
+
+**B6.4 (tekrar freni / DENEMELER'den hipotez eleme) koşulmadı.** Gerçek değerlendiren modelinin kararlarını gerektirir; sahte `claude` ile "kanıtlamak" tam olarak rabadon'un reddettiği şey olurdu. Döngünün kendi seyrinde 3 aynı-kırmızı tur birikince kanıtlanmalı. R7'ye bu yüzden başlamadım.
+
+### Sorulmadı ama önemli — döküm
+
+- **Canlı sürücü iki düzeltmenin de öncesinde başladı.** Şu an dönen process hem ölü watchdog'a hem eksik sürüm sabitlemeye sahip. Yürürlüğe girmesi için sürücü yeniden başlatılmalı (`tmux kill-session -t rabadon` → `tmux new -d -s rabadon scripts/kos.sh`). Yapan oturum kendi sürücüsünü öldürmez; bu karar dışarıdan gelmeli.
+- **Tur 1'in B6.2'sini ben doğrulayamam** — `1.karar`/GUNLUK/`son.talimat` ben bittikten sonra yazılır. Tur 2'nin yapanı bunu doğrulamalı.
+- İlk koşulardaki 3 FAIL'in üçü de **harness'ın kendi assert hatası**ydı (geniş `pgrep -f`; bare depoda `git log` HEAD=`refs/heads/main`'e bakıyor; `son.talimat` kontrolü sıra hatası). Üçü düzeltilip temiz koşu yapıldı — prose ile geçiştirilmedi.
+- `$i.out.raw`/`.raw.err` marker'dan sonra yaratıldığı için ilk çevrim "aktivite" sayılıyor, stall 60 sn geç başlıyor. Yaşatma yönünde yanılıyor, zararsız — **ölçülmedi**.
+- **R7 (sıradaki iş, tarandı):** `reports/R7/` altında **yalnız accept.sh var** (8 GOAL). Ham veri yok, DENEMELER yok. **Daemon yok** — `native/gate.cpp` AF_UNIX *istemci* tarafı + `RABADON_GATED_SOCK` fallback'i içeriyor, `core/bus.mjs` ayrı bir watch soketi işletiyor; `rabadon-gated` binary'si/kaynağı yok. A1'in soket-yolu kuralının `RABADON_GATED_SOCK` varsayılanına uyup uymadığı **DOĞRULANMADI**.
+- Rabadon kapısı **bağlanmadı** (B1.5). Bu oturum hiçbir hook/settings dosyasına dokunmadı.
+## Tur 1 — B6 smoke (A4'ün ilk açık işi)
+
+**Kabul: `scripts/kos-smoke.sh` → 19 assert, 19 PASS, 0 FAIL, rc=0.** Ham çıktı `reports/kosu/SMOKE.out`, rapor `reports/kosu/SMOKE.md`, teşhis hafızası `reports/kosu/DENEMELER.md`. Commit `29bed73`, push OK.
+
+### İki gerçek hata bulundu ve düzeltildi
+
+**1. Watchdog macOS'ta ÖLÜYDÜ.** macOS/BSD `find`'da `-cnewer REF` **referansın kendisini de eşleştirir** (GNU find etmez). Nabız markeri prune edilmediği için `chg` her turda doluydu → `stall` hiç artmadı → **STALL KILL hiç ateşlenmedi**. Ölçüm:
+
+```
+$ touch ./.mark; sleep 1; find . -type f -cnewer ./.mark -print
+./.mark
+```
+
+Kanıt ikinci koldan da geldi: ilk koşuda sahte asılı çocuk **PPID=1 yetim** olarak hayatta kaldı. Yani "yetim claude gece boyu para yakamaz" zırhı fiilen yoktu. Düzeltme: `-name '.kosu-nabiz.*' -prune`, hem `scripts/kos.sh`'e hem KOSU-RABADON-2.md §B2'ye (doc == script `diff` ile doğrulandı). Regresyon testi B6.0 olarak harness'a kondu.
+
+**2. Sürüm sabitleme yoktu ama var deniyordu.** ONKONTROL.md satır 14 "kos.sh `export DISABLE_AUTOUPDATER=1` ile başlıyor" diyordu; script'te, doc'ta ve sürücünün ortamında **yoktu**. Eklendi, ONKONTROL.md düzeltildi.
+
+### Neden ayrı harness?
+
+B6.3 ve B6.5 **sürücünün** davranışı; yapan oturum sürücünün çocuğu olduğu için kendi ebeveyninin watchdog'unu test edemez. Harness /tmp'de tek kullanımlık git deposu + sahte `claude` ile **gerçek kos.sh'i** koşturur. `kos.sh` değiştirilmedi; operatör anketinin `sleep 300`'ü **kısaltılmadı** — mühürsüz `CEVAP` tam 330 sn boyunca döngüyü kımıldatmadı, `ONAY` kımıldattı.
+
+### B6 KAPANMADI
+
+**B6.4 (tekrar freni / DENEMELER'den hipotez eleme) koşulmadı.** Gerçek değerlendiren modelinin kararlarını gerektirir; sahte `claude` ile "kanıtlamak" tam olarak rabadon'un reddettiği şey olurdu. Döngünün kendi seyrinde 3 aynı-kırmızı tur birikince kanıtlanmalı. R7'ye bu yüzden başlamadım.
+
+### Sorulmadı ama önemli — döküm
+
+- **Canlı sürücü iki düzeltmenin de öncesinde başladı.** Şu an dönen process hem ölü watchdog'a hem eksik sürüm sabitlemeye sahip. Yürürlüğe girmesi için sürücü yeniden başlatılmalı (`tmux kill-session -t rabadon` → `tmux new -d -s rabadon scripts/kos.sh`). Yapan oturum kendi sürücüsünü öldürmez; bu karar dışarıdan gelmeli.
+- **Tur 1'in B6.2'sini ben doğrulayamam** — `1.karar`/GUNLUK/`son.talimat` ben bittikten sonra yazılır. Tur 2'nin yapanı bunu doğrulamalı.
+- İlk koşulardaki 3 FAIL'in üçü de **harness'ın kendi assert hatası**ydı (geniş `pgrep -f`; bare depoda `git log` HEAD=`refs/heads/main`'e bakıyor; `son.talimat` kontrolü sıra hatası). Üçü düzeltilip temiz koşu yapıldı — prose ile geçiştirilmedi.
+- `$i.out.raw`/`.raw.err` marker'dan sonra yaratıldığı için ilk çevrim "aktivite" sayılıyor, stall 60 sn geç başlıyor. Yaşatma yönünde yanılıyor, zararsız — **ölçülmedi**.
+- **R7 (sıradaki iş, tarandı):** `reports/R7/` altında **yalnız accept.sh var** (8 GOAL). Ham veri yok, DENEMELER yok. **Daemon yok** — `native/gate.cpp` AF_UNIX *istemci* tarafı + `RABADON_GATED_SOCK` fallback'i içeriyor, `core/bus.mjs` ayrı bir watch soketi işletiyor; `rabadon-gated` binary'si/kaynağı yok. A1'in soket-yolu kuralının `RABADON_GATED_SOCK` varsayılanına uyup uymadığı **DOĞRULANMADI**.
+- Rabadon kapısı **bağlanmadı** (B1.5). Bu oturum hiçbir hook/settings dosyasına dokunmadı.
