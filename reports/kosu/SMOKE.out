@@ -1,0 +1,34 @@
+
+== B6.0 watchdog nabzi (tasinabilirlik regresyonu)
+PASS  nabiz ifadesi marker'in kendisini eslestirmiyor
+PASS  gercek dosya aktivitesi HALA gorunuyor (yasatma yonu korundu)
+
+== surucu baslatiliyor (STALL_TIMEOUT=60, sahte claude PATH'te)
+
+== B6.5 watchdog: asili yapan 60 sn'de kesilmeli
+PASS  1.out uretildi (asili oturum kesildi)
+PASS  STALL KILL notu .out'a dustu
+PASS  asili cocuk gomuldu (pid 74947, yetim yok)
+
+== B6.2 tam cevrim: raw -> out -> karar -> GUNLUK -> son.talimat
+PASS  1.karar yazildi
+PASS  GUNLUK.tsv 1 nolu satiri aldi
+PASS  son.talimat dustu
+PASS  tur commit'lendi
+PASS  pusla() remote'a bastirdi (refs/heads/kosu2)
+PASS  PUSH-HATA.log bos
+PASS  degerlendirene tam paket gitti
+
+== B6.3 operator yolu: soru dusmeli, CEVAP tek basina KIMILDATMAMALI, ONAY kimildatmali
+PASS  OPERATOR.md'ye soru dustu
+PASS  dongu bekliyor (2.operator.md henuz yok)
+   ... muhursuz CEVAP yazildi; 330 sn (bir tam anket cevrimi) izleniyor
+PASS  ONAY'siz CEVAP donguyu KIMILDATMADI (330 sn)
+   ... ONAY muhru vuruldu; hareket bekleniyor
+PASS  ONAY sonrasi OPERATOR.md arsivlendi (2.operator.md)
+PASS  son.talimat CEVAP'i uygulamaya yonlendirdi
+PASS  dongu bir sonraki tura gecti (3.out)
+PASS  tur 3 yapani talimati GERCEKTEN aldi
+
+== SONUC: 19 gecti, 0 kaldi   (kum havuzu: /tmp/kosu-smoke-run)
+RC=0

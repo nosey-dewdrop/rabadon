@@ -178,6 +178,10 @@ cd "$(git rev-parse --show-toplevel)"
 mkdir -p reports/kosu
 export GIT_TERMINAL_PROMPT=0 CI=1 npm_config_yes=true DEBIAN_FRONTEND=noninteractive GIT_PAGER=cat
 export PYTHONIOENCODING=utf-8 PYTHONUTF8=1   # C/POSIX locale ASCII cokusune karsi parser zirhi
+# SURUM SABITLEME (C.0 sarti): kosu ortasinda CLI guncellenirse flag/format
+# degisir ve dongu sessizce YANLIS kosar. Global settings.json'a YAZILMAZ —
+# operatorun diger oturumlarini etkilememesi icin yalniz bu ortama export.
+export DISABLE_AUTOUPDATER=1
 # TASINABILIRLIK: macOS'ta `timeout` YOKTUR (BSD userland). Shim olmadan her
 # `timeout ...` cagrisi "command not found" ile 127 doner — degerlendiren HIC
 # kosmaz, pusla her turda "basarisiz" saniir. gtimeout = GNU timeout (coreutils).
@@ -253,7 +257,11 @@ yapan_kos() {
     # -print -quit ilk eslesmede cikar: tam tarama yalniz aktivite yokken olur. timeout 10:
     # find asilirsa "aktivite VAR" sayilir — watchdog'un kendisi sistemi asamaz, oldurme yonunde degil
     # yasatma yonunde yanilir.
-    chg="$(timeout 10 find . -path ./.git -prune -o -name node_modules -prune -o -type f -cnewer "$mark" -print -quit 2>/dev/null)"
+    # NABIZ MARKERI PRUNE EDILIR — yoksa watchdog OLU. BSD/macOS find'da
+    # `-cnewer REF` REFERANSIN KENDISINI de eslestirir (GNU find etmez), yani
+    # chg her turda marker'i bulur, aktivite hep "var" sanilir ve STALL KILL
+    # HIC atesle mez. Olculdu 24.08: `touch .mark; find . -cnewer ./.mark` -> ./.mark
+    chg="$(timeout 10 find . -path ./.git -prune -o -name node_modules -prune -o -name '.kosu-nabiz.*' -prune -o -type f -cnewer "$mark" -print -quit 2>/dev/null)"
     [ $? -eq 124 ] && chg="find-zamanasimi-aktivite-sayilir"
     if [ "$size" -gt "$last" ] || [ -n "$chg" ]; then last=$size; stall=0; touch "$mark"
     else stall=$((stall+60)); fi

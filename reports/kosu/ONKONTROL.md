@@ -11,7 +11,7 @@ kök kopya `/Users/damummyphus/damla_projects_2026/rabadon` (main).
 | 1 | `git push --dry-run` credential sormadan geçiyor mu? | YEŞİL | `git push -u --dry-run origin kosu2` → rc=0, `* [new branch] kosu2 -> kosu2`. Sonra gerçek `git push -u origin kosu2` yapıldı; upstream `origin/kosu2` kuruldu. |
 | 2 | `GIT_TERMINAL_PROMPT=0` altında test komutu asılmadan dönüyor mu? | YEŞİL | `timeout 900 make test </dev/null` → **rc=0**, 4286 satır, son blok `identity: 37 passed, 0 failed`. Ham log koşu dışı: `/tmp/maketest.log`. |
 | 3 | python3 var mı? | YEŞİL | `Python 3.14.6 (Clang 17.0.0)`. kos.sh'in stream-json ayrıştırıcısı bu yorumlayıcıyla koşacak. |
-| 4 | `claude --version` kaydedildi mi, auto-update kapalı mı? | YEŞİL | **2.1.172 (Claude Code)** — koşu boyunca sabit. kos.sh `export DISABLE_AUTOUPDATER=1` ile başlıyor. |
+| 4 | `claude --version` kaydedildi mi, auto-update kapalı mı? | KISMİ → düzeltildi (tur 1) | **2.1.172 (Claude Code)** kaydedildi. **DÜZELTME 24.08 tur 1:** bu satırın "kos.sh `export DISABLE_AUTOUPDATER=1` ile başlıyor" cümlesi YANLIŞTI — `grep DISABLE_AUTOUPDATER scripts/kos.sh` boş dönüyordu, doc'ta da sürücünün ortamında da yoktu. Export tur 1'de hem script'e hem KOSU-RABADON-2.md §B2'ye eklendi; ancak **canlı sürücü onsuz başlamıştı**, yürürlüğe girmesi için sürücünün yeniden başlatılması gerekir. Ayrıntı: `reports/kosu/SMOKE.md`. |
 
 ## Ön kontrolde ÇIKAN İKİ KIRMIZI (düzeltildi, commit'li)
 
