@@ -1177,14 +1177,65 @@ düştüler — cap 50 olsaydı astroid "temiz" görünürdü. Ölçüm cap seç
     column -t -s$'\t' reports/R7/ab_prever.tsv
     cat reports/R7/p2p_excluded/*.txt
 
+## deneme 22 — 2026-08-24 (tur 16, yapan) — B KOLU YANLIŞ İKİLİYİ BAĞLIYOR: ölçülen rabadon, LEGACY JS kapısı
+
+**DENENEN.** PARKED'in "B kolu ajana hiç konuşmuyor olabilir, ÖLÇÜLMEDİ"
+maddesini teşhis etmek. Hiçbir ajan koşulmadı, para harcanmadı.
+
+**SONUÇ — şüphe doğru, ve iki bağımsız sebebi var.** Tam kanıt:
+`reports/R7/TESHIS-B-KOLU.md`.
+
+1. **Yanlış ikili.** `ab_run.sh:25` `hooks/gate.mjs`'yi bağlıyor. Birikim motoru
+   orada YOK: SIGNAL (gate.cpp:3166,3196), `queue_injection`, INJECT (4724) ve
+   ajanla konuşan satır `additionalContext` (4707) — dördü de **yalnız
+   `native/gate.cpp`'de**. `gate.mjs`'de `additionalContext` **0 eşleşme**.
+   Dahası `hooks/install.mjs:111` `gate.mjs`'yi kendi yorumunda
+   *"legacy JS gate path — still recognized (and replaced)"* diye tanımlıyor:
+   gerçek kurulum onu bulduğunda SİLİP native ile değiştiriyor.
+2. **Yanlış olay kümesi.** `bagla_hook` yalnız `PreToolUse` yazıyor. Native
+   bağlansaydı bile zincir kopuktu: PostToolUse → SIGNAL → queue_injection →
+   (sonraki) PreToolUse → INJECT. İlk halka kayıtlı değil. COUNTER `SessionEnd`/
+   `Stop`'ta (4001,4015), RUN_DONE `Stop`'ta (4093). Gerçek `rabadon init` beş
+   olay bağlıyor (install.mjs:169-175); B kolu **birini, yanlış ikiliyle** bağladı.
+
+**ÖLÇÜM.** Spool'daki A/B pipe satırları yazana göre ayrıldı (`run:"ng-…"` +
+`sess`/`call` = native; `run:"mt7b…"` = node). **`gate.mjs` 51 satır yazdı,
+51'i de STEP_START** — sıfır SIGNAL/INJECT/COUNTER/RUN_DONE/STEP_OK.
+Veri kümesindeki tek SIGNAL+INJECT, autograd__B'de 14:08–14:10, `ng-` run'lı,
+yani **tur 14'ün GEÇERSİZ ilan edilmiş penceresinde native gate'in** yazdığı
+satırlar. Enjeksiyon hiçbir geçerli B koşusunda gerçekleşmedi.
+
+**ELENEN HİPOTEZ — `timeout 2` kapıyı öldürüyor.** Hayır: temiz kum havuzunda
+5 koşu, `real 0,14 s` (bir kez 0,34), hepsi rc=0 ve hepsi ledger'a yazdı.
+**İKİNCİ ELENEN — "susturma kaldırıldı, sorun bitti" (tur 14, madde 2).**
+Hayır: `gate.mjs` PreToolUse/PostToolUse/Stop/SessionEnd'in **hiçbirinde tek
+bayt stdout üretmiyor** (ölçüldü). Susturma kalktı, konuşacak şey yoktu.
+
+**NE GEÇERSİZ OLDU.** 7a bu tur YEŞİL geçti (token A 35 620 / B 33 221) ve
+**o yeşil delil değildir** — enjeksiyon kolun içinde hiç olmadı. 6b/6c/6e de
+okunamaz. 6d yapısal sıfır (`gate.mjs` `wouldRefuse` yazmıyor). `ab_run.sh`'in
+bağlama kabulü (`ledyeni > 0`) bunu yakalayamadı: STEP_START o şartı karşılıyor,
+ve kabul kapının **konuştuğunu** hiç sormuyor.
+
+**KANIT KOMUTLARI.**
+
+    bash reports/R7/accept.sh                       # 23 yeşil, 3 kırmızı
+    cat reports/R7/TESHIS-B-KOLU.md
+    grep -c additionalContext hooks/gate.mjs        # 0
+    grep -n 'legacy JS gate path' hooks/install.mjs # 111
+
 ## PARKED
 
-- `gate.cpp` PreToolUse'ta INJECT/SIGNAL üretiyor (4697-4707) ama GEÇERLİ
-  koşunun B örneklerinde bu olaylardan HİÇBİRİ yok — yalnız STEP_START. Yani
-  ölçülen B kolu, ajana hiç konuşmayan bir rabadon olabilir. Bu doğruysa iki
-  kollu koşunun token karşılaştırması bugüne kadar "kaydeden ama müdahale
-  etmeyen" bir kapıyı ölçtü ve 2-2 bölünme bunun beklenen sonucudur.
-  ÖLÇÜLMEDİ, ayrı bir tur işi.
+- ÇÖZÜLDÜ → deneme 22. (Eski madde: "gate.cpp PreToolUse'ta INJECT/SIGNAL
+  üretiyor (4697-4707) ama geçerli B örneklerinde yalnız STEP_START var;
+  ölçülen B kolu ajana hiç konuşmayan bir rabadon olabilir. ÖLÇÜLMEDİ.")
+  Teşhis edildi, sebebi bulundu, düzeltme **UYGULANMADI** — `ab_run.sh`'i
+  native gate'e ve beş olaya çevirmek + bağlama kabulünü sertleştirmek
+  ayrı bir tur işi, ve o düzeltmeden önce iki kollu koşu TEKRAR KOŞULMAMALI.
+- `accept.sh` 2b/2c bu makinede güvenilir ölçülemiyor: ölçüm anında
+  `load average 6,24`, Chrome GPU %522, `surface-pattern` %91,7. 2b 1385,2 µs
+  → 2443,8 µs "geriledi" ama iki sayı aynı koşulda alınmadı; fark regresyon
+  delili DEĞİL. Yük temizlenmeden alınacak her latans sayısı gürültü.
 - Makinede `AppleSpell` 3s 39dk boyunca %111 CPU yakıyor (rabadon'un yetim
   süreci DEĞİL, `pgrep pytest|pip` = 0). Latans ölçen her tur bunu önce
   temizlemeli; bu turun ölçümleri geç/kal tipi olduğu için etkilenmedi.

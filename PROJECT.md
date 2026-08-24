@@ -287,6 +287,70 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-08-24 (koşu tur 16) — arm B was never rabadon: it binds the LEGACY JS gate, on one event
+
+START: the PARKED item from `reports/R7/DENEMELER.md` — "arm B may be a rabadon
+that never speaks to the agent; NOT MEASURED". One step: diagnose it. Proof
+command: `bash reports/R7/accept.sh` plus the spool census in
+`reports/R7/TESHIS-B-KOLU.md`. No agent was run; no money spent.
+
+DONE — **measured, and the suspicion is confirmed and worse than written.**
+Full evidence in `reports/R7/TESHIS-B-KOLU.md`. Two independent causes, either
+one sufficient. (1) `ab_run.sh:25` binds `hooks/gate.mjs`. The accumulation
+engine is not in it: SIGNAL (gate.cpp:3166,3196), `queue_injection`, INJECT
+(4724) and the line that actually speaks to the agent, `additionalContext`
+(4707), exist **only** in `native/gate.cpp`; `gate.mjs` has **zero** matches for
+`additionalContext`. `hooks/install.mjs:111` calls `gate.mjs` the *"legacy JS
+gate path — still recognized (and replaced)"*: the real install deletes it and
+substitutes the native binary. (2) `bagla_hook` registers only `PreToolUse`,
+so even the native gate would emit nothing — the chain is PostToolUse → SIGNAL
+→ queue_injection → next PreToolUse → INJECT, and the first link is not
+registered; COUNTER is on SessionEnd/Stop (4001,4015), RUN_DONE on Stop (4093).
+A real `rabadon init` binds five events (install.mjs:169-175).
+Census of the spool, split by writer (`run:"ng-…"`+`sess`/`call` = native,
+`run:"mt7b…"` = node): **gate.mjs wrote 51 lines and all 51 are STEP_START** —
+zero SIGNAL/INJECT/COUNTER/RUN_DONE/STEP_OK. The dataset's only SIGNAL+INJECT
+is on autograd__B at 14:08–14:10 with an `ng-` run id: the native gate, inside
+turn 14's **already-invalidated** window. Injection never happened in a valid
+arm-B run. Two hypotheses were eliminated by measurement: `timeout 2` does not
+kill the hook (5 clean-sandbox runs, 0.14 s, rc=0, all wrote), and turn 14's
+"arm B was muted, fixed" is too generous — `gate.mjs` emits **zero bytes of
+stdout on PreToolUse, PostToolUse, Stop and SessionEnd alike**. Unmuting
+restored the ledger, not the voice.
+
+DONE — **acceptance re-run: 23 green, 3 red** (`bash reports/R7/accept.sh`,
+`reports/R7/accept.out`). The diagnosis explains **two of the three reds**:
+6e (`estimated_saved`) twice over — COUNTER never fires in arm B, and even if
+it did, `saved_usd` multiplies by `chains_cut`, counted only from INJECT/STOP
+(gate.cpp:2027, counter.h:23), which is 0 — and 7b, which hangs off 6e. It does
+**not** explain 2b (daemon latency), a separate open front.
+
+DONE — **a green that must not be reported as one.** 7a passed this run
+("arm B improves on net tokens", A 35 620 / B 33 221). Per the above, the
+injection was never in the arm, so 7a is not a verdict on the thesis. 6b/6c/6e
+are unreadable for the same reason and 6d is a structural zero (`gate.mjs`
+never writes `wouldRefuse`). `ab_run.sh`'s own binding acceptance
+(`ledger_new_lines > 0`) passed an empty gate: STEP_START satisfies it, and it
+never asks whether the gate SPOKE.
+
+NOT VERIFIED — whether a correctly bound native gate actually produces INJECT
+in this harness is **not** established: the only instance of it is 1 SIGNAL +
+1 INJECT in one invalidated run out of 4 instances, so the injection rate may
+be low even after the fix. Whether the injected text reached the agent's
+transcript was not checked in `*.stream.jsonl`. `orkestra/src/tick.py` is bound
+to the same five global events and its effect on turn 14 was not examined.
+2b/2c were measured on a **loaded** box (load avg 6.24, Chrome GPU 522 % CPU,
+another project's `surface-pattern` at 91.7 %): 2b read 2443.8 µs against
+1385.2 µs previously, and those two numbers are **not comparable** — the gap is
+not evidence of a regression, though red is correct in both readings. Nothing
+was measured in a clean container. **No fix was applied** this session.
+
+NEXT: fix `ab_run.sh` before any further paid run — point `GATE` at
+`native/rabadon-gate`, bind the five events from `hooks/install.mjs:169-175`
+(preferably by calling install.mjs rather than hand-copying it, since the
+hand-copy is exactly what drifted), and harden arm B's binding acceptance to
+require a SIGNAL/INJECT/COUNTER rather than any ledger line.
+
 ### 2026-08-24 (koşu tur 14) — R7's two-armed run runs; the control arm was never clean, and now it is
 
 START: operator's turn-12 CEVAP (fourth path: the agent IS `claude -p`), then

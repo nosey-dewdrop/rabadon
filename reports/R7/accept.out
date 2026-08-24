@@ -6,14 +6,14 @@ PASS  1c a thin client path referencing the daemon socket exists (native/gated_c
 
 == GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
 PASS  2a the daemon started and its socket is listening
-./reports/R7/accept.sh: line 247: 51144 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
-      in-process median with the daemon up: 1385.2 us over 300 samples
+reports/R7/accept.sh: line 247: 21560 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+      in-process median with the daemon up: 2443.8 us over 300 samples
       ceiling = 1000 us (KOSU-RABADON R7); instrument = R1.3 in-process probe
-FAIL  2b the gate's median is 1385.2 us with the daemon up, ceiling is 1000 us
-      50-event session: 1345.8 us   400-event session: 1423.7 us   divergence 5.78%
+FAIL  2b the gate's median is 2443.8 us with the daemon up, ceiling is 1000 us
+      50-event session: 2673.3 us   400-event session: 2866.3 us   divergence 7.22%
       R1.3 closed this at 3.5-4.9% WITH process spawn in the denominator
-./reports/R7/accept.sh: line 247: 51234 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
-PASS  2c the residual length dependence is re-measured (5.78%) and written to reports/R7/LENGTH.md
+reports/R7/accept.sh: line 247: 21728 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
+PASS  2c the residual length dependence is re-measured (7.22%) and written to reports/R7/LENGTH.md
 
 == GOAL 3 — with the daemon down, behaviour is byte-identical to today
 PASS  3-[echo hello world] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
@@ -24,23 +24,23 @@ PASS  3-[git commit --no-verify -m x] chain INTACT in both arms; exit code, ledg
 PASS  4a reports/R7/ exists
 PASS  4b the harness is named by full repo: SWE-bench/SWE-smith
 PASS  4c the harness commit hash is pinned (40 hex)
-FAIL  4d the .git-cleaning / egress-closing preparation is not recorded (with its best-effort label)
+PASS  4d the Cursor preparation is recorded: .git cleaned, egress closed, labelled best-effort
 
 == GOAL 5 — the raw run lands here, and can be re-run
-FAIL  5a no non-empty *.jsonl under reports/R7/ — a summary is not the evidence
-FAIL  5b no JSONL to check for two arms
-FAIL  5c bench/reproduce.sh exists but says nothing about R7's two-armed run
+PASS  5a raw JSONL is under reports/R7/ and is not empty (ab_run.jsonl)
+      records: 8   distinct tasks — arm A: 4, arm B: 4
+PASS  5b both arms are present per-task in the raw records (A:4 tasks, B:4 tasks)
+PASS  5c bench/reproduce.sh re-runs the two-armed run
 
 == GOAL 6 — the five numbers, each of them, from the raw data
-FAIL  6a no held-out fix rate in the raw data (field 'heldout_pass' per task, both arms)
-      the agent's own test does not count — that is the metric it is optimising
-FAIL  6b token totals are missing from the raw data
-FAIL  6c human intervention counts are missing from the raw data
-FAIL  6d false positive rates are missing from the raw data
+PASS  6a real fix rate from a HELD-OUT test: A 75.0000% / B 75.0000% (4.0000+4.0000 judged)
+PASS  6b tokens spent: A 35620.0000 / B 33221.0000
+PASS  6c human interventions: A 0.0000 / B 0.0000
+PASS  6d false positive rate: A 0.0000% / B 0.0000%
 FAIL  6e counter validation impossible: no 'estimated_saved' total on arm B, or no token totals
 
 == GOAL 7 — the falsification conditions are checkable, and checked
-FAIL  7a falsification 1 is UNCHECKABLE — the numbers it needs are not in the data
+PASS  7a falsification 1 evaluated: arm B improves on fix rate or net tokens — the injection thesis stands
 FAIL  7b falsification 2 is UNCHECKABLE — no deviation could be computed
 
 == GOAL 8 — nothing already standing fell over
@@ -48,5 +48,5 @@ PASS  8a native/moves_test.sh 21/0
 PASS  8b native/signals_test.sh 39/0
 PASS  8c reports/R2/accept.sh 19 green, 0 red
 
-== R7 acceptance: 14 green, 12 red
+== R7 acceptance: 23 green, 3 red
 R7 NOT ACCEPTED
