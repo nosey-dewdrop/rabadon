@@ -598,3 +598,77 @@ Tur 10'la aynı: 14 yeşil / 12 kırmızı, ham çıktı `reports/R7/accept.out`
   KOSU-RABADON-2.md'ye temiz uyup uymadığı denenmedi.
 - Bu turda iki kollu koşu denenmedi; on kırmızı accept.sh okunarak teşhis
   edildi, veri üretilip yeşile döndükleri görülerek değil.
+
+## deneme 12 — 2026-08-24 (tur 12, yapan) — iki kollu koşu DENENDİ, dört blokerde durdu; JSONL UYDURULMADI
+
+**DENENEN.** Tur 11'in "sıradaki iş" satırı: on kırmızının tek artefaktı, iki
+kollu JSONL. Önce `accept.sh:387-521` okundu ve üretilecek şemanın tamamı
+çıkarıldı; sonra SWE-smith v0.0.6 (HARNESS.md'nin sabitlediği sürüm) gerçekten
+kurulmaya çalışıldı. Tam teşhis + komut/çıktı: `reports/R7/TESHIS-HARNESS.md`.
+
+**ŞEMA ÇIKARILDI (yapılacak işin hedefi, artık yazılı).** `ls "$RD"/*.jsonl`
+(`accept.sh:388`) — yani `reports/R7/` altında **herhangi bir** `*.jsonl`, adı
+serbest, boş olmayacak. Satır başına bir kayıt; zorunlu alanlar: `arm` ("A"/"B",
+büyük-küçük fark etmez), görev anahtarı `task` | `task_id` | `instance_id`
+(üçünden biri), `heldout_pass` (bool), `tokens` (sayı), `interventions` (sayı),
+`false_positive` (bool), ve YALNIZ B kolunda `estimated_saved` (sayı). Eşik:
+her iki kolda **en az 2 ayrı görev** (`accept.sh:408`). Yani "birer instance"
+yetmez — 5b iki kolda da ≥2 görev istiyor.
+
+**SONUÇ — dört bloker, dördü de ölçüldü, hiçbiri ağ dalgalanması değil.**
+
+1. `pip install swesmith==0.0.6` çöküyor: `sglang` → `flashinfer_python` →
+   `apache-tvm-ffi==0.1.0b15`, PyPI'de o sürüm YOK (0.1.0…0.1.13.post3 var).
+2. Taban imaj yalnız amd64: `jyangballin/swesmith.x86_64:latest` →
+   `arches:['amd64']`; `swesmith.arm64` ve `.arm64.v8` → **404**. Makine arm64,
+   ve `profiles/base.py:64-65` arm64'te `linux/arm64/v8` seçiyor — yayınlanmamış
+   platform.
+3. `docker info` → daemon ayakta değil.
+4. **En büyüğü, ve kurulumla ilgisi yok:** `harness/eval.py:2` — *"Given
+   predictions by SWE-agent, evaluate its performance"*. swesmith AJAN
+   KOŞTURMAZ, hazır yamayı puanlar. A/B kolları ayrı bir ajan (SWE-agent) +
+   ücretli LLM anahtarı ister; ortamda anahtar yok ve para harcamak operatör
+   kararıdır.
+
+**ELENEN HİPOTEZ.**
+- **"HARNESS.md'nin sabitlediği swesmith v0.0.6 iki kollu koşuyu tek başına
+  üretir" — ELENDİ.** Paket bir *değerlendirici*; üreten taraf (ajan) HARNESS.md'de
+  hiç seçilmemiş. Tur 4'ün seçimi eksik: repo+commit sabitlendi, ajan sabitlenmedi.
+  HARNESS.md bu turda DÜZELTİLMEDİ (belge kendi başına düzeltilmez, §"If
+  PROJECT.md itself is wrong"); eksiklik burada kayıtlı.
+- **"Bloker CHALLENGE-3'tü" (tur 10'un iddiası) — tur 11 elemişti, bu tur
+  bağımsız doğruladı:** koşu denendiğinde duvara çarpılan yer bağımlılık/ajan/
+  mimari, soket yolu değil.
+
+**YAPILMAYAN, BİLEREK.** Sahte JSONL yazılmadı; `bench/reproduce.sh`'e R7 cümlesi
+(5c) eklenmedi; 4d hazırlık kaydı yazılmadı. Üçü de var olmayan bir koşuyu
+yeşile çevirirdi — accept.sh başlığındaki "NO ASSERTION MAY PASS VACUOUSLY" ve
+CLAUDE.md non-negotiable 3. On kırmızı kırmızı kaldı.
+
+**KABUL BETİĞİ (mühürlü, değiştirilmedi).**
+```
+$ ./reports/R7/accept.sh
+== R7 acceptance: 14 green, 12 red
+R7 NOT ACCEPTED
+```
+Tur 10 ve 11 ile aynı sayı: **14 yeşil / 12 kırmızı** (ham çıktı
+`reports/R7/accept.out`). `make test` rc=0 (son suite: identity 37/0) — zemin
+bozulmadı. 2b bugün 1240.8 µs (dizi: 1704.4 → 1583.2 → 2063.1 → 3150.1 →
+1235.3 → 1240.8), tavan 1000 µs, KIRMIZI.
+
+**OPERATÖRE GİDEN KARAR (yapan veremez).** İki kollu koşu üç onay istiyor:
+(i) hangi ajan (SWE-agent mı, başkası mı) — HARNESS.md'ye eklenmeli;
+(ii) LLM anahtarı + bütçe (A ve B iki tam ajan oturumu, ≥2 görev × 2 kol);
+(iii) amd64 zemin — emülasyonlu Docker mı, uzak x86_64 Linux mu. (iii) R7'nin
+"temiz container" şartıyla zaten örtüşüyor.
+
+**NOT VERIFIED.**
+- swesmith `--no-deps` ile kurulup İÇİ okundu; hiçbir swesmith komutu
+  KOŞULMADI. `eval.py`'ın gerçek davranışı okunarak biliniyor, çalıştırılarak
+  değil.
+- Docker daemon başlatılmadı; amd64 emülasyonun bu makinede çalışıp çalışmadığı
+  ÖLÇÜLMEDİ (imaj 404'ü emülasyondan bağımsız, ama emülasyon yolu denenmedi).
+- SWE-agent'ın kendi sürümü/bağımlılıkları hiç incelenmedi.
+- `sglang`'ı atlayıp elle bağımlılık seçmenin swesmith'i çalışır kılıp
+  kılmadığı denenmedi — eksik bağımlılıkla alınan sayı ölçüm sayılmaz.
+- Hiçbir şey temiz container'da koşulmadı; hepsi bu macOS arm64 makinesinde.
