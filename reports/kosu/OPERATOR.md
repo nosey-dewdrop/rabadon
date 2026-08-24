@@ -1,0 +1,20 @@
+
+OPERATÖR: R7'de CHALLENGE dosyası 3 yapısal sorun içeriyor; ikisi accept.sh'ı değiştirmeden geçilemez. Karar senden bekleniyor.
+
+**CHALLENGE özeti (`reports/R7/CHALLENGE.md`):**
+
+1. **GOAL 2a — hiçbir uygulama geçemez.** Şart daemon'ın exec'ten "kısa sürede" bind etmesini istiyor; ölçülen bind süresi 21.8–22.6 ms, hazırlık döngüsünde `sleep` yok (~0.1 ms bekliyor). ~220x fark; şarttaki "kısa süre" tanımsız ve geçilemez.
+
+2. **GOAL 3 — hiçbir uygulama geçemez.** `run3` aynı komut iki kez koşuluyor, ama temp-dir hash'i (`run`/`pipe`/zincir) kum havuzu kimliğini taşıdığı için A ≠ A' oluyor. Betiğin fail-SAME'i değil, temp-dir adlarının farklılığını ölçtüğü kanıtla gösterildi.
+
+3. **Mimari çelişki.** R7 hem "<1 ms süreç içi medyan" hem "uçtan uca cetvel YASAK" diyor. İkisi birlikte tutarsız: prob t0'ı istemci main()'ine koyduğunda daemon'ın sildiği maliyet (fork/exec) ölçümün dışına çıkıyor, eklediği maliyet (IPC+worker) tam içine giriyor — bu aletle hiçbir daemon <1 ms gösteremez.
+
+**Üç seçenek:**
+
+**(a) accept.sh düzeltilir:** 2a'ya hazırlık döngüsünde yeterli `sleep` eklenir; 3'te temp-dir hash'i sabitlenerek A=A' garantilenir; hız şartına ya bir probe yeniden tasarlanır ya cetvel kaldırılır. accept.sh izole commit'te, kendi gerekçesiyle değişir.
+
+**(b) Hız şartı kaldırılır:** Daemon varlık/doğruluk + fail-SAME GOAL'leri (1/3'ü yeşil, 4–7 kanalı) kalır; 1000 µs ve "kısa sürede bind" satırları silinir. Daemon'ın değeri hız değil, ölü-daemon=sessiz-izin'i engellemektir; bu zaten kanıtlandı.
+
+**(c) Daemon GOAL'leri accept.sh'tan çıkarılır, ayrı bir R7-daemon belgesine taşınır:** mevcut R7 kanıt koluna (4d–7) odaklanır; daemon bağımsız kabul edilir.
+
+Önerim **(b)**: hız iddiası mimari olarak ölçülemiyor (cetvel yasağı kendi sonucunu imkânsız kılıyor), daemon'ın gerçek değeri fail-SAME zaten gösterildi. Sayısal şartı çıkar, varlık+doğruluk+fail-SAME kal. CEVAP: satırlarını yaz, en sona tek başına ONAY yaz.

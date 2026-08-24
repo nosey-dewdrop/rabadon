@@ -2,3 +2,4 @@
 2	TEKRAR KONTROLÜ: GUNLUK'ta 1 tur, tekrar yok. DENEMELER'den durum: daemon sıfırdan yazılacak, R7'nin 9 kırmızısı daemon kolunda — 13'ü kanıt kolunda ve daemon'a bağımsız. A1'in öncelik sorusu sorulmadı, OPERATOR.md yok.
 3	TEKRAR KONTROLÜ: GUNLUK'ta 2 tur, tekrar yok. Yapan oturum kritik iki bulguyu tespit etti: (1) `OPERATÖR:` durağı kırık — evaluator kararının ilk satırına değil, herhangi bir satırına bakmalı; (2) A1 öncelik sorusu hâlâ operatöre ulaşmadı.
 4	OPERATÖR: Sistemde iki karar bekleniyor, ikisi de senden. Durum ve öneriler:
+6	OPERATÖR: R7'de CHALLENGE dosyası 3 yapısal sorun içeriyor; ikisi accept.sh'ı değiştirmeden geçilemez. Karar senden bekleniyor.
