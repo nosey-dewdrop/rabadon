@@ -278,3 +278,84 @@ kanıtını yok etmek olurdu.
   açık (Promise 1 ihlali). Bu turda da incelenmedi.
 - GOAL 4d ve 5-7 (kanıt kolu: iki kollu koşu, ham JSONL, beş sayı) hiç
   başlamadı — 12 kırmızının 11'i orada.
+
+### deneme 5 — devam (aynı oturum, tur 8): 2b AYRIŞTIRILDI ve suçlu daemon DEĞİL
+
+**DENENEN.** Operatörün "bu ayrıştırma gelmeden hız iddiası hakkında yeni karar
+verilmeyecek" dediği bileşen ayrıştırması. R1.3 süreç-içi probu, 6 tur × 300
+örnek = 1800 istek, 11 bitişik kova, artık **0.000 µs**. Yöntem ve komutlar
+`reports/R7/PROFIL-DAEMON.md`. native/ kaynağına DOKUNULMADI (prob /tmp'de).
+
+| kova | µs | pay |
+|---|---|---|
+| istemci, IPC öncesi | 6.5 | 0.4% |
+| IPC taşıma | 31.8 | 2.1% |
+| fork #1 (handler) | 160.6 | 10.4% |
+| fork #2 (worker) | 144.8 | 9.4% |
+| exit + reap | 121.3 | 7.9% |
+| **rb_gate_main() yargılama** | **1075.1** | **69.7%** |
+| TOPLAM | 1542.3 | 100% |
+
+**SONUÇ 1 — belgelenmiş şüpheli GERÇEK ama YETERLİ DEĞİL.** `gated.cpp:19-24`'ün
+"istek başına iki fork"u 305.4 µs (%19.8); zorladığı reap ile birlikte tüm
+daemon iskelesi 426.7 µs (%27.7). Ama karşı-olgu: **iki fork DA tüm IPC DE
+bedava olsa medyan 1144.5 µs** — tavan yine aşılıyor. Yargılama tek başına
+1133.9 µs. **1000 µs tavanı yargılama kaçırıyor, daemon değil.** Yani daemon
+üzerinde yapılacak hiçbir iş 2b'yi yeşile çeviremez. Bu turun asıl bulgusu bu.
+
+**SONUÇ 2 — ikinci negatif ölçüm.** Sıcak fork'lanmış worker 1075.1 µs,
+soğuk süreç 1067.4 µs → **+7.7 µs**. Yani `gated.cpp:11-17`'de yazılı COW/sıcak
+sayfa devralma argümanı `main()` içinde HİÇBİR ŞEY kazandırmıyor. Belgedeki o
+yorum artık ölçümle çelişiyor.
+
+**ELENEN HİPOTEZ.** "1704 µs'nin sebebi iki fork" — ELENDİ (gerçek ama %20;
+kaldırılsa bile kırmızı).
+
+**SONUÇ 3 — SAÇILIMIN SEBEBİ: ARKA PLAN YÜKÜ, talep üzerine üretildi.**
+loadavg 2.5 → ~1500 µs, 5.5 → ~1966/2095, 8.0 → 2652, eşzamanlı `c++ -O2` →
+3135 µs. Mühürlü üç sayı (1583/1704/2063) bu eğrinin üstünde oturuyor.
+ELENDİ: örnek sayısı (n=1000 güven aralığını yarıya indirdi, %6.5 saçılıma
+dokunmadı) ve interleave'in drift'i iptal etmemesi (mutlak sayı için zaten
+ilgisiz). Fork varyansı bağımsız sebep değil, YÜKSELTİCİ (çekişme altında
+×8.9). **ALET KUSURU:** `accept.sh`, 2b'yi ölçmeden hemen önce probu DERLİYOR —
+yani ölçtüğü yükün bir kısmını kendisi üretiyor.
+
+**BU TURDA CANLI DOĞRULAMA (dördüncü sayı).** gate.cpp düzeltmesinden sonra
+accept.sh yeniden koşuldu: **3150.1 µs** — şimdiye kadarki en yüksek sayı, ve
+tam da ağır `make all` + tam test suite koşularının ardından alındı. Yük
+teşhisini sahada doğruluyor. Dizi artık: 1704.4 → 1583.2 → 2063.1 → 3150.1.
+**VERDICT DEĞİŞMİYOR ve yumuşatılmıyor:** en sessiz tur, neredeyse boş makinede
+1477.1 µs, yani tavanın %48 üstünde. 2b KIRMIZI.
+
+**SONUÇ 4 — Promise 1 ihlali KAPANDI (üç turdur açıktı).** `gate.cpp:721`
+`open_sock()`. Kanıt, okumayla değil deneyle: kapasiteyi 4 bayt aşan bir
+`RABADON_DIR` ile, kesme noktasına bağlanmış bir dinleyiciye **168 bayt gerçek
+STEP_START olayı teslim edildi**, exit 0, stderr boş. strncpy hata vermiyor;
+hedeflenen yolun ÖNEKİ olan geçerli bir yol üretiyor ve gate oraya bağlanıyor.
+Dünyaya yazılabilir bir önekte bu, olay akışını ilk bağlanana veren bir kanal.
+Klasik strncpy bellek hatası DEĞİL (addr memset'li, sizeof-1 kullanılmış) —
+kusur SESSİZLİK. Kardeş çağrı yerleri (`gated.cpp:157`, `gated_client.h:98`)
+bu korumayı zaten taşıyordu; atlanan tek yer gate.cpp'ydi.
+Önce KIRMIZI test (`native/sock_path_test.sh`, 1 ok / 2 FAILED), sonra ayrı
+commit'te düzeltme (3 ok). Kaybedilen tek şey canlı watcher — o da zaten
+kaybediliyordu, sadece sessizce.
+
+**CHALLENGE-3 AÇILDI.** `KOSU-RABADON-2.md:67-68` "yol uzunluğu sınırı R7
+testinde assert edilir" diyor. **YALAN:** accept.sh'ta da başka hiçbir testte
+de böyle bir assert YOK (grep kanıtı CHALLENGE-3.md'de). Belge, kapsandığını
+söylediği bir riski kapsamıyordu. Belge DÜZELTİLMEDİ — önerilen diff
+CHALLENGE-3.md'de, insan onayı bekliyor. Bu madde KIRMIZI sayılır.
+
+**KALAN HİPOTEZLER (sıradaki iş).**
+- **2b için tek anlamlı soru artık şu: 1075 µs yargılamanın İÇİNDE nereye
+  gidiyor?** Tek kova olarak ölçüldü, ayrıştırılmadı. R1.3'ün ayrıştırması
+  farklı bir ağaç (süreç doğuşu dahil), doğrudan devredilemiyor.
+- Mimari sonuç, operatör kararı gerektiriyor: bu yargılama maliyetiyle <1 ms
+  tavanı bu mimaride ULAŞILAMAZ görünüyor. Karar YAPAN'ın değil.
+- 2c hâlâ güvenilmez (4.98 / 1.92 / 3.51%), yeterli örnekle yeniden ölçülmedi.
+- `cli_test.sh` 4 kırmızı (rabadon-gated npm paketlerinde çözümlenmiyor;
+  `--help`/`-h`/tanımsız bayrak 10 sn ASILIYOR) ve `promises_test.sh` 3 kırmızı
+  (Promise 3 ve 4). İkisi de bu turdan ÖNCE de kırmızıydı (fix stash'lenip
+  yeniden derlenerek doğrulandı) — yani bu turun eseri değil, ama AÇIK.
+  `rabadon-gated --help` asılması R8 yayınından önce kapanmalı.
+- GOAL 4d ve 5-7 (kanıt kolu) hâlâ hiç başlamadı — 12 kırmızının 11'i orada.
