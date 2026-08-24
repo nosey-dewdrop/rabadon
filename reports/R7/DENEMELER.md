@@ -748,3 +748,57 @@ Dördü de var olmayan bir koşuyu yeşile çevirirdi. GOAL 5/6/7 ve 4d KIRMIZI.
 başka oturumlar). Yük altında alınan latans sayısı geçersiz olurdu; tur 9'un
 kirlenmiş ölçümünün tekrarı olurdu. Yetim `while :` süreci ARANDI, YOKTU.
 2b KIRMIZI kalıyor, duran emir (PROFIL-YARGILAMA.md) geçerli.
+
+---
+
+## deneme 14 — 2026-08-24 (tur 14, yapan) — `estimated_saved` YOK: 6e/7b bir BİRİM ÇELİŞKİSİ üzerine kurulu
+
+**DENENEN.** Tur 13'ün tek NEXT'i: "`estimated_saved` alanını rabadon fiilen
+üretiyor mu?" Kaynak taraması + kapının kendisi çalıştırılarak ölçüldü.
+
+**SONUÇ — üretmiyor, ve mesele eksik alan değil, BİRİM.**
+
+1. `estimated_saved` adlı alan kaynak ağacının HİÇBİR yerinde yok.
+   `grep -rn estimated_saved native hooks bin index.mjs repair npm` → 0 satır.
+   Ad yalnız `reports/` altında geçiyor (accept.sh, ON-KAYIT, teşhis dosyaları).
+2. rabadon'un ürettiği tek tasarruf sayısı `saved_usd` — **USD cinsinden double**
+   (`native/counter.h:77`), formülü `median(uncut) * chains_cut * avg_call_usd`
+   (`counter.h:19`). Yüzeye `json_object` ile çıkıyor (`counter.h:259`).
+3. ÇALIŞTIRILDI, varsayılmadı:
+   `RABADON_DIR=$PWD/.rabadon ./native/rabadon-stats --days 30 --json`
+   → `"counter":{...,"saved_usd":null,"reason":"no-close","estimated":false,...}`
+   Çıktıda token cinsinden HİÇBİR tasarruf alanı yok.
+4. accept.sh 6e (satır 456-487) `estimated_saved` toplamını
+   `tok_A - tok_B` ile karşılaştırıyor — yani **TOKEN farkıyla**.
+   ON-KAYIT.md:113 alanı `int`, :140-141 "rabadon'un ledger'a yazdığı tasarruf
+   tahmini... 6e bunu iki kolun GERÇEK token farkıyla karşılaştırır" diyor.
+
+**ELENEN HİPOTEZ.** "6e/7b sadece koşu yapılmadığı için kırmızı" — YANLIŞ.
+Koşu kusursuz tamamlansa bile 6e kapanamaz: karşılaştırılan iki büyüklüğün
+BİRİMİ farklı. Dolar ile token karşılaştırılıyor. Bu bir ölçüm başarısızlığı
+değil, bir kategori hatası.
+
+**NEDEN SESSİZ GEÇİLEMEZ.** 7b'nin tetiklenmesinin ürün sonucu var: sapma >%50
+ise "dolar cümlesi README'den ve landing'den aynı gün kalkar". Dolar (ör. 6.80)
+ile token farkı (ör. 45 000) karşılaştırılırsa sapma HER ZAMAN ~%100 çıkar ve
+7b **birim hatası yüzünden** tetiklenir — gerçek bir ölçüm bulgusu yüzünden
+değil. Ürün seviyesinde bir geri çekilmeyi bir birim bug'ı ateşleyemez.
+
+**ZARARSIZ OLAN NE.** Bugünkü halinde 7b "UNCHECKABLE" diye düşüyor (sapma
+hesaplanamıyor), TETİKLENMİŞ diye değil. Yani `estimated_saved`'sız koşmak
+ürüne zarar VERMEZ; 6e/7b bugünküyle aynı dürüst kırmızıda kalır.
+
+**KALAN HİPOTEZLER (6e/7b için, operatör kararı gerektirir).**
+- (a) Harness-içi birim çevrimi: COUNTER olayı `tok_in/tok_cw/tok_cr/tok_out`,
+  `session_usd`, `calls`, `avg_call_usd` alanlarını YAZIYOR
+  (`counter.h:310-320`) — `saved_usd` token'a çevrilebilir. Dondurulmuş
+  ON-KAYIT'ı değiştirmez ama "rabadon'un YAZDIĞI sayı" tanımını gerer.
+- (b) 6e'yi dolar-dolar yapmak: `total_cost_usd` iki kolda da result olayında
+  var (tur 13 ölçtü). Daha doğru karşılaştırma ama accept.sh (mühür kümesi)
+  + dondurulmuş ON-KAYIT değişikliği ister → insan onayı.
+- (c) 6e/7b'yi bu turda kırmızı bırakmak ve koşuyu yine de yapmak.
+
+**KOŞUYU BLOKLAMIYOR.** GOAL 5, 6a-6d ve 7a `estimated_saved`'a hiç bakmıyor;
+10 JSONL kırmızısının 8'i bu alan olmadan kapanabilir. Bu yüzden tur 13'ün
+"üretmiyorsa operatöre git" emri, koşuyu DURDURMAK olarak değil, koşuya
+PARALEL bir soru olarak uygulandı.
