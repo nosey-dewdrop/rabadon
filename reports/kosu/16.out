@@ -1,0 +1,102 @@
+I'll start by reading the required files.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+Kabul betiği hâlâ koşuyor. Teşhis dosyasını yazıyorum.
+[tool: Write]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Edit]
+[tool: Bash]
+Şimdi DENEMELER.md'yi güncelliyorum.
+[tool: Bash]
+[tool: Read]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+**TEŞHİS — B kolu (10 satır özet)**
+
+```
+1. ŞÜPHE DOĞRU. gate.mjs 51 ledger satırı yazdı, 51'i de STEP_START.
+   Sıfır SIGNAL, sıfır INJECT, sıfır COUNTER, sıfır RUN_DONE, sıfır STEP_OK.
+2. SEBEP A (asıl): ab_run.sh:25 `hooks/gate.mjs` bağlıyor. Birikim motoru
+   orada YOK — SIGNAL/queue_injection/INJECT/additionalContext yalnız
+   native/gate.cpp'de. `grep -c additionalContext hooks/gate.mjs` = 0.
+   install.mjs:111 gate.mjs'yi "legacy JS gate — replaced when found" diyor.
+3. SEBEP B: bagla_hook yalnız PreToolUse yazıyor. Zincir kopuk:
+   PostToolUse→SIGNAL→queue_injection→PreToolUse→INJECT. İlk halka yok.
+   Gerçek `rabadon init` beş olay bağlıyor (install.mjs:169-175).
+4. TEK INJECT native gate'in, tur 14'ün GEÇERSİZ penceresinde (run:"ng-…").
+   Enjeksiyon hiçbir geçerli B koşusunda gerçekleşmedi.
+5. ELENDİ: `timeout 2` sebep değil (0,14 s, rc=0, yazdı). "Susturma kalktı,
+   sorun bitti" de yanlış — gate.mjs 4 olayın hiçbirinde stdout üretmiyor.
+```
+
+**Kabul betiği: 23 yeşil, 3 kırmızı** (`R7 NOT ACCEPTED`).
+- **6e** — teşhis açıklıyor, iki kat: COUNTER B'de hiç yanmıyor, ve yansa bile `saved_usd`'nin çarpanı `chains_cut` INJECT/STOP'tan sayılıyor → 0.
+- **7b** — 6e'ye asılı, aynı teşhis.
+- **2b** — açıklamıyor. Ayrı cephe (daemon latansı).
+
+**Sorulmadı ama önemli:**
+- **7a bu tur YEŞİL geçti ve o yeşil geçersiz.** "arm B token'da iyileşti" (A 35 620 / B 33 221) — enjeksiyon kolda hiç olmadığı için tezle ilgili bir hüküm değil. 6b/6c/6d de aynı sebeple okunamaz.
+- `ab_run.sh`'in bağlama kabulü (`ledger_new_lines > 0`) boş kapıyı geçiriyor — STEP_START şartı karşılıyor, kabul kapının *konuştuğunu* hiç sormuyor.
+- **2b geriledi ama karşılaştırılabilir değil:** 1385,2 → 2443,8 µs; ölçüm anında load avg 6,24, Chrome GPU %522, `surface-pattern` %91,7. Fark regresyon delili değil; kırmızı ise iki okumada da doğru.
+- `PROJECT.md` tur 14 kaydının 2. maddesi ("arm B was muted… fixed") fazla cömert — düzeltildi.
+
+**DOĞRULANMADI:** native doğru bağlanınca INJECT'in gerçekten gelip gelmediği (tek örnek: 4 instance'ta 1 kez, o da geçersiz koşuda); enjeksiyon metninin transcript'e girip girmediği; `orkestra/src/tick.py`'ın tur 14'e etkisi; temiz konteyner. **Hiçbir düzeltme uygulanmadı**, ajan koşulmadı, para harcanmadı.
+
+`e9e5c90` push edildi.
+**TEŞHİS — B kolu (10 satır özet)**
+
+```
+1. ŞÜPHE DOĞRU. gate.mjs 51 ledger satırı yazdı, 51'i de STEP_START.
+   Sıfır SIGNAL, sıfır INJECT, sıfır COUNTER, sıfır RUN_DONE, sıfır STEP_OK.
+2. SEBEP A (asıl): ab_run.sh:25 `hooks/gate.mjs` bağlıyor. Birikim motoru
+   orada YOK — SIGNAL/queue_injection/INJECT/additionalContext yalnız
+   native/gate.cpp'de. `grep -c additionalContext hooks/gate.mjs` = 0.
+   install.mjs:111 gate.mjs'yi "legacy JS gate — replaced when found" diyor.
+3. SEBEP B: bagla_hook yalnız PreToolUse yazıyor. Zincir kopuk:
+   PostToolUse→SIGNAL→queue_injection→PreToolUse→INJECT. İlk halka yok.
+   Gerçek `rabadon init` beş olay bağlıyor (install.mjs:169-175).
+4. TEK INJECT native gate'in, tur 14'ün GEÇERSİZ penceresinde (run:"ng-…").
+   Enjeksiyon hiçbir geçerli B koşusunda gerçekleşmedi.
+5. ELENDİ: `timeout 2` sebep değil (0,14 s, rc=0, yazdı). "Susturma kalktı,
+   sorun bitti" de yanlış — gate.mjs 4 olayın hiçbirinde stdout üretmiyor.
+```
+
+**Kabul betiği: 23 yeşil, 3 kırmızı** (`R7 NOT ACCEPTED`).
+- **6e** — teşhis açıklıyor, iki kat: COUNTER B'de hiç yanmıyor, ve yansa bile `saved_usd`'nin çarpanı `chains_cut` INJECT/STOP'tan sayılıyor → 0.
+- **7b** — 6e'ye asılı, aynı teşhis.
+- **2b** — açıklamıyor. Ayrı cephe (daemon latansı).
+
+**Sorulmadı ama önemli:**
+- **7a bu tur YEŞİL geçti ve o yeşil geçersiz.** "arm B token'da iyileşti" (A 35 620 / B 33 221) — enjeksiyon kolda hiç olmadığı için tezle ilgili bir hüküm değil. 6b/6c/6d de aynı sebeple okunamaz.
+- `ab_run.sh`'in bağlama kabulü (`ledger_new_lines > 0`) boş kapıyı geçiriyor — STEP_START şartı karşılıyor, kabul kapının *konuştuğunu* hiç sormuyor.
+- **2b geriledi ama karşılaştırılabilir değil:** 1385,2 → 2443,8 µs; ölçüm anında load avg 6,24, Chrome GPU %522, `surface-pattern` %91,7. Fark regresyon delili değil; kırmızı ise iki okumada da doğru.
+- `PROJECT.md` tur 14 kaydının 2. maddesi ("arm B was muted… fixed") fazla cömert — düzeltildi.
+
+**DOĞRULANMADI:** native doğru bağlanınca INJECT'in gerçekten gelip gelmediği (tek örnek: 4 instance'ta 1 kez, o da geçersiz koşuda); enjeksiyon metninin transcript'e girip girmediği; `orkestra/src/tick.py`'ın tur 14'e etkisi; temiz konteyner. **Hiçbir düzeltme uygulanmadı**, ajan koşulmadı, para harcanmadı.
+
+`e9e5c90` push edildi.
