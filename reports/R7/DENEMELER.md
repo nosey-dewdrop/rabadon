@@ -672,3 +672,79 @@ bozulmadı. 2b bugün 1240.8 µs (dizi: 1704.4 → 1583.2 → 2063.1 → 3150.1 
 - `sglang`'ı atlayıp elle bağımlılık seçmenin swesmith'i çalışır kılıp
   kılmadığı denenmedi — eksik bağımlılıkla alınan sayı ölçüm sayılmaz.
 - Hiçbir şey temiz container'da koşulmadı; hepsi bu macOS arm64 makinesinde.
+
+## deneme 13 — 2026-08-24 (operatörün dördüncü yolu, ilk emir: ÖLÇ)
+
+**DENENEN.** Operatörün tur 12 CEVAP'ı üç seçeneği de reddedip dördüncü yolu
+verdi (ajan = `claude -p`) ve bu turun ilk işini emretti: "aday instance
+listesinden en az 8'ini deneyip kaçının temiz kurulduğunu ÖLÇ; 4'ten azı
+kuruluyorsa DUR." Docker'sız, `swesmith` paketi kurulmadan, yerel venv + pytest
+ile 10 saf-Python instance tarandı (`/tmp/rbscan/tara*.sh`, ham TSV+log orada).
+
+**SONUÇ — 10 denendi, 7 TAM TEMİZ.** Temiz = kurulum OK + F2P bozuk kodda düştü
++ P2P bozuk kodda geçti. Eşik 4; **durma şartı doğmadı.** Tablo ve komutlar
+`reports/R7/INSTANCE-TARAMA.md`. Temiz-olmayan üçünün sebebi tek tek ölçüldü:
+pydantic = `pydantic-core` Rust wheel derlenmedi (gerçek duvar, 10'da 1);
+python-docx = `pyparsing` sürüm çakışması (duvar değil); jinja = bozuk dalda
+F2P GEÇTİ, yani bug üremiyor (o instance koşuya alınamaz).
+
+**ELENEN HİPOTEZ — tur 12'nin dört blokerinden üçü görev kümesinin blokeri
+DEĞİLMİŞ.** `sglang→flashinfer→apache-tvm-ffi` zinciri, amd64-only imaj ve
+Docker daemon; üçü de `swesmith` PAKETİNİN ve İMAJLARININ blokeri. Görev kümesi
+onlardan bağımsız erişilebilir: her instance ayna repoda bir **git dalı**
+(`git ls-remote --heads .../pallets__jinja.ada0a9a6 | wc -l` → 958). Klonla,
+venv kur, pytest koş. TESHIS-HARNESS'in "HER MAKİNEDE AYNI" dediği duvar
+gerçek, ama yolun üstünde değilmiş.
+
+**YENİ OLGU — held-out testler YAPISAL, biz üretmiyoruz.** instance dalında F2P
+test dosyaları SİLİNMİŞ; `main` dalında düzeltilmiş kod + bütün testler var
+(oauthlib: dal 235 dosya / main 247; `tests/oauth2/rfc6749/clients/` dalda
+yalnız `__init__.py`). 10/10 repoda aynı. İki sonucu: (a) accept.sh 6a'nın
+"ajanın kendi testi sayılmaz" şartı mimari olarak karşılanıyor; (b) `origin/main`
+hem cevabı hem saklı testleri taşıdığı için ajanın checkout'unda `.git`
+SİLİNMEK ZORUNDA — 4d hazırlığı formalite değil, geçerlilik şartı.
+
+**KENDİ ÖLÇÜM HATAM, İKİ KEZ — kayda geçti (Yasa 8).** Geçiş 1 yalnız
+`pip install -e .` yaptı; conftest importları çöktü (`trio`/`responses`/
+`pyparsing`) ve betiğim çıkış kodu≠0'ı "F2P beklendiği gibi düştü" saydı.
+Geçiş 2 ekstraları kurdu, bu sefer F2P dosyalarının dalda hiç olmadığı çıktı.
+**Geçiş 1 ve 2'nin F2P sonuçları GEÇERSİZDİR ve yayınlanamaz;** tablodaki tek
+geçerli geçiş 3'tür (F2P `origin/main`'den geri konuyor). İlk geçişin
+"4 tam temiz"i uydurma bir sayıydı, silinmedi — INSTANCE-TARAMA.md §4'te duruyor.
+
+**ÖLÇÜLEN DİĞERLERİ (tur 12'nin SIRAYA listesi, 4/4 kapandı).**
+(1) `claude -p --output-format stream-json` çalıştırıldı; `result` olayının
+`usage` bloğu: `input_tokens`, `output_tokens`, `cache_creation_input_tokens`,
+`cache_read_input_tokens`, + `total_cost_usd`. `tokens` tanımı ON-KAYIT §4'te
+donduruldu. (2) Ayna repolar 10/10 public, `git ls-remote` auth'suz çözdü.
+(3) HF datasetinde F2P/P2P MEVCUT, örnek satırla gösterildi (59 136 satır).
+(4) `interventions` tanımı koşudan ÖNCE donduruldu, sonradan değil.
+
+**HOOK BAĞLANABİLİR — ölçüldü.** `hooks/gate.mjs`'e sahte PreToolUse olayı
+verildi: rc=0 ve `$HOME/.rabadon/spool/2026-08-24.jsonl` + `.head` YAZILDI.
+B1.5'in "bağlama kabulü" (ledger'da yeni satır göster) bu koşuda karşılanabilir.
+gate.mjs bir Node betiği — B kolu için derleme gerekmiyor.
+
+**ÜRETİLEN.** `reports/R7/INSTANCE-TARAMA.md` (ölçüm kaydı),
+`reports/R7/ON-KAYIT.md` (Yasa 7 ön-kaydı: hipotez, çürüten sonuç, N=6 donmuş
+görev listesi, alan tanımları, sızıntı önleme). KOSU-RABADON-2.md'ye B1.9
+eklendi — operatörün emrettiği yetim-yük-süreci kuralı.
+
+**YAPILMAYAN, BİLEREK.** Hiçbir ajan koşusu yapılmadı, JSONL yazılmadı,
+`bench/reproduce.sh`'e R7 cümlesi eklenmedi, HARNESS.md'ye 4d kaydı YAZILMADI.
+Dördü de var olmayan bir koşuyu yeşile çevirirdi. GOAL 5/6/7 ve 4d KIRMIZI.
+
+**KALAN HİPOTEZLER (koşu turuna).**
+- Altı instance'ın her biri koşu anında da temiz mi (tur başına bir kez ölçüldü,
+  koşudan önce tekrar doğrulanacak — ON-KAYIT'ta şart).
+- `estimated_saved` alanını rabadon fiilen üretiyor mu; üretmiyorsa 6e/7b
+  yapısal olarak kapanamaz. HİÇ BAKILMADI.
+- B kolunda hook'un görev checkout'una bağlanması (ayrı proje dizini) ledger'a
+  satır düşürüyor mu — burada `$HOME` ile ölçüldü, worktree senaryosunda değil.
+- python-docx sabitlenmiş `pyparsing` ile temizlenir mi (denenmedi).
+
+**2b LATANSI BU TURDA ÖLÇÜLMEDİ — ölçülemezdi.** Makine yük altındaydı
+(uptime 8.60/6.01/5.24), kaynağı bu tarama değil (AppleSpell, WindowServer,
+başka oturumlar). Yük altında alınan latans sayısı geçersiz olurdu; tur 9'un
+kirlenmiş ölçümünün tekrarı olurdu. Yetim `while :` süreci ARANDI, YOKTU.
+2b KIRMIZI kalıyor, duran emir (PROFIL-YARGILAMA.md) geçerli.

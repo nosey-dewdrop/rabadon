@@ -167,6 +167,16 @@ kalmalı; (2) değerlendiren-rolü native primitive'lerde yok. Bilinçli karar.
    yapısına dokunmak, worktree'yi silip yeniden kurmak YASAK. Repo geçmişi
    gerekiyorsa `git log`/`git show` salt-okunur kullanılır. main'e taşıma
    yalnız tur kabulü yeşilken değerlendiren talimatıyla squash-merge'dür.
+9. **Arka plan süreci kendi kendini sınırlar (operatör emri, tur 12 CEVAP).**
+   Yapan oturumun başlattığı hiçbir arka plan süreci tool kabuğundan uzun
+   yaşayamaz. Kabuk ölünce süreç init'e YETİM düşüyor ve saatlerce CPU yakıyor;
+   iki kez oldu (tur 8 sonrası 2 süreç 21 dk, tur 9 sonrası 6 süreç). Zarar
+   çift: makineyi yakar VE bir sonraki turun ölçümünü bozar — tur 9'un kendi
+   ifadesi "sessiz turlarım aslında 3.9–5.2 yükte koştu". KURAL: yük üreten
+   veya uzun koşan her arka plan komutu `timeout <sn>` ile sarılır, ör.
+   `timeout 30 sh -c 'while :; do :; done'`. Kabuk ölse bile süreç kendi
+   süresinde biter. Latans/yük ölçümü yapan tur, ölçümden ÖNCE artık süreç
+   olmadığını (`pgrep`) doğrular ve bunu rapora yazar.
 
 ### B2. Sürücü — `scripts/kos.sh`
 v2.2 farkları: stall watchdog (stream çıktı + büyüme kontrolü), DENEMELER.md
