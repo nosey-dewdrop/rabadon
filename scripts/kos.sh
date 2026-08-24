@@ -23,6 +23,9 @@ if ! command -v timeout >/dev/null 2>&1; then
   fi
 fi
 MAX_ITER=${MAX_ITER:-40}
+# v3/B5 freni: degerlendiren girdisi bu tavani asarsa DURAK. Girdi buyuyorsa
+# DEVIR disiplini bozulmustur; karar degil TEMIZLIK gerekir.
+GIRDI_MAX=${GIRDI_MAX:-30720}
 SESSION_TIMEOUT=${SESSION_TIMEOUT:-7200}   # mutlak tavan (mesru uzun derleme/bench icin genis)
 STALL_TIMEOUT=${STALL_TIMEOUT:-1200}       # cikti buyumezse 20 dk'da kes
 MAX_WAIT_S=${MAX_WAIT_S:-21600}
@@ -57,7 +60,7 @@ pusla() {  # push; kalirsa rebase+tekrar; yine kalirsa LOGLA — sessiz yutma yo
 
 operator_duragi() {  # $1: soru
   printf '\nOPERATÖR: %s\n' "$1" >> reports/kosu/OPERATOR.md
-  git add -A; git commit -qm "kosu2: OPERATOR duragi" || true; pusla durak
+  git add -A; git commit -qm "kosu3: OPERATOR duragi" || true; pusla durak
   # muhur: CEVAP: satirlari yetmez, en sonda TEK BASINA 'ONAY' satiri gerekir
   # (yarim kaydedilmis Cmd+S cumlesini talimat sanmamak icin)
   while ! grep -q '^ONAY[[:space:]]*$' reports/kosu/OPERATOR.md 2>/dev/null; do sleep 300; done
@@ -139,15 +142,37 @@ PY
   return $durum
 }
 
+# v3/B2(1): degerlendirenin girdisi TRANSKRIPTSIZDIR. Girdi once DOSYAYA yazilir
+# (olculebilsin diye: B5 freni + B6.2 kaniti), sonra stdin'den beslenir.
+# Buraya `cat KOSU-RABADON-3.md` ve `tail -c ... $i.out` GIRMEZ — kasitli.
+girdi_yaz() {  # $1: tur no, $2: hedef dosya
+  { echo '----- DURUM (kisa) -----';             cat reports/kosu/DURUM.md 2>/dev/null || echo '(DURUM.md yok)'
+    echo '----- DEVIR (bu turun ciktisi) -----'; head -40 reports/kosu/DEVIR.md 2>/dev/null || echo '(DEVIR yok)'
+    echo '----- GUNLUK (tekrar sayaci) -----';   tail -20 "$GUNLUK" 2>/dev/null || echo '(ilk tur)'
+    echo '----- DENEMELER (son degisen 2 tur) -----'
+    ls -t reports/*/DENEMELER.md 2>/dev/null | head -2 \
+      | while read -r d; do echo "--- $d:"; tail -"$DEN_T" "$d"; done
+    echo '----- ONCEKI 2 KARAR -----'
+    for k in $(ls reports/kosu/*.karar 2>/dev/null | sort -V | tail -2); do
+      echo "--- $k:"; head -60 "$k"; done
+    echo '----- GIT -----'; git log --oneline -10; git status --short
+    echo '----- BEKLEYEN OPERATOR -----'
+    cat reports/kosu/OPERATOR.md 2>/dev/null || echo '(yok)'
+    echo '----- HAM CIKTI YOLU (OKUNMAYACAK, delil) -----'
+    echo "reports/kosu/$1.out"
+  } > "$2"
+}
+
 i=$(find reports/kosu -maxdepth 1 -name '*.out' 2>/dev/null | grep -c '')
-talimat="KOSU-RABADON-2.md'yi oku. B1 kurallariyla calis: A4 sirasindaki acik isten basla, subagent kullan, stdout'u ince tut, DENEMELER.md'yi guncelle, kabul betigini kos, raporu yaz, commit+push et."
+# v3/B2(3): varsayilan talimat DEVIR yazmayi EMREDER ve ilk is B6'nin uc maddesidir.
+talimat="KOSU-RABADON-3.md'yi oku. B1 kurallariyla calis (ALT-AJAN YASAK; agir is scripts/isci.sh ile ayri surecte). Bu tur B6'nin uc maddesini kanitla: (1) isci.sh bir isci kosar, RAPOR/*.md 12 satirda kirpilir, iscinin ciktisindan yapanin stdout'una tek bayt girmez; (2) bu turun degerlendiren girdisi reports/kosu/<tur>.girdi dosyasindan wc -c ile olculur ve 30720 baytin altinda cikar; (3) kasitli olarak DEVIR yazmayan bir turun surucude 'KOSMADI' bloguna dustugu gosterilir (kanit: kos-smoke tarzi tekil test, dongunun kendisi degil). Bulgulari reports/kosu/SMOKE-V3.md'ye yaz, DENEMELER.md'yi guncelle, raporu yaz, reports/kosu/DEVIR.md'yi B7 sablonuyla YENIDEN yaz, DURUM.md'yi tazele, commit+push et."
 [ -f reports/kosu/son.talimat ] && talimat="$(cat reports/kosu/son.talimat)"
 
 while true; do
   i=$((i+1))
   if [ "$i" -gt "$MAX_ITER" ]; then
     operator_duragi "iterasyon tavani ($MAX_ITER) doldu. CEVAP: satirlarini yaz, en sona tek basina ONAY yaz; tavan +40 kaydirilir."
-    talimat="reports/kosu/OPERATOR.md'deki CEVAP satirlarini uygula, A4 sirasinda kaldigin yerden devam et. B1 kurallari gecerli."
+    talimat="reports/kosu/OPERATOR.md'deki CEVAP satirlarini uygula, KOSU-RABADON-3.md'nin A6 sirasinda kaldigin yerden devam et. B1 kurallari gecerli (ALT-AJAN YASAK, agir is scripts/isci.sh). DEVIR.md'yi B7 sablonuyla YENIDEN yaz, DURUM.md'yi tazele, commit+push et."
     # i SIFIRLANMAZ (eski dosyalarin uzerine yazardi); tavan kaydirilir, dosyalar monoton
     mv reports/kosu/OPERATOR.md "reports/kosu/tavan-$i.operator.md"; MAX_ITER=$((i+40)); continue
   fi
@@ -177,6 +202,10 @@ while true; do
     operator_duragi "disk 1GB altinda ($((bos_kb/1024)) MB) VEYA inode tukeniyor ($bos_inode) VEYA /tmp doluyor ($((tmp_kb/1024)) MB). Temizlik/karar gerekli. CEVAP: yaz, en sona ONAY."
     mv reports/kosu/OPERATOR.md "reports/kosu/disk-$i.operator.md"
   fi
+  # v3/B2(2) on adimi: onceki turun DEVIR'i ARSIVLENIR. Yerinde birakilirsa bu
+  # turun yapani DEVIR yazmasa bile eski dosya "bu turun ciktisi" sanilir —
+  # KOSMADI blogu HIC atesle mez ve degerlendiren bayat kanitla karar verir.
+  [ -f reports/kosu/DEVIR.md ] && mv reports/kosu/DEVIR.md "reports/kosu/$((i-1)).devir"
   yapan_kos "$talimat" "reports/kosu/$i.out"; durum=$?
   if [ "$durum" -eq 9 ]; then
     printf '\n[SÜRÜCÜ NOTU: cikti %s sn buyumedi — STALL KILL. Interaktif prompt / TTY bekleyen arac olasiligini degerlendir; DENEMELER.md guncellenmemis olabilir. Bu bir KESINTIDIR: yurutulen hipotez ELENMIS SAYILMAZ.]\n' "$STALL_TIMEOUT" >> "reports/kosu/$i.out"
@@ -202,32 +231,33 @@ while true; do
       operator_duragi "toplam $((MAX_WAIT_S/3600)) saattir limit/bos-cikti beklemesindeyim. Plan/hesap kontrolu gerekebilir. CEVAP: yaz, en sona ONAY."
       mv reports/kosu/OPERATOR.md "reports/kosu/bekleme-$i.operator.md"
     fi
-    echo "kosu2 $i: limit/bos — 15 dk" >> reports/kosu/bekleme.log
+    echo "kosu3 $i: limit/bos — 15 dk" >> reports/kosu/bekleme.log
     i=$((i-1)); sleep 900; continue
   fi
   bekle_toplam=0
-  git add -A; git commit -qm "kosu2 $i" || true; pusla "$i"
-  if [ "$BUTCE_DAR" -eq 1 ]; then OUT_B=50000; DEN_T=25; else OUT_B=150000; DEN_T=60; fi
-  karar_ham="$(
-    { cat KOSU-RABADON-2.md
-      echo '----- KARAR GUNLUGU (tekrar SAYACI; strateji icin DENEMELER oku) -----'
-      tail -30 "$GUNLUK" 2>/dev/null || echo '(ilk tur)'
-      echo '----- DENEMELER (en son degisen 2 tur; boyut butcesi) -----'
-      # tek-yazar ilkesi geregi tur basina BIR dosya var (~15 tavan): glob+ls guvenli, xargs gereksiz
-      ls -t reports/*/DENEMELER.md 2>/dev/null | head -2 | while read -r d; do echo "--- $d:"; tail -"$DEN_T" "$d"; done
-      echo '----- ONCEKI 3 KARARIN TAMAMI -----'
-      for k in $(ls reports/kosu/*.karar 2>/dev/null | sort -V | tail -3); do echo "--- $k:"; cat "$k"; done
-      echo '----- YAPAN OTURUM CIKTISI -----'
-      ob=$(wc -c < "reports/kosu/$i.out")
-      [ "$ob" -gt "$OUT_B" ] && echo "[KISALTILDI: $ob bayttan son $OUT_B bayt — BOYUT butcesi; icerik filtrelenmedi, desen aranmadi]"
-      tail -c "$OUT_B" "reports/kosu/$i.out"
-      echo '----- GIT -----'
-      git log --oneline -15
-      git status --short
-      echo '----- BEKLEYEN OPERATOR -----'
-      cat reports/kosu/OPERATOR.md 2>/dev/null || echo '(yok)'
-    } | timeout 900 claude -p --model sonnet "$(cat docs/DEGERLENDIREN.md)"
-  )"
+  # v3/B2(2): DEVIR tavanini SURUCU uygular. "40 satiri asma" niyet beyanidir,
+  # head -40 hukumdur. DEVIR yoksa tur KOSMAMIS sayilir — kirmizi DEGIL.
+  if [ -f reports/kosu/DEVIR.md ]; then
+    if [ "$(wc -l < reports/kosu/DEVIR.md)" -gt 40 ]; then
+      head -40 reports/kosu/DEVIR.md > reports/kosu/DEVIR.t
+      echo '[SURUCU: 40 satirda kirpildi — yapan tavani asti]' >> reports/kosu/DEVIR.t
+      mv reports/kosu/DEVIR.t reports/kosu/DEVIR.md
+    fi
+  else
+    printf 'TUR: %s · DURUM: KOSMADI\nNOT: yapan DEVIR yazmadan bitti. Ham: reports/kosu/%s.out\n' \
+      "$i" "$i" > reports/kosu/DEVIR.md
+  fi
+  git add -A; git commit -qm "kosu3 $i" || true; pusla "$i"
+  if [ "$BUTCE_DAR" -eq 1 ]; then DEN_T=25; else DEN_T=60; fi
+  girdi="reports/kosu/$i.girdi"
+  girdi_yaz "$i" "$girdi"
+  gb=$(wc -c < "$girdi"); gb=${gb:-0}
+  if [ "$gb" -gt "$GIRDI_MAX" ]; then
+    operator_duragi "degerlendiren girdisi $gb bayt (tavan $GIRDI_MAX) — DEVIR/DENEMELER disiplini bozulmus, karar degil TEMIZLIK gerek. Dosyalari kirp; CEVAP: yaz, en sona ONAY."
+    mv reports/kosu/OPERATOR.md "reports/kosu/girdi-$i.operator.md"
+    girdi_yaz "$i" "$girdi"; gb=$(wc -c < "$girdi"); gb=${gb:-0}   # operator kirptiysa yeniden olc
+  fi
+  karar_ham="$(timeout 900 claude -p --model sonnet "$(cat docs/DEGERLENDIREN.md)" < "$girdi")"
   rc_eval=$?
   # yarim-kusma kalkani: timeout(124) ya da ag olumuyle kesilen degerlendirenin
   # KISMI metni karar SAYILMAZ — aksi halde yarim cumle *) dalindan talimat olur
@@ -237,11 +267,11 @@ while true; do
       operator_duragi "degerlendiren ust uste basarisiz bitiyor (son rc=$rc_eval; 124=timeout). CEVAP: yaz, en sona ONAY."
       mv reports/kosu/OPERATOR.md "reports/kosu/eval-$i.operator.md"
     fi
-    echo "kosu2 $i: degerlendiren rc=$rc_eval — kismi cikti atildi, 15 dk" >> reports/kosu/bekleme.log
+    echo "kosu3 $i: degerlendiren rc=$rc_eval — kismi cikti atildi, 15 dk" >> reports/kosu/bekleme.log
     sleep 900; i=$((i-1)); continue
   fi
   if [ -z "$karar_ham" ]; then
-    echo "kosu2 $i: degerlendiren bos — 15 dk" >> reports/kosu/bekleme.log
+    echo "kosu3 $i: degerlendiren bos — 15 dk" >> reports/kosu/bekleme.log
     sleep 900; i=$((i-1)); continue
   fi
   if printf '%s\n' "$karar_ham" | grep -qiE 'prompt is too long|request too large|context (length|window)'; then
@@ -251,11 +281,11 @@ while true; do
     else
       BUTCE_DAR=1   # bekleme YOK: ayni girdi kuculmeden tekrar gondermek olu taklididir
     fi
-    echo "kosu2 $i: context asimi — butce daraltilip tekrar" >> reports/kosu/bekleme.log
+    echo "kosu3 $i: context asimi — butce daraltilip tekrar" >> reports/kosu/bekleme.log
     i=$((i-1)); continue
   fi
   if printf '%s\n' "$karar_ham" | head -3 | grep -qiE '^(api )?error|rate.?limit|overloaded|bad gateway|too many requests'; then
-    echo "kosu2 $i: degerlendiren HATA sizdirdi, karar degil — 15 dk" >> reports/kosu/bekleme.log
+    echo "kosu3 $i: degerlendiren HATA sizdirdi, karar degil — 15 dk" >> reports/kosu/bekleme.log
     sleep 900; i=$((i-1)); continue
   fi
   BUTCE_DAR=0
@@ -275,17 +305,19 @@ while true; do
          ilk="OPERATÖR: [SÜRÜCÜ KURTARMASI — biçim ihlali, etiket ilk satırda değildi]"
        fi ;;
   esac
-  printf '%s\t%s\n' "$i" "$ilk" >> "$GUNLUK"
+  # v3/B6.2: girdi boyutu tur satirinin UCUNCU sutununda tasinir. Ayri satir
+  # olarak yazilmaz — GUNLUK'un tail -20 penceresi tekrar sayacidir, yariya inmez.
+  printf '%s\t%s\t[girdi %s bayt]\n' "$i" "$ilk" "$gb" >> "$GUNLUK"
   case "$ilk" in
     OPERATÖR*|OPERATOR*)
       printf '\n%s\n' "$karar_ham" >> reports/kosu/OPERATOR.md
-      git add -A; git commit -qm "kosu2 $i: OPERATOR sorusu" || true; pusla "$i"
+      git add -A; git commit -qm "kosu3 $i: OPERATOR sorusu" || true; pusla "$i"
       while ! grep -q '^ONAY[[:space:]]*$' reports/kosu/OPERATOR.md 2>/dev/null; do sleep 300; done
-      talimat="reports/kosu/OPERATOR.md'deki CEVAP satirlarini uygula, sonra A4 sirasinda kaldigin yerden devam et. B1 kurallari gecerli."
+      talimat="reports/kosu/OPERATOR.md'deki CEVAP satirlarini uygula, sonra KOSU-RABADON-3.md'nin A6 sirasinda kaldigin yerden devam et. B1 kurallari gecerli (ALT-AJAN YASAK, agir is scripts/isci.sh). DEVIR.md'yi B7 sablonuyla YENIDEN yaz, DURUM.md'yi tazele, commit+push et."
       mv reports/kosu/OPERATOR.md "reports/kosu/$i.operator.md" ;;
     BİTTİ*|BITTI*)
       printf '%s\n' "$karar_ham" >> reports/kosu/BITTI.md
-      git add -A; git commit -qm "kosu2 bitti" || true; pusla son
+      git add -A; git commit -qm "kosu3 bitti" || true; pusla son
       exit 0 ;;
     *) talimat="$karar_ham" ;;
   esac
