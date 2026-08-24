@@ -453,6 +453,8 @@ for a in ("A","B"):
     out[f"iv_{a}"]=sum(iv) if iv else None
     fp=[r.get("false_positive") for r in R if r.get("false_positive") is not None]
     out[f"fp_{a}"]=(sum(1 for x in fp if x)/len(fp)*100) if fp else None
+    cs=[r.get("total_cost_usd") for r in R if isinstance(r.get("total_cost_usd"),(int,float))]
+    out[f"cost_{a}"]=sum(cs) if cs else None
 est=[r.get("estimated_saved") for r in arm("B") if isinstance(r.get("estimated_saved"),(int,float))]
 out["est"]=sum(est) if est else None
 for k,v in out.items():
@@ -474,17 +476,28 @@ if have iv_A && have iv_B; then pass "6c human interventions: A $(g iv_A) / B $(
 else fail "6c human intervention counts are missing from the raw data"; fi
 if have fp_A && have fp_B; then pass "6d false positive rate: A $(g fp_A)% / B $(g fp_B)%"
 else fail "6d false positive rates are missing from the raw data"; fi
-if have est && have tok_A && have tok_B; then
+# 6e compares rabadon's OWN saving claim against the harness's MEASURED cost.
+# Both sides are DOLLARS. Until turn 20 the right-hand side was `tok_A - tok_B`,
+# a TOKEN count: the check compared a dollar figure to a token figure, and it
+# printed pass() on every value because it carried no threshold. A check that
+# cannot turn red is not a check. Fixed under operator CEVAP 2 of turn 19.
+# The two sides come from DIFFERENT sources and this is what keeps 6e honest:
+#   est  = rabadon's claim, produced by its own counter (`saved_usd`)
+#   real = cost_A - cost_B, measured by the harness off the CLI stream
+# Deriving `real` from rabadon's own numbers would make it a tautology; it is not.
+if have est && have cost_A && have cost_B; then
   DEV="$(python3 -c "
-e=float('$(g est)'); real=float('$(g tok_A)')-float('$(g tok_B)')
+e=float('$(g est)'); real=float('$(g cost_A)')-float('$(g cost_B)')
 print('NODIFF' if real==0 else f'{abs(e-real)/abs(real)*100:.1f}')")"
   if [ "$DEV" = NODIFF ]; then
-    fail "6e the two arms spent identical tokens — the counter cannot be validated against a zero difference"
+    fail "6e the two arms cost the same dollars — the counter cannot be validated against a zero difference"
+  elif [ "$(python3 -c "print(1 if float('$DEV')<=50.0 else 0)")" = 1 ]; then
+    pass "6e counter validation: claim \$$(g est) vs measured difference \$$(python3 -c "print(round(float('$(g cost_A)')-float('$(g cost_B)'),4))"), deviation ${DEV}% (limit 50%)"
   else
-    pass "6e counter validation: estimate $(g est) vs real difference $(python3 -c "print(float('$(g tok_A)')-float('$(g tok_B)'))"), deviation ${DEV}%"
+    fail "6e counter validation FAILED: rabadon claims \$$(g est) saved, the measured cost difference is \$$(python3 -c "print(round(float('$(g cost_A)')-float('$(g cost_B)'),4))") — deviation ${DEV}%, over the 50% limit"
   fi
 else
-  fail "6e counter validation impossible: no 'estimated_saved' total on arm B, or no token totals"
+  fail "6e counter validation impossible: no 'estimated_saved' total on arm B, or no per-arm total_cost_usd"
   DEV=""
 fi
 
@@ -511,7 +524,7 @@ if [ -n "${DEV:-}" ] && [ "$DEV" != NODIFF ]; then
   if [ "$(python3 -c "print(1 if float('$DEV')<=50.0 else 0)")" = 1 ]; then
     pass "7b falsification 2 evaluated: counter deviates ${DEV}%, at or under 50% — the dollar line may be published"
   else
-    fail "7b falsification 2 TRIGGERED: counter deviates ${DEV}% from the real token difference (limit 50%)"
+    fail "7b falsification 2 TRIGGERED: counter deviates ${DEV}% from the measured cost difference (limit 50%)"
     note "the dollar line comes out of the closing line, the README and the landing"
     note "page the same day; only the error count stays until the formula is refixed"
   fi
