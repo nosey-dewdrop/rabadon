@@ -287,6 +287,69 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-08-24 (koşu tur 14) — R7's two-armed run runs; the control arm was never clean, and now it is
+
+START: operator's turn-12 CEVAP (fourth path: the agent IS `claude -p`), then
+A4 from where turn 13 stopped. Turn 13's single NEXT was: does rabadon actually
+emit `estimated_saved`? Proof commands: `./reports/R7/accept.sh`, `make test`.
+
+DONE — **the run exists and ran end to end.** `reports/R7/ab_run.sh`: no Docker,
+mirror repo cloned per instance, `.git` deleted from the agent's tree, local
+venv + pytest, held-out F2P files restored from `origin/main` only at scoring.
+Acceptance moved **14 green / 12 red → 23 green / 3 red**
+(`./reports/R7/accept.sh`). `make test` rc=0, identity 37/0. Raw record:
+`reports/R7/ab_run.jsonl`; write-up `reports/R7/KOSU.md`.
+
+Three separate invalidations were caught **before** any number was believed,
+each by asking "did the thing I assumed actually happen?" and measuring:
+
+1. **`estimated_saved` does not exist and cannot be derived.** rabadon emits
+   `saved_usd` (USD); accept.sh 6e compares it to a **token** difference. The
+   real arm-B COUNTER event settled the workaround too: `saved_usd:null`,
+   `reason:"no-price"`, `calls:0`, all token subtotals **0**. 6e/7b are
+   structurally unclosable — an operator decision, not a run failure.
+2. **Arm B was muted.** I wrapped the hook with `>/dev/null 2>&1`; Claude Code
+   hooks speak to the agent through stdout, so rabadon wrote its ledger and
+   never said a word. Separately, B1.5's literal recipe carries `</dev/null`,
+   which makes the gate **deaf** (measured: 0 ledger lines vs 1 without it) —
+   B1.5's own binding-acceptance cannot be met by its own recipe. **CHALLENGE**
+   filed in `reports/R7/DENEMELER.md` deneme 16; the document was not edited.
+3. **The control arm was never rabadon-free.** The operator's global
+   `~/.claude/settings.json` attaches `rabadon-gate` to every hook event of
+   every session on this machine. Arm A wrote 36 and 40 ledger lines of its
+   own. Fixed with `--setting-sources local` (measured: 0 lines without the
+   settings file, 1 with it) and a new **control-arm purity** condition — the
+   mirror of B's binding acceptance, whose absence is exactly where this leaked.
+
+All invalidated rows were quarantined, not deleted:
+`ab_run_INVALID_muted_hook.jsonl`, `ab_run_INVALID_global_hook.jsonl`.
+
+DONE — **the result, stated plainly.** A and B both fix **66.7 %** (3 tasks);
+tokens A 26 780 / B 23 697. accept.sh 7a goes green on the token line, **and
+that green is not evidence**: fix rate is identical, one of three tasks runs
+the other way (+4.4 %), the whole gap comes from one task, N=3, and there is
+one measurement per cell while the same task+arm swung 16–52 % across runs.
+Run-to-run noise is larger than the between-arm gap, so per
+KOSU-RABADON-2.md:61-62 **the number is not published.** What this turn proved
+is that the measurement chain works, not that the thesis holds.
+
+NOT VERIFIED — no agent run was repeated under identical conditions, so there
+is **no variance estimate**; three of the six pre-registered instances (conan,
+astroid, feedparser) failed pre-verification on P2P and never ran, so N=3 not
+6; turn 13's "7/10 clean" was an upper bound produced by a 2-test P2P sample,
+and a 120-test sample eliminated three of them; P2P itself is capped at 120 of
+574–4174 (`p2p_cap` is in every row); `joke2k__faker` was swapped for conan
+because its `problem_statement` is **empty** — and 18 033 of SWE-smith's
+59 136 rows (**30.49 %**) are likewise empty, a selection criterion nobody was
+applying; egress is best-effort only (`claude -p` must reach the API); measured
+on this macOS arm64 box, not a clean container; 2b (daemon latency, 1341 µs vs
+1000 µs ceiling) is untouched and out of this run's scope.
+
+NEXT: decide `estimated_saved` (6e/7b) — the only paths left are (b) make 6e a
+dollar-to-dollar comparison using `total_cost_usd`, which needs an edit to
+accept.sh and the frozen ON-KAYIT and therefore human approval, or (c) leave
+both red. Option (a), deriving tokens from the counter, is dead and measured.
+
 ### 2026-08-17 (5) — the project column becomes an identity, and `make test` is green
 
 START: two steps, in the operator's order. (1) the NEXT of the last session — make
