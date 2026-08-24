@@ -3,3 +3,4 @@
 3	TEKRAR KONTROLÜ: GUNLUK'ta 2 tur, tekrar yok. Yapan oturum kritik iki bulguyu tespit etti: (1) `OPERATÖR:` durağı kırık — evaluator kararının ilk satırına değil, herhangi bir satırına bakmalı; (2) A1 öncelik sorusu hâlâ operatöre ulaşmadı.
 4	OPERATÖR: Sistemde iki karar bekleniyor, ikisi de senden. Durum ve öneriler:
 6	OPERATÖR: R7'de CHALLENGE dosyası 3 yapısal sorun içeriyor; ikisi accept.sh'ı değiştirmeden geçilemez. Karar senden bekleniyor.
+7	OPERATÖR: `reports/R7/CHALLENGE-2.md` bekliyor — `prev` zincir alanı ve `.head` sidecar'ı normalize edilsin mi? Bu kapanmadan GOAL 3 geçilemez, dolayısıyla R7 kapalı kalamaz.
