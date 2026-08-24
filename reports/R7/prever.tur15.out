@@ -1,0 +1,32 @@
+18:44:17 | === HIPS__autograd.ac044f0d.pr_579
+18:44:17 |   on-dogrulama...
+18:45:04 |   (geri konan F2P dosyasi: 1)
+18:45:09 |   on-dogrulama OK (F2P 0/11 dustu, P2P 120/120 gecti, dislanan 0)
+18:45:10 |   PREVER_ONLY=1 — kollar kosulmuyor
+18:45:10 | === oauthlib__oauthlib.1fd52536.combine_file__09vlzwgc
+18:45:10 |   on-dogrulama...
+18:45:39 |   (geri konan F2P dosyasi: 12)
+18:45:44 |   on-dogrulama OK (F2P 0/18 dustu, P2P 120/120 gecti, dislanan 0)
+18:45:44 |   PREVER_ONLY=1 — kollar kosulmuyor
+18:45:44 | === conan-io__conan.86f29e13.pr_12165
+18:45:44 |   on-dogrulama...
+18:46:13 |   (geri konan F2P dosyasi: 1)
+18:46:18 |   on-dogrulama OK (F2P 0/29 dustu, P2P 3/3 gecti, dislanan 0)
+18:46:18 |   PREVER_ONLY=1 — kollar kosulmuyor
+18:46:18 | === pydicom__pydicom.7d361b3d.func_pm_remove_cond__c4ctdv6a
+18:46:18 |   on-dogrulama...
+18:46:31 |   (geri konan F2P dosyasi: 1)
+18:46:36 |   on-dogrulama OK (F2P 0/1 dustu, P2P 120/120 gecti, dislanan 0)
+18:46:36 |   PREVER_ONLY=1 — kollar kosulmuyor
+18:46:36 | === pylint-dev__astroid.b114f6b5.func_pm_ctrl_shuffle__b40xxf3u
+18:46:36 |   on-dogrulama...
+18:46:59 |   (geri konan F2P dosyasi: 5)
+18:47:05 |   P2P dislama: 2 test (bkz. reports/R7/p2p_excluded/pylint-dev__astroid.b114f6b5.func_pm_ctrl_shuffle__b40xxf3u.txt)
+18:47:08 |   on-dogrulama OK (F2P 0/9 dustu, P2P 118/118 gecti, dislanan 2)
+18:47:08 |   PREVER_ONLY=1 — kollar kosulmuyor
+18:47:09 | === kurtmckee__feedparser.cad965a3.combine_module__bd6dsmkp
+18:47:09 |   on-dogrulama...
+18:47:29 |   (geri konan F2P dosyasi: 3)
+18:47:33 |   on-dogrulama OK (F2P 39/55 dustu, P2P 120/120 gecti, dislanan 0)
+18:47:33 |   PREVER_ONLY=1 — kollar kosulmuyor
+18:47:33 | === ab_run.sh bitti

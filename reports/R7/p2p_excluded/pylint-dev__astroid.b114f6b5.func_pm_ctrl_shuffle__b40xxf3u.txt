@@ -1,0 +1,4 @@
+# pylint-dev__astroid.b114f6b5.func_pm_ctrl_shuffle__b40xxf3u — bozuk dalda ZATEN dusen P2P testleri (iki on-dogrulama kosusunun KESISIMI).
+# Ajan kosmadan ONCE uretildi. Iki kol da bu kumeyi cikararak kosar. Elle duzenlenmez.
+tests/brain/test_brain.py::TypingBrain::test_has_dunder_args
+tests/brain/test_brain.py::TypingBrain::test_typing_types
