@@ -16,9 +16,22 @@ Bu dosya yorum katmanıdır; bir sayı burada varsa ham kayıtta da vardır.
 - **Docker YOK, `swesmith` pip paketi KURULMADI.** Her instance ayna repoda bir
   branch; klonlanıp yerel venv + pytest ile arm64'te koşuyor. Tur 12'nin
   `sglang → flashinfer_python → apache-tvm-ffi` blokeri böylece devre dışı.
-- **Kolların tek farkı hook.** A: `settings.local.json` yok, rabadon yok.
-  B: göreve özgü checkout'ta hook komutu,
-  `sh -c 'timeout 2 node <gate> 2>/dev/null; exit 0'` sarmalayıcısıyla.
+- **Kolların tek farkı hook.** Her iki kol da
+  `claude -p --setting-sources local` ile koşar. A kolunda
+  `.claude/settings.local.json` YOKTUR; B kolunda vardır ve içinde
+  `sh -c 'timeout 2 node <gate> 2>/dev/null; exit 0'` sarmalayıcısı bulunur.
+
+  **`--setting-sources local` deneyin geçerlilik şartıdır, bir ayrıntı değil.**
+  Operatörün global `~/.claude/settings.json`'ı `rabadon-gate`'i bu makinedeki
+  HER claude oturumunun HER hook olayına bağlıyor. Bu bayrak olmadan A kolu da
+  rabadon'lu koşar ve kontrast YOK OLUR. Tur 14'te tam olarak bu oldu: A kolu
+  kendi etiketiyle 36 ve 40 ledger satırı yazdı, transcript'inde rabadon'un
+  kendi cümlesi vardı. O satırlar
+  `reports/R7/ab_run_INVALID_global_hook.jsonl`'e taşındı.
+
+  Üç ölçüm bayrağın davranışını kanıtlıyor (hepsi çalıştırıldı):
+  `--setting-sources local` + dosya YOK → **0** ledger satırı;
+  + hook'lu dosya VAR → **1**; `--setting-sources project` boş dizinde → **0**.
 
   **Sarmalayıcı B1.5'in yazılı halinden BİLEREK farklı — sebebi ölçüldü.**
   B1.5 literal olarak `</dev/null` diyor; o redirect kapıyı SAĞIR yapıyor
@@ -52,6 +65,21 @@ sınırına takılırsa sonraki tur kaldığı yerden devam eder — yarım kala
 hiçbir zaman uydurulmuş bir satıra dönüşmez.
 
 ---
+
+## İki KABUL şartı — her iki kol da kanıtlanır, varsayılmaz
+
+- **B kolu / bağlama kabulü (B1.5).** Ledger'da o koşuya ait YENİ SATIR
+  gösterilmezse koşu B sayılmaz ve JSONL'e yazılmaz.
+- **A kolu / kontrol kolu saflığı (tur 14'te doğdu, YENİ).** Ledger'da o
+  koşuya ait TEK satır bile varsa kontrol kolu kirlenmiştir ve satır JSONL'e
+  yazılmaz. B'nin şartı vardı, A'nınki YOKTU — global settings sızıntısı tam
+  o boşluktan geçti. Simetri artık kodda (`ab_run.sh`), `gecersiz.tsv`'ye
+  düşer.
+
+Satırların `pipe` etiketiyle sayılması gerekiyor, ham fark ile değil: ortak
+spool'da 220 000+ satır var ve başka oturumlar da yazıyor. Görev dizini
+`<instance_id>__<kol>` diye benzersiz adlandırılır, ledger satırındaki
+`"pipe":"<dizin>:..."` alanı bu koşuya ait satırı kesin ayırır.
 
 ## Koşu ÖNCESİ zorunlu doğrulama (ON-KAYIT §2 şartı)
 
