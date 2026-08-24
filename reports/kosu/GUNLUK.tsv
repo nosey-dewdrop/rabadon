@@ -4,3 +4,4 @@
 4	OPERATÖR: Sistemde iki karar bekleniyor, ikisi de senden. Durum ve öneriler:
 6	OPERATÖR: R7'de CHALLENGE dosyası 3 yapısal sorun içeriyor; ikisi accept.sh'ı değiştirmeden geçilemez. Karar senden bekleniyor.
 7	OPERATÖR: `reports/R7/CHALLENGE-2.md` bekliyor — `prev` zincir alanı ve `.head` sidecar'ı normalize edilsin mi? Bu kapanmadan GOAL 3 geçilemez, dolayısıyla R7 kapalı kalamaz.
+8	OPERATÖR: 2b'nin tek anlamlı sorusu artık yargılama içi ayrıştırma — ve bu mimari kararı zorunlu kılıyor. Yapan oturum şunu kanıtladı: **1075 µs yargılama kövası tek parça ölçüldü, içi bilinmiyor.** Bu kovanın içine bakılmadan "1000 µs ulaşılamaz" sonucu **kanıt değil, ekstrapolasyon.** Aynı zamanda şunu da kanıtladı: iki fork + IPC bedava olsa bile 1144.5 µs — yani tavanın altına düşürmek için yargılamayı ~%55 küçültmek gerekiyor.
