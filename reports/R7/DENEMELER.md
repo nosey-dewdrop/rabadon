@@ -1509,3 +1509,89 @@ düzeltildi. Değişiklikten ÖNCE ve SONRA `accept.sh` koşuldu, fark ölçüld
     diff reports/R7/accept.ONCE.out reports/R7/accept.SONRA.out    # yalniz 6e metni + yuke bagli 2b/2c
     grep -c total_cost_usd reports/R7/ab_run.jsonl                 # 8 (8 satirin hepsi)
     ORNEK=2 ARA=60 bash reports/R7/olc_2b.sh                       # stub accept.sh ile: KESIN KIRMIZI, exit 1
+
+## deneme 27 — 2026-08-24 (tur 21, yapan) — ÖRNEKLEYİCİ TAM KOŞTU: 5/5 gözlem, hepsi tavanın ÜSTÜNDE; hükmün MANTIĞI ters çıktı
+
+**DENENEN.** İki iş. (1) Tur 20'de yazılıp koşturulamayan örnekleyici tam
+kadro koşuldu: `ORNEK=5 ARA=1200`, 5 örnek × 20 dk, `timeout 7000` sarmalı
+(B1.9), arka planda; her örnek `reports/R7/YUK-2B-ORNEKLEME.log`'a düştü.
+(2) Deneme 26'nın "KALAN HİPOTEZLER"inde bırakılan `accept.sh` kusuru —
+`JL="$(ls "$RD"/*.jsonl | head -1)"` — `JL="$RD/ab_run.jsonl"` ile kapatıldı,
+tek satır, kendi commit'i, kabul betiğinin başka hiçbir satırına dokunulmadan.
+
+**SONUÇ.**
+
+- **Beş örneğin beşi de geçerli (5/5), hepsi 1000 µs tavanının ÜSTÜNDE:**
+
+  | örnek | saat  | 1 dk yük | 15 dk yük | medyan (µs) |
+  |-------|-------|----------|-----------|-------------|
+  | 1     | 20:08 | 8.90     | 10.83     | 3302.3      |
+  | 2     | 20:28 | 2.41     | 7.09      | 1846.2      |
+  | 3     | 20:50 | 5.12     | 5.52      | 3002.8      |
+  | 4     | 21:11 | 6.48     | 5.61      | 2112.6      |
+  | 5     | 21:31 | 3.67     | 4.36      | **1218.3**  |
+
+  **EN DÜŞÜK gözlem: 1218,3 µs** (tavanın 1,22 katı). En yüksek 3302,3 µs.
+  Beş gözlemin medyanı 2112,6 µs.
+- **`ls | head -1` kusuru ŞÜPHE değil, ÜRETİLEBİLİR OLGU çıktı.** Üç boş
+  jsonl'li bir dizinde ölçüldü: `AAA_yeni.jsonl` eklenince eski satır ONU
+  seçiyor, `ab_run.jsonl`'i değil. Yani GOAL 5 ve GOAL 6'nın TAMAMI sessizce
+  yanlış dosyaya bakabilirdi ve kabul yine sayı basardı. Düzeltmeden sonra
+  `5a` çıktısı artık dosyayı ADIYLA yazıyor: `(ab_run.jsonl)`.
+- **Kabul sonucu DEĞİŞMEDİ: 23 yeşil / 3 kırmızı** (`accept.turn21.out`).
+  Kırmızılar: `2b` (1228,1 µs > 1000 µs), `6e` (`estimated_saved` yok),
+  `7b` (6e olmadan hesaplanamıyor). Düzeltme hiçbir yargıyı yeşile ÇEKMEDİ —
+  amacı da o değildi.
+- **2c yükseldi: %3,35 → %6,50** (50 olaylı 1226,2 µs / 400 olaylı 1305,8 µs).
+  Hâlâ %10 tavanının altında, ama R1.3'ün kapattığı %3,5-4,9 bandının üstüne
+  çıktı. Bu, `accept.sh` başlığındaki öngörünün aynen gerçekleşmesidir: payda
+  küçüldükçe aynı mutlak maliyet daha BÜYÜK yüzde okur.
+
+**ELENEN HİPOTEZ — "1000 µs'nin altına inildi mi?"**
+
+- **HAYIR, İNİLMEDİ.** Beş bağımsız örneğin hiçbiri tavanın altına inmedi; en
+  iyi gözlem tavanın %22 üstünde. **2b bu makinede KIRMIZI**, ve bu artık tek
+  bir ölçümün şansına değil, 85 dakikaya yayılmış 5 ölçüme dayanıyor.
+- "Yük düştükçe latans düşer" (deneme 26'nın iki noktalı gözlemi) — **beş
+  noktayla DESTEKLENDİ ama zayıfladı**: Pearson r = **+0,737** (1 dk yük),
+  **+0,684** (15 dk yük). İlişki gerçek ve pozitif, ama monoton DEĞİL: örnek 2
+  yükü 2,41'ken 1846 µs verdi, örnek 5 yükü 3,67'yken 1218 µs verdi. Yük tek
+  açıklayıcı değişken değil.
+
+**ELENMEYEN — tam tersine, HÜKMÜN KENDİSİ KUSURLU ÇIKTI (CHALLENGE-5).**
+
+Örnekleyici `2b KESIN KIRMIZI` bastı, gerekçesi: "daha temiz bir ölçüm
+MATEMATİKSEL OLARAK daha düşük olamaz". Bu, betiğin kendi fizik önermesinin
+TERSİ. Önerme `ölçülen ≥ temiz` diyorsa, `min(ölçülen) ≥ temiz` olur; yani
+**min, temiz değerin ÜST sınırıdır, ALT sınırı değil.** Elimizdeki tek çıkarım
+`temiz ≤ 1218,3 µs`'dir ve bu `< 1000 µs`'yi dışlamaz. Doğrusal uyum yük=0'da
+970 µs (1 dk) / 744 µs (15 dk) kesişimi veriyor — **kanıt değil**, 5 noktalı
+bir ekstrapolasyon, ama mantık hatasının pratikte fark yarattığını gösteriyor.
+`olc_2b.sh` DEĞİŞTİRİLMEDİ; kusur `reports/R7/CHALLENGE-5.md`'ye yazıldı,
+insan onayı bekliyor. **2b'nin KIRMIZI olması bundan etkilenmiyor** — değişen
+tek şey etiketi: "kesin, makine bahanesi bitti" değil, "bu makinede kırmızı".
+
+**KALAN HİPOTEZLER / açık uçlar.**
+
+- **2b'nin temiz-ortam değeri hâlâ BİLİNMİYOR.** Bu worktree'de 1 dk yükü hiç
+  2,41'in altına inmedi; 8 çekirdekli bu makinede boş ölçüm alınamıyor
+  olabilir. CHALLENGE-5'in operatöre sorusu bu: temiz bir container'da mı
+  ölçülecek, yoksa "bu makinede kırmızı" etiketiyle mi kapanacak?
+- Yükün latansı açıklamayan kısmı NE? r=+0,74, yani varyansın ~%45'i yükle
+  açıklanıyor; geri kalan ~%55 ölçülmedi. Termal kısma, hangi süreçlerin
+  koştuğu (yalnız 3'ü kaydediliyor), disk aktivitesi — hiçbiri ayrıştırılmadı.
+- `6e`/`7b` kökü DEĞİŞMEDİ: `MIN_HISTORY=3` yüzünden tek oturumluk koşuda
+  `estimated_saved` üretilmiyor. Bu bir ÜRÜN gerçeği ve 6e'yi yeşile çekmek
+  için OYNANMAYACAK (operatör bağlaması, deneme 26).
+- 2c %6,50'ye çıktı. Tavan %10; latans düşerse yüzde daha da büyür. Tavana ne
+  kadar yaklaşıldığı İZLENMELİ — bugün yeşil, trend yanlış yönde.
+- `ab_run.sh` değişiklikleri hâlâ CANLI KOŞUDA DENENMEDİ (deneme 25'ten devir).
+
+**KANIT KOMUTLARI.**
+
+    ORNEK=5 ARA=1200 timeout 7000 bash reports/R7/olc_2b.sh   # exit 1, 5/5 gozlem
+    grep "ornek [0-9]: medyan" reports/R7/YUK-2B-ORNEKLEME.log # bes olcumun hepsi
+    grep "gecerli gozlem" reports/R7/YUK-2B-ORNEKLEME.log      # EN DUSUK 1218.3 us
+    bash reports/R7/accept.sh > reports/R7/accept.turn21.out 2>&1   # 23 yesil / 3 kirmizi
+    grep -n "^FAIL" reports/R7/accept.turn21.out               # 2b, 6e, 7b
+    grep -n "5a raw JSONL" reports/R7/accept.turn21.out        # PASS ... (ab_run.jsonl)

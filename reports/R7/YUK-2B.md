@@ -173,3 +173,98 @@ Bu koşulda 84 dakika daha beklemek ölçüm üretmez, yalnız tur yakardı.
 
 **Bu oturumun önerisi: (c)**, ikincil olarak (a). (b) sayıyı kurtarmaz,
 yalnız kirliliği normalleştirir.
+
+== 2b TEKRARLI ORNEKLEME — 2026-08-24T20:06:31
+Kural: tur 19 CEVAP 1. En dusuk gozlem, cekismesiz degerin ALT SINIRIdir.
+Hedef ornek sayisi: 5, ara: 1200s.
+
+#### ornek 1/5
+### olcum baglami — 2026-08-24T20:06:31
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  8.90 9.44 10.83 
+en cok CPU yiyen 3 surec:
+  125.4 29277 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.172/Helpers/Google Chrome Helper (GPU).app/Contents/MacOS/Google Chrome Helper (GPU)
+   90.3 30345 /Users/damummyphus/damla_projects_2026/stitchu/engine/build/engine_check
+   17.1 28085 claude
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 3302.3 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+#### ornek 2/5
+### olcum baglami — 2026-08-24T20:28:10
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  2.41 5.05 7.09 
+en cok CPU yiyen 3 surec:
+   98.8 60949 /Users/damummyphus/damla_projects_2026/stitchu/engine/build/surface-pattern
+   11.0   399 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+    5.2   644 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 1846.2 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+#### ornek 3/5
+### olcum baglami — 2026-08-24T20:48:55
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  5.12 4.80 5.52 
+en cok CPU yiyen 3 surec:
+   90.7 85620 /Users/damummyphus/damla_projects_2026/stitchu/engine/build/engine_check
+   18.8 77179 ugrep
+   18.2 92660 claude
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 3002.8 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+#### ornek 4/5
+### olcum baglami — 2026-08-24T21:10:27
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  6.48 5.44 5.61 
+en cok CPU yiyen 3 surec:
+   98.4 17260 /opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+   16.5 77179 ugrep
+   14.1   399 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 2112.6 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+#### ornek 5/5
+### olcum baglami — 2026-08-24T21:31:29
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  3.67 3.70 4.36 
+en cok CPU yiyen 3 surec:
+   53.0   356 /System/Library/Frameworks/CoreServices.framework/Frameworks/Metadata.framework/Support/mds
+   39.3 16693 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+   24.4 74252 claude
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 1218.3 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+**HUKUM: 2b KESIN KIRMIZI.**
+Gecerli gozlem 5/5, hepsi (us): 3302.3 1846.2 3002.8 2112.6 1218.3
+EN DUSUK gozlem **1218.3 us**, tavan 1000 us.
+Yuk yalniz EKLER: daha temiz bir makinede olculen deger bundan DUSUK
+olamaz. Makine bahanesi kalmadi — 2b gercekten kirmizi.
