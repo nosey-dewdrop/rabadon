@@ -336,15 +336,24 @@ ledger_wouldrefuse_sayisi(){
   cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
     | grep -ciE '"(wouldRefuse|would_refuse)"[[:space:]]*:[[:space:]]*true|"ev"[[:space:]]*:[[:space:]]*"WOULD_REFUSE"'
 }
-# BAGLAMA KABULUNUN SERT HALI. `ledger_new_lines > 0` bir kapinin YASADIGINI
-# gosterir, KONUSTUGUNU degil: STEP_START o sarti karsilar ve tur 16'da tam
-# olarak boyle gecti — 51 satirin 51'i STEP_START'ti ve kabul yesil sandi.
-# Birikim motorunun calistiginin en kucuk kaniti SIGNAL (bir sey yakalandi)
-# veya INJECT (ajana bir sey soylendi) satiridir; ikisi de yalniz
-# native/gate.cpp'de uretilir.
-ledger_sinyal_sayisi(){
+# SIGNAL / INJECT — KAPI DEGIL, OLCULEN DEGISKEN (operator karari, tur 18
+# CEVAP 2; `reports/kosu/18.operator.md`).
+# Bunlar "birikim motoru ajanla KONUSTU mu" sorusunu cevaplar. Tur 17'de
+# gecerlilik SARTI yapilmisti; olculdu ki bu bir SECILIM YANLILIGI uretiyor:
+# gercek dogfooding ledger'inda 186 oturumun yalniz 8'i (%4,3) SIGNAL veya
+# INJECT uretmis. Sart kalsaydi odenmis B kosularinin %95,7'si ATILIR ve kalan
+# kume "rabadon'un konustugu" oturumlara YANLI olurdu — boyle bir orneklemden
+# cikan her fark urun lehine URETILMIS bir sayidir (Yasa 7 bunu yasaklar).
+# Bu yuzden: hicbir kosu bu yuzden ATILMAZ; iki sayi da JSONL'e AYRI alan
+# olarak yazilir (`signals`, `injects`) ve analizde "rabadon'un konustugu N
+# kosu" ile "konusmadigi M kosu" ayri ayri raporlanir.
+ledger_signal_sayisi(){
   cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
-    | grep -cE '"ev"[[:space:]]*:[[:space:]]*"(SIGNAL|INJECT)"'
+    | grep -cE '"ev"[[:space:]]*:[[:space:]]*"SIGNAL"'
+}
+ledger_inject_sayisi(){
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
+    | grep -cE '"ev"[[:space:]]*:[[:space:]]*"INJECT"'
 }
 # BAGLAMANIN KENDISININ KANITI — sinyalden BAGIMSIZ, cunku bunlar her oturumda
 # deterministik olarak yazilir (olculdu, bkz. DENEMELER deneme 23):
@@ -360,6 +369,26 @@ ledger_native_sayisi(){
 ledger_counter_sayisi(){
   cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
     | grep -cE '"ev"[[:space:]]*:[[:space:]]*"COUNTER"'
+}
+# ESTIMATED_SAVED KABLOSU (operator karari, tur 18 CEVAP 2; DENEMELER PARKED).
+# OLCULDU tur 18: bu alan JSONL'e HIC yazilmiyordu (`grep -c estimated_saved
+# ab_run.sh` -> 0), yani sayac bir rakam uretse bile accept.sh 6e'ye TASINMIYOR.
+# Recete: bu pipe etiketinin SON COUNTER satirini spool'dan oku, `saved_usd`'yi
+# al. Sayac deger uretmediyse `null` YAZILIR — UYDURMA SIFIR DEGIL; sifir
+# "tasarruf olmadi" demektir, null "sayi hesaplanamadi" demektir ve accept.sh
+# ikisini farkli okur.
+# BILINEN SINIR (tur 18'de olculdu, bu tur KAPATILMIYOR): `counter.h:63`
+# MIN_HISTORY=3 — sayac ucten az olculmus zincir gorurse `has_saved` false
+# kalir ve `saved_usd` null doner. Iki kollu kosuda her gorev TEK oturumdur,
+# dolayisiyla `median_n:0` ve bu alan HER HALUKARDA null olur. Bu bir URUN
+# gercegidir, harness hatasi degil: rabadon tek oturumluk kullanimda tasarruf
+# sayisi URETEMEZ. Kablo yine de cekilir ki 6e'nin kirmizisi "alan tasinmiyor"
+# degil, olculmus urun sinirini gostersin.
+ledger_saved_usd(){
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
+    | grep -E '"ev"[[:space:]]*:[[:space:]]*"COUNTER"' | tail -1 \
+    | sed -n 's/.*"saved_usd"[[:space:]]*:[[:space:]]*\([^,}]*\).*/\1/p' \
+    | tr -d ' '
 }
 
 # --------------------------------------------------------------------- ana
@@ -456,7 +485,7 @@ for iid in $GOREV_SIRASI; do
     # oauthlib A kollari tam olarak boyle YANLIS elendi (36 ve 40 eski satir).
     # Karar DELTA ile verilir, toplamla degil.
     led0="$(ledger_satir_sayisi "$etiket")"; wr0="$(ledger_wouldrefuse_sayisi "$etiket")"
-    sig0="$(ledger_sinyal_sayisi "$etiket")"
+    sig0="$(ledger_signal_sayisi "$etiket")"; inj0="$(ledger_inject_sayisi "$etiket")"
     nat0="$(ledger_native_sayisi "$etiket")"; cnt0="$(ledger_counter_sayisi "$etiket")"
     if [ "$arm" = B ]; then bagla_hook "$d"; fi
 
@@ -514,7 +543,7 @@ PY
     hp=false; { [ "$fg" -eq "$ft" ] && [ "$ft" -gt 0 ] && [ "$pg" -eq "$pt" ]; } && hp=true
 
     # ---- B kolu BAGLAMA KABULU: ledger'da YENI SATIR yoksa satir YAZILMAZ
-    fp=false; ledyeni=0; wryeni=0; sigyeni=0
+    fp=false; ledyeni=0; wryeni=0; sigyeni=0; injyeni=0; savedusd=null
     # KONTROL KOLU SAFLIGI (tur 14'te dogan sart, B'nin baglama kabulunun aynasi).
     # A kolunda rabadon HIC olmamali. Ledger'da o kosuya ait TEK satir bile varsa
     # kontrol kolu kirlenmis demektir ve satir JSONL'e YAZILMAZ. Bu sart olmadan
@@ -531,7 +560,8 @@ PY
     if [ "$arm" = B ]; then
       led1="$(ledger_satir_sayisi "$etiket")"; ledyeni=$((led1-led0))
       wr1="$(ledger_wouldrefuse_sayisi "$etiket")"; wryeni=$((wr1-wr0))
-      sig1="$(ledger_sinyal_sayisi "$etiket")"; sigyeni=$((sig1-sig0))
+      sig1="$(ledger_signal_sayisi "$etiket")"; sigyeni=$((sig1-sig0))
+      inj1="$(ledger_inject_sayisi "$etiket")"; injyeni=$((inj1-inj0))
       natyeni=$(( $(ledger_native_sayisi "$etiket") - nat0 ))
       cntyeni=$(( $(ledger_counter_sayisi "$etiket") - cnt0 ))
       [ "$wryeni" -gt 0 ] && fp=true
@@ -552,25 +582,26 @@ PY
         printf '%s\t%s\tCOUNTER_YOK_ledger_yeni=%s\n' "$iid" "$arm" "$ledyeni" >> "$RUN/gecersiz.tsv"
         continue
       fi
-      # 3) SERT KABUL (operator emri, tur 17): kapi yasadi mi degil, KONUSTU mu.
-      #    UYARI — OLCULDU, bkz. DENEMELER deneme 23 / CHALLENGE-4.md: gercek
-      #    dogfooding ledger'inda 186 oturumun yalniz 8'i (%4,3) SIGNAL veya
-      #    INJECT uretmis. Bu sart aynen kalirsa B kosularinin buyuk cogunlugu
-      #    ATILIR ve kalan kume "rabadon'un konustugu oturumlar"a dogru
-      #    yanlidir. Operator karari beklemektedir; emredildigi gibi duruyor.
-      if [ "$sigyeni" -le 0 ]; then
-        say "  [$arm] SIGNAL/INJECT SATIRI YOK ($ledyeni yeni satir var ama hicbiri degil) — GECERSIZ, JSONL'e YAZILMIYOR"
-        printf '%s\t%s\tSIGNAL_INJECT_YOK_ledger_yeni=%s\n' "$iid" "$arm" "$ledyeni" >> "$RUN/gecersiz.tsv"
-        continue
+      # 3) KAPI BURADA BITER (operator karari, tur 18 CEVAP 2).
+      #    Tur 17'de burada ucuncu bir SART vardi: `sigyeni <= 0` ise kosu
+      #    ATILIYORDU. KALDIRILDI — gerekcesi yukarida `ledger_signal_sayisi`
+      #    basliginda, ozeti: sart secilim yanliligi uretiyordu (%95,7 atilma).
+      #    BAGLAMA KABULU = native `ng-` satiri VE COUNTER. Bu ikisi "gercek
+      #    native gate bu kosuda ATESLENDI"i kanitlar; kabul sarti bu kadardir.
+      #    SIGNAL/INJECT artik OLCULEN DEGISKEN: sayilir, JSONL'e yazilir,
+      #    hicbir kosuyu ELEMEZ.
+      savedusd="$(ledger_saved_usd "$etiket")"; [ -n "$savedusd" ] || savedusd=null
+      if [ "$sigyeni" -le 0 ] && [ "$injyeni" -le 0 ]; then
+        say "  [$arm] NOT: bu kosuda SIGNAL/INJECT yok — rabadon ateslendi ama ajanla KONUSMADI. Kosu GECERLI, alan 0 olarak yazilir."
       fi
-      say "  [$arm] baglama kabulu OK (native $natyeni, COUNTER $cntyeni, SIGNAL/INJECT $sigyeni, toplam $ledyeni)"
+      say "  [$arm] baglama kabulu OK (native $natyeni, COUNTER $cntyeni, SIGNAL $sigyeni, INJECT $injyeni, saved_usd $savedusd, toplam $ledyeni)"
     fi
 
     python3 - "$JSONL" "$iid" "$arm" "$hp" "$tin" "$tout" "$tcw" "$tcr" "$cost" \
              "$iv" "$fp" "$fg" "$ft" "$pg" "$pt" "$rc" "$((t1-t0))" "$ledyeni" "$nrest" "$P2P_CAP" "$wryeni" \
-             "$P2P_EXCL_DIR/$iid.txt" "$sigyeni" <<'PY'
+             "$P2P_EXCL_DIR/$iid.txt" "$sigyeni" "$injyeni" "$savedusd" <<'PY'
 import json,os,sys
-(jl,iid,arm,hp,tin,tout,tcw,tcr,cost,iv,fp,fg,ft,pg,pt,rc,dur,ledyeni,nrest,cap,wryeni,excl,sigyeni)=sys.argv[1:]
+(jl,iid,arm,hp,tin,tout,tcw,tcr,cost,iv,fp,fg,ft,pg,pt,rc,dur,ledyeni,nrest,cap,wryeni,excl,sigyeni,injyeni,savedusd)=sys.argv[1:]
 # madde 5: dislanan testler SAYIYLA VE ISIMLE JSONL'e girer. Rapor bu alandan
 # okur; gizli bir kisitlama "hepsini kapsadik" gibi okunur.
 ex=[]
@@ -589,11 +620,19 @@ row={"arm":arm,"instance_id":iid,"task":iid,
      "p2p_excluded":len(ex),"p2p_excluded_ids":ex,
      "agent_rc":int(rc),"duration_s":int(dur),
      "ledger_new_lines":int(ledyeni),"ledger_would_refuse":int(wryeni),
-     # SECICILIK GORUNUR KALSIN: sert kabul, SIGNAL/INJECT uretmeyen B
-     # kosularini kumeden atiyor. Bu, "rabadon'un konustugu" oturumlara dogru
-     # bir ORNEKLEM YANLILIGI uretebilir (bkz. DENEMELER deneme 23, CHALLENGE).
-     # Sayi satirda durur ki rapor bunu gizleyemesin.
-     "ledger_signal_inject":int(sigyeni),
+     # SIGNAL/INJECT — OLCULEN DEGISKEN, KAPI DEGIL (tur 18 CEVAP 2).
+     # Artik hicbir kosu bu yuzden atilmiyor; iki sayi AYRI alan olarak durur ki
+     # analiz "rabadon'un konustugu N kosu" ile "konusmadigi M kosu"yu ayri
+     # raporlayabilsin ve rapor secicligi gizleyemesin.
+     "signals":int(sigyeni),
+     "injects":int(injyeni),
+     # geriye donuk uyum: tur 14-17 satirlarinda bu birlesik alan var.
+     "ledger_signal_inject":int(sigyeni)+int(injyeni),
+     # SAYACIN KENDI RAKAMI. `null` = "sayi hesaplanamadi" (MIN_HISTORY=3
+     # karsilanmadi), 0 = "tasarruf olmadi". IKISI AYNI SEY DEGIL ve
+     # accept.sh 6e ikisini farkli okur — bu yuzden uydurma sifir YAZILMAZ.
+     "estimated_saved":(None if str(savedusd).strip() in ("","null","None")
+                        else float(savedusd)),
      "f2p_files_restored":int(nrest)}
 with open(jl,"a") as f: f.write(json.dumps(row)+"\n")
 print("YAZILDI", arm, iid, "heldout_pass="+str(row["heldout_pass"]), "tokens="+str(row["tokens"]))
