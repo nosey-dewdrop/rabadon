@@ -89,6 +89,24 @@ sakinleşmeden **yapısal olarak mümkün değil.**
 Bu, operatörün tek hamlede çözebileceği bir şey (ctest'in aksine kendi
 uygulaması) — ama kararı ona ait, bu tur hiçbir şeyi öldürmedi.
 
+### Kapı koşuldu, AÇILMADI — 2b ölçülmedi
+
+Kayıt: `reports/R7/YUK-2B.md` (tur 19 bölümü) + `YUK-2B-BEKLEME.log`.
+
+    19:34  11.20   19:36   7.03   19:38  31.86   19:40  18.33
+    19:35   7.13   19:37  18.15   19:39  19.26
+
+Tek temiz örnek yok; yük 7,03'ten 31,86'ya **çıktı**. Kaynaklar: Chrome GPU
+helper %463,5 (~4,6 çekirdek) ve stitchu `surface-pattern` %96,5.
+
+**Dürüstlük notu:** 90 dk tavan DOLMADI; kapı 6 dk sonra bu oturum tarafından
+durduruldu. Gerekçe: koşu boyunca kaydedilmiş **bütün** yük değerlerinin en
+düşüğü **2,4** — `< 2,0` eşiği bu makinede bir kez bile gözlenmedi. Kapı 90 dk
+değil, kayıtlı geçmişin tamamında açılmazdı; 84 dk daha beklemek ölçüm değil
+yalnız tur yakardı. Sapma gizlenmiyor, karar operatörün.
+
+**2b KIRMIZI KALIR. Sayı alınmadı, sayı uydurulmadı.**
+
 ## 5. Kabul durumu
 
 `accept.sh` bu turda **KOŞULMADI** (yük kapısı açılmadı; kirli ölçüm delil
@@ -107,10 +125,65 @@ Satılabilir bir kusur tespitidir, gizlenecek bir şey değil.
   sentetik ledger birim testi. **Paralı koşu bu turda başlatılmadı.**
 - `accept.sh`'ın 25 kaleminin hiçbiri bu turda yeniden ölçülmedi.
 - Proje temiz bir kutuda (CLAUDE.md referans ortamı) **hiç** çalıştırılmadı.
-- **YENİ ŞÜPHE, çözülmedi:** `accept.sh:456` `estimated_saved`'i `tok_A-tok_B`
-  (TOKEN farkı) ile karşılaştırıyor, ama sayacın `saved_usd`'si **DOLAR**
-  (`counter.h:299`). Token farkıyla dolar karşılaştırmak sapma yüzdesini
-  anlamsız kılar; **6e yeşile dönse bile sayısı şüpheli olurdu.** Düzeltmek
-  mühürlü `accept.sh`'a dokunmayı gerektirir → operatör kararı, bu turun işi
-  değil. Şu an 6e zaten `null` yüzünden kırmızı, dolayısıyla yanlış bir sayı
-  yayınlanma riski YOK.
+## 7. YENİ CHALLENGE — `reports/R7/CHALLENGE-4.md` (AÇIK, insan onayı bekliyor)
+
+Kablo çekilince 6e'nin erişilebilir hâli ilk kez görüldü ve bir kabul-kapısı
+kusuru çıktı: **6e bir DOLAR değerini bir TOKEN farkıyla karşılaştırıyor.**
+`est` = sayacın `saved_usd`'si (`counter.h:299`, dolar); `real` =
+`tok_A - tok_B` (token). Ölçüldü — sapma dolar değeri ne olursa olsun ~%100:
+
+    saved_usd=0.0001 -> %100.0     saved_usd=1.0 -> %101.1
+    saved_usd=0.05   -> %100.1     saved_usd=5.0 -> %105.6
+
+**6e'de eşik YOK** (`accept.sh:481`): `NODIFF` dışında her sapmada **yeşil**
+basar. Yani "sayaç doğrulandı" satırı %100 sapmayla yeşil olurdu — kapının
+ölçtüğünü iddia ettiği şeyi ölçmemesi, bu projenin engellemek için var olduğu
+şeyin ta kendisi. 7b'de eşik var (%50), o kırmızı olurdu — güvenli yön, ama
+gerekçe yanlış atfedilirdi ("sayaç sapıyor" ≠ "birim yanlış").
+
+**Bugün tetiklenmiyor:** `MIN_HISTORY=3` yüzünden `estimated_saved` zaten
+`null`, 6e "field yok" diye kırmızı. Kusur `MIN_HISTORY` düşerse ya da
+çok-oturumlu koşuya geçilirse canlanır. Önerilen düzeltme (b): `real`'i
+token farkı yerine **maliyet farkı** yap — `total_cost_usd` her iki kol için
+JSONL'de **zaten var** (doğrulandı, 8 satırın 8'inde). Artı 6e'ye 7b'nin
+eşiği. `accept.sh` mühürlü → **DEĞİŞTİRİLMEDİ**, challenge açıldı, adım
+kırmızı sayılıyor.
+
+---
+
+## Oturum ritüeli
+
+**DONE**
+- Tur 18 CEVAP 2 uygulandı: SIGNAL/INJECT eleme şartı `ab_run.sh`'tan kaldırıldı
+  (bağlama kabulü = native `ng-` + COUNTER); `signals`/`injects` ayrı JSONL
+  alanı; `estimated_saved` kablosu çekildi (`null` korunur, uydurma sıfır yok).
+  Kanıt: `bash -n reports/R7/ab_run.sh`; `sed -n '603,638p' ab_run.sh > w.py` ile
+  gerçek yazıcı çıkarılıp üç senaryoda koşuldu (A / B-sessiz / B-konuşkan) →
+  `null`, `null`, `0.0417`; B-sessiz satırı artık **yazılıyor** (eskiden atılırdı).
+  `sed -n '435,459p' accept.sh` ile gerçek 6e okuyucusu aynı JSONL'de koşuldu.
+- Tur 18 CEVAP 1 uygulandı: `reports/R7/olc_2b.sh` yazıldı (mühür dışı, accept.sh'ı
+  çağırır/değiştirmez). Kanıt: `bash -n reports/R7/olc_2b.sh`; kapı mantığı C
+  locale'de 6 değerle test edildi.
+- Sarmalayıcıda iki gerçek hata bulunup düzeltildi: (1) awk'ın tr_TR locale'inde
+  `7.81`'i `7` okuması — `LC_ALL=C` betiğin tamamına; (2) `tee accept.out`'un
+  timeout'ta yarım kabul çıktısı bırakması — atomik `mv`, kapanış satırı şartlı.
+- 2b ölçülmedi ve bu kayda geçti (`YUK-2B.md`): kapı açılmadı, sayı uydurulmadı.
+- `CHALLENGE-4.md` açıldı: 6e dolar↔token karşılaştırıyor, üstelik eşiksiz.
+- Commit'ler: `760c63e`, `5db1804`, `3f1e087`, `CHALLENGE-4`, `YUK-2B`. Hepsi push'landı.
+
+**NOT VERIFIED**
+- `ab_run.sh` değişiklikleri **canlı koşuda denenmedi**; yalnız `bash -n` +
+  sentetik ledger + çıkarılmış yazıcı. **Paralı koşu bu turda başlatılmadı.**
+- `accept.sh`'ın 25 kaleminin **hiçbiri** bu turda koşulmadı. "23 yeşil / 3 kırmızı"
+  tur 17'den **devralınmış** bir sayıdır — çıkarım, ölçüm değil.
+- 2b'nin gerçek değeri bilinmiyor (dört sayı da yük altında alınmış).
+- Proje temiz konteynerde (CLAUDE.md referans ortamı) **hiç** çalıştırılmadı.
+- `ledger_saved_usd` gerçek bir rabadon spool'una karşı denenmedi; `sed`
+  ayıklaması sentetik COUNTER satırlarında doğrulandı.
+- CHALLENGE-4'ün (b) önerisi (maliyet farkı) **uygulanmadı**, yalnız
+  `total_cost_usd`'nin her iki kolda var olduğu doğrulandı.
+
+**NEXT**
+Operatör kararı: 2b nasıl ölçülecek — (a) makineyi sustur, (b) eşiği gevşet,
+(c) temiz konteyner (bu oturumun önerisi: c) — ve CHALLENGE-4'ün kabulü.
+İkisi de mühre/geri dönüşsüz işe dokunduğu için B4 kategorisinde.
