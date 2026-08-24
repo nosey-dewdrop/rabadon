@@ -1093,3 +1093,98 @@ astroid (2 P2P testi bozuk dalda zaten düşüyor) hâlâ dışarıda, ama sebep
 artık teşhis edilmiş. N=6 istenirse: astroid için "bozuk dalda zaten düşen
 P2P testleri taban kümeden çıkarılır" kuralı gerekir — bu, ON-KAYIT'ın
 dondurduğu puanlama semantiğine dokunur, dolayısıyla insan onayı ister.
+
+---
+
+## deneme 20 — 2026-08-24 (tur 15, yapan) — SAYAÇ CANLIDA KÖRDÜ: predikat bir satırdaki İLK "type"ı okuyordu
+
+**DENENEN.** 14.operator.md CEVAP 2'nin bildirdiği P0 bug'ı önce DOĞRULAMAK,
+sonra test-önce düzeltmek: `native/usage.h`'in `is_assistant_usage_line`
+predikatı satırdaki ilk `"type"` anahtarını alıp `"assistant"` bekliyor.
+
+**SONUÇ.** Doğrulandı, ve iddia edilenden ağır. Gerçek transcript'in üst seviye
+anahtar sırası ölçüldü (`~/.claude/projects/.../*.jsonl`):
+`parentUuid, isSidechain, message, requestId, type, uuid, ...` — `message`
+ÖNCE geldiği için ilk `"type"` her zaman message'ın kendi `"type":"message"`'i.
+Predikat hiçbir gerçek satırı eşleştirmiyor. Gerçek 425 satırlık bir
+transcript'te **stok json ayrıştırıcı 414 çağrı / 131 098 in / 758 852 out /
+1 754 223 cache-write / 136 816 678 cache-read** sayarken rabadon
+**1 çağrı / 0 token** okudu.
+
+**ELENEN HİPOTEZ.** "Fixture'lar gerçeği temsil ediyor." Etmiyorlardı: depodaki
+BÜTÜN usage fixture'ları (`session_test.sh`, `budget_test.sh`, `export_test.sh`,
+`lens_test.sh`) `{"type":"assistant","message":{...}}` diye üst seviye type'ı
+ÖNCE yazıyordu. O şekil `--output-format=stream-json`'ın BASTIĞI şekildir,
+diske YAZILAN şekil değil. Suite yeşilken ürün canlıda ölüydü; maske
+fixture'lardı.
+
+**ELENEN HİPOTEZ 2.** "Düzeltme = satırda `"type":"assistant"` ara." Hayır:
+bu deponun kendi oturum logları fixture şekilli satırları ajan METNİNİN İÇİNDE
+alıntılıyor (bu dosya dahil). O arama hiç yapılmamış faturalı çağrılar icat
+eder. Düzeltme bir DERİNLİK okuması olmak zorundaydı: `value_at_depth()` satırı
+bir kez, string-farkında (JSON string'i içindeki süslü parantez iç içelik
+değildir, `\"` string'i bitirmez) tarayıp anahtarı yalnız verilen derinlikte
+eşleştiriyor. `type`/`toolUseResult` derinlik 1, `usage` derinlik 2.
+
+**KALAN HİPOTEZLER.** Sayaç hâlâ kapanmıyor, ama artık sebep BU DEĞİL. İki
+bariyer açık ve ikisi de ölçüldü: (a) B kolunun settings'i yalnız `PreToolUse`
+kaydediyor, COUNTER ise yalnız `SessionEnd`/`Stop`'ta üretiliyor — geçerli
+koşunun B ledger'ında yalnız STEP_START var, COUNTER/RUN_DONE YOK; (b)
+`counter.h:71 MIN_HISTORY=3`, her görev tek oturum, `median_n:0`.
+
+**KANIT KOMUTLARI.**
+
+    ./native/usage_order_test.sh   # düzeltmeden ÖNCE 4 kırmızı, SONRA 9/0 yeşil
+    make test                      # rc=0, 3438 ok, 0 fail
+
+Maskenin kalktığının kanıtı: sayaç eski predikata döndürülüp yeniden derlendi →
+session 13/2, budget 8/3, export 24/2, lens 12/9 KIRMIZI. Düzeltmeyle dördü de
+yeşil (15/0, 11/0, 26/0, 14/0).
+
+---
+
+## deneme 21 — 2026-08-24 (tur 15, yapan) — ELENEN DÖRDÜNCÜ INSTANCE DA HARNESS'TI: `@argfile`
+
+**DENENEN.** ON-KAYIT §7'nin (insan onaylı) P2P dışlama kuralını yedi maddesiyle
+uygulamak, ve operatörün "conan = ortam çöküşü" gerekçesini doğrulamak.
+
+**SONUÇ.** Gerekçe çürüdü. conan'ın ön-doğrulama log'unun TAMAMI iki satır:
+`ERROR: file or directory not found: @.nodeids` / `no tests ran in 0.39s`.
+`kos_pytest` node id'leri pytest'e `@dosya` ile veriyordu; `@` argfile pytest'in
+argparse `fromfile_prefix_chars`'ına bağlı ve eski sürümlerde YOK — o sürüm
+`@.nodeids`'i bir dosya yolu sanıyor. Argüman olarak geçmeye çevrildi;
+conan yeniden ölçüldüğünde **P2P 3/3 GEÇTİ**.
+
+**ELENEN HİPOTEZ.** "conan'ın conftest'i çöküyor / ortamı bozuk." Hayır.
+Tur 14'te üç instance harness hatasıyla elenmişti; bu **dördüncüsü**. Deseni
+adlandırmak gerekiyor: **N'in düşük kalmasının bugüne kadarki sebebi
+instance'ların kalitesi değil, harness'ın kendi kusurlarıydı** — üç ayrı tur
+boyunca her seferinde "instance bozuk" diye okundu.
+
+**KALAN HİPOTEZLER.** Altı instance'ın altısı da artık ön-doğrulamayı geçiyor
+(N=6 mümkün). astroid'in dışlanan iki testi, iki ayrı ön-doğrulama koşusunun
+KESİŞİMİ olarak çıktı — üçüncü aday yok, flake yok, yani deterministikler
+(madde 7 ölçüldü, varsayılmadı). conan'ın koşuya alınıp alınmayacağı
+OPERATÖR kararı: ON-KAYIT §2'nin ayrı gerekçesi (P2P yalnız 3 test) duruyor.
+
+**KIRILGANLIK KAYDI.** `P2P_CAP=120` ilk 120 id'yi alıyor; astroid'in düşen iki
+testi 1584'lük listenin 62. ve 97. sırasında. Yani dilimin içine SIRA ŞANSIYLA
+düştüler — cap 50 olsaydı astroid "temiz" görünürdü. Ölçüm cap seçimine duyarlı.
+
+**KANIT KOMUTLARI.**
+
+    PREVER_ONLY=1 bash reports/R7/ab_run.sh   # hiçbir ajan koşmaz, para harcanmaz
+    column -t -s$'\t' reports/R7/ab_prever.tsv
+    cat reports/R7/p2p_excluded/*.txt
+
+## PARKED
+
+- `gate.cpp` PreToolUse'ta INJECT/SIGNAL üretiyor (4697-4707) ama GEÇERLİ
+  koşunun B örneklerinde bu olaylardan HİÇBİRİ yok — yalnız STEP_START. Yani
+  ölçülen B kolu, ajana hiç konuşmayan bir rabadon olabilir. Bu doğruysa iki
+  kollu koşunun token karşılaştırması bugüne kadar "kaydeden ama müdahale
+  etmeyen" bir kapıyı ölçtü ve 2-2 bölünme bunun beklenen sonucudur.
+  ÖLÇÜLMEDİ, ayrı bir tur işi.
+- Makinede `AppleSpell` 3s 39dk boyunca %111 CPU yakıyor (rabadon'un yetim
+  süreci DEĞİL, `pgrep pytest|pip` = 0). Latans ölçen her tur bunu önce
+  temizlemeli; bu turun ölçümleri geç/kal tipi olduğu için etkilenmedi.

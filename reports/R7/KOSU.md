@@ -108,10 +108,17 @@ Ham kayıttaki satır sayısı bu bölümün tek doğrulayıcısıdır:
 **Altı görevin dördü koşuldu.** İkisi koşu öncesi zorunlu doğrulamayı
 geçemedi ve ALINMADI (`ab_prever.tsv`):
 
-| instance | sebep |
-|---|---|
-| conan | P2P 0/3 — conftest hâlâ çöküyor (`test/functional` ağır bağımlılık ister) |
-| astroid | P2P 118/120 — iki P2P testi bozuk dalda ZATEN düşüyor, "bozulmadı" o ikisi için ölçülemez |
+| instance | tur 14'te yazılan sebep | tur 15'te ÖLÇÜLEN |
+|---|---|---|
+| conan | "P2P 0/3 — conftest hâlâ çöküyor" | **YANLIŞ.** conftest çökmüyordu; pytest `@.nodeids` argfile'ını desteklemiyordu (harness hatası). Argümanla geçince **3/3 geçti.** |
+| astroid | "P2P 118/120 — iki test bozuk dalda zaten düşüyor" | **DOĞRU**, ve ON-KAYIT §7'nin dışlama kuralıyla kapandı: iki test isimle dışlandı, **118/118 geçti.** |
+
+**Bu tablo tur 15'te GEÇERSİZ hale geldi: altı instance'ın ALTISI da artık
+ön-doğrulamayı geçiyor** (`ab_prever.tsv`, `prever.tur15.out`). Yukarıdaki
+dört-görevlik sayılar hâlâ tur 14'ün ham kaydına aittir ve N=4 ile okunmalıdır;
+N=6'lık koşu HENÜZ KOŞULMADI (kollar para harcar, karar operatörün). Bu
+bölümdeki "ikisi koşuya ALINMADI" cümlesi tur 14'ün durumunu anlatır, bugünkünü
+değil.
 
 **Başlangıçta ÜÇ instance elenmişti ve üçünün elenme sebebi de HARNESS
 HATASIYDI, instance hatası değil.** İki ayrı kusur:
