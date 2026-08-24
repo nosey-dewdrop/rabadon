@@ -6,6 +6,18 @@ cd "$(git rev-parse --show-toplevel)"
 mkdir -p reports/kosu
 export GIT_TERMINAL_PROMPT=0 CI=1 npm_config_yes=true DEBIAN_FRONTEND=noninteractive GIT_PAGER=cat
 export PYTHONIOENCODING=utf-8 PYTHONUTF8=1   # C/POSIX locale ASCII cokusune karsi parser zirhi
+# TASINABILIRLIK: macOS'ta `timeout` YOKTUR (BSD userland). Shim olmadan her
+# `timeout ...` cagrisi "command not found" ile 127 doner — degerlendiren HIC
+# kosmaz, pusla her turda "basarisiz" saniir. gtimeout = GNU timeout (coreutils).
+# Shim yoksa dongu sessizce degil, YANLIS kosar; o yuzden burasi sert baslar.
+if ! command -v timeout >/dev/null 2>&1; then
+  if command -v gtimeout >/dev/null 2>&1; then
+    timeout() { gtimeout "$@"; }
+  else
+    echo "HATA: ne timeout ne gtimeout var (macOS'ta: brew install coreutils). Dongu baslamaz." >&2
+    exit 2
+  fi
+fi
 MAX_ITER=${MAX_ITER:-40}
 SESSION_TIMEOUT=${SESSION_TIMEOUT:-7200}   # mutlak tavan (mesru uzun derleme/bench icin genis)
 STALL_TIMEOUT=${STALL_TIMEOUT:-1200}       # cikti buyumezse 20 dk'da kes
@@ -35,7 +47,7 @@ pusla() {  # push; kalirsa rebase+tekrar; yine kalirsa LOGLA — sessiz yutma yo
   timeout 120 git pull --rebase -q 2>/dev/null || git rebase --abort >/dev/null 2>&1
   timeout 120 git push -q 2>/dev/null && return 0
   printf '%s\t%s\tpush BASARISIZ — remote guncel degil, OPERATOR.md YERELDEN izlenmeli\n' \
-    "$(date -Is)" "$1" >> reports/kosu/PUSH-HATA.log
+    "$(date +%Y-%m-%dT%H:%M:%S%z)" "$1" >> reports/kosu/PUSH-HATA.log   # BSD date'te -Is YOK
   return 1
 }
 
