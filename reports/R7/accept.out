@@ -6,33 +6,19 @@ PASS  1c a thin client path referencing the daemon socket exists (native/gated_c
 
 == GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
 PASS  2a the daemon started and its socket is listening
-reports/R7/accept.sh: line 216: 96966 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
-      in-process median with the daemon up: 1583.2 us over 300 samples
+reports/R7/accept.sh: line 217: 54315 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+      in-process median with the daemon up: 1235.3 us over 300 samples
       ceiling = 1000 us (KOSU-RABADON R7); instrument = R1.3 in-process probe
-FAIL  2b the gate's median is 1583.2 us with the daemon up, ceiling is 1000 us
-      50-event session: 1732.5 us   400-event session: 1765.8 us   divergence 1.92%
+FAIL  2b the gate's median is 1235.3 us with the daemon up, ceiling is 1000 us
+      50-event session: 1231.2 us   400-event session: 1301.2 us   divergence 5.69%
       R1.3 closed this at 3.5-4.9% WITH process spawn in the denominator
-reports/R7/accept.sh: line 246: 97048 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
-PASS  2c the residual length dependence is re-measured (1.92%) and written to reports/R7/LENGTH.md
+reports/R7/accept.sh: line 247: 54952 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
+PASS  2c the residual length dependence is re-measured (5.69%) and written to reports/R7/LENGTH.md
 
 == GOAL 3 — with the daemon down, behaviour is byte-identical to today
-FAIL  3-[echo hello world] behaviour diverges when the daemon is down — this is not fail-SAME
-      4c4
-      < da5280ac8f1fe56c539745e0c3f73be689f9c75f25f3064e65276a0ef55cdf29 1
-      ---
-      > 686e6214738c4666d5196aa3c105416b1f28d18551a057ec6ec978ff3e53f31a 1
-FAIL  3-[rm -rf /] behaviour diverges when the daemon is down — this is not fail-SAME
-      9,10c9,10
-      < {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"0d8594721ba4123ce8ee0f8ea0ccf9d2b4d76697fdbd2fb6b57299b2e0a82a68"}
-      < 75be664cee050d2f55facac1b0be03cd52a6193d943a024bf09f0acd8fe1203f 2
-      ---
-      > {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"873972c78e3c0fc8812cd7d474554273931179b3fd37c601c2e7ce1bb0fe9f7a"}
-      > 918704c026ebac1840bfc3bc91a537ba647928bf4e14ef900c22f76636bd42ca 2
-FAIL  3-[git commit --no-verify -m x] behaviour diverges when the daemon is down — this is not fail-SAME
-      4c4
-      < bcf5bb045e14d3bdf483365bf9472e2be618e493daabac7579c9ac4c475427e7 1
-      ---
-      > d5d6571af9e45f10bcd7fcbf7d4289280b6dab9d47db7d13f52ec8080e20920a 1
+PASS  3-[echo hello world] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  3-[rm -rf /] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  3-[git commit --no-verify -m x] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
 
 == GOAL 4 — the harness is named, exactly, with its commit
 PASS  4a reports/R7/ exists
@@ -62,5 +48,5 @@ PASS  8a native/moves_test.sh 21/0
 PASS  8b native/signals_test.sh 39/0
 PASS  8c reports/R2/accept.sh 19 green, 0 red
 
-== R7 acceptance: 11 green, 15 red
+== R7 acceptance: 14 green, 12 red
 R7 NOT ACCEPTED

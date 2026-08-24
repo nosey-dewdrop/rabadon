@@ -409,3 +409,120 @@ yamalandı, `native/` altına yazılmadı.
   ölçümden TÜRETİLEMEZ.
 - Boş guard.json ile ölçüldü; kurallı bir projede regex payı yükselir, ölçülmedi.
 - 2c hâlâ güvenilmez; GOAL 4d ve 5-7 (kanıt kolu) hâlâ hiç başlamadı.
+
+## deneme 7 — 2026-08-24 (tur 10, yapan) — `da9e5b2` regresyonu KAPANDI; gün dizgisi denendi ve ÖLÇÜLDÜ: −229.8 µs, tavan hâlâ kırmızı
+
+**DENENEN (1/2) — regresyon.** Tur 9 teşhisi (`reports/kosu/REGRESYON.md`)
+suçluyu `da9e5b2`'ye bağlamıştı: `rabadon-gated` `make all`'a eklenmiş, başka
+hiçbir yere eklenmemişti. Üç delik, tek sebep — ve teşhis ikisini görmüştü,
+üçüncüsünü bu tur ölçüm buldu:
+
+1. `native/rabadon-cli.sh`'te `case arm` yok. `npm i -g rabadon` sonrası
+   dispatcher **kamusal yüzeyin kendisi**, dolayısıyla daemon repo'yu
+   klonlamamış hiç kimse için erişilemezdi. `gated)` armı + `rabadon dev`
+   ekranında bir satır (satır olmadan test keşfedilebilirliği kırmızı sayıyor).
+2. `gated.cpp` `main()` doğrudan `listen()`'a gidiyordu: `--help`, `-h` ve
+   tanımsız bayrak **10 sn ASILIYORDU**. `rb_help` artık `main`'in ilk ifadesi
+   (soket işinden önce), bayrak biçimli tanımsız argüman `rb_unknown_flag` ile
+   **reddediliyor** (exit 2), yutulmuyor.
+3. **BU TUR BULUNDU:** `rabadon-gated` dört platform paketinin hiçbirinin
+   `files` listesinde yoktu. Prebuilt kurulumda `rabadon doctor` → *"1 of 19
+   binaries absent"*. `make clean` de aynı unutmayı taşıyordu.
+
+**SONUÇ (1/2).** Ölçüm, iddia değil:
+
+| suite | önce | sonra |
+|---|---|---|
+| `./native/cli_test.sh` | 297 passed, **4 failed** | **310 passed, 0 failed** |
+| `./native/npm_install_test.sh` | 11 passed, **1 failed** | **12 passed, 0 failed** |
+
++13 geliyor çünkü 4 asılma, arkasındaki 9 iddiayı da ölçülemez kılıyordu.
+npm kırmızısı için pre-existing kontrolü ayrı klonda yapıldı (B1.8, canlı
+worktree'ye dokunulmadı): `git clone . /tmp/rbnpmbase`, `72f5f5f`, `make all`,
+suite → **11 passed, 1 failed.** Bu değişiklikten ÖNCE kırmızıydı, `da9e5b2` ile
+doğmuştu, sonra yeşil. Commit: `d4fd723`.
+
+**DENENEN (2/2) — gün dizgisi.** `PROFIL-YARGILAMA.md`'nin %28.5'lik kalemi.
+Önce KIRMIZI test kendi commit'inde (`12fb21f`, mühür kuralı: kabul kriteri
+kodla aynı commit'te olmaz), sonra uygulama (`a821278`).
+
+`native/day_cache_test.sh` iki yönü birbirine karşı geriyor, ve **hiçbiri
+diğerini geçirmek için düşürülemez**:
+- DOĞRU — önbellek 4808 damgada `gmtime_r`+`strftime` ile birebir aynı: 200 gün
+  saatlik adımlarla, gece yarısının iki yanı **ters sırada** sorulmuş, artık
+  gün, yıl sınırı.
+- UCUZ — 100k tekrar çağrı 3733 µs; **forklanan çocuğun İLK çağrısı 21 µs**
+  (cold 269–483 µs idi). Daemon şeklinin tamamı bu satırda.
+
+Anahtar `t/86400` — UTC günü tam 86400 sn olduğu için gece yarısı önbelleği
+**tam** geçersiz kılıyor. Takvim aritmetiği yeniden yazılmadı; `gmtime_r` hâlâ
+onu yapıyor, sadece çağrı başına değil gün başına soruluyor. `rabadon-gated`
+`listen()` öncesi bir kez ısıtıyor, worker'lar COW ile miras alıyor.
+
+**SONUÇ (2/2) — SAYI, ve nasıl alındığı.** Tek bir önce/sonra okuması bunu
+çözemez: `PROFIL-YARGILAMA.md` aynı kodun iki koşuda 1108 ve 3058 µs verdiğini
+kaydediyor, yani sürüklenme aranan etkiden büyük. Bu yüzden
+`reports/R7/ab_day.sh` accept.sh'ın **kendi aletini** iki kaynağa karşı
+**dönüşümlü** koşuyor (hangi kolun önce gittiği de her turda değişiyor):
+
+```
+round      OLD_us     NEW_us   DELTA_us
+1          1531.2     1252.5      278.7
+2          1444.0     1180.0      264.0
+3          1450.0     1269.0      181.0
+4          1564.9     1354.3      210.6
+median of medians: OLD 1490.6 -> NEW 1260.8   DELTA 229.8 us (%15.4)
+eşleşmiş her tur NEW lehine: True
+```
+Yeniden koşturma: `bash reports/R7/ab_day.sh 4 300 12fb21f`
+
+**NEGATİF SONUÇ, düz yazılıyor.** 229.8 µs gerçek ve tekrarlanabilir, ama
+%28.5 payının tur 8 tabanına (1075 µs) izdüşümü olan **306 µs'den AZ.** Ve
+tavana ulaşmıyor: `accept.sh` 2b bugün **1235.3 µs**, tavan 1000 µs, hâlâ
+KIRMIZI. Bu tam olarak `PROFIL-YARGILAMA.md`'nin kendi aritmetiğinin söylediği
+şey: bu kalem tek başına %28.5'ti, eşik dört kalemle %72 istiyordu. Bir kalem
+denendi, bir kalemlik yer kazanıldı, tavan kırmızı kaldı.
+
+**KABUL BETİĞİ (mühürlü, değiştirilmedi).** `bash reports/R7/accept.sh` →
+**14 green, 12 red, R7 NOT ACCEPTED** (ham çıktı `reports/R7/accept.out`
+bugünkü koşuyla güncellendi; dosyada duran 11/15 tur 8 öncesineydi).
+Kısmi yeşil kabul değildir — sayı raporlanıyor, kabul edilmiyor. Bu tur
+accept.sh'ın yeşil sayısını **değiştirmedi**: her iki iş de accept.sh'ın
+ölçtüğü yerde değil, altındaki suite'te ve 2b'nin içinde duruyordu.
+
+**ELENEN HİPOTEZ.**
+- "`make test` ilk kırmızı suite'te duruyor, `promises_test.sh` sıranın
+  sonunda kaldığı için hiç görülmüyor" (`REGRESYON.md` PARKED maddesi) —
+  **KISMEN YANLIŞ, düzeltiliyor.** `promises_test.sh` `make test`'in içinde
+  DEĞİL; `Makefile:932` ayrı bir `promises` hedefi ve ayrı olması bilinçli
+  (Makefile:925-931'deki gerekçe). Yani `make test` rc=0'ı 3 promises
+  kırmızısını "gizlemiyor" — onları hiç kapsamıyor. Kör nokta gerçek, ama
+  sebebi sıralama değil, hedef ayrımı.
+
+**KALAN HİPOTEZLER (sıradaki iş).**
+- Tavan için kalan üç kalem: `note_mode` spool taraması (%7.2), `resolve_real`
+  8 realpath (%7.3), oturum durumu gidiş-dönüşü (%28.9). İlk ikisi
+  `PROFIL-YARGILAMA.md`'de "saf israf" olarak işaretli. Üçüncüsü DEĞİL —
+  dayanıklılık semantiğini değiştirir ve o raporun çizdiği sınır çizgisi
+  hâlâ geçerli: sayı için delil kısılmaz.
+- `promises_test.sh` 3 kırmızı (Promise 3 ve 4) — pre-existing, doğrulandı
+  (`REGRESYON.md` Bulgu 1), kendi turunu bekliyor.
+- `CHALLENGE-3` hâlâ açık, insan onayı bekliyor.
+- GOAL 4d/5/6/7 (iki kollu koşunun ham JSONL'i) bu turda hiç ele alınmadı;
+  accept.sh'ın 12 kırmızısının 9'u orada.
+
+**NOT VERIFIED.**
+- Hiçbir şey temiz container'da koşulmadı. Tüm ölçümler bu macOS makinesinde.
+  Saat dilimi ilklendirme maliyeti platforma bağlı; Linux'ta doğrulanmadı.
+- A/B ölçümü sırasında makine SAKİN DEĞİLDİ (load 3.48–5.84). Bu yüzden iddia
+  eşleşmiş fark (229.8 µs), mutlak sütun (1260.8 µs) değil.
+- Gece yarısını gerçekten geçen canlı bir daemon çalıştırılmadı; sınır davranışı
+  `rb_day_str_at`'e damga vererek test edildi, saat ilerletilerek değil.
+- Önbellek statikleri kilitsiz. Kapı süreç başına tek iş parçacığı ve daemon
+  fork ediyor (thread değil), bu yüzden bugün doğru; bir gün thread girerse
+  kilit gerekir, yorumda yazılı.
+- `ab_day.sh` OLD kolunu `12fb21f`'ten iki dosya (`gate.cpp`, `gated.cpp`) ile
+  kuruyor; başlıklar bugünkü ağaçtan. İki commit arasında başlık değişmediği
+  için doğru, ama bu bağımsız olarak assert EDİLMİYOR.
+- `npm_install_test.sh` yalnız darwin-arm64 için koştu; diğer üç platform
+  paketinin `files` listesi elle düzeltildi, ölçülmedi.
