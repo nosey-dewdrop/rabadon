@@ -1,0 +1,120 @@
+I'll start by reading the required files.
+[tool: Read]
+[tool: Read]
+Both files read. Now checking machine load state for 2b.
+[tool: Bash]
+Yük **kirli** — tur 17'den de kötü. Ölçüm almıyorum. Detayları toplayayım.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+accept.sh'ın 2b kalemi ölçümü **kendisi** alıyor (satır 164-206), atlama bayrağı yok. Yük kirliyken koşmak, operatörün yasakladığı delil-olmayan sayıyı üretir. Koşmuyorum. Yük tablosunu yazıyorum.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Yük kirli ve kaynağı tespit edildi: başka bir projenin **aktif `ctest` koşusu**. Raporu yazıyorum.
+[tool: Write]
+Şimdi DENEMELER.md'ye deneme 24 bloğunu ekliyorum (PARKED'den önce).
+[tool: Read]
+[tool: Edit]
+[tool: Bash]
+## Sonuç: yük KİRLİ — ölçüm alınmadı, `accept.sh` koşulmadı
+
+**Karar tek satırda:** 8 çekirdekli makinede 1 dakikalık yük **8,70 → 9,67 ve yükseliyor**. Tur 17'de ölçümü geçersiz kılan sayı 7,51'di; bugün daha kötü. 2b ölçümü alınmadı.
+
+### `accept.sh`'ı neden hiç koşmadım?
+
+Betik 2b ölçümünü **kendisi** alıyor (`accept.sh:164-167` probe'u derliyor, `199-206` medyanı basıp 1000 µs tavanına karşı okuyor) ve atlatma bayrağı yok. "Diğer 25 kalemi göreyim" diye koşmak, senin yasakladığın delil-olmayan sayıyı üretip `accept.out`'a yazardı — sonraki tur onu "ölçüldü" diye okurdu. Tur 14'ün `>/dev/null` hatası tam böyle doğmuştu.
+
+### Yük tablosu
+
+| süreç | %CPU | ne |
+|---|---|---|
+| Chrome Helper (GPU) | 136–469 | tarayıcı, 1,4–4,7 çekirdek |
+| `com.apple.Safari.History` | 97,5–99,2 | **YENİ**, tur 17'de yoktu |
+| `stitchu/…/surface-pattern` | 64–94 | aktif `ctest` koşusu |
+| WebKit WebContent | 19–64 | Safari sekmeleri |
+| `claude` ×4 | 5–19 | bu oturum + kardeşler |
+
+### Yükün kökü bulundu — rabadon değil
+
+PID her örnekte değişiyordu; zincir sürüldü:
+
+```
+60117  surface-pattern EU36
+60048  /bin/sh .../stitchu/engine/tests/walkgate_check.sh
+54076  ctest --test-dir build --output-on-failure
+```
+
+`~/damla_projects_2026/stitchu` altında **koşan bir ctest** var. Onu öldürmedim — başka bir projenin test koşusunu haber vermeden kesmek bu turun yetkisinde değil. rabadon'un yetim süreci yok (`pgrep pytest`/`pip` = 0).
+
+**Tur 17'nin iki kaynağı elendi:** AppleSpell artık **%0,0** (PARKED'deki %111 geçmiş); %99,2'lik Python tek uzun süreç değilmiş — ctest ağacının yeniden doğan çocukları.
+
+### 2b'yi kapatmak için gereken
+
+```
+uptime          # 1dk load << 8
+pgrep -a ctest  # bos olmali  <-- bugunku engel
+bash reports/R7/accept.sh
+```
+
+Commit `acc4627` push edildi: `reports/R7/YUK-2B.md` + DENEMELER deneme 24.
+
+---
+
+### DÖKÜM — sorulmayan ama önemli
+
+- **2b'nin gerçek değeri BİLİNMİYOR.** Üç sayının üçü de (8148,9 / 1385,2 / 2443,8 µs) yük altında; hiçbiri tavana karşı okunamaz. Bu proje **temiz bir kutuda hiç ölçülmedi** — CLAUDE.md'nin referans ortamı (temiz konteyner) bugüne dek kullanılmadı.
+- **"23 yeşil / 3 kırmızı" bu turda DOĞRULANMADI** — tur 17'den devralınmış sayı. Kod değişmedi, ama bu çıkarım, ölçüm değil.
+- **`TESHIS-BAGLAMA.md §4`'ün operatör sorusu hâlâ cevapsız:** SIGNAL/INJECT şartı (a) aynen kalsın, (b) yalnız kayıtlı alan olsun, (c) "native+COUNTER" yeterli sayılsın? Şart aynen kalırsa gerçek dogfooding'de oturumların **%95,7'si atılır** ve kalan küme "rabadon'un konuştuğu oturumlar"a yanlı olur — yani B'nin A'dan iyi çıkması ölçümün kendi seçiminin sonucu olur. **Paralı koşu bu karar gelmeden başlamamalı.**
+- Repoda commit'lenmemiş harness dosyaları duruyor (`reports/kosu/GUNLUK.tsv`, `son.talimat`, `17.karar`, `18.out.raw*`, `.kosu-nabiz.2373`) — bunlar bana ait değil, dokunmadım.
+## Sonuç: yük KİRLİ — ölçüm alınmadı, `accept.sh` koşulmadı
+
+**Karar tek satırda:** 8 çekirdekli makinede 1 dakikalık yük **8,70 → 9,67 ve yükseliyor**. Tur 17'de ölçümü geçersiz kılan sayı 7,51'di; bugün daha kötü. 2b ölçümü alınmadı.
+
+### `accept.sh`'ı neden hiç koşmadım?
+
+Betik 2b ölçümünü **kendisi** alıyor (`accept.sh:164-167` probe'u derliyor, `199-206` medyanı basıp 1000 µs tavanına karşı okuyor) ve atlatma bayrağı yok. "Diğer 25 kalemi göreyim" diye koşmak, senin yasakladığın delil-olmayan sayıyı üretip `accept.out`'a yazardı — sonraki tur onu "ölçüldü" diye okurdu. Tur 14'ün `>/dev/null` hatası tam böyle doğmuştu.
+
+### Yük tablosu
+
+| süreç | %CPU | ne |
+|---|---|---|
+| Chrome Helper (GPU) | 136–469 | tarayıcı, 1,4–4,7 çekirdek |
+| `com.apple.Safari.History` | 97,5–99,2 | **YENİ**, tur 17'de yoktu |
+| `stitchu/…/surface-pattern` | 64–94 | aktif `ctest` koşusu |
+| WebKit WebContent | 19–64 | Safari sekmeleri |
+| `claude` ×4 | 5–19 | bu oturum + kardeşler |
+
+### Yükün kökü bulundu — rabadon değil
+
+PID her örnekte değişiyordu; zincir sürüldü:
+
+```
+60117  surface-pattern EU36
+60048  /bin/sh .../stitchu/engine/tests/walkgate_check.sh
+54076  ctest --test-dir build --output-on-failure
+```
+
+`~/damla_projects_2026/stitchu` altında **koşan bir ctest** var. Onu öldürmedim — başka bir projenin test koşusunu haber vermeden kesmek bu turun yetkisinde değil. rabadon'un yetim süreci yok (`pgrep pytest`/`pip` = 0).
+
+**Tur 17'nin iki kaynağı elendi:** AppleSpell artık **%0,0** (PARKED'deki %111 geçmiş); %99,2'lik Python tek uzun süreç değilmiş — ctest ağacının yeniden doğan çocukları.
+
+### 2b'yi kapatmak için gereken
+
+```
+uptime          # 1dk load << 8
+pgrep -a ctest  # bos olmali  <-- bugunku engel
+bash reports/R7/accept.sh
+```
+
+Commit `acc4627` push edildi: `reports/R7/YUK-2B.md` + DENEMELER deneme 24.
+
+---
+
+### DÖKÜM — sorulmayan ama önemli
+
+- **2b'nin gerçek değeri BİLİNMİYOR.** Üç sayının üçü de (8148,9 / 1385,2 / 2443,8 µs) yük altında; hiçbiri tavana karşı okunamaz. Bu proje **temiz bir kutuda hiç ölçülmedi** — CLAUDE.md'nin referans ortamı (temiz konteyner) bugüne dek kullanılmadı.
+- **"23 yeşil / 3 kırmızı" bu turda DOĞRULANMADI** — tur 17'den devralınmış sayı. Kod değişmedi, ama bu çıkarım, ölçüm değil.
+- **`TESHIS-BAGLAMA.md §4`'ün operatör sorusu hâlâ cevapsız:** SIGNAL/INJECT şartı (a) aynen kalsın, (b) yalnız kayıtlı alan olsun, (c) "native+COUNTER" yeterli sayılsın? Şart aynen kalırsa gerçek dogfooding'de oturumların **%95,7'si atılır** ve kalan küme "rabadon'un konuştuğu oturumlar"a yanlı olur — yani B'nin A'dan iyi çıkması ölçümün kendi seçiminin sonucu olur. **Paralı koşu bu karar gelmeden başlamamalı.**
+- Repoda commit'lenmemiş harness dosyaları duruyor (`reports/kosu/GUNLUK.tsv`, `son.talimat`, `17.karar`, `18.out.raw*`, `.kosu-nabiz.2373`) — bunlar bana ait değil, dokunmadım.
