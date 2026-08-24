@@ -526,3 +526,75 @@ accept.sh'ın yeşil sayısını **değiştirmedi**: her iki iş de accept.sh'ı
   için doğru, ama bu bağımsız olarak assert EDİLMİYOR.
 - `npm_install_test.sh` yalnız darwin-arm64 için koştu; diğer üç platform
   paketinin `files` listesi elle düzeltildi, ölçülmedi.
+
+## deneme 11 — 2026-08-24 (tur 11, yapan) — CHALLENGE-3 bloker mı: HAYIR
+
+**DENENEN.** Tur 10'un kapanışında "CHALLENGE-3 açık, bir bloker, GOAL'lerin
+önüne geçiyor" yazıyordu. Bu turda kod yazılmadı; tek soru şuydu: CHALLENGE-3
+tam olarak neyi talep ediyor ve `reports/R7/accept.sh`'ın GOAL 5/6/7'siyle
+gerçekten kesişiyor mu? Dosya okundu, iddiaları bugünkü ağaç üzerinde yeniden
+koşuldu, accept.sh'ın 5/6/7 satırları tek tek çıkarıldı. Tam rapor:
+`reports/R7/TESHIS-CH3.md`.
+
+**SONUÇ — kesişim SIFIR.** CHALLENGE-3 tek bir şey talep ediyor ve o şey
+BELGESEL: `KOSU-RABADON-2.md:63-69`'daki "yol uzunluğu sınırı R7 testinde
+assert edilir" cümlesi ya doğru yapılacak ya silinecek, insan onaylı ve kendi
+commit'inde. accept.sh'ta soketle ilgili tek satır yok:
+
+```
+$ grep -niE 'sun_path|ENAMETOOLONG|104|108|path.*(length|len|too long)' reports/R7/accept.sh
+>>> no match
+$ grep -n 'sock_path_test' reports/R7/accept.sh
+>>> no match
+```
+
+GOAL 5 (`accept.sh:387-425`), GOAL 6 (`431-489`) ve GOAL 7 (`492-521`) tek bir
+üst-gerçeğe bağlı: `accept.sh:387`'deki `ls "$RD"/*.jsonl` boş dönüyor. On
+kırmızının onu da oradan düşüyor. accept.sh'taki tek "uzunluk" işi GOAL 2c
+(`145`, `210-241`) ve o **ledger** uzunluğu — CHALLENGE-3 bunu kendi 24-25.
+satırında zaten ayırıyor. **GOAL 5/6/7'nin önünde duran şey CHALLENGE-3 değil,
+olmayan iki kollu JSONL.**
+
+**CHALLENGE-3 METNİ ARTIK BAYAT — teknik yarısı kapandı.** Dosya "risk hiçbir
+testte kapsanmıyor" diyor; bu tur 8'de doğruydu, bugün değil.
+`native/sock_path_test.sh` var: `7d344ee`'de KIRMIZI doğdu, bugün 3 ok / 0 FAIL
+((a) kesik yola hiçbir bayt gitmiyor, (b) sebep stderr'de, (c) kapı rc=0 ile
+spool-only sürüyor). Yetim de değil — `Makefile:856`, `test:` hedefi altında
+(`Makefile:104`), olayın anlatısı üstüne yorum olarak yazılmış. Açık kalan tek
+şey cümlenin kendisi ve o cümle hâlâ yanlış: assert `make test`'te, "R7
+testi"nde değil.
+
+**SAYIM DÜZELTMESİ.** Tur 10 bloğu "12 kırmızının 9'u GOAL 5/6/7'de" diyor;
+doğrusu **10**: 5a 5b 5c, 6a 6b 6c 6d 6e, 7a 7b. Kalan ikisi 2b (medyan
+1273.3 µs, tavan 1000 µs) ve 4d (.git temizleme / egress kapatma hazırlığı
+kayıtsız).
+
+**KABUL BETİĞİ (değiştirilmedi, olduğu gibi koşuldu).**
+```
+$ ./reports/R7/accept.sh
+== R7 acceptance: 14 green, 12 red
+R7 NOT ACCEPTED
+```
+Tur 10'la aynı: 14 yeşil / 12 kırmızı, ham çıktı `reports/R7/accept.out`.
+
+**KALAN HİPOTEZLER (sıradaki iş).**
+- Sıradaki iş CHALLENGE-3 DEĞİL. İki kollu koşunun ham JSONL'i: on kırmızı
+  tek bir artefakta bakıyor. GOAL 6'nın istediği alan adları accept.sh'ta
+  yazılı (`heldout_pass`, token toplamları, müdahale sayıları, FP oranı,
+  `estimated_saved`) — üretici tarafı bu şemayı hedeflemeli.
+- CHALLENGE-3 için tek eylem: insanın KOSU-RABADON-2.md diff'ini onaylaması.
+  Ajan tarafında yapılacak iş kalmadı; §"If PROJECT.md itself is wrong"
+  gereği kendi başımıza düzeltmiyoruz.
+- 2b (medyan tavanı) ve 4d hâlâ kendi turlarını bekliyor.
+- `promises_test.sh` 3 kırmızı (Promise 3 ve 4) — pre-existing, doğrulandı.
+
+**NOT VERIFIED.**
+- Hiçbir şey temiz container'da koşulmadı; hepsi bu macOS makinesinde.
+  `sock_path_test.sh` Darwin'de CAP=104 seçiyor, Linux dalı (108) hiç
+  çalışmadı.
+- CHALLENGE-3'ü bir insanın GÖRÜP görmediği bilinmiyor. "İnsan onayı
+  bekliyor" dosyanın kendi durum satırı, gözlenmiş bir olgu değil.
+- CHALLENGE-3:52-63'teki önerilen diff uygulanmadı ve bugünkü
+  KOSU-RABADON-2.md'ye temiz uyup uymadığı denenmedi.
+- Bu turda iki kollu koşu denenmedi; on kırmızı accept.sh okunarak teşhis
+  edildi, veri üretilip yeşile döndükleri görülerek değil.
