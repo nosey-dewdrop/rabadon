@@ -1,8 +1,29 @@
 # CHALLENGE-5 — `olc_2b.sh`'ın HÜKMÜ ters: en düşük gözlem ALT sınır değil, ÜST sınırdır
 
-durum: **AÇIK**, insan onayı bekliyor
+durum: **ÇÖZÜLDÜ** — operatör onayı tur 21 CEVAP 1, 2026-08-25 (`reports/kosu/21.operator.md`)
 açan: tur 21 yapan oturumu, 2026-08-24
-dokunulan mühür: **hiçbiri** — bu bir öneri, `olc_2b.sh` DEĞİŞTİRİLMEDİ
+uygulayan: tur 22, commit `b37af54` (`olc_2b.sh` hüküm bloğu) — kendi commit'i, kod değişikliği yok
+dokunulan mühür: **hiçbiri** — `accept.sh`'ın 2b ölçütü (medyan < 1000 µs) DEĞİŞMEDİ
+
+## Operatörün hükmü (tur 21 CEVAP 1)
+
+> "(a) KABUL — ve hata BENİM. Betik düzeltilsin."
+
+Operatör mantık hatasının kendisine ait olduğunu kabul etti. Onaylanan asimetri:
+
+    min <  1000  ->  KESİN YEŞİL   (temiz değer daha da düşük olacağı için KANITLANMIŞ)
+    min >= 1000  ->  BELİRSİZ, "bu makinede kırmızı; temiz tavan <= <min> µs"
+
+**Bu challenge'ın kendi önerisinden bir farkla:** aşağıdaki "Önerilen diff"
+`min < TAVAN` dalını yine de yeşile yazmıyordu (gerekçe: kabul ölçütü medyan,
+minimum değil — çıkış kodu 2 kalsın). Operatör bunu FAZLA TEMKİNLİ bulup
+reddetti ve haklı: örnekleyicinin `MIN`'i, örnek başına MEDYANLARIN en küçüğüdür.
+Her örneğin medyanı kirli bir medyandır, dolayısıyla `min(kirli medyan) >=
+temiz medyan`. `min < 1000` ise temiz medyan da `< 1000`'dir — kabul ölçütü
+tam olarak budur ve KANITLANMIŞ olur. Uygulanan hüküm operatörünkidir (çıkış 0).
+
+Geçmişte basılan `2b KESIN KIRMIZI — en dusuk gozlem 1218.3 us >= 1000 us`
+hükmü **GEÇERSİZDİR**; kayıtta kalır, üstü çizilidir.
 
 ## Neden şimdi çıktı
 
@@ -148,3 +169,17 @@ Bu oturumun başlatmadığı bir süreçtir ve şu anda bu bulgunun KANITIDIR, o
 yüzden dokunulmadı. Temizlemek isteyen için tek komut:
 
     kill 60547
+
+## EK'İN ÇÖZÜMÜ (tur 22)
+
+Operatör süreci tur 21 CEVAP 2'yi yazarken kendisi öldürdü ve sonucu ölçtü:
+yük **2.35 / 1.91 / 1.77**'ye indi — koşu boyunca kaydedilen en düşük değerler.
+Yani daemon boşta değildi, ölçümü gerçekten kirletiyordu. Süreç tur 9'un profil
+çalışmasının artığıydı; B1.9 onu kaçırdı çünkü kural yalnız yük döngülerini
+kapsıyordu. Kural bu yüzden genişletildi (commit `49e70c0`): kapsam artık tipe
+değil KÖKENE göre — bu turda başlatılan her şey, daemon dahil.
+
+`pgrep -c` kusurunun kendisi `olc_2b.sh`'da tur 22'de düzeltilir; düzeltme
+örnekleyici koşarken YAPILAMAZ (bash betiği bayt ofsetinden okumaya devam eder,
+koşan betiği düzenlemek döngüyü bozar), o yüzden örnekleyici bittikten sonraya
+bırakıldı.

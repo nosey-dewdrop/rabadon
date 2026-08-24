@@ -1340,6 +1340,17 @@ doyuruyor (%97,5–99,2), ve Chrome GPU helper %136–469 (1,4–4,7 çekirdek).
 
 ## PARKED
 
+- **2b'yi TEMİZ REFERANS ORTAMDA ölç (konteyner/CI) — R8 ÖNCESİ GÖREV, R7'yi
+  BLOKLAMAZ.** Operatör emri, tur 21 CEVAP 2 seçenek (b). Gerekçe: bu makine
+  8 çekirdekli ve 22 turda 1 dk yükü hiç 2,41'in altına inmedi; operatörün
+  canlı işleri (Chrome, stitchu) ölçüm için susturulmaz. Düzeltilmiş asimetri
+  gereği bu makinede yalnız YEŞİL kanıtlanabilir — kırmızı ASLA kanıtlanamaz,
+  çünkü her gözlem temiz değerin üst sınırıdır. Yani "2b gerçekten tavanın
+  üstünde mi" sorusunun cevabı bu worktree'de PRENSİP OLARAK bulunamaz;
+  temiz ortam bir konfor değil, tek kanıt yolu. Kabul: konteynerde alınan
+  medyan + o ortamın yük kaydı, `accept.sh` ölçütü (medyan < 1000 µs)
+  DEĞİŞMEDEN. R7 bunu beklemez; R7 2b'yi "bu makinede kırmızı, referans
+  ortam CI" etiketiyle kapatır.
 - **6e/7b'nin kablosu (ölçüldü, YAPILMADI — bu turun işi değildi).** `ab_run.sh`
   `estimated_saved` yazmıyor. Reçete: B kolu bittikten sonra o pipe etiketinin
   son `COUNTER` satırını spool'dan okuyup `saved_usd`'yi (null ise `null`
