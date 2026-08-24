@@ -61,9 +61,8 @@ hazirla_scorer(){   # $1 iid, $2 repo(sw esmith/xxx)
   local iid="$1" repo="$2" d="$RUN/scorer/$1"
   [ -d "$d/.git" ] && return 0
   rm -rf "$d"
-  timeout 600 git clone -q --branch "$iid" \
-      "https://github.com/${repo#swesmith/}" "$d" >>"$LOGS/$iid.prep" 2>&1 \
-  || timeout 600 git clone -q --branch "$iid" \
+  # ayna daima github.com/swesmith/<repo>; 'repo' alani zaten 'swesmith/...' geliyor
+  timeout 900 git clone -q --branch "$iid" \
       "https://github.com/swesmith/${repo#swesmith/}" "$d" >>"$LOGS/$iid.prep" 2>&1 \
   || return 1
   ( cd "$d" && timeout 300 git fetch -q origin main >>"$LOGS/$iid.prep" 2>&1 ) || true
@@ -71,8 +70,12 @@ hazirla_scorer(){   # $1 iid, $2 repo(sw esmith/xxx)
 }
 
 # Ajanin gorecegi agac: scorer'dan kopyalanir, .git SILINIR.
+# Dizin adi BENZERSIZ olmali: ledger satirindaki "pipe" alani cwd'nin BASENAME'inden
+# turuyor ("<dizin>:session"). Ortak spool'da 220k+ satir var ve baska oturumlar da
+# yaziyor; oncesi/sonrasi farki almak BASKA oturumlarin satirlarini sayardi.
+# Benzersiz basename ile bu kosuya ait satir kesin ayirt edilir.
 hazirla_gorev(){    # $1 iid, $2 arm -> agac yolu stdout
-  local iid="$1" arm="$2" s="$RUN/scorer/$1" d="$RUN/tasks/$1/$2"
+  local iid="$1" arm="$2" s="$RUN/scorer/$1" d="$RUN/tasks/${1}__${2}"
   rm -rf "$d"; mkdir -p "$(dirname "$d")"
   cp -R "$s" "$d" || return 1
   rm -rf "$d/.git"          # ON-KAYIT §5.1: gecmis/origin/main/cevap KALMAZ
@@ -85,7 +88,19 @@ kur_venv(){         # $1 agac
   timeout 300 python3 -m venv "$d/.venv" >>"$LOGS/venv.log" 2>&1 || return 1
   timeout 300 "$d/.venv/bin/python" -m pip install -q -U pip setuptools wheel >>"$LOGS/venv.log" 2>&1
   timeout 1200 "$d/.venv/bin/python" -m pip install -q -e "$d" >>"$LOGS/venv.log" 2>&1 || return 1
-  timeout 300 "$d/.venv/bin/python" -m pip install -q pytest >>"$LOGS/venv.log" 2>&1 || return 1
+  # OLCULDU (tur 14): cıplak pytest YETMIYOR. Depoların setup.cfg/tox.ini'si
+  # `required_plugins` ilan ediyor ve pytest "Missing required plugins:
+  # pytest-cov, pytest-xdist" diyip HIC KOSMADAN cikiyor. O zaman "0 passed"
+  # okunur ve saglam bir instance "F2P dustu" sanilip elenirdi — sessiz bir
+  # yanlis eleme. Eklentiler kuruluyor VE addopts bosaltiliyor (asagida).
+  timeout 600 "$d/.venv/bin/python" -m pip install -q \
+      pytest pytest-cov pytest-xdist pytest-timeout pytest-mock \
+      >>"$LOGS/venv.log" 2>&1 || return 1
+  # deponun kendi test bagimliliklari (varsa) — best effort, kirilirsa devam
+  for rq in requirements-test.txt requirements_test.txt test-requirements.txt; do
+    [ -f "$d/$rq" ] && timeout 600 "$d/.venv/bin/python" -m pip install -q -r "$d/$rq" \
+        >>"$LOGS/venv.log" 2>&1
+  done
   return 0
 }
 
@@ -118,8 +133,12 @@ print("\n".join(ids))
 PY
   local tot; tot=$(grep -c . "$d/.nodeids")
   [ "$tot" -eq 0 ] && { printf '0 0'; return; }
-  ( cd "$d" && timeout "$PYTEST_TIMEOUT" ./.venv/bin/python -m pytest -p no:cacheprovider -q \
-      --no-header -x --continue-on-collection-errors @.nodeids ) >"$log" 2>&1
+  # `-o addopts=''` ZORUNLU: depoların kendi addopts'u coverage/xdist/özel bayrak
+  # istiyor; biz node id listesiyle hedefli kosuyoruz, o bayraklar yalniz kirar.
+  # `-x` YOK: ilk hatada durmak "kac test gecti" sayisini bozar.
+  ( cd "$d" && timeout "$PYTEST_TIMEOUT" ./.venv/bin/python -m pytest \
+      -p no:cacheprovider -o addopts='' -q --no-header \
+      --continue-on-collection-errors @.nodeids ) >"$log" 2>&1
   # "N passed" satirindan gecen sayisi
   local gec; gec=$(grep -oE '[0-9]+ passed' "$log" | tail -1 | grep -oE '^[0-9]+')
   printf '%s %s' "${gec:-0}" "$tot"
@@ -141,12 +160,16 @@ bagla_hook(){       # $1 agac  — B1.5 recetesi: goreli komut + sarmalayici
 JSON
 }
 
-ledger_satir_sayisi(){ cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -c . ; }
+# $1 = benzersiz pipe etiketi (gorev dizininin basename'i). Ortak spool'da BASKA
+# oturumlar da yazdigi icin sayim bu etikete gore SUZULUR, ham fark alinmaz.
+ledger_satir_sayisi(){
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -cF "\"pipe\":\"$1:"
+}
 # false_positive (ON-KAYIT §4): observe modda "engellerdim" = wouldRefuse.
 # A kolunda kapi YOK -> yapisal sifir. Ayrim gucu yalniz B'dedir.
 ledger_wouldrefuse_sayisi(){
-  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null \
-    | grep -ciE '"(wouldRefuse|would_refuse)"[[:space:]]*:[[:space:]]*true|"type"[[:space:]]*:[[:space:]]*"WOULD_REFUSE"'
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
+    | grep -ciE '"(wouldRefuse|would_refuse)"[[:space:]]*:[[:space:]]*true|"ev"[[:space:]]*:[[:space:]]*"WOULD_REFUSE"'
 }
 
 # --------------------------------------------------------------------- ana
@@ -168,8 +191,13 @@ for iid in $GOREV_SIRASI; do
       printf '%s\tFAIL\t\t\tKOSUYA_ALINMADI\n' "$iid" >> "$PREVER"
       say "  KURULUM BASARISIZ — koşuya alinmadi"; rm -rf "$pv"; continue
     fi
+    # F2P test DOSYALARI bozuk dalda YOKTUR (ON-KAYIT §5: held-out yapisal).
+    # Once origin/main'den geri konmali, yoksa pytest "file or directory not
+    # found" deyip 0 kosar ve saglam instance yanlislikla elenirdi.
+    nr="$(geri_koy_f2p "$pv" "$iid")"
     read -r fg ft <<<"$(kos_pytest "$pv" "$iid" F2P "$LOGS/$iid.prever.f2p")"
     read -r pg pt <<<"$(kos_pytest "$pv" "$iid" P2P "$LOGS/$iid.prever.p2p")"
+    say "  (geri konan F2P dosyasi: $nr)"
     # bozuk dalda: F2P DUSMELI (gecen < toplam), P2P GECMELI
     if [ "$fg" -lt "$ft" ] && [ "$pg" -eq "$pt" ]; then
       printf '%s\tOK\t%s/%s_DUSTU\t%s/%s_GECTI\tKOSUYA_ALINDI\n' "$iid" "$fg" "$ft" "$pg" "$pt" >> "$PREVER"
@@ -189,9 +217,10 @@ for iid in $GOREV_SIRASI; do
     d="$(hazirla_gorev "$iid" "$arm")" || { say "  [$arm] agac YOK"; continue; }
     if ! kur_venv "$d"; then say "  [$arm] venv BASARISIZ"; continue; fi
 
+    etiket="${iid}__${arm}"          # ledger 'pipe' etiketi = gorev dizini basename
     led0=0; wr0=0
     if [ "$arm" = B ]; then
-      bagla_hook "$d"; led0="$(ledger_satir_sayisi)"; wr0="$(ledger_wouldrefuse_sayisi)"
+      bagla_hook "$d"; led0="$(ledger_satir_sayisi "$etiket")"; wr0="$(ledger_wouldrefuse_sayisi "$etiket")"
     fi
 
     ps="$RUN/ps.$iid.txt"
@@ -241,8 +270,8 @@ PY
     # ---- B kolu BAGLAMA KABULU: ledger'da YENI SATIR yoksa satir YAZILMAZ
     fp=false; ledyeni=0; wryeni=0
     if [ "$arm" = B ]; then
-      led1="$(ledger_satir_sayisi)"; ledyeni=$((led1-led0))
-      wr1="$(ledger_wouldrefuse_sayisi)"; wryeni=$((wr1-wr0))
+      led1="$(ledger_satir_sayisi "$etiket")"; ledyeni=$((led1-led0))
+      wr1="$(ledger_wouldrefuse_sayisi "$etiket")"; wryeni=$((wr1-wr0))
       [ "$wryeni" -gt 0 ] && fp=true
       if [ "$ledyeni" -le 0 ]; then
         say "  [$arm] LEDGER'DA YENI SATIR YOK — bu kosu GECERSIZ, JSONL'e YAZILMIYOR"
