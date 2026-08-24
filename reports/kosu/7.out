@@ -1,0 +1,137 @@
+I'll start by reading the OPERATOR file and the state.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+I'm the turn-7 worker session (PID 82942) the driver launched. Applying CEVAP now.
+
+**Step:** apply operator CEVAP from `reports/kosu/6.operator.md` — option (a), narrow scope: two edits to `reports/R7/accept.sh`, in its own commit, no code. Proof command: `bash reports/R7/accept.sh`.
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now applying the two authorized edits. First the wait helper:
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+Now edit 2 — identity-field normalisation only:
+[tool: Edit]
+[tool: Bash]
+Ceiling intact, only `accept.sh` modified. Committing the instrument change alone (CLAUDE.md rule 2), before any code or any run:
+[tool: Bash]
+Now the proof run. Building first, then the sealed script:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+First number ever from the sealed instrument. Let me see the whole picture:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+Verified — `native/gated.cpp:19` documents two forks per request. Now the mandatory DENEMELER entry:
+[tool: Bash]
+[tool: Bash]
+Now the CHALLENGE for the one residual — this needs a separate operator decision, so I will not touch it:
+[tool: Write]
+[tool: Bash]
+LENGTH.md was written *after* the run, so 2c's green is unproven. Re-running to get a verdict, not a claim:
+[tool: Bash]
+Numbers moved between runs — I must not quietly keep the flattering one. Recording both:
+[tool: Edit]
+[tool: Bash]
+R7 turu 7 bitti. Operatör CEVAP (a) uygulandı, mühürlü betik koşuldu.
+
+## Ne oldu
+
+**accept.sh, kendi commit'inde, kodsuz** (ba231d6) — tam iki kalem, izin verilen sınırın dışına çıkmadan:
+- `sock_bekle()`: uykusuz `seq 50` döngüleri (satır 113, 169) yerine gerçek + tavanlı (10 sn) bekleme. Soket hâlâ **ZORUNLU**.
+- `kimliksiz()`: yalnız `run` / `pipe` / kum havuzu yolu. `1000 µs tavanı DEĞİŞMEDİ`.
+
+**Mühürlü koşu:** `bash reports/R7/accept.sh > reports/R7/accept.out 2>&1` → **11 yeşil / 15 kırmızı** (9/17 idi).
+
+| | sonuç |
+|---|---|
+| **2a** | İLK KEZ YEŞİL — teşhis doğruydu, sorun daemon değil uykusuz döngüydü |
+| **2b** | **1583–1704 µs**, tavan 1000 µs → **KIRMIZI**. Mühürlü alet ilk kez okudu |
+| **2c** | YEŞİL (kayıt yapıldı) ama **sayısı gürültü içinde** — aşağıya bak |
+| **3** | Çıkış kodu, `ev`, `mode`, `rule`, ret metni, `seq`, satır sayısı/sırası artık **bayt bayt aynı** |
+
+**Hız iddiası mühürlü aletle de çürük, üstelik daha kötü:** yapanın kendi /tmp kurgusu 1597.3 µs demişti, mühürlü alet 1704.4 µs verdi. Operatörün "aletin hiç okumadığı bir şartı emekli edemezsin" şartı yerine geldi — sayı artık var, ve kırmızı.
+
+**Sıradaki kalem cevaplandı:** GOAL 3'ün bayt-bayt eşleşmesi, deneme 3'teki iki fail-open düzeltmesinin **mühürlü betikle teyididir**. Ölü daemon artık sessiz izin vermiyor.
+
+## Sorulmadı ama önemli
+
+**1. 2c'nin sayısına GÜVENME.** Betiği iki kez koştum. Aynı makine, aynı binary, aynı commit, dakikalar arayla: sapma **4.98% → 1.92%** (2.6 kat), 2b medyanı **1704.4 → 1583.2 µs** (%7.1). 2c'nin *verdict*'i tavandan uzak olduğu için sabit, ama *sayısı* ölçülmüş sayılmaz. Yasa 7: bu sayı **yayınlanamaz**. `LENGTH.md` ikisini de kaydediyor — iyimser olanı seçmedim.
+
+**2. GOAL 3 HÂLÂ geçilemez, ama tek bir alanda — ve yetkimin dışında.** Kalan fark `"prev"` zincir alanı ve `.head` sidecar'ı. `prev`, bir önceki satırın **normalize edilmemiş** içeriğinin SHA'sı (`native/chain.h:191`) — o içerikte gerçek `ts` var, ki zaten normalize ediliyor. Yani hiçbir uygulama eşleştiremez. Operatörün izin verdiği üç alanın dışında olduğu için **dokunmadım**, `reports/R7/CHALLENGE-2.md` yazdım.
+
+**3. Operatörün yasakladığı desen, sandığı şeyi yapmıyor.** `s/^[0-9a-f]{64} /HASH /` ledger satırlarıyla **hiç eşleşmiyor** (hash orada `"prev":"..."` JSON alanı, önek değil). Yalnız `.head` sidecar'ıyla eşleşiyor, biçimi `<64hex> <satır sayısı>` — yani korunmak istenen satır sayısını **zaten koruyordu**. Karar sizin, ben sadece bildiriyorum.
+
+**4. GOAL 4–7'nin 13 kırmızısının kök sebebi TEK:** iki kollu koşu hiç koşulmadı → JSONL yok → 5a-c, 6a-e, 7a-b hepsi türev. 4d ayrı ve küçük.
+
+**5. 4d'yi bilerek YAZMADIM.** Hiç koşulmamış bir koşu için "hazırlık kaydı" yazmak kontrolü yeşile çekip değeri var etmemek olurdu.
+
+## NOT VERIFIED
+
+- **Temiz makine / taze clone: denenmedi.** `sleep 0.1` GNU ve BSD'de kesirli, ama katı POSIX `sleep`'te fallback (`sleep 1`) yolu **hiç çalıştırılmadı**.
+- **1704/1583 µs bileşenlerine ayrılmadı.** En güçlü aday `native/gated.cpp:19`'da *belgelenmiş* "istek başına İKİ fork" — doğruladım ki belge öyle diyor, ama maliyeti ölçmedim.
+- **`native/gate.cpp:720` `open_sock()` sessiz `strncpy` kesmesi** (Promise 1 ihlali) bu turda hiç incelenmedi.
+- 2c/2b saçılımının sebebi (arka plan yükü / örnek sayısı / interleave) ayrıştırılmadı.
+
+## NEXT
+
+Tek karar bekliyor: **CHALLENGE-2** (`prev` + `.head` normalize edilsin mi). O kapanmadan GOAL 3 hiçbir uygulamayla yeşile dönmez. Ondan bağımsız ilerleyebilecek tek iş, GOAL 5–7'nin kök sebebi olan iki kollu koşunun kurulması.
+R7 turu 7 bitti. Operatör CEVAP (a) uygulandı, mühürlü betik koşuldu.
+
+## Ne oldu
+
+**accept.sh, kendi commit'inde, kodsuz** (ba231d6) — tam iki kalem, izin verilen sınırın dışına çıkmadan:
+- `sock_bekle()`: uykusuz `seq 50` döngüleri (satır 113, 169) yerine gerçek + tavanlı (10 sn) bekleme. Soket hâlâ **ZORUNLU**.
+- `kimliksiz()`: yalnız `run` / `pipe` / kum havuzu yolu. `1000 µs tavanı DEĞİŞMEDİ`.
+
+**Mühürlü koşu:** `bash reports/R7/accept.sh > reports/R7/accept.out 2>&1` → **11 yeşil / 15 kırmızı** (9/17 idi).
+
+| | sonuç |
+|---|---|
+| **2a** | İLK KEZ YEŞİL — teşhis doğruydu, sorun daemon değil uykusuz döngüydü |
+| **2b** | **1583–1704 µs**, tavan 1000 µs → **KIRMIZI**. Mühürlü alet ilk kez okudu |
+| **2c** | YEŞİL (kayıt yapıldı) ama **sayısı gürültü içinde** — aşağıya bak |
+| **3** | Çıkış kodu, `ev`, `mode`, `rule`, ret metni, `seq`, satır sayısı/sırası artık **bayt bayt aynı** |
+
+**Hız iddiası mühürlü aletle de çürük, üstelik daha kötü:** yapanın kendi /tmp kurgusu 1597.3 µs demişti, mühürlü alet 1704.4 µs verdi. Operatörün "aletin hiç okumadığı bir şartı emekli edemezsin" şartı yerine geldi — sayı artık var, ve kırmızı.
+
+**Sıradaki kalem cevaplandı:** GOAL 3'ün bayt-bayt eşleşmesi, deneme 3'teki iki fail-open düzeltmesinin **mühürlü betikle teyididir**. Ölü daemon artık sessiz izin vermiyor.
+
+## Sorulmadı ama önemli
+
+**1. 2c'nin sayısına GÜVENME.** Betiği iki kez koştum. Aynı makine, aynı binary, aynı commit, dakikalar arayla: sapma **4.98% → 1.92%** (2.6 kat), 2b medyanı **1704.4 → 1583.2 µs** (%7.1). 2c'nin *verdict*'i tavandan uzak olduğu için sabit, ama *sayısı* ölçülmüş sayılmaz. Yasa 7: bu sayı **yayınlanamaz**. `LENGTH.md` ikisini de kaydediyor — iyimser olanı seçmedim.
+
+**2. GOAL 3 HÂLÂ geçilemez, ama tek bir alanda — ve yetkimin dışında.** Kalan fark `"prev"` zincir alanı ve `.head` sidecar'ı. `prev`, bir önceki satırın **normalize edilmemiş** içeriğinin SHA'sı (`native/chain.h:191`) — o içerikte gerçek `ts` var, ki zaten normalize ediliyor. Yani hiçbir uygulama eşleştiremez. Operatörün izin verdiği üç alanın dışında olduğu için **dokunmadım**, `reports/R7/CHALLENGE-2.md` yazdım.
+
+**3. Operatörün yasakladığı desen, sandığı şeyi yapmıyor.** `s/^[0-9a-f]{64} /HASH /` ledger satırlarıyla **hiç eşleşmiyor** (hash orada `"prev":"..."` JSON alanı, önek değil). Yalnız `.head` sidecar'ıyla eşleşiyor, biçimi `<64hex> <satır sayısı>` — yani korunmak istenen satır sayısını **zaten koruyordu**. Karar sizin, ben sadece bildiriyorum.
+
+**4. GOAL 4–7'nin 13 kırmızısının kök sebebi TEK:** iki kollu koşu hiç koşulmadı → JSONL yok → 5a-c, 6a-e, 7a-b hepsi türev. 4d ayrı ve küçük.
+
+**5. 4d'yi bilerek YAZMADIM.** Hiç koşulmamış bir koşu için "hazırlık kaydı" yazmak kontrolü yeşile çekip değeri var etmemek olurdu.
+
+## NOT VERIFIED
+
+- **Temiz makine / taze clone: denenmedi.** `sleep 0.1` GNU ve BSD'de kesirli, ama katı POSIX `sleep`'te fallback (`sleep 1`) yolu **hiç çalıştırılmadı**.
+- **1704/1583 µs bileşenlerine ayrılmadı.** En güçlü aday `native/gated.cpp:19`'da *belgelenmiş* "istek başına İKİ fork" — doğruladım ki belge öyle diyor, ama maliyeti ölçmedim.
+- **`native/gate.cpp:720` `open_sock()` sessiz `strncpy` kesmesi** (Promise 1 ihlali) bu turda hiç incelenmedi.
+- 2c/2b saçılımının sebebi (arka plan yükü / örnek sayısı / interleave) ayrıştırılmadı.
+
+## NEXT
+
+Tek karar bekliyor: **CHALLENGE-2** (`prev` + `.head` normalize edilsin mi). O kapanmadan GOAL 3 hiçbir uygulamayla yeşile dönmez. Ondan bağımsız ilerleyebilecek tek iş, GOAL 5–7'nin kök sebebi olan iki kollu koşunun kurulması.
