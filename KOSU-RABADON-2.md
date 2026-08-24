@@ -51,10 +51,13 @@ Tanım `KOSU-RABADON.md § R7`, kabul `reports/R7/accept.sh`. Özü: daemon
 probe; end-to-end cetvel YASAK); iki kollu koşu (A: ajan yalnız, B: ajan +
 rabadon), harness YENİDEN kullanılır, tam repo adı + commit hash zorunlu,
 beş sayı + ham JSONL.
-**ÖNCELİK SORUSU (ilk OPERATÖR sorusu, R7 başlamadan):** saatlerle yarışılıyorsa
-satan yarı KANIT, daemon ciladır. (a) accept.sh olduğu gibi; (b) R7a kanıt önce,
-R7b daemon sonra, accept.sh ayrılır. Değerlendiren önerir, operatör seçer;
-bu arada ortak iş (harness seçimi/kurulumu) başlayabilir.
+**ÖNCELİK SORUSU — KAPANDI (operatör kararı, 24.08, `reports/kosu/4.operator.md`
+CEVAP 3): (a) accept.sh OLDUĞU GİBİ KALIR.** Bölme YOK; R7a/R7b ayrımı yapılmaz.
+22 kırmızının tamamı — 13 kanıt kolu (harness/iki kollu koşu/beş sayı/JSONL) ve
+9 daemon kolu (rabadon-gated/AF_UNIX/soket guard) — BİRLİKTE yeşile çekilir ve
+R7 ancak hepsi yeşilken kabul edilir. Bu soru bir daha operatöre SORULMAZ.
+Harness de kapandı (aynı kararda CEVAP 5): SWE-smith v0.0.6, commit `057f0478`,
+gerekçe `reports/R7/HARNESS.md`. R7'de operatöre açık soru KALMADI.
 **Yasa 7:** iki kol farkı gürültü içinde kalırsa "kurtarır" YAYINLANMAZ;
 metrik + minimum örnek sayısı koşudan ÖNCE reports/R7/ altına (ön-kayıt).
 **Mimari kural — soket yolu (24.08):** daemon soketi REPO/WORKTREE içine
