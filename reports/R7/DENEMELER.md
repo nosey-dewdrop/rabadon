@@ -221,3 +221,60 @@ katı, gürültünün çok dışında. KIRMIZI.
 **KALAN HİPOTEZ (yeni).** 2c/2b ölçümünün koşudan koşuya saçılımının sebebi
 ayrıştırılmadı (arka plan yükü / örnek sayısı / interleave'in drift'i gerçekte
 iptal etmemesi). ÖLÇÜLMEDİ.
+
+## deneme 5 — 2026-08-24 (tur 8, yapan) — operatör CEVAP (d) uygulandı; GOAL 3 YEŞİL, ve mühürlenen şey bir zayıflatma DEĞİL
+
+**DENENEN.** `reports/kosu/7.operator.md` CEVAP'ı: (d) = (a) KABUL ama tek
+başına değil, ZORUNLU 3. madde ile. Yalnız `reports/R7/accept.sh`, kendi
+commit'inde, koda dokunmadan (`6481549`).
+
+**SONUÇ 1 — taban KIRMIZI olarak doğrulandı (değişiklikten ÖNCE).** 11 yeşil /
+15 kırmızı. GOAL 3 diff'i operatörün analizini bire bir doğruladı:
+`echo hello world` YALNIZCA 4. satırda, yani `.head`'de ayrışıyor — `prev`
+suçlu değil, çünkü tek satırlık komutta `prev:"genesis"`. `rm -rf /` ise hem
+`prev` hem `.head`'de ayrışıyor. Operatörün "YAPANIN ATLADIĞI 1" notu doğru.
+
+**SONUÇ 2 — değişiklikten SONRA 14 yeşil / 12 kırmızı.** GOAL 3'ün üç kolu da
+yeşil. `kimliksiz()` iki satır genişledi (yalnız 64-hex `prev`; `.head`'in
+yalnız baştaki hash'i, SAYAÇ KORUNDU), ve her iki kolda karşılaştırmadan ÖNCE
+`native/rabadon-audit --days 2` koşup `INTACT` + exit 0 şart koşuluyor.
+
+**SONUÇ 3 — 3. maddenin DİŞİ VAR, mutasyonla kanıtlandı (iddia değil).**
+Betiğin kopyası bozuldu, gerçek betik değil:
+- mutasyon A (spool'da `"sess"` alanı kurcalandı, B kolunda): audit
+  `chain BROKEN` + rc=1 → GOAL 3 KIRMIZI. Yakalandı.
+- mutasyon B (ASIL TEST — yalnız artık körleştirilen `prev`, başka geçerli
+  bir 64-hex ile değiştirildi): bayt karşılaştırması bunu GÖREMEZ, çünkü iki
+  kolda da `PREV`'e körleşiyor. Audit yakaladı:
+  `chain BROKEN at line 2 (prev=deadbeef0000… expected=ee727fc831e6…)`.
+  Yani körleştirmenin kaybettiği TEK sinyal (zincirin bağlantı aritmetiği)
+  gerçekten geri alınmış durumda. Bu bir test GÜÇLENDİRME hamlesi.
+- körleştirmenin darlığı ayrıca birim olarak sınandı: `prev:"genesis"` ve
+  EKSİK `prev` körleşmiyor; `.head` sayacı (`HASH 2` vs `HASH 7`) korunuyor;
+  `^[0-9a-f]{64} ` deseni gerçek ledger JSON satırına DEĞMİYOR (`{` ile
+  başlıyorlar).
+
+**ELENEN HİPOTEZ.** "GOAL 3 kırmızılığı daemon'da bir fail-open'dan
+kaynaklanıyor olabilir" — ELENDİ. Üç komutun tamamında fark yalnız zincir
+kimlik alanlarındaydı; davranış (çıkış kodu, `ev`, `mode`, `rule`, ret metni,
+satır sayısı ve sırası) zaten bayt bayt aynıydı.
+
+**YASAKLANAN YOL (kalıcı, operatör kararı).** Zinciri NORMALİZE edilmiş
+satırdan hesaplamak. Deterministik olduğu ölçüldü ve YASAK: zincir o zaman
+ts/run/yol alanlarına taahhüt etmez, saldırgan zaman damgasını değiştirir ve
+ledger yine "sağlam" görünür. Bir testi geçirmek için üründeki kurcalama
+kanıtını yok etmek olurdu.
+
+**KALAN HİPOTEZLER (sıradaki iş).**
+- 2b hâlâ KIRMIZI ve bu turda sayı ÜÇÜNCÜ kez oynadı: 1704.4 → 1583.2 →
+  **2063.1 µs**. Üç koşu, aynı makine/binary/commit. Tavan 1000 µs; üçü de
+  tavanın üstünde, yani VERDICT sağlam, ama SAÇILIM (%30) ayrıştırılmadı.
+  Bileşenlere ayırma (istemci-öncesi / IPC / worker yargılaması) HÂLÂ
+  YAPILMADI — operatör bu ayrıştırma gelmeden hız iddiası hakkında yeni karar
+  vermeyeceğini yazdı. Sıradaki iş budur.
+- Aynı koşuda 2c sapması 3.51% (önceki iki koşu: 4.98%, 1.92%). Üç ölçüm üç
+  farklı sayı → 2c'nin SAYISI hâlâ güvenilmez; LENGTH.md bunu kaydetmeli.
+- `native/gate.cpp:720` `open_sock()` sessiz `strncpy` kesmesi ÜÇÜNCÜ turdur
+  açık (Promise 1 ihlali). Bu turda da incelenmedi.
+- GOAL 4d ve 5-7 (kanıt kolu: iki kollu koşu, ham JSONL, beş sayı) hiç
+  başlamadı — 12 kırmızının 11'i orada.
