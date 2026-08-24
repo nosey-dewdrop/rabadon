@@ -51,6 +51,50 @@ Bu dosya yorum katmanıdır; bir sayı burada varsa ham kayıtta da vardır.
 
 ---
 
+## SONUÇ — beş sayı, ham kayıttan
+
+Kabul betiği: `./reports/R7/accept.sh` → **23 yeşil / 3 kırmızı**
+(tur 13'te 14 yeşil / 12 kırmızıydı).
+
+| metrik | A kolu (rabadon YOK) | B kolu (rabadon VAR) |
+|---|---|---|
+| held-out düzeltme oranı | **66.7 %** (3 görev) | **66.7 %** (3 görev) |
+| toplam token | **26 780** | **23 697** |
+| insan müdahalesi | 0 | 0 |
+| yanlış pozitif | 0 % (yapısal) | 0 % |
+
+Görev bazında token:
+
+| görev | A | B | fark | heldout_pass |
+|---|---|---|---|---|
+| autograd | 14 775 | 13 007 | −12.0 % | ikisi de geçti |
+| oauthlib | 5 627 | 5 877 | **+4.4 %** | ikisi de DÜŞTÜ (15/18 F2P) |
+| pydicom | 6 378 | 4 813 | −24.5 % | ikisi de geçti |
+
+### Bu sayı YAYINLANAMAZ — ve bunu 7a'nın "geçmesi" değiştirmez
+
+accept.sh 7a yeşil verdi ("B kolu net token'ı iyileştiriyor"). **Bu bir
+kanıt değildir ve öyle sunulmayacaktır.** Sebepler, hepsi ham kayıttan:
+
+1. **Düzeltme oranı AYNI** (66.7 % / 66.7 %). Üç görevin ikisinde iki kol da
+   çözdü, birinde (oauthlib) iki kol da **aynı şekilde** düştü — ikisi de
+   18 F2P'nin 15'ini geçti. rabadon burada hiçbir fark yaratmadı.
+2. **Üç görevin biri ters yönde** (+4.4 %). Toplam fark tek bir görevden
+   (pydicom, −24.5 %) geliyor.
+3. **N = 3.** Ön-kayıt N=6 diyordu; üç instance ön-doğrulamayı geçemedi.
+4. **Hücre başına TEK ölçüm var, varyans tahmini YOK.** Buna karşılık aynı
+   görev+kol farklı koşularda şu kadar oynadı: autograd B 15 099 → 13 007
+   (%16), oauthlib B 8 962 → 5 877 (%52). Koşu-içi salınım, iki kol
+   arasındaki %11.5'lik toplam farktan **BÜYÜK**.
+
+KOSU-RABADON-2.md:61-62 gereği: fark gürültü içinde kalırsa YAYINLANMAZ.
+Kalıyor. Ham JSONL ve bu ön-kayıt repoda durur; dışarıya bir oran/tasarruf
+cümlesi çıkmaz.
+
+**Doğru okuma:** bu tur, iki kollu koşunun **koşulabilir olduğunu** ve
+ölçüm zincirinin uçtan uca çalıştığını kanıtladı. Hipotezi ne doğruladı ne
+çürüttü — N bunun için yeterli değil.
+
 ## Ne kadarı koşuldu
 
 Ham kayıttaki satır sayısı bu bölümün tek doğrulayıcısıdır:
@@ -58,6 +102,22 @@ Ham kayıttaki satır sayısı bu bölümün tek doğrulayıcısıdır:
     python3 -c "import json;rows=[json.loads(l) for l in open('reports/R7/ab_run.jsonl') if l.strip()];\
     print(len(rows),'satır');\
     print({a:sum(1 for r in rows if r['arm']==a) for a in ('A','B')})"
+
+**Altı görevin üçü koşuldu.** Üçü koşu öncesi zorunlu doğrulamayı geçemedi
+ve ALINMADI (`ab_prever.tsv`):
+
+| instance | sebep |
+|---|---|
+| conan | P2P 0/3 — bozuk dalda P2P koşmadı |
+| astroid | P2P 73/120 — bozuk dalda P2P zaten kırık, "bozulmadı" ölçülemez |
+| feedparser | P2P 0/120 — aynı |
+
+Bu üçü tur 13'ün taramasında "tam temiz" görünüyordu; fark, tur 13'ün P2P
+örnekleminin satır başına **ilk 2 test** olması, buradaysa 120 test
+koşulması. Yani tur 13'ün "7/10 temiz" sayısı bir ÜST sınırdı, alt sınır
+değil — daha geniş P2P örneklemi üçünü eledi. Bu, taramanın değil örneklem
+genişliğinin sonucudur ve ileriki seçimlerde P2P örnekleminin dar
+tutulmaması gerektiğini gösterir.
 
 Koşu **yeniden başlatılabilir**: tamamlanmış (instance, kol) çiftleri ham
 kayıtta durur ve `ab_run.sh` yeniden çalıştırıldığında atlanır. Oturum zaman

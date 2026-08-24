@@ -994,3 +994,50 @@ varsayılmaz, KANITLANIR.
 **KALAN HİPOTEZLER.**
 - İzole edilmiş iki kolda fark var mı — koşu 3. kez, düzeltilmiş haliyle koşuyor.
 - `estimated_saved` hâlâ üretilemiyor (deneme 14, 15); operatör kararı bekliyor.
+
+---
+
+## deneme 18 — 2026-08-24 (tur 14, yapan) — İZOLE KOŞU TAMAMLANDI: 23 yeşil / 3 kırmızı, ama sayı yayınlanamaz
+
+**DENENEN.** Deneme 17'nin `--setting-sources local` tasarımıyla koşu baştan
+koşuldu. Ek olarak kontrol-kolu saflık şartındaki kendi hatam düzeltildi:
+şart ham TOPLAM ledger satırına bakıyordu, oysa spool birikimli — autograd ve
+oauthlib'in A kolları önceki geçersiz koşulardan kalan 36/40 satır yüzünden
+YANLIŞ elendi. Şart DELTA'ya çevrildi (taban her iki kol için de alınıyor).
+
+**SONUÇ — koşu uçtan uca çalıştı.**
+
+    ./reports/R7/accept.sh  ->  23 yesil / 3 kirmizi   (tur 13: 14 yesil / 12 kirmizi)
+
+| metrik | A (rabadon yok) | B (rabadon var) |
+|---|---|---|
+| held-out fix | 66.7 % | 66.7 % |
+| token | 26 780 | 23 697 |
+| interventions | 0 | 0 |
+| false positive | 0 % | 0 % |
+
+Kontrol kolu saflığı KANITLANDI: üç A koşusunun üçünde de bu koşuya ait yeni
+ledger satırı **0**. B koşularında 18 / 6 / 5 satır — hook bağlı.
+
+**ELENEN HİPOTEZ — 7a'nın yeşili kanıt DEĞİL.** accept.sh 7a "B net token'ı
+iyileştiriyor" diye geçti. Bu sayı yayınlanamaz:
+- düzeltme oranı AYNI; oauthlib'de iki kol da aynı şekilde düştü (15/18);
+- üç görevin biri ters yönde (+4.4 %);
+- toplam fark tek görevden geliyor (pydicom −24.5 %);
+- hücre başına tek ölçüm, varyans tahmini yok. Buna karşılık aynı görev+kol
+  koşular arası %16–52 oynadı — koşu-içi salınım, kollar arası %11.5'lik
+  farktan BÜYÜK.
+KOSU-RABADON-2.md:61-62 gereği gürültü içindeki fark YAYINLANMAZ.
+
+**SONUÇ 2 — üç instance ön-doğrulamada elendi, sebebi ölçüm genişliği.**
+conan (P2P 0/3), astroid (73/120), feedparser (0/120). Tur 13 bunları "tam
+temiz" saymıştı çünkü P2P örneklemi satır başına İLK 2 testti; burada 120
+test koşuldu. Yani tur 13'ün "7/10 temiz"i bir ÜST sınırdı. Ders: instance
+taramasında dar P2P örneklemi yanıltıcı.
+
+**KALAN HİPOTEZLER.**
+- N=6'ya çıkmak için ya elenen üç instance'ın P2P'si teşhis edilmeli ya da
+  INSTANCE-TARAMA yeni adaylarla (geniş P2P örneklemiyle) tekrarlanmalı.
+- Anlamlı bir token cümlesi için hücre başına tekrarlı ölçüm gerekiyor
+  (aynı görev+kol en az 3 kez), yoksa varyans bilinmiyor.
+- 6e/7b: `estimated_saved` hâlâ üretilemiyor — operatör kararı (deneme 14/15).
