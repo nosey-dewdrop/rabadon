@@ -249,6 +249,15 @@ int main(int argc, char** argv) {
   sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
   sigaction(SIGCHLD, &sa, nullptr);
 
+  // Pay the timezone load ONCE, here, in the parent — this is where the 28.5%
+  // goes. gate.cpp's day-string cache is a pair of statics, so every worker
+  // forked below inherits it warm copy-on-write and its first call is a memcpy
+  // instead of a 269-483 us load (reports/R7/PROFIL-YARGILAMA.md). Nothing is
+  // cached ACROSS requests here: the worker still reads state.json, the ring
+  // and the spool exactly as a cold gate does. What is reused is process
+  // initialisation, which has no verdict in it.
+  { char warm[16]; rb_day_str(warm); }
+
   fprintf(stderr, "rabadon-gated " RABADON_VERSION " listening on %s\n", sockPath.c_str());
 
   for (;;) {

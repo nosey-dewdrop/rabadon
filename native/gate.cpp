@@ -194,6 +194,42 @@ static long long now_ms() {
   return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
+// The spool file is named after the day, so every gate call needed that string
+// and every gate call built it from scratch: time() + gmtime_r() + strftime().
+// reports/R7/PROFIL-YARGILAMA.md measured that one line at 28.5% of the
+// daemon's ENTIRE judging cost. The formatting is not what costs: the first
+// gmtime_r in a process loads the timezone data, measured at 269-483 us cold
+// and 1.0 us warm. rabadon-gated forks a worker per request, so every request
+// paid the cold price again — for a string that does not change all day.
+//
+// Cached once, therefore. The trap in "it is the same all day" is midnight: a
+// daemon that lives past it would keep appending to yesterday's spool, exit 0,
+// nothing on stderr. So the cache is keyed on WHICH day, not on "have I been
+// asked before". The string is UTC and a UTC day is exactly 86400 seconds, so
+// t/86400 is that key exactly — no calendar arithmetic is reimplemented here,
+// gmtime_r still does it, it is simply asked once per day instead of per call.
+//
+// Single-threaded by construction: the gate is one process per call and the
+// daemon forks rather than threads, so the statics need no lock. If a thread
+// ever appears here, this needs one.
+static void rb_day_str_at(time_t t, char out[16]) {
+  static long long cachedDay = 0;
+  static char cached[16] = {0};
+  // floor division: -1 must land on the day before the epoch, not on it.
+  long long epochDay = (long long)t / 86400;
+  if (t < 0 && (long long)t % 86400 != 0) epochDay--;
+  if (cached[0] == '\0' || epochDay != cachedDay) {
+    struct tm tmv;
+    gmtime_r(&t, &tmv);
+    strftime(cached, 16, "%Y-%m-%d", &tmv);
+    cachedDay = epochDay;
+  }
+  memcpy(out, cached, 16);
+}
+
+// The live entry point: what the call sites used to write inline.
+static void rb_day_str(char out[16]) { rb_day_str_at(time(nullptr), out); }
+
 static string iso8601_now() {
   char iso[32]; time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv);
   strftime(iso, 32, "%Y-%m-%dT%H:%M:%SZ", &tmv);
@@ -635,7 +671,7 @@ static string ledger_line(const string& ev, const string& extraJson) {
   mkdir(rdir.c_str(), 0755);
   mkdir((rdir + "/spool").c_str(), 0755);
   char day[16];
-  { time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
+  rb_day_str(day);
   const char* who = getenv("USER");
   string body = "{\"v\":1,\"seq\":1,\"ts\":" + std::to_string(now_ms()) +
     ",\"run\":\"cli-" + std::to_string(getpid()) + "\",\"pipe\":\"" +
@@ -2751,7 +2787,7 @@ int main(int argc, char** argv) {
   size_t cs = cwd.rfind('/');
   const string project = cs == string::npos ? cwd : cwd.substr(cs + 1);
 
-  char day[16]; { time_t t = time(nullptr); struct tm tmv; gmtime_r(&t, &tmv); strftime(day, 16, "%Y-%m-%d", &tmv); }
+  char day[16]; rb_day_str(day);
 
   Emitter em;
   em.spoolPath = rdir + "/spool/" + day + ".jsonl";
