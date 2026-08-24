@@ -178,6 +178,25 @@ kalmalı; (2) değerlendiren-rolü native primitive'lerde yok. Bilinçli karar.
    süresinde biter. Latans/yük ölçümü yapan tur, ölçümden ÖNCE artık süreç
    olmadığını (`pgrep`) doğrular ve bunu rapora yazar.
 
+   **GENİŞLETME (operatör emri, tur 21 CEVAP 2).** Kural yalnız `while :`
+   tipi YÜK DÖNGÜLERİNİ kapsıyordu ve bu yüzden bir DAEMON'u kaçırdı:
+   tur 9'un profil çalışmasından kalan `/tmp/sprof/dmn/rabadon-gated-sprof`
+   (pid 60547) **10 SAAT** boyunca koştu ve aradaki her turun latans ölçümünü
+   kirletti. Öldürüldüğünde yük 2.35/1.91/1.77'ye indi — koşu boyunca kaydedilen
+   en düşük değerler. Yani kaçırılan tek süreç, on iki turun "makine yavaş"
+   teşhisinin altını oydu. Kural bu yüzden genişler:
+   - Kapsam artık **her arka plan süreci**: yük döngüsü, daemon, soket
+     dinleyici, profil binary'si, sampler, watcher — istisnasız. Hepsi ya
+     `timeout` sarmalı olacak ya da turun sonunda ADIYLA öldürülecek.
+   - Tur sonu kontrolü artık "yetim yük süreci var mı" DEĞİL, **"bu turda
+     başlattığım HER şey öldü mü"**. Soru süreç tipine göre değil, KÖKENE
+     göre sorulur; sessiz ve idle duran bir daemon da bu sorunun kapsamındadır.
+   - `pgrep`'e güvenirken dikkat: BSD `pgrep`'te `-c` YOKTUR (CHALLENGE-5).
+     `pgrep -c -f X` macOS'ta hep hata verir ve `|| echo 0` yüzünden sessizce
+     "0" okunur — yani kontrol HİÇBİR ZAMAN kırmızıya dönemez. Artık-süreç
+     kontrolü `ps -Ao pid,etime,comm | grep` ile yazılır, sayım `wc -l` ile
+     yapılır ve tarama KENDİ kabuğunu dışlar.
+
 ### B2. Sürücü — `scripts/kos.sh`
 v2.2 farkları: stall watchdog (stream çıktı + büyüme kontrolü), DENEMELER.md
 değerlendiren girdisine eklendi.
