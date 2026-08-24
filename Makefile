@@ -854,6 +854,16 @@ test: all
 # exist (reports/R7/CHALLENGE-3.md). ~85 bytes of a 104 cap is what a plain
 # mktemp -d HOME already spends.
 	./native/sock_path_test.sh
+# the spool's day string. reports/R7/PROFIL-YARGILAMA.md measured the line that
+# builds it at 28.5% of the daemon's whole judging cost -- not the formatting,
+# the FIRST gmtime_r in a process, which loads the timezone data: 269-483us
+# cold, 1.0us warm, measured. rabadon-gated forks a worker per request, so it
+# was paid per request for a string that is constant all day. Caching it is the
+# obvious move and the dangerous one: a daemon that lives past midnight would
+# keep appending to yesterday's spool, silently. this test holds both halves --
+# agrees with gmtime_r on both sides of midnight, a leap day and a year
+# boundary, AND a forked child inherits the warm cache.
+	./native/day_cache_test.sh
 # the two events the ledger was not keeping. a session ran `rabadon off` at
 # 02:25 on 3 August and the machine was unguarded from then on while four other
 # sessions kept working under it, and nothing recorded that. and three refusals
