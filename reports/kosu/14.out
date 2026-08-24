@@ -1,0 +1,440 @@
+I'll start by reading the OPERATOR.md answers and the project state.
+[tool: Read]
+[tool: Bash]
+No `OPERATOR.md` exists — the operator files are numbered. Let me look.
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+PID 2411 is running this exact prompt — that's me, turn 14 under `scripts/kos.sh`. Let me confirm ancestry and load the rules.
+[tool: Bash]
+[tool: Bash]
+I'm turn 14 (PID 2411) under `scripts/kos.sh`. Turn 13's work exists. Reading the rules and where 13 stopped.
+[tool: Bash]
+[tool: Bash]
+Turn 13's NEXT is unambiguous: check whether rabadon actually emits `estimated_saved` before starting the run. Starting there.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Key signal: rabadon's counter emits `saved_usd` (dollars); accept.sh 6e compares `estimated_saved` against a **token** difference. Let me verify by running it, not assuming.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Proven by running: `stats --json` has **no** token-denominated saved field — only `saved_usd` (USD). Now the decisive question: what did turn 13's frozen pre-registration define `estimated_saved` as?
+[tool: Bash]
+Pre-registration (frozen) line 113/140 says `estimated_saved` is an **int** = "rabadon's own saving estimate" compared against a **token** difference. rabadon writes `saved_usd` — a **USD float**. That's a unit contradiction. Before calling it, let me measure the second-order question too.
+[tool: Agent]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+Confirmed by my own grep too: `estimated_saved` exists **only** in `reports/`, never in source. Let me read the frozen pre-registration's task list and check what run harness already exists.
+[tool: Bash]
+[tool: Bash]
+The contract is fully specified. Per B1.4, I record the `estimated_saved` finding **now** — before starting long work that could be stall-killed.
+[tool: Bash]
+[tool: Bash]
+Now the runner. First, the remaining contract sections I haven't read — `interventions` definition and the leak-prevention rules.
+[tool: Bash]
+[tool: Bash]
+Turn 13's venvs and candidate data are reusable. Checking what's there before I write the runner.
+[tool: Bash]
+`adaylar.json` has no `problem_statement` — the agent needs a task description. Checking turn 13's fetch path and the venv layout.
+[tool: Bash]
+[tool: Bash]
+Turn 13 never fetched `problem_statement` — it's absent from `adaylar.json`. Testing whether HF actually carries it.
+[tool: Bash]
+`problem_statement` is real prose. Fetching it for the 6 frozen instances (and noting the dataset also carries `patch` — the solution — which must never reach the agent).
+[tool: Bash]
+[tool: Bash]
+Parquet is available (11 parts). Fetching the 6 problem statements from it.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Two things to verify before proceeding: `joke2k__faker` came back with a **zero-length problem_statement**, and I need the backup (conan) checked too.
+[tool: Bash]
+Two measured facts, both significant:
+
+- `joke2k__faker` (task #2 of the frozen six) has a **genuinely empty** problem_statement — the agent would get no task at all.
+- **30.49% of all SWE-smith (18033/59136) has an empty problem_statement.** Turn 13's scan selected on install/F2P/P2P only and never checked this.
+
+ON-KAYIT names conan as the designated backup, and conan has a real 1529-char statement. Substituting — and recording it loudly rather than quietly. Now building the runner.
+[tool: Write]
+Now the task file, with conan substituted and ordered cheapest-first so partial progress is maximized. Also fixing `false_positive` for arm B to actually come from the ledger rather than being hardcoded.
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+Now the task file — conan substituted for faker, ordered cheapest-first so partial progress survives a session cap.
+[tool: Bash]
+Committing the harness before running it, so a session cap can't lose the work.
+[tool: Bash]
+Verifying the B-arm hook actually fires from a *task checkout* (turn 13 only proved it with `$HOME`) before committing the run to it.
+[tool: Bash]
+Hook fires from an arbitrary cwd and writes a ledger line. But the ledger is a **shared global spool (220,962 lines)** — a naive before/after delta would count other sessions' writes. The line carries `"pipe":"hooktest:session"` from the cwd basename, so I'll make each task dir uniquely named and filter on it.
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+Harness verified. Launching the run in the background so I can monitor without blocking.
+[tool: Bash]
+[tool: Bash]
+[tool: ToolSearch]
+[tool: Monitor]
+While the run proceeds, let me handle the parts that don't depend on it. Checking what 4d actually requires.
+[tool: Bash]
+Pre-verification rejected autograd with F2P 0/11 **and** P2P 0/120 — but it took only 9 seconds, which is far too fast for venv + pip install + pytest. That smells like pytest never ran, not a real result. Checking.
+[tool: Bash]
+Two bugs, both in **my** harness — not the instances. `pytest` aborts with `Missing required plugins: pytest-cov, pytest-xdist` (the repos' `addopts` demand them), so 0 tests run and every instance gets wrongly rejected. Stopping to fix.
+[tool: Bash]
+The guard did its job — 0 rows written, no fabricated data. Fixing the three defects.
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+Resetting the bad pre-verification rows (they're artifacts of my bug) and verifying the fix on one instance before relaunching.
+[tool: Bash]
+Plugin error gone. New, more interesting one: `tests/test_linalg.py` **doesn't exist** on the broken branch — because SWE-smith deletes the F2P test files there (exactly the held-out mechanism ON-KAYIT §5 documents). So F2P must be restored from `origin/main` *before* it can be checked. Turn 13 did this; my pre-verify skipped it.
+[tool: Edit]
+[tool: Bash]
+F2P now correctly reproduces the injected bug: **11 failed, 0 passed** (`NotImplementedError: JVP of norm wrt argnums`). Pre-verification logic is sound now. Relaunching.
+[tool: Bash]
+[tool: Monitor]
+[tool: ToolSearch]
+[tool: TaskStop]
+Pre-verification passes correctly now: **F2P 0/11 fell, P2P 120/120 passed** — exactly the ON-KAYIT condition. While the agent runs, writing the 4d record, which now has real backing.
+[tool: Read]
+The run is now actually built and executing, so 4d can be recorded honestly (it was deliberately left red until this existed).
+[tool: Edit]
+Now the 5c requirement — `bench/reproduce.sh` must actually re-run this run, not just mention it.
+[tool: Read]
+[tool: Edit]
+[tool: Bash]
+Arm A's agent is running. Committing the docs work while it does.
+[tool: Bash]
+[tool: Bash]
+Real progress: **14 green → 17 green** (4b/4c/4d/5c), and the first row landed — arm A solved autograd, `heldout_pass=true`, 10660 tokens in 103s. Now the riskiest unknown: whether the hook actually binds in a real agent session (arm B).
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+Arm A is a clean, real measurement: agent fixed the bug, 11/11 F2P and 120/120 P2P pass. Waiting on arm B — the decisive test of whether the hook binds.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+Hook is confirmed live in arm B — **31 ledger lines** tagged to this run's checkout. The binding acceptance will hold. Waiting for B's agent to finish.
+[tool: Bash]
+Drafting the run report while B finishes.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+B has only been running ~70s (my earlier reads were premature). Stream is growing normally. Waiting properly.
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+First complete pair, and it's a **negative signal** for the hypothesis:
+
+- **A** (no rabadon): fixed, 10,660 tokens, 103s
+- **B** (rabadon attached): fixed, **15,099 tokens**, 147s
+
+Same held-out fix, B spent ~42% *more* tokens. N=1. Continuing to gather.
+[tool: Bash]
+oauthlib passed pre-verification too (F2P 0/18 fell, P2P 120/120, 12 held-out files restored). Committing the run report while instance 2 runs.
+[tool: Bash]
+[tool: Bash]
+Two important things: arm A genuinely fixed the root cause (not gamed), and arm B's ledger shows rabadon actually fired — **INJECT ×1 and a COUNTER event**. Let me read that COUNTER, since it bears directly on the `estimated_saved` question.
+[tool: Bash]
+Decisive evidence on `estimated_saved`. The arm-B COUNTER event says:
+
+- `chains_cut: 1, fixed: 1, injections: 1` — rabadon **did** cut a chain and the agent fixed it instantly
+- `saved_usd: null`, `reason: "no-price"`
+- `calls: 0`, `tok_in/cw/cr/out: 0`, `median_n: 0`
+
+That last line kills my own proposed workaround: the token subtotals are **all zero**, so `saved_usd` can't be converted to tokens either. Recording this correction.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+No orphan load processes (B1.9 clean). Waiting for more pairs.
+[tool: Bash]
+[tool: Read]
+oauthlib arm A also fixed it (9,868 tokens). Waiting for the pair to complete so accept.sh can evaluate GOAL 5/6/7 with two tasks per arm.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+I'll let that run to completion rather than poll. Meanwhile, updating PROJECT.md's step status per the session ritual.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Something I need to check before trusting any B-arm number: my wrapper writes the hook's stdout to `/dev/null`. Claude Code hooks talk to the agent *through stdout*. If so, rabadon's injection never reached the agent.
+[tool: Bash]
+**Confirmed harness bug, and it invalidates every B row.** `rabadon: attempt` appears **0 times** in the B transcript — my `>/dev/null 2>&1` silenced the hook's stdout, which is exactly the channel Claude Code hooks use to talk to the agent. B1.5's recipe only redirects *stdin*; I added the stdout redirect myself.
+
+So "arm B" as run was: rabadon writes a ledger and says nothing to the agent. That's a null treatment — 7a cannot mean anything. Stopping.
+[tool: Bash]
+Also noted: conan failed pre-verification (F2P 0/29, P2P 0/3) and was correctly excluded. Now fixing the wrapper — stdout must reach the agent.
+[tool: Edit]
+Preserving the invalidated B rows as evidence rather than deleting them, then re-running B only.
+[tool: Bash]
+Now verifying the fixed wrapper actually delivers rabadon's text to the agent, before spending more sessions on it.
+[tool: Bash]
+Important catch — let me test this precisely, because B1.5's literal recipe includes `</dev/null`, which would starve the hook of the very event JSON Claude Code pipes to it.
+[tool: Bash]
+Decisive: B1.5's literal `</dev/null` makes the gate **deaf — 0 ledger lines**. Without it, the event lands. And my fix still carried that redirect. Removing it.
+[tool: Edit]
+[tool: Bash]
+[tool: Monitor]
+Recording the two hook findings — one my bug, one a defect in the documented recipe.
+[tool: Bash]
+Resume works correctly — A skipped, B re-running with a rabadon that can speak. Waiting, then I'll verify the injection actually lands in the transcript this time.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+I'll wait for that to complete rather than poll. Meanwhile, updating the run report with the hook correction.
+[tool: Edit]
+[tool: Bash]
+Careful — I need to check what that `rabadon:` match actually is, since the oauthlib file is from the *old* muted run and shouldn't contain an injection.
+[tool: Bash]
+That banner is rabadon's **SessionStart** message, not the INJECT — and it appeared in the *muted* run too. That implies it arrives via a channel I didn't configure. If it's the operator's **global** settings, then arm A isn't rabadon-free either. Checking arm A.
+[tool: Bash]
+**This invalidates the entire experiment, both arms.** The operator's global `~/.claude/settings.json` attaches `rabadon-gate` to *every* hook event for *every* Claude session on this machine — including arm A. Arm A's own transcript contains rabadon speaking inside the task checkout.
+
+ON-KAYIT §3 requires "A kolu: hook hiç bağlanmaz, rabadon yoktur." That condition was never met. Stopping before more quota is spent on invalid rows.
+[tool: Bash]
+Definitive: arm A wrote **36 and 40** ledger lines under its own tag. The control arm had the treatment. Quarantining everything, then testing whether the agent can be isolated from global settings.
+[tool: Bash]
+[tool: Bash]
+`--setting-sources <user,project,local>` is exactly the isolation lever. Testing whether it actually suppresses the global rabadon hook — measured, not assumed.
+[tool: Bash]
+Isolation works — 0 ledger lines, agent ran normally, auth intact. Now the B side: local settings must still activate our hook.
+[tool: Bash]
+Both arms are now isolatable. To make the arms differ by *exactly one thing* (presence of the settings file), let me verify arm A with the same flag but no settings file.
+[tool: Bash]
+Symmetric design proven: both arms use `--setting-sources local`; A has no settings file (0 lines), B has the hook (lines appear). That is exactly ON-KAYIT §3's "the only difference is whether the hook is attached." Patching.
+[tool: Edit]
+Adding the mirror-image check for arm A: if the control arm shows *any* ledger activity, the row is invalid.
+[tool: Edit]
+[tool: Bash]
+[tool: Read]
+[tool: Monitor]
+Recording the root-cause finding while the corrected run proceeds.
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+Let me update the run report to reflect the corrected design while the run proceeds.
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+I'll wait for that to finish rather than poll it. Let me summarize where this turn stands while the corrected run executes.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+The new purity check is working — it caught contamination. But it has a flaw: for arm A I count *total* lines with that tag, and autograd/oauthlib accumulated 36/40 lines from the earlier contaminated runs. pydicom (never run before) correctly shows **led=0**, which proves `--setting-sources local` genuinely works. The check needs a before/after delta like arm B's.
+[tool: Bash]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+Run completed. Let me get the acceptance verdict.
+[tool: Bash]
+**14 green / 12 red → 23 green / 3 red.** The three remaining: 2b (daemon latency, out of scope), and 6e/7b (the `estimated_saved` unit contradiction).
+
+7a "passed" — but I need to check whether that number is actually meaningful before anyone repeats it.
+[tool: Bash]
+Now the final numbers, written honestly.
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+Pushed cleanly, no orphan processes. Let me verify I didn't break anything else and confirm reproducibility.
+[tool: Bash]
+[tool: Bash]
+`make test` clean, accept.sh reproducible at 23/3. Confirming no failures anywhere in the suite, then writing the session log.
+[tool: Bash]
+There's **1 failure** in `make test` — I must not gloss over that. Finding it.
+[tool: Bash]
+Line 3571 is a test *name* containing "1 fail" — a false match. The real one is at 3905. Checking whether it's mine.
+[tool: Bash]
+That `FAIL testsuite` is **demo output** from `regression_demo.sh` — rabadon correctly reporting a deliberately broken edit; the suite itself reports `regression: 4 passed, 0 failed`. Confirming the overall exit code.
+[tool: Bash]
+`make test` rc=0 — base is green. Writing the session log.
+[tool: Edit]
+[tool: Read]
+[tool: Edit]
+[tool: Bash]
+Working tree clean, everything pushed. I have time left, so let me diagnose *why* three instances failed pre-verification — that determines whether N can reach 6 next turn.
+[tool: Bash]
+Found a real harness bug: astroid's P2P was **"2 failed, 73 passed, 45 skipped"** — I compare `passed == total`, so 45 *skipped* tests wrongly count as failures. Checking the other two.
+[tool: Bash]
+All three exclusions are **my harness's fault, not the instances'**:
+
+- conan: `ModuleNotFoundError: No module named 'mock'`
+- feedparser: `ModuleNotFoundError: No module named 'responses'`
+- astroid: skipped tests miscounted as failures
+
+Missing test extras. Fixing both defects.
+[tool: Edit]
+Now the counting bug — "passed == total" wrongly treats skipped tests as failures.
+[tool: Edit]
+One refinement: for **F2P** a skipped test doesn't demonstrate a fix, so it must count strictly-passed; only **P2P** should treat skips as unbroken. Also `bc` may not exist — using awk.
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+The extras fix worked — feedparser now runs (both arms fixed it, 55/55 F2P). **N=4.** And it reverses direction again (B higher), further weakening the token signal. Let me get the final verdict.
+[tool: Bash]
+**N=4, and the direction is now split 2–2.** Fix rate identical (75%/75%). Updating the report with the final numbers.
+[tool: Bash]
+One phrase is now imprecise. Fixing it and adding the final DENEMELER entry.
+[tool: Edit]
+[tool: Bash]
+Updating the session log to the final N=4 numbers so it matches the raw record.
+[tool: Edit]
+[tool: Bash]
+[tool: Edit]
+Final verification pass before closing.
+[tool: Bash]
+[tool: Bash]
+[tool: TaskStop]
+Turn 14 is complete and pushed. 17 commits, working tree clean.
+
+## Ne yapıldı
+
+Tur 13'ün tek NEXT'i (`estimated_saved` üretiliyor mu?) ile başladım, sonra A4'ün asıl işini — iki kollu koşuyu — kurup koşturdum.
+
+**Kabul: 14 yeşil / 12 kırmızı → 23 yeşil / 3 kırmızı.** `make test` rc=0.
+
+Kalan 3 kırmızı: 2b (daemon latansı, kapsam dışı) ve 6e/7b (`estimated_saved`, operatör kararı).
+
+## Üç ayrı geçersizlik — hiçbir sayıya inanılmadan önce yakalandı
+
+Her biri "varsaydığım şey gerçekten oldu mu?" diye sorup **ölçerek** çıktı:
+
+1. **`estimated_saved` yok ve türetilemiyor.** rabadon `saved_usd` (dolar) üretiyor, accept.sh 6e onu **token** farkıyla karşılaştırıyor. B kolunun gerçek COUNTER olayı kaçış yolunu da kapattı: `saved_usd:null`, `reason:"no-price"`, `calls:0`, bütün token alt toplamları **0**. Kendi önerdiğim çevrim seçeneğini kendi ölçümüm eledi.
+
+2. **B kolu susturulmuştu.** Hook'u `>/dev/null` ile sarmıştım; Claude Code hook'u ajanla stdout üzerinden konuşur — rabadon ledger yazdı, ajana tek kelime etmedi. Ayrıca B1.5'in yazılı reçetesindeki `</dev/null` kapıyı **sağır** yapıyor (ölçüldü: 0 ledger satırı, onsuz 1). Yani B1.5'in kendi bağlama kabulü kendi reçetesiyle karşılanamıyor — CHALLENGE yazıldı, belgeye dokunulmadı.
+
+3. **Kontrol kolu hiç temiz değildi.** Senin global `~/.claude/settings.json`'ın `rabadon-gate`'i bu makinedeki her oturumun her hook olayına bağlıyor. A kolu kendi etiketiyle 36 ve 40 ledger satırı yazdı. `--setting-sources local` ile çözüldü, ve B'nin aynası olan **kontrol kolu saflığı** şartı eklendi — sızıntı tam o boşluktan geçmişti.
+
+Geçersiz satırlar silinmedi, `_invalid_reason` etiketiyle ayrı dosyalara alındı.
+
+## Sonuç — ve neden yayınlanamaz
+
+A ve B **ikisi de %75** düzeltiyor (4 görev). Token: A 35 620 / B 33 221.
+
+accept.sh 7a token satırında yeşil veriyor. **Bu yeşil kanıt değil:** düzeltme oranı tıpatıp aynı, ve görev bazında yön **2-2 bölünmüş** — B autograd'da (−12.0%) ve pydicom'da (−24.5%) ucuz, oauthlib'de (+4.4%) ve feedparser'da (+7.7%) pahalı. Hücre başına tek ölçüm var, varyans tahmini yok; aynı görev+kol koşular arası %16–52 oynadı. Gürültü, kollar arası farktan büyük → KOSU-RABADON-2.md:61-62 gereği yayınlanmıyor.
+
+Bu tur **ölçüm zincirinin çalıştığını** kanıtladı, tezi değil.
+
+---
+
+## Sorulmayan ama önemli
+
+- **SWE-smith'in %30.49'unda (18 033 / 59 136) `problem_statement` BOŞ.** Ön-kayıttaki faker görevi bunlardan biriydi — ajana verilecek metin yok. Tur 13'ün taraması kurulum/F2P/P2P'ye bakıyordu, görev metninin varlığına hiç bakmıyordu. Yedek olarak conan girdi ama **o da koşamadı**, yani takas hiçbir şey kazandırmadı.
+- **Elenen üç instance'ın üçü de benim harness hatamdı**, instance hatası değil: conan/feedparser test "extras"ları (`mock`, `responses`) kurulmadığı için conftest'te çöküyordu; astroid'in "73/120"i gerçekte `2 failed, 73 passed, 45 skipped` idi — sayacım skip'i düşme sayıyordu. Düzeltince feedparser koşuya girdi (N 3→4). **Bir eleme ölçütünü logunu okumadan uygulamak örneklemi sessizce daraltıyor.**
+- Tur 13'ün "7/10 temiz"i bir **üst** sınırdı: P2P örneklemi satır başına ilk 2 testti, 120 teste çıkınca üçü elendi.
+- Kendi hatalarım kayıtta: F2P'yi önce bozuk ağaçta koştum (dosyalar o dalda silinmiş — sağlam instance'lar yanlış elendi); çıplak pytest kurdum (`required_plugins` yüzünden hiç koşmadı); kontrol-kolu saflık şartını ham toplamla yazdım (birikimli spool eski satırları yüzünden temiz A koşularını kirli ilan etti). **Üçünde de JSONL'e tek satır yazılmadı** — kapı yanlış veriyi içeri almadı.
+
+## DOĞRULANMADI
+
+- Hiçbir koşu aynı koşullarda tekrarlanmadı → varyans bilinmiyor. Anlamlı bir token cümlesi için hücre başına en az 3 tekrar gerekir.
+- conan ve astroid hâlâ dışarıda (N=4, ön-kayıt 6 diyordu). astroid'i almak "bozuk dalda zaten düşen P2P testleri taban kümeden çıkarılır" kuralını gerektirir — bu ON-KAYIT'ın dondurduğu puanlama semantiğine dokunur, **insan onayı ister**.
+- P2P tavanı 120 (tam listeler 574–4174); her satırda `p2p_cap` yazılı.
+- Egress kapatma best-effort — `claude -p` API'ye çıkmak zorunda. Kapatılan somut kanal `.git`.
+- macOS arm64'te ölçüldü, temiz container'da değil.
+
+**NEXT (senin kararın):** 6e/7b için tek kalan yol (b) 6e'yi `total_cost_usd` ile dolar-dolar yapmak — accept.sh + dondurulmuş ON-KAYIT değişikliği, yani insan onayı — ya da (c) ikisini kırmızı bırakmak.
+Turn 14 is complete and pushed. 17 commits, working tree clean.
+
+## Ne yapıldı
+
+Tur 13'ün tek NEXT'i (`estimated_saved` üretiliyor mu?) ile başladım, sonra A4'ün asıl işini — iki kollu koşuyu — kurup koşturdum.
+
+**Kabul: 14 yeşil / 12 kırmızı → 23 yeşil / 3 kırmızı.** `make test` rc=0.
+
+Kalan 3 kırmızı: 2b (daemon latansı, kapsam dışı) ve 6e/7b (`estimated_saved`, operatör kararı).
+
+## Üç ayrı geçersizlik — hiçbir sayıya inanılmadan önce yakalandı
+
+Her biri "varsaydığım şey gerçekten oldu mu?" diye sorup **ölçerek** çıktı:
+
+1. **`estimated_saved` yok ve türetilemiyor.** rabadon `saved_usd` (dolar) üretiyor, accept.sh 6e onu **token** farkıyla karşılaştırıyor. B kolunun gerçek COUNTER olayı kaçış yolunu da kapattı: `saved_usd:null`, `reason:"no-price"`, `calls:0`, bütün token alt toplamları **0**. Kendi önerdiğim çevrim seçeneğini kendi ölçümüm eledi.
+
+2. **B kolu susturulmuştu.** Hook'u `>/dev/null` ile sarmıştım; Claude Code hook'u ajanla stdout üzerinden konuşur — rabadon ledger yazdı, ajana tek kelime etmedi. Ayrıca B1.5'in yazılı reçetesindeki `</dev/null` kapıyı **sağır** yapıyor (ölçüldü: 0 ledger satırı, onsuz 1). Yani B1.5'in kendi bağlama kabulü kendi reçetesiyle karşılanamıyor — CHALLENGE yazıldı, belgeye dokunulmadı.
+
+3. **Kontrol kolu hiç temiz değildi.** Senin global `~/.claude/settings.json`'ın `rabadon-gate`'i bu makinedeki her oturumun her hook olayına bağlıyor. A kolu kendi etiketiyle 36 ve 40 ledger satırı yazdı. `--setting-sources local` ile çözüldü, ve B'nin aynası olan **kontrol kolu saflığı** şartı eklendi — sızıntı tam o boşluktan geçmişti.
+
+Geçersiz satırlar silinmedi, `_invalid_reason` etiketiyle ayrı dosyalara alındı.
+
+## Sonuç — ve neden yayınlanamaz
+
+A ve B **ikisi de %75** düzeltiyor (4 görev). Token: A 35 620 / B 33 221.
+
+accept.sh 7a token satırında yeşil veriyor. **Bu yeşil kanıt değil:** düzeltme oranı tıpatıp aynı, ve görev bazında yön **2-2 bölünmüş** — B autograd'da (−12.0%) ve pydicom'da (−24.5%) ucuz, oauthlib'de (+4.4%) ve feedparser'da (+7.7%) pahalı. Hücre başına tek ölçüm var, varyans tahmini yok; aynı görev+kol koşular arası %16–52 oynadı. Gürültü, kollar arası farktan büyük → KOSU-RABADON-2.md:61-62 gereği yayınlanmıyor.
+
+Bu tur **ölçüm zincirinin çalıştığını** kanıtladı, tezi değil.
+
+---
+
+## Sorulmayan ama önemli
+
+- **SWE-smith'in %30.49'unda (18 033 / 59 136) `problem_statement` BOŞ.** Ön-kayıttaki faker görevi bunlardan biriydi — ajana verilecek metin yok. Tur 13'ün taraması kurulum/F2P/P2P'ye bakıyordu, görev metninin varlığına hiç bakmıyordu. Yedek olarak conan girdi ama **o da koşamadı**, yani takas hiçbir şey kazandırmadı.
+- **Elenen üç instance'ın üçü de benim harness hatamdı**, instance hatası değil: conan/feedparser test "extras"ları (`mock`, `responses`) kurulmadığı için conftest'te çöküyordu; astroid'in "73/120"i gerçekte `2 failed, 73 passed, 45 skipped` idi — sayacım skip'i düşme sayıyordu. Düzeltince feedparser koşuya girdi (N 3→4). **Bir eleme ölçütünü logunu okumadan uygulamak örneklemi sessizce daraltıyor.**
+- Tur 13'ün "7/10 temiz"i bir **üst** sınırdı: P2P örneklemi satır başına ilk 2 testti, 120 teste çıkınca üçü elendi.
+- Kendi hatalarım kayıtta: F2P'yi önce bozuk ağaçta koştum (dosyalar o dalda silinmiş — sağlam instance'lar yanlış elendi); çıplak pytest kurdum (`required_plugins` yüzünden hiç koşmadı); kontrol-kolu saflık şartını ham toplamla yazdım (birikimli spool eski satırları yüzünden temiz A koşularını kirli ilan etti). **Üçünde de JSONL'e tek satır yazılmadı** — kapı yanlış veriyi içeri almadı.
+
+## DOĞRULANMADI
+
+- Hiçbir koşu aynı koşullarda tekrarlanmadı → varyans bilinmiyor. Anlamlı bir token cümlesi için hücre başına en az 3 tekrar gerekir.
+- conan ve astroid hâlâ dışarıda (N=4, ön-kayıt 6 diyordu). astroid'i almak "bozuk dalda zaten düşen P2P testleri taban kümeden çıkarılır" kuralını gerektirir — bu ON-KAYIT'ın dondurduğu puanlama semantiğine dokunur, **insan onayı ister**.
+- P2P tavanı 120 (tam listeler 574–4174); her satırda `p2p_cap` yazılı.
+- Egress kapatma best-effort — `claude -p` API'ye çıkmak zorunda. Kapatılan somut kanal `.git`.
+- macOS arm64'te ölçüldü, temiz container'da değil.
+
+**NEXT (senin kararın):** 6e/7b için tek kalan yol (b) 6e'yi `total_cost_usd` ile dolar-dolar yapmak — accept.sh + dondurulmuş ON-KAYIT değişikliği, yani insan onayı — ya da (c) ikisini kırmızı bırakmak.
