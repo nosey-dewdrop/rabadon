@@ -51,6 +51,7 @@
 #include "version.h" // one version string, lockstep with package.json
 #include <sys/file.h>
 #include "cli_help.h"
+#include "gated_client.h" // R7: hand the call to the warm daemon if one is listening
 
 using std::string;
 
@@ -2556,6 +2557,23 @@ int main(int argc, char** argv) {
   string raw;
   { char buf[65536]; size_t n; while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) raw.append(buf, n); }
   if (raw.empty()) return 0;
+
+  // ---------- R7: the thin client, and why it sits exactly here ----------
+  // Every branch above is a CLI subcommand that has already answered and
+  // returned; everything below is the judgement. The daemon decides nothing
+  // this binary would not — it runs this same main() in a worker forked from a
+  // warm process, so what disappears is fork/exec/dyld, not the judging. The
+  // call below does not return until the worker has finished, because the exit
+  // code IS the verdict.
+  //
+  // It sits AFTER the read, not before, and that ordering is load-bearing: this
+  // process must still own the event bytes when the daemon fails, or the
+  // fallback below reads an already-drained stdin, sees nothing, and allows the
+  // command. That was a real fail-open in the first version of this seam.
+  {
+    const int served = rbgated::try_daemon(raw);
+    if (served != rbgated::kFallback) return served;
+  }
 
   // ONE parse, for every agent. Which editor sent this is decided in hookev.h
   // and nowhere else; everything below reads E. The five separate readings of

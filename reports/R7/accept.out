@@ -1,13 +1,13 @@
 
 == GOAL 1 — the daemon and the thin client exist at all
-FAIL  1a no rabadon-gated binary — the persistent daemon is not built
-      this is the whole speed half of R7; without it GOALs 2 and 3 measure nothing
-FAIL  1b no daemon source that binds AF_UNIX and listens
-      searched native/gated.cpp, native/daemon.cpp, native/gated.h
-FAIL  1c nothing in the gate reaches for a daemon socket — there is no thin client
+PASS  1a rabadon-gated exists and is executable
+PASS  1b native/gated.cpp binds and listens on a unix socket (a daemon, not a one-shot)
+PASS  1c a thin client path referencing the daemon socket exists (native/gated_client.h)
 
 == GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
-FAIL  2a the daemon cannot be started — it does not exist
+FAIL  2a rabadon-gated did not produce a listening socket at /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/rabadon-gated.sock
+      
+./reports/R7/accept.sh: line 178: 61913 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
 FAIL  2b the < 1 ms median was NOT measured: no daemon to measure with
       ceiling is 1000 us in-process; the instrument is the R1.3 probe (header)
 FAIL  2c the residual length dependence was NOT re-measured under the daemon
@@ -16,11 +16,27 @@ FAIL  2c the residual length dependence was NOT re-measured under the daemon
       a LARGER percentage. The plan requires R7 to re-read it. Unread today.
 
 == GOAL 3 — with the daemon down, behaviour is byte-identical to today
-FAIL  3a exit codes with the daemon down are UNCOMPARED — there is no client path to compare
-FAIL  3b ledger lines with the daemon down are UNCOMPARED
-FAIL  3c refusals with the daemon down are UNCOMPARED
-      with no client, 'the daemon is down' is indistinguishable from today by
-      construction, and a comparison that cannot fail is not evidence
+FAIL  3-[echo hello world] behaviour diverges when the daemon is down — this is not fail-SAME
+      3,4c3,4
+      < {"v":1,"seq":1,"ts":T,"run":"ng-68589448-61926","pipe":"p.fKvHk1:session","ev":"STEP_START","sess":"s7","step":"bash: echo hello world","prev":"genesis"}
+      < 7a48429b0d2c6574935b55cf54d6a6b145358ddfedf14b056953343119d3b012 1
+      ---
+      > {"v":1,"seq":1,"ts":T,"run":"ng-68589483-61942","pipe":"p.XQyK6D:session","ev":"STEP_START","sess":"s7","step":"bash: echo hello world","prev":"genesis"}
+      > a76918903e9e5f137db4795944ab9c8a4667b6584fffc09de0681d8e670ef874 1
+FAIL  3-[rm -rf /] behaviour diverges when the daemon is down — this is not fail-SAME
+      5c5
+      < rm -r '/' resolves to /, outside the project tree (/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/p.ij5uog)
+      ---
+      > rm -r '/' resolves to /, outside the project tree (/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/p.BHGYjv)
+      8,10c8,10
+      < {"v":1,"seq":1,"ts":T,"run":"ng-68589517-61963","pipe":"p.ij5uog:session","ev":"CHECK_FAIL","sess":"s7","step":"Bash","mode":"enforce","fails":[{"check":"baseline-rm-rf-outside","why":"rm -r '/' resolves to /, outside the project tree (/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/p.ij5uog) — a recursive delete outside the project tree cannot be undone by git"}],"prev":"genesis"}
+FAIL  3-[git commit --no-verify -m x] behaviour diverges when the daemon is down — this is not fail-SAME
+      3,4c3,4
+      < {"v":1,"seq":1,"ts":T,"run":"ng-68589587-62000","pipe":"p.ZXhYln:session","ev":"STEP_START","sess":"s7","step":"bash: git commit --no-verify -m x","prev":"genesis"}
+      < 05d36a53fb410163e78a3ccc003a7b41e0c50faebef91fabb65692f525e67acb 1
+      ---
+      > {"v":1,"seq":1,"ts":T,"run":"ng-68589620-62016","pipe":"p.zBznoN:session","ev":"STEP_START","sess":"s7","step":"bash: git commit --no-verify -m x","prev":"genesis"}
+      > 62ad9ebb6709cd7fedb8c8b5a93f3fb28bd855232039ab53bc159abf5089219c 1
 
 == GOAL 4 — the harness is named, exactly, with its commit
 PASS  4a reports/R7/ exists
@@ -50,5 +66,5 @@ PASS  8a native/moves_test.sh 21/0
 PASS  8b native/signals_test.sh 39/0
 PASS  8c reports/R2/accept.sh 19 green, 0 red
 
-== R7 acceptance: 6 green, 20 red
+== R7 acceptance: 9 green, 17 red
 R7 NOT ACCEPTED
