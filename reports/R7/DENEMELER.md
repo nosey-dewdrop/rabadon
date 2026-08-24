@@ -802,3 +802,75 @@ hesaplanamıyor), TETİKLENMİŞ diye değil. Yani `estimated_saved`'sız koşma
 10 JSONL kırmızısının 8'i bu alan olmadan kapanabilir. Bu yüzden tur 13'ün
 "üretmiyorsa operatöre git" emri, koşuyu DURDURMAK olarak değil, koşuya
 PARALEL bir soru olarak uygulandı.
+
+---
+
+## deneme 15 — 2026-08-24 (tur 14, yapan) — koşu KURULDU ve KOŞTU; 6e/7b'nin üçüncü, ölümcül sebebi ÖLÇÜLDÜ
+
+**DENENEN.** İki kollu koşu fiilen kuruldu (`reports/R7/ab_run.sh`) ve
+çalıştırıldı. Ajan `claude -p`, Docker yok, yerel venv + pytest, ajanın
+ağacında `.git` YOK.
+
+**SONUÇ 1 — koşu çalışıyor, ilk çift ölçüldü (autograd).**
+
+| kol | heldout_pass | tokens | F2P | P2P | süre | ledger satırı |
+|---|---|---|---|---|---|---|
+| A | true | 10 660 | 11/11 | 120/120 | 103 s | — (kapı yok) |
+| B | true | 15 099 | 11/11 | 120/120 | 147 s | 31 |
+
+B kolunun hook'u GERÇEKTEN bağlandı: ledger'da bu koşuya özgü `pipe`
+etiketiyle 31 satır, içinde `SIGNAL`, `INJECT`, `COUNTER`. B1.5'in
+"bağlama kabulü" varsayımla değil satır gösterilerek karşılandı.
+
+**SONUÇ 2 — bu görevde hipotez DESTEKLENMEDİ.** İki kol da düzeltti (fix
+oranı eşit), B kolu **%42 DAHA FAZLA** token harcadı. 7a'nın literal şartı
+"B ya fix oranını ya net token'ı iyileştirmeli" — bu görevde ikisi de yok.
+N=1; sonuç değil, ilk veri noktası. Ama yönü olduğu gibi yazılıyor (Yasa 8).
+
+**SONUÇ 3 — DENEME 14'ÜN (a) SEÇENEĞİ ÖLDÜ.** Deneme 14'te "saved_usd
+token'a çevrilebilir, çünkü COUNTER olayı tok_in/tok_cw/tok_cr/tok_out ve
+session_usd yazıyor" demiştim. B kolunun GERÇEK COUNTER olayı bunu ÇÜRÜTTÜ:
+
+    "chains_cut":1, "fixed":1, "injections":1,
+    "saved_usd":null, "reason":"no-price",
+    "calls":0, "session_usd":0,
+    "tok_in":0, "tok_cw":0, "tok_cr":0, "tok_out":0,
+    "median_n":0, "median_uncut":null
+
+Alanlar VAR ama hepsi SIFIR. rabadon bu headless koşuda ajanın
+transcript'ini okuyamıyor, dolayısıyla ne fiyat (`no-price`) ne token
+tabanı var. Yani `estimated_saved` üç ayrı sebeple üretilemez:
+1. birim: rabadon dolar üretir, 6e token farkı bekler (deneme 14);
+2. fiyat: `reason:"no-price"` — avg_call_usd çözülemiyor (calls=0);
+3. geçmiş: `median_n:0`, MIN_HISTORY=3 karşılanmıyor.
+Çevrim yoluyla kurtarma YOK. Kendi önerdiğim (a) seçeneğini kendi ölçümüm
+eledi; kayıtta kalsın.
+
+**ELENEN HİPOTEZ.** "6e/7b harness tarafında bir birim çevrimiyle kapatılabilir."
+YANLIŞ — çevrilecek sayı da yok.
+
+**KENDİ HATAM — iki kez, kayıtta.**
+1. Ön-doğrulamada F2P'yi bozuk ağaçta koştum. F2P test dosyaları o dalda
+   SİLİNMİŞ (held-out yapısal), pytest "file or directory not found" deyip
+   0 kosuyordu ve autograd/oauthlib/conan "F2P düştü" sanılıp ELENİYORDU.
+   Üçü de aslında sağlamdı. Düzeltme: F2P dosyaları `origin/main`'den geri
+   konduktan SONRA koşuluyor.
+2. Çıplak `pytest` kurdum. Depoların `required_plugins` ilanı yüzünden
+   pytest "Missing required plugins: pytest-cov, pytest-xdist" deyip hiç
+   koşmadan çıkıyordu — yine sahte bir "0 passed". Düzeltme: eklentiler
+   kuruluyor ve `-o addopts=''` ile deponun kendi bayrakları etkisizleniyor.
+   Her iki hatada da JSONL'e TEK SATIR yazılmadı; kapı yanlış veriyi
+   içeri almadı. `ab_prever.tsv`'deki hatalı satırlar sıfırlandı.
+
+**SONUÇ 4 — B kolunun fazla token'ında bir CONFOUND var, ölçüldü.**
+rabadon'un INJECT'i şu yüzden tetiklendi: ajan `.venv/bin/python` yerine
+sistem `python3`'ünü çağırdı, pytest eklenti hatası verdi, ajan aynı hatayı
+3 kez tekrarladı ve `root_migration` sinyali doğdu. Yani B'nin fazla
+token'ının bir kısmı gerçek bir "tekrar freni" yakalaması; ama tetikleyen
+şey görevin kendisi değil ortam tuhaflığı. Bu, sayının lehine değil
+aleyhine yazılıyor: N büyümeden bu farka anlam yüklenemez.
+
+**KALAN HİPOTEZLER.**
+- Kalan görevlerde (oauthlib, conan, pydicom, astroid, feedparser) yön aynı
+  mı — koşu devam ediyor, satırlar ham kayda ekleniyor.
+- `estimated_saved` için tek yol operatör kararı (deneme 14, (b)/(c)).
