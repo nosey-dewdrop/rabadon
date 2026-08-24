@@ -754,6 +754,17 @@ test: all
 	./native/stats_test.sh
 	./native/trace_test.sh
 	./native/lens_test.sh
+# lens_test, budget_test and session_test are the three consumers of ONE meter
+# (native/usage.h), and on 24 Aug 2026 all three were green while that meter
+# read zero tokens from every real transcript on disk. It took the first "type"
+# key on a line and required "assistant"; Claude Code writes message{} first, so
+# that key is always "message". Every fixture in the repo wrote the opposite
+# order, so the suite could not see it. This check is the one that reads real
+# bytes: fixtures in BOTH orders, the traps a careless fix would fall into, and
+# -- when a real transcript exists on the machine -- a stock json parser as the
+# oracle, byte for byte. No transcript to read is a printed SKIP, never a
+# quiet pass.
+	./native/usage_order_test.sh
 	./native/regression_demo.sh
 # LAST ON PURPOSE, AND RED ON PURPOSE. Every suite above proves the gate does
 # what it was told. This one asks the question none of them ask: was being told
