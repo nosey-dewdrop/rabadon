@@ -8,3 +8,4 @@
 9	TEKRAR KONTROLÜ: GUNLUK'ta 8 tur, hepsi ayrı konular — tekrar yok. DENEMELER: `da9e5b2` regresyonu kapatılmamış (açık front), gün dizgisi %28.5 fırsat kanıtlı ama optimizasyon denenmemiş.
 10	TEKRAR KONTROLÜ: 10 tur, hepsi ayrı konular, tekrar yok. DENEMELER: 12 kırmızı, 9'u GOAL 5/6/7 (iki kollu koşu JSONL) — hiç ele alınmadı. CHALLENGE-3 açık, insan onayı bekliyor; bu bir bloker, GOAL'lerin önüne geçiyor.
 11	TEKRAR KONTROLÜ: 11 tur, hepsi ayrı konular — tekrar yok. Bloker temizlendi (CHALLENGE-3 GOAL 5/6/7'yi bloklamıyor). Sıradaki iş: on kırmızının tek artefaktı, iki kollu JSONL — hiç denenmedi.
+12	OPERATÖR: R7 on kırmızının tamamı swesmith harness seçimindeki bir eksikten kaynaklanıyor — düzeltmek ya da devam kararı senden bekleniyor.
