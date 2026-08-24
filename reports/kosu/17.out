@@ -1,0 +1,135 @@
+I'll start by reading the key files.
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Load is high (7.51) — I'll report that and take no latency measurement, as instructed. Now the edit.
+[tool: Edit]
+[tool: Edit]
+Now the hook binding itself:
+[tool: Edit]
+[tool: Edit]
+Now the acceptance check itself and the baseline capture:
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+Now record the counts in the JSONL so the selection effect stays visible:
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Critical measurement before I finish the acceptance rule — the base rate of SIGNAL/INJECT in the real ledger:
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Write]
+Now the DENEMELER entry (B1.4) and PARKED update:
+[tool: Bash]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+Commit `2547dfb`, push edildi. Sıfır ajan koşusu, sıfır para.
+
+## Yapılan
+
+`reports/R7/ab_run.sh` — yalnız statik düzenleme:
+
+| | önce | sonra |
+|---|---|---|
+| `GATE` | `hooks/gate.mjs` (legacy JS) | `native/rabadon-gate` |
+| olaylar | yalnız `PreToolUse` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd` |
+| bağlama kabulü | `ledger_new_lines > 0` | native `ng-` satırı **ve** COUNTER **ve** ≥1 SIGNAL/INJECT |
+| ikili yok | sessiz | koşu başlamıyor |
+
+`PreToolUseResult` diye bir olay **yok** — `gate.cpp:2733-2734` tam altı olay tanıyor, bağlanan altı da o. `rabadon-drift` bağlanmadı (ayrı ürün yüzeyi, kola ait olmayan gürültü). `timeout 2` → sıcak yol 10 s, kapanış 60 s: COUNTER bütün spool'u (220k+ satır) yürüyor, 2 s kolun ölçmek için var olduğu olayı yazılırken keserdi.
+
+## Kabul: 23 yeşil / 3 kırmızı — **kapanan kırmızı: 0**
+
+Beklenendi: `accept.sh` 6e/7b'yi **önceki** (geçersiz) koşunun JSONL'inden okur; düzenleme sonraki koşuyu değiştirir.
+
+**6e/7b — sorduğun iki soru, ölçülmüş cevap.** Altı olay elle beslenen sentetik oturumda (ajansız):
+- **COUNTER ATEŞLENDİ.** Eski `PreToolUse`-tek bağlamada yapısal olarak imkânsızdı.
+- **`saved_usd` = `null`.** Sıfır değil, gerçek değer de değil: `chains_cut:0, median_n:0, reason:"no-chains"`, ve `counter.h:63 MIN_HISTORY=3`.
+
+Ve sebep bağlama değilmiş — **iki duvar var**: (1) `ab_run.sh` `estimated_saved` alanını **hiç yazmıyor** (`grep -c` → 0), yani rakam üretilse bile JSONL'e taşınmıyor; (2) her görev tek oturum → sayaç her hâlükârda `null`. PARKED'e reçetesiyle yazıldı, bu turun işi değildi.
+
+**2b — ölçüm ALINMADI.** `accept.sh` kendi ölçümünü aldı (8148,9 µs) ve o sayı delil değil. Yük: `load average 7,51 / 7,77 / 8,84`; %99,2 Python (homebrew 3.14), %24,2 WindowServer, %18,9 WebKit, %8,1 claude. 2b'nin kırmızısı "kapı yavaş" değil, "ölçüm yapılmadı" diyor.
+
+## Sorulmayan ama önemli — CHALLENGE
+
+Sertleştirmeyi uygulamadan **önce taban oranı ölçtüm**: gerçek dogfooding ledger'ında **186 oturumun 8'i (%4,3)** SIGNAL veya INJECT üretmiş (INJECT: 3 = %1,6; COUNTER: 52 = %28,0). Şart aynen kalırsa B koşularının %95'i — **ödenmiş para** — atılır, ve kalan küme "rabadon'un konuştuğu oturumlar"a doğru **yanlı** olur; yani turun cevaplamak istediği sorunun cevabını varsayar.
+
+Emrettiğin gibi uyguladım, ama yalnız bırakmadım: bağlamanın kanıtı sinyalden bağımsız iki deterministik satıra da bağlandı (native `run:"ng-…"` imzası — `gate.mjs` bunu yazamaz; ve COUNTER — son halkanın bağlı olduğunun kanıtı), ve `ledger_signal_inject` JSONL'e yazılıyor ki rapor seçiciliği gizleyemesin. **Nihai hâli senin kararın, paralı koşudan önce** (`TESHIS-BAGLAMA.md` §4). Kabulü kendi başıma gevşetmedim.
+
+## DOĞRULANMADI
+
+- Native gate'in **gerçek bir ajan oturumunda** SIGNAL/INJECT üretip üretmediği. Sentetik oturumda `green_redefined` tetiklemeyi denedim, **üretemedim** — sebebini bulamadım (move kaydı/suite tespiti derinliğinde). Gerçek ledger'daki 885 SIGNAL satırı "üretilebiliyor" diyor, ama bu kolda üretileceğini ölçmedim.
+- Bağlamanın Claude Code tarafından gerçekten okunduğu: settings JSON'ı geçerli ve altı olay yazılı (doğrulandı), ama `claude -p --setting-sources local` ile uçtan uca **koşulmadı** (para).
+- 6e/7b'nin kablosu çekilirse ne olacağı — çekilmedi.
+Commit `2547dfb`, push edildi. Sıfır ajan koşusu, sıfır para.
+
+## Yapılan
+
+`reports/R7/ab_run.sh` — yalnız statik düzenleme:
+
+| | önce | sonra |
+|---|---|---|
+| `GATE` | `hooks/gate.mjs` (legacy JS) | `native/rabadon-gate` |
+| olaylar | yalnız `PreToolUse` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd` |
+| bağlama kabulü | `ledger_new_lines > 0` | native `ng-` satırı **ve** COUNTER **ve** ≥1 SIGNAL/INJECT |
+| ikili yok | sessiz | koşu başlamıyor |
+
+`PreToolUseResult` diye bir olay **yok** — `gate.cpp:2733-2734` tam altı olay tanıyor, bağlanan altı da o. `rabadon-drift` bağlanmadı (ayrı ürün yüzeyi, kola ait olmayan gürültü). `timeout 2` → sıcak yol 10 s, kapanış 60 s: COUNTER bütün spool'u (220k+ satır) yürüyor, 2 s kolun ölçmek için var olduğu olayı yazılırken keserdi.
+
+## Kabul: 23 yeşil / 3 kırmızı — **kapanan kırmızı: 0**
+
+Beklenendi: `accept.sh` 6e/7b'yi **önceki** (geçersiz) koşunun JSONL'inden okur; düzenleme sonraki koşuyu değiştirir.
+
+**6e/7b — sorduğun iki soru, ölçülmüş cevap.** Altı olay elle beslenen sentetik oturumda (ajansız):
+- **COUNTER ATEŞLENDİ.** Eski `PreToolUse`-tek bağlamada yapısal olarak imkânsızdı.
+- **`saved_usd` = `null`.** Sıfır değil, gerçek değer de değil: `chains_cut:0, median_n:0, reason:"no-chains"`, ve `counter.h:63 MIN_HISTORY=3`.
+
+Ve sebep bağlama değilmiş — **iki duvar var**: (1) `ab_run.sh` `estimated_saved` alanını **hiç yazmıyor** (`grep -c` → 0), yani rakam üretilse bile JSONL'e taşınmıyor; (2) her görev tek oturum → sayaç her hâlükârda `null`. PARKED'e reçetesiyle yazıldı, bu turun işi değildi.
+
+**2b — ölçüm ALINMADI.** `accept.sh` kendi ölçümünü aldı (8148,9 µs) ve o sayı delil değil. Yük: `load average 7,51 / 7,77 / 8,84`; %99,2 Python (homebrew 3.14), %24,2 WindowServer, %18,9 WebKit, %8,1 claude. 2b'nin kırmızısı "kapı yavaş" değil, "ölçüm yapılmadı" diyor.
+
+## Sorulmayan ama önemli — CHALLENGE
+
+Sertleştirmeyi uygulamadan **önce taban oranı ölçtüm**: gerçek dogfooding ledger'ında **186 oturumun 8'i (%4,3)** SIGNAL veya INJECT üretmiş (INJECT: 3 = %1,6; COUNTER: 52 = %28,0). Şart aynen kalırsa B koşularının %95'i — **ödenmiş para** — atılır, ve kalan küme "rabadon'un konuştuğu oturumlar"a doğru **yanlı** olur; yani turun cevaplamak istediği sorunun cevabını varsayar.
+
+Emrettiğin gibi uyguladım, ama yalnız bırakmadım: bağlamanın kanıtı sinyalden bağımsız iki deterministik satıra da bağlandı (native `run:"ng-…"` imzası — `gate.mjs` bunu yazamaz; ve COUNTER — son halkanın bağlı olduğunun kanıtı), ve `ledger_signal_inject` JSONL'e yazılıyor ki rapor seçiciliği gizleyemesin. **Nihai hâli senin kararın, paralı koşudan önce** (`TESHIS-BAGLAMA.md` §4). Kabulü kendi başıma gevşetmedim.
+
+## DOĞRULANMADI
+
+- Native gate'in **gerçek bir ajan oturumunda** SIGNAL/INJECT üretip üretmediği. Sentetik oturumda `green_redefined` tetiklemeyi denedim, **üretemedim** — sebebini bulamadım (move kaydı/suite tespiti derinliğinde). Gerçek ledger'daki 885 SIGNAL satırı "üretilebiliyor" diyor, ama bu kolda üretileceğini ölçmedim.
+- Bağlamanın Claude Code tarafından gerçekten okunduğu: settings JSON'ı geçerli ve altı olay yazılı (doğrulandı), ama `claude -p --setting-sources local` ile uçtan uca **koşulmadı** (para).
+- 6e/7b'nin kablosu çekilirse ne olacağı — çekilmedi.
