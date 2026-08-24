@@ -51,6 +51,26 @@ pass(){ printf 'PASS  %s\n' "$1"; P_N=$((P_N+1)); }
 fail(){ printf 'FAIL  %s\n' "$1"; F_N=$((F_N+1)); }
 note(){ printf '      %s\n' "$1"; }
 head_(){ printf '\n== %s\n' "$1"; }
+# WAITING FOR THE SOCKET (operator CEVAP, reports/kosu/6.operator.md).
+# The old readiness loop was `for _ in $(seq 50); do [ -S "$SOCK" ] && break; done`
+# with no sleep in it: measured, that whole loop is ~2-3 ms, most of it the
+# $(seq 50) fork. A daemon needs 21.8-22.6 ms just to bind, and a minimal
+# reference daemon whose FIRST act is bind+listen still lost 10 of 10 tries to
+# that loop, with the socket appearing ~300 ms later. So the loop was timing a
+# race, not testing a daemon. The requirement does NOT loosen: the socket is
+# still MANDATORY and its absence is still red -- only the wait becomes real,
+# and it stays CAPPED. `sleep 0.1` is fractional on GNU and BSD userland; on a
+# strict POSIX sleep that rejects it, the fallback ticks a whole second, which
+# makes the cap slower, never absent.
+sock_bekle(){ # $1 = socket path; 0 if it appeared inside the cap (10 s)
+  local i=0
+  while [ "$i" -lt 100 ]; do
+    [ -S "$1" ] && return 0
+    sleep 0.1 2>/dev/null || sleep 1
+    i=$((i+1))
+  done
+  [ -S "$1" ]
+}
 W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT
 jstr(){ python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$1"; }
 [ -x "$GATE" ] || { echo "FAIL no gate binary — build first (make)"; echo "R7 NOT ACCEPTED"; exit 1; }
@@ -110,7 +130,7 @@ if [ "$GATED_OK" = 1 ]; then
   sb; DH="$H"; DPJ="$PJ"
   env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >"$W/gated.log" 2>&1 &
   DPID=$!
-  for _ in $(seq 50); do [ -S "$SOCK" ] && DAEMON_UP=1 && break; done
+  sock_bekle "$SOCK" && DAEMON_UP=1
   if [ "$DAEMON_UP" = 1 ]; then pass "2a the daemon started and its socket is listening"
   else fail "2a rabadon-gated did not produce a listening socket at $SOCK"; note "$(tail -2 "$W/gated.log" 2>/dev/null | tr '\n' ' ')"; fi
   kill "$DPID" 2>/dev/null
@@ -166,7 +186,7 @@ PY
     fail "2c the residual length dependence was NOT re-measured (no instrument)"
   else
     env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >>"$W/gated.log" 2>&1 &
-    DPID=$!; for _ in $(seq 50); do [ -S "$SOCK" ] && break; done
+    DPID=$!; sock_bekle "$SOCK"
     sb; EVX="$(ev speed 'echo hello world')"; O="$W/med"
     for _ in $(seq 60);  do printf '%s' "$EVX" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 RABADON_GATED_SOCK="$SOCK" "$PGATE" >/dev/null 2>&1; done
     for _ in $(seq 300); do printf '%s' "$EVX" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 RABADON_GATED_SOCK="$SOCK" RABADON_PROBE_OUT="$O" "$PGATE" >/dev/null 2>&1; done
@@ -237,11 +257,27 @@ if [ "$GATED_OK" != 1 ] || [ -z "$CSRC" ]; then
   note "construction, and a comparison that cannot fail is not evidence"
 else
   DEAD="$W/definitely-not-a-socket.sock"
-  run3(){ # $1 = extra env; prints "exit\n<stdout>\n---\n<stderr>"
-    sb; local out err rc
+  # IDENTITY, NOT BEHAVIOUR (operator CEVAP, reports/kosu/6.operator.md).
+  # Two runs of the same command differ in fields that name the RUN rather than
+  # describe what the gate DID, and no honest implementation can make them
+  # match: the runId is "ng-<ms>-<pid>" (native/gate.cpp:2738) and a pid cannot
+  # be pinned; `pipe` is the sandbox directory's basename (gate.cpp:2737); and
+  # the refusal text prints the real project path. Those are blanked HERE, in
+  # the instrument. They are NOT blanked in the gate: normalising a path inside
+  # the product would print the user a directory that does not exist.
+  # STILL COMPARED, byte for byte: exit code, `ev`, mode, rule, the refusal
+  # text itself, and the NUMBER and ORDER of ledger lines.
+  kimliksiz(){ sed -E -e "s|$H|SBHOME|g" -e "s|$PJ|SBPROJ|g" \
+                      -e 's/"ts":[0-9]+/"ts":T/g' \
+                      -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z?/TS/g' \
+                      -e 's/"run":"ng-[0-9]+-[0-9]+"/"run":"RUN"/g' \
+                      -e 's/"pipe":"[^"]*"/"pipe":"PIPE"/g'; }
+  run3(){ # $1 = extra env; prints "exit\n<stdout>\n<stderr>\n<ledger>", identity blanked
+    sb; local out rc
     out="$(printf '%s' "$(ev s7 "$2")" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 $1 "$GATE" 2>"$W/e3")"; rc=$?
-    printf '%s\n%s\n' "$rc" "$out"; cat "$W/e3"
-    ls "$H"/.rabadon/spool/* >/dev/null 2>&1 && cat "$H"/.rabadon/spool/* | sed -E 's/"ts":[0-9]+/"ts":T/g; s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z?/TS/g'
+    { printf '%s\n%s\n' "$rc" "$out"; cat "$W/e3"
+      ls "$H"/.rabadon/spool/* >/dev/null 2>&1 && cat "$H"/.rabadon/spool/*
+    } | kimliksiz
   }
   for CMD in 'echo hello world' 'rm -rf /' 'git commit --no-verify -m x'; do
     A="$(run3 '' "$CMD")"; B="$(run3 "RABADON_GATED_SOCK=$DEAD" "$CMD")"
