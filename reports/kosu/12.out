@@ -1,0 +1,98 @@
+I'll start by reading the required files.
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+Bloker teşhisi için önce zemini ölçüyorum — uydurma yok.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Dört blokerin dördü de ölçüldü. Şimdi mühürlü betikleri koşuyorum.
+[tool: Bash]
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+## Sonuç: iki kollu koşu KURULAMADI — JSONL uydurmadım
+
+**Kabul betiği: 14 yeşil / 12 kırmızı. Tur 10 ve 11 ile aynı sayı — değişmedi.** `make test` rc=0, zemin bozulmadı.
+
+### Şema çıkarıldı (accept.sh:387-521)
+`reports/R7/` altında herhangi bir boş-olmayan `*.jsonl`. Satır başına: `arm` (A/B), görev anahtarı (`task`|`task_id`|`instance_id`), `heldout_pass`, `tokens`, `interventions`, `false_positive`, ve **yalnız B'de** `estimated_saved`.
+
+**Talimattaki "birer instance" yetmiyor:** `accept.sh:408` her iki kolda **≥2 ayrı görev** şart koşuyor.
+
+### Dört bloker, dördü de ölçüldü
+1. `pip install swesmith==0.0.6` çöküyor — `sglang` → `flashinfer_python` → `apache-tvm-ffi==0.1.0b15`, PyPI'de o sürüm yok. Ağ değil.
+2. Taban imaj yalnız amd64: `swesmith.x86_64:latest` → `['amd64']`; `swesmith.arm64` → **404**. Makine arm64.
+3. `docker info` → daemon ayakta değil.
+4. **En büyüğü:** `harness/eval.py:2` — *"Given predictions by SWE-agent"*. **swesmith ajan koşturmaz**, hazır yamayı puanlar. A/B kolu ayrı bir ajan + ücretli LLM anahtarı ister; ortamda anahtar yok.
+
+Yani tur 4'ün harness seçimi eksik: repo+commit sabitlendi, **ajan hiç seçilmedi**. HARNESS.md'yi kendi başıma düzeltmedim.
+
+### Yeşile çevirebilirdim, çevirmedim
+- Sahte JSONL → 10 kırmızıyı yeşile çevirirdi.
+- `bench/reproduce.sh`'e "R7 iki kollu" cümlesi → 5c yeşil olurdu.
+- 4d hazırlık kaydı → 4d yeşil olurdu.
+
+Üçü de var olmayan bir koşuyu yeşile çevirir. Vakum yeşil = accept.sh'ın kendi başlığının yasakladığı şey.
+
+`reports/R7/TESHIS-HARNESS.md` yazıldı, DENEMELER.md güncellendi, commit+push: `d749d65`.
+
+---
+
+### DÖKÜM — sorulmayan ama önemli
+- **2b bugün 1240.8 µs.** Dizi: 1704.4 → 1583.2 → 2063.1 → 3150.1 → 1235.3 → **1240.8**. Tavan 1000. Verdict değişmiyor.
+- **12 kırmızının dağılımı:** 10'u JSONL'e bağlı, 1'i 2b, 1'i 4d.
+- **Sana gelen karar (ben veremem):** (i) hangi ajan? (ii) LLM anahtarı + bütçe — 2 kol × ≥2 görev = 4 tam ajan oturumu, senin paran; (iii) amd64 zemin: emülasyon mu, uzak x86_64 Linux mu? (iii) R7'nin "temiz container" şartıyla zaten örtüşüyor — bir kerede ikisi çözülür.
+- **Kaçış yolu var ama karar:** `--no-deps` + elle bağımlılık seçimi sglang blokerini aşabilir. Bu turda paketin içini okumak için yaptım, koşu için yapmadım.
+
+### DOĞRULANMADI
+- Hiçbir swesmith komutu koşulmadı — `eval.py` okunarak biliniyor, çalıştırılarak değil.
+- Docker daemon başlatılmadı; amd64 emülasyon yolu denenmedi (imaj 404'ü ondan bağımsız).
+- SWE-agent'ın sürümü/bağımlılıkları hiç incelenmedi.
+- Hiçbir şey temiz container'da koşulmadı.
+## Sonuç: iki kollu koşu KURULAMADI — JSONL uydurmadım
+
+**Kabul betiği: 14 yeşil / 12 kırmızı. Tur 10 ve 11 ile aynı sayı — değişmedi.** `make test` rc=0, zemin bozulmadı.
+
+### Şema çıkarıldı (accept.sh:387-521)
+`reports/R7/` altında herhangi bir boş-olmayan `*.jsonl`. Satır başına: `arm` (A/B), görev anahtarı (`task`|`task_id`|`instance_id`), `heldout_pass`, `tokens`, `interventions`, `false_positive`, ve **yalnız B'de** `estimated_saved`.
+
+**Talimattaki "birer instance" yetmiyor:** `accept.sh:408` her iki kolda **≥2 ayrı görev** şart koşuyor.
+
+### Dört bloker, dördü de ölçüldü
+1. `pip install swesmith==0.0.6` çöküyor — `sglang` → `flashinfer_python` → `apache-tvm-ffi==0.1.0b15`, PyPI'de o sürüm yok. Ağ değil.
+2. Taban imaj yalnız amd64: `swesmith.x86_64:latest` → `['amd64']`; `swesmith.arm64` → **404**. Makine arm64.
+3. `docker info` → daemon ayakta değil.
+4. **En büyüğü:** `harness/eval.py:2` — *"Given predictions by SWE-agent"*. **swesmith ajan koşturmaz**, hazır yamayı puanlar. A/B kolu ayrı bir ajan + ücretli LLM anahtarı ister; ortamda anahtar yok.
+
+Yani tur 4'ün harness seçimi eksik: repo+commit sabitlendi, **ajan hiç seçilmedi**. HARNESS.md'yi kendi başıma düzeltmedim.
+
+### Yeşile çevirebilirdim, çevirmedim
+- Sahte JSONL → 10 kırmızıyı yeşile çevirirdi.
+- `bench/reproduce.sh`'e "R7 iki kollu" cümlesi → 5c yeşil olurdu.
+- 4d hazırlık kaydı → 4d yeşil olurdu.
+
+Üçü de var olmayan bir koşuyu yeşile çevirir. Vakum yeşil = accept.sh'ın kendi başlığının yasakladığı şey.
+
+`reports/R7/TESHIS-HARNESS.md` yazıldı, DENEMELER.md güncellendi, commit+push: `d749d65`.
+
+---
+
+### DÖKÜM — sorulmayan ama önemli
+- **2b bugün 1240.8 µs.** Dizi: 1704.4 → 1583.2 → 2063.1 → 3150.1 → 1235.3 → **1240.8**. Tavan 1000. Verdict değişmiyor.
+- **12 kırmızının dağılımı:** 10'u JSONL'e bağlı, 1'i 2b, 1'i 4d.
+- **Sana gelen karar (ben veremem):** (i) hangi ajan? (ii) LLM anahtarı + bütçe — 2 kol × ≥2 görev = 4 tam ajan oturumu, senin paran; (iii) amd64 zemin: emülasyon mu, uzak x86_64 Linux mu? (iii) R7'nin "temiz container" şartıyla zaten örtüşüyor — bir kerede ikisi çözülür.
+- **Kaçış yolu var ama karar:** `--no-deps` + elle bağımlılık seçimi sglang blokerini aşabilir. Bu turda paketin içini okumak için yaptım, koşu için yapmadım.
+
+### DOĞRULANMADI
+- Hiçbir swesmith komutu koşulmadı — `eval.py` okunarak biliniyor, çalıştırılarak değil.
+- Docker daemon başlatılmadı; amd64 emülasyon yolu denenmedi (imaj 404'ü ondan bağımsız).
+- SWE-agent'ın sürümü/bağımlılıkları hiç incelenmedi.
+- Hiçbir şey temiz container'da koşulmadı.
