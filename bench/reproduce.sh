@@ -62,6 +62,43 @@ printf 'node invocations in pushgate_test.sh: %s\n' \
 line "3. ledger  (rabadon usage --days 30; repairs HELD must read 2 — express, 91 files locked)"
 RABADON_NOTIFY=0 node bin/rabadon.mjs usage --days 30
 
+# 4. R7's two-armed run (arm A: the agent alone; arm B: the agent + rabadon).
+#    This one is NOT read-only and NOT free: it clones SWE-smith mirror repos,
+#    builds a venv per task and spends real agent sessions, so it is opt-in.
+#    Set R7_RUN=1 to actually re-run it. Without that it only reports the state
+#    of the raw record, which is what the numbers are read from.
+line "4. R7 two-armed run  (arm A vs arm B on SWE-smith; raw record + re-run)"
+R7_JSONL="$ROOT/reports/R7/ab_run.jsonl"
+if [ "${R7_RUN:-0}" = 1 ]; then
+  printf 're-running the two-armed run (this spends agent sessions)...\n'
+  RABADON_NOTIFY=0 "$ROOT/reports/R7/ab_run.sh"
+else
+  printf 'skipped the re-run (set R7_RUN=1 to spend the sessions and redo it).\n'
+  printf 'harness  : reports/R7/ab_run.sh\n'
+  printf 'pre-reg  : reports/R7/ON-KAYIT.md   (frozen before the run)\n'
+fi
+if [ -s "$R7_JSONL" ]; then
+  python3 - "$R7_JSONL" <<'PY'
+import json,sys,collections
+rows=[]
+for l in open(sys.argv[1]):
+    l=l.strip()
+    if not l: continue
+    try: rows.append(json.loads(l))
+    except Exception: pass
+by=collections.defaultdict(list)
+for r in rows: by[str(r.get("arm","?")).upper()].append(r)
+print(f'raw records: {len(rows)}')
+for a in sorted(by):
+    R=by[a]; fixed=[r for r in R if "heldout_pass" in r]
+    rate=(sum(1 for r in fixed if r["heldout_pass"])/len(fixed)*100) if fixed else float("nan")
+    tok=sum(r.get("tokens",0) or 0 for r in R)
+    print(f'  arm {a}: {len(R)} tasks | held-out fix rate {rate:.1f}% | tokens {tok}')
+PY
+else
+  printf 'no raw record yet at reports/R7/ab_run.jsonl — the run has not produced rows.\n'
+fi
+
 line "done"
 printf 'BENCHMARK.md holds the figures these commands reproduce.\n'
 printf 'No git add / commit / push was run — the human reviews and commits.\n'

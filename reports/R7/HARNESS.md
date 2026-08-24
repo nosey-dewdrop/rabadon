@@ -38,13 +38,37 @@ görevlerin ajanın kendi testini optimize edebileceği cinsten olması gerekir.
 6a bunu açıkça yasaklıyor ("the agent's own test does not count"), ki bu
 ancak saklı testi olan bir harness'ta uygulanabilir.
 
+## 4d — koşu öncesi hazırlığın kaydı (tur 14'te YAPILDI, sonra yazıldı)
+
+Bu bölüm tur 4–13 boyunca bilerek BOŞ ve KIRMIZI bırakıldı: hazırlık
+yapılmadan yazmak accept.sh'in "NO ASSERTION MAY PASS VACUOUSLY" kuralını
+ihlal ederdi. Aşağıdaki üç madde artık `reports/R7/ab_run.sh` içinde
+UYGULANMIŞ koddur, niyet değil.
+
+**1. `git` geçmişi temizlenir — formalite değil, geçerlilik şartı.**
+Ajanın göreceği ağaç, ayna klonundan kopyalanır ve `.git` dizini tamamen
+SİLİNİR (`ab_run.sh`, `hazirla_gorev`). Sebep ÖLÇÜLDÜ: `origin/main` hem
+**çözümü** (düzeltilmiş kaynak) hem **saklı F2P testlerini** taşıyor, yani
+tek bir `git diff origin/main` görevi çözerdi. Bu, iki kolu birden şişirir
+ve bir hata gibi değil, "iki güzel sayı" gibi görünür. Puanlayıcı `main`'i
+AYRI bir klonda (`/tmp/rbrun/scorer/<iid>`) tutar; ajanın ağacıyla teması
+yoktur.
+
+**2. Held-out testler yapısaldır.** SWE-smith instance dalında F2P test
+dosyaları zaten silinmiş durumdadır (ölçüldü: autograd dalında
+`tests/test_linalg.py` YOK). Puanlayıcı bu dosyaları koşudan SONRA
+`git checkout origin/main -- <yol>` ile geri koyar ve F2P + P2P koşar.
+`heldout_pass = (tüm F2P geçti) VE (P2P bozulmadı)`.
+
+**3. Ağ (network/egress) kapatma — BEST-EFFORT olarak etiketlenir.**
+Görev checkout'undan giden git/pip erişimi koşu sırasında gerekmez (bağımlılıklar
+ajan başlamadan önce kurulur). Ancak **tam egress kapatma MÜMKÜN DEĞİLDİR**:
+`claude -p` model API'sine çıkmak zorundadır, dolayısıyla ağ arayüzü açıktır ve
+ajan teorik olarak dışarıdan bilgi çekebilir. Bu madde bu yüzden
+**best-effort** diye işaretlenir ve öyle raporlanır — kapatıldı diye değil.
+Kapatılan somut şey `.git`'tir (madde 1), ki asıl sızıntı kanalı oydu.
+
 ## Bu dosyanın KAPSAMADIĞI şey
 
-GOAL 4d (koşu öncesi hazırlığın kaydı) bilerek BOŞ bırakıldı ve KIRMIZI
-kalıyor. O hazırlık henüz yapılmadı; yapılmadan buraya yazmak kabul
-betiğini boş yere yeşile çevirmek olurdu — accept.sh'in başlığındaki
-"NO ASSERTION MAY PASS VACUOUSLY" kuralının ihlali. 4d, iki kollu koşu
-fiilen kurulduğunda, yapılan işin kaydı olarak eklenir.
-
-Aynı şekilde GOAL 5 ve 6 (ham JSONL, beş sayı) bu dosyayla ilgisizdir ve
-kırmızı kalır. Seçim yapıldı; koşu yapılmadı.
+GOAL 5 ve 6 (ham JSONL, beş sayı) bu dosyayla ilgisizdir; onların kanıtı
+`reports/R7/ab_run.jsonl` ham kaydıdır.
