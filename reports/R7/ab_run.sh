@@ -245,7 +245,16 @@ import json;print(json.load(open('$GOREVLER'))['$iid']['problem_statement'])" > 
 
     say "  [$arm] ajan kosuyor (tavan ${AGENT_TIMEOUT}s)..."
     raw="$LOGS/$iid.$arm.stream.jsonl"; t0=$(date +%s)
+    # --setting-sources local ZORUNLU — KONTROL KOLUNUN SAFLIGI BUNA BAGLI.
+    # Operatorun global ~/.claude/settings.json'i rabadon-gate'i HER hook
+    # olayina, HER claude oturumu icin bagliyor. Onsuz A kolu da rabadon'lu
+    # kosar ve deney ANLAMSIZ olur. Olculdu (tur 14): A kolu kendi pipe
+    # etiketiyle 36 ve 40 ledger satiri yazmisti — kontrol kolunda tedavi vardi.
+    # `local` yalnizca .claude/settings.local.json'i yukler; A kolunda o dosya
+    # YOKTUR (0 satir), B kolunda bizim hook'umuzdur. Boylece iki kol arasindaki
+    # TEK fark ON-KAYIT §3'un istedigi sey olur: hook bagli mi, degil mi.
     ( cd "$d" && timeout "$AGENT_TIMEOUT" claude -p --dangerously-skip-permissions \
+        --setting-sources local \
         --output-format stream-json --verbose \
         "$(cat "$ps")
 
@@ -285,6 +294,18 @@ PY
 
     # ---- B kolu BAGLAMA KABULU: ledger'da YENI SATIR yoksa satir YAZILMAZ
     fp=false; ledyeni=0; wryeni=0
+    # KONTROL KOLU SAFLIGI (tur 14'te dogan sart, B'nin baglama kabulunun aynasi).
+    # A kolunda rabadon HIC olmamali. Ledger'da o kosuya ait TEK satir bile varsa
+    # kontrol kolu kirlenmis demektir ve satir JSONL'e YAZILMAZ. Bu sart olmadan
+    # global settings sizintisi sessizce gecer — bu turda tam olarak o oldu.
+    if [ "$arm" = A ]; then
+      akirli="$(ledger_satir_sayisi "$etiket")"
+      if [ "$akirli" -gt 0 ]; then
+        say "  [A] KONTROL KOLU KIRLI — ledger'da $akirli satir var, rabadon A'da da kosmus. Satir YAZILMIYOR."
+        printf '%s\t%s\tKONTROL_KOLU_KIRLI_ledger_satiri=%s\n' "$iid" "$arm" "$akirli" >> "$RUN/gecersiz.tsv"
+        continue
+      fi
+    fi
     if [ "$arm" = B ]; then
       led1="$(ledger_satir_sayisi "$etiket")"; ledyeni=$((led1-led0))
       wr1="$(ledger_wouldrefuse_sayisi "$etiket")"; wryeni=$((wr1-wr0))

@@ -17,8 +17,21 @@ Bu dosya yorum katmanıdır; bir sayı burada varsa ham kayıtta da vardır.
   branch; klonlanıp yerel venv + pytest ile arm64'te koşuyor. Tur 12'nin
   `sglang → flashinfer_python → apache-tvm-ffi` blokeri böylece devre dışı.
 - **Kolların tek farkı hook.** A: `settings.local.json` yok, rabadon yok.
-  B: göreve özgü checkout'ta `$CLAUDE_PROJECT_DIR` göreli hook komutu,
-  `sh -c 'timeout 2 node <gate> </dev/null; exit 0'` sarmalayıcısıyla.
+  B: göreve özgü checkout'ta hook komutu,
+  `sh -c 'timeout 2 node <gate> 2>/dev/null; exit 0'` sarmalayıcısıyla.
+
+  **Sarmalayıcı B1.5'in yazılı halinden BİLEREK farklı — sebebi ölçüldü.**
+  B1.5 literal olarak `</dev/null` diyor; o redirect kapıyı SAĞIR yapıyor
+  (Claude Code olay JSON'unu hook'un STDIN'ine yazar). Aynı olayla ölçüm:
+  `</dev/null` ile ledger'a yeni satır **0**, onsuz **1**. Yani B1.5'in kendi
+  "bağlama kabulü" şartı kendi reçetesiyle karşılanamıyor. Reçete
+  DEĞİŞTİRİLMEDİ — bu bir CHALLENGE'dır (DENEMELER deneme 16), belge
+  değişikliği insanın.
+
+  Ayrıca stdout **asla** susturulmaz: kapı ajanla stdout üzerinden konuşur.
+  Bu turda bir kez `>/dev/null` yazıldı ve B kolu "ledger yazan ama ajana
+  hiç konuşmayan" bir rabadon'u ölçtü; o satırlar geçersiz sayılıp
+  `reports/R7/ab_run_INVALID_muted_hook.jsonl`'e taşındı, silinmedi.
 - **Sızıntı önleme.** Ajanın ağacında `.git` YOK (silinir). `origin/main` hem
   çözümü hem saklı testleri taşıdığı için bu formalite değil geçerlilik şartı.
   Puanlayıcı `main`'i ayrı bir klonda tutar.
