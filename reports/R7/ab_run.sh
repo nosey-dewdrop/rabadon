@@ -97,10 +97,22 @@ kur_venv(){         # $1 agac
       pytest pytest-cov pytest-xdist pytest-timeout pytest-mock \
       >>"$LOGS/venv.log" 2>&1 || return 1
   # deponun kendi test bagimliliklari (varsa) — best effort, kirilirsa devam
-  for rq in requirements-test.txt requirements_test.txt test-requirements.txt; do
+  for rq in requirements-test.txt requirements_test.txt test-requirements.txt \
+            requirements-dev.txt requirements_dev.txt dev-requirements.txt; do
     [ -f "$d/$rq" ] && timeout 600 "$d/.venv/bin/python" -m pip install -q -r "$d/$rq" \
         >>"$LOGS/venv.log" 2>&1
   done
+  # setuptools "extras" — test bagimliliklari cogu depoda BURADA duruyor.
+  # OLCULDU (tur 14): bunlar kurulmadan conan `No module named 'mock'`,
+  # feedparser `No module named 'responses'` diye conftest'te COKUYOR ve
+  # instance saglam olmasina ragmen "P2P 0/120" gorunup ELENIYORDU.
+  for ex in test tests dev testing; do
+    timeout 600 "$d/.venv/bin/python" -m pip install -q -e "$d[$ex]" \
+        >>"$LOGS/venv.log" 2>&1 && break
+  done
+  # son care: conftest'lerin en sik istedigi paketler
+  timeout 600 "$d/.venv/bin/python" -m pip install -q \
+      mock responses freezegun hypothesis >>"$LOGS/venv.log" 2>&1
   return 0
 }
 
@@ -139,9 +151,28 @@ PY
   ( cd "$d" && timeout "$PYTEST_TIMEOUT" ./.venv/bin/python -m pytest \
       -p no:cacheprovider -o addopts='' -q --no-header \
       --continue-on-collection-errors @.nodeids ) >"$log" 2>&1
-  # "N passed" satirindan gecen sayisi
-  local gec; gec=$(grep -oE '[0-9]+ passed' "$log" | tail -1 | grep -oE '^[0-9]+')
-  printf '%s %s' "${gec:-0}" "$tot"
+  # SAYIM: "gecti" = DUSMEYEN. pytest ozet satiri "2 failed, 73 passed,
+  # 45 skipped" verebilir; `passed == toplam` aramak SKIP'LERI dusmus sayar ve
+  # saglam bir instance'i eler (olculdu tur 14: astroid 73/120 diye ELENDI,
+  # oysa 45'i skip, yalniz 2'si gercek dusustu). Ayrica conftest ImportError'u
+  # HIC ozet satiri uretmez — o durumda 0 dondurmek DOGRU, cunku hicbir sey
+  # kosmadi ve "P2P bozulmadi" DOGRULANAMAZ.
+  local fail gec ozet
+  ozet=0; grep -qE '[0-9]+ (passed|failed|skipped|deselected)' "$log" && ozet=1
+  if [ "$ozet" -eq 0 ]; then
+    printf '0 %s' "$tot"; return    # ozet yok = collection/import cokmesi
+  fi
+  if [ "$kume" = P2P ]; then
+    # "bozulmadi" = DUSMEDI. skip bir bozulma degildir.
+    fail=$(grep -oE '[0-9]+ (failed|error)' "$log" | grep -oE '^[0-9]+' \
+           | awk '{s+=$1} END{print s+0}')
+    gec=$((tot - fail)); [ "$gec" -lt 0 ] && gec=0
+  else
+    # F2P: SKIP bir duzeltme KANITI DEGILDIR — gercekten gecmis olmali.
+    gec=$(grep -oE '[0-9]+ passed' "$log" | tail -1 | grep -oE '^[0-9]+')
+    gec=${gec:-0}
+  fi
+  printf '%s %s' "$gec" "$tot"
 }
 
 # ------------------------------------------------------------------ B kolu
