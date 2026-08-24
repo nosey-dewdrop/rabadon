@@ -234,10 +234,13 @@ for iid in $GOREV_SIRASI; do
     if ! kur_venv "$d"; then say "  [$arm] venv BASARISIZ"; continue; fi
 
     etiket="${iid}__${arm}"          # ledger 'pipe' etiketi = gorev dizini basename
-    led0=0; wr0=0
-    if [ "$arm" = B ]; then
-      bagla_hook "$d"; led0="$(ledger_satir_sayisi "$etiket")"; wr0="$(ledger_wouldrefuse_sayisi "$etiket")"
-    fi
+    # TABAN HER IKI KOL ICIN de alinir. Spool birikimlidir: ayni etiket onceki
+    # (gecersiz) kosulardan satir tasiyor olabilir. Ham toplam bakmak, temiz bir
+    # A kosusunu eski satirlar yuzunden "kirli" ilan eder — tur 14'te autograd ve
+    # oauthlib A kollari tam olarak boyle YANLIS elendi (36 ve 40 eski satir).
+    # Karar DELTA ile verilir, toplamla degil.
+    led0="$(ledger_satir_sayisi "$etiket")"; wr0="$(ledger_wouldrefuse_sayisi "$etiket")"
+    if [ "$arm" = B ]; then bagla_hook "$d"; fi
 
     ps="$RUN/ps.$iid.txt"
     python3 -c "
@@ -299,12 +302,13 @@ PY
     # kontrol kolu kirlenmis demektir ve satir JSONL'e YAZILMAZ. Bu sart olmadan
     # global settings sizintisi sessizce gecer — bu turda tam olarak o oldu.
     if [ "$arm" = A ]; then
-      akirli="$(ledger_satir_sayisi "$etiket")"
+      akirli=$(( $(ledger_satir_sayisi "$etiket") - led0 ))
       if [ "$akirli" -gt 0 ]; then
-        say "  [A] KONTROL KOLU KIRLI — ledger'da $akirli satir var, rabadon A'da da kosmus. Satir YAZILMIYOR."
-        printf '%s\t%s\tKONTROL_KOLU_KIRLI_ledger_satiri=%s\n' "$iid" "$arm" "$akirli" >> "$RUN/gecersiz.tsv"
+        say "  [A] KONTROL KOLU KIRLI — bu kosuda $akirli YENI ledger satiri, rabadon A'da da kosmus. Satir YAZILMIYOR."
+        printf '%s\t%s\tKONTROL_KOLU_KIRLI_yeni_ledger_satiri=%s\n' "$iid" "$arm" "$akirli" >> "$RUN/gecersiz.tsv"
         continue
       fi
+      say "  [A] kontrol kolu TEMIZ (bu kosuda yeni ledger satiri: 0)"
     fi
     if [ "$arm" = B ]; then
       led1="$(ledger_satir_sayisi "$etiket")"; ledyeni=$((led1-led0))

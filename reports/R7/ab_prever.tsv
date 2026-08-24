@@ -2,3 +2,5 @@ instance_id	kurulum	f2p_bozukta	p2p_bozukta	karar
 HIPS__autograd.ac044f0d.pr_579	OK	0/11_DUSTU	120/120_GECTI	KOSUYA_ALINDI
 oauthlib__oauthlib.1fd52536.combine_file__09vlzwgc	OK	0/18_DUSTU	120/120_GECTI	KOSUYA_ALINDI
 conan-io__conan.86f29e13.pr_12165	OK	0/29	0/3	KOSUYA_ALINMADI
+pydicom__pydicom.7d361b3d.func_pm_remove_cond__c4ctdv6a	OK	0/1_DUSTU	120/120_GECTI	KOSUYA_ALINDI
+pylint-dev__astroid.b114f6b5.func_pm_ctrl_shuffle__b40xxf3u	OK	0/9	73/120	KOSUYA_ALINMADI
