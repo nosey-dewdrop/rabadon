@@ -946,7 +946,7 @@ precision: native/rabadon-gate
 	./native/precision_test.sh
 
 clean:
-	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-drift native/rabadon-verify native/rabadon-pipeline native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
+	rm -f native/rabadon-net native/rabadon-truth native/rabadon-serve native/rabadon-gate native/rabadon-gated native/rabadon-drift native/rabadon-verify native/rabadon-pipeline native/rabadon-do native/rabadon-stats native/rabadon-budget native/rabadon-lens native/rabadon-trace native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox native/rabadon-run native/rabadon-export native/gate_bench
 
 .PHONY: all bench clean disclosure precision promises
 

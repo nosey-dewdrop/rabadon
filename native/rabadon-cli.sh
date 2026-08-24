@@ -187,6 +187,7 @@ acting
   watch               live view of the current session
   ui                  the same view in a browser
   serve [--port N]    the team ledger: an append-only HTTP store for runs
+  gated               the persistent gate: one warm process, the same verdicts
 
 docs: https://github.com/nosey-dewdrop/rabadon
 DEVHELP
@@ -236,6 +237,11 @@ DEVHELP
   truth)           T="$(nbin truth)" || exit 1; shift; exec "$T" "$@" ;;
   verify)          V="$(nbin verify)" || exit 1; shift; exec "$V" "$@" ;;
   serve)           S="$(nbin serve)" || exit 1; shift; exec "$S" "$@" ;;
+  # rabadon-gated shipped in every platform package with no arm in front of it:
+  # after `npm i -g rabadon` the dispatcher IS the public surface, so the daemon
+  # was unreachable by anyone who had not cloned the repo. Same class of hole as
+  # rabadon-lens, and the same fix — one arm, one line on the dev screen.
+  gated)           D="$(nbin gated)" || exit 1; shift; exec "$D" "$@" ;;
   init|remove|uninstall|doctor)
                    exec node "$ROOT/hooks/manage.mjs" "$@" ;;
   drill)

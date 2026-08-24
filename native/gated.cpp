@@ -134,10 +134,55 @@ bool read_request(int fd, std::string* body, int fds[2]) {
 
 }  // namespace
 
+// The daemon shipped without this and cli_test.sh caught it the day it was
+// born: `rabadon-gated --help` did not print help, it fell straight through to
+// listen() and sat there. Every other binary in this repo answers the first
+// word a stranger types; a daemon that instead HANGS on it reads as a broken
+// install. rb_help must run before any socket work, for the same reason
+// rabadon-do's runs before any model call.
+static const char* kGatedHelp =
+  "rabadon-gated — the persistent gate. One warm process, the SAME judgement.\n"
+  "This binary does not re-implement the rules: it includes rabadon-gate's own\n"
+  "main() and forks a worker per request, so a verdict from the daemon and a\n"
+  "verdict from the cold gate come from one source. It is a speed decision, not\n"
+  "a policy decision.\n"
+  "\n"
+  "usage: rabadon-gated [--version] [-h|--help]\n"
+  "\n"
+  "  (no argument)   listen, and judge requests until killed. Runs in the\n"
+  "                  foreground; supervise it the way you supervise any daemon.\n"
+  "  --version       print the version.\n"
+  "  -h, --help      this screen.\n"
+  "\n"
+  "It takes no flags of its own. The socket is chosen by the environment:\n"
+  "  RABADON_GATED_SOCK   absolute path to bind. Default:\n"
+  "                       $XDG_RUNTIME_DIR/rabadon-<uid>.sock, deliberately NOT\n"
+  "                       inside the repo, where a deep worktree overruns the\n"
+  "                       kernel's sun_path limit.\n"
+  "\n"
+  "FAIL-SAME: if this daemon is absent, unreachable, or dies mid-request, the\n"
+  "caller judges in-process exactly as it did before. It can make the gate\n"
+  "faster; it can never turn a block into an allow.\n"
+  "\n"
+  "example:\n"
+  "  rabadon-gated &                 # then run agents as usual\n";
+
 int main(int argc, char** argv) {
+  rb_help(argc, argv, kGatedHelp);
+
   if (argc > 1 && std::string(argv[1]) == "--version") {
     printf("rabadon-gated " RABADON_VERSION "\n");
     return 0;
+  }
+
+  // A flag this daemon does not know is REFUSED, never swallowed. Swallowing is
+  // the dangerous half here: an operator who typed `--sock /tmp/x` and saw the
+  // daemon come up would believe it bound there, while it bound to the default
+  // and every client kept talking to the old socket. There are no flags to
+  // accept, so the rule is simple — anything flag-shaped that got this far is
+  // a typo, and the run ends before a socket exists.
+  for (int i = 1; i < argc; i++) {
+    if (rb_is_flag(argv[i])) rb_unknown_flag("rabadon-gated", argv[i]);
   }
 
   // Same reason as the gate: a dead client must never kill this process

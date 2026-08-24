@@ -15,6 +15,7 @@
   ],
   "files": [
     "rabadon-gate",
+    "rabadon-gated",
     "rabadon-stats",
     "rabadon-drift",
     "rabadon-trace",
