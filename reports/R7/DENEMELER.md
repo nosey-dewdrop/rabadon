@@ -129,3 +129,82 @@ daemon bu aletle <1 ms gösteremez. CHALLENGE dosyasında ayrıntılı.
   eski watch istemcisine dokunulmadı. **DÜZELTİLMEDİ.**
 - GOAL 4d/5/6/7'nin 13 kırmızısı (kanıt kolu) bu turda da elle sürülmedi.
   **İNCELENMEDİ.**
+
+## deneme 4 — 2026-08-24 (tur 7, yapan) — operatör CEVAP (a) uygulandı; MÜHÜRLÜ betik İLK KEZ 2b sayısı üretti
+
+**BAĞLAM.** Operatör, deneme 3'ün CHALLENGE'ına (a) ile cevap verdi
+(`reports/kosu/6.operator.md`): accept.sh DAR KAPSAMLI düzeltilir, (b) ve (c)
+REDDEDİLDİ, **1000 µs tavanı DEĞİŞMEZ**. İzin verilen tam olarak iki kalem:
+hazırlık döngüsüne gerçek+tavanlı bekleme, ve YALNIZ kimlik alanlarının
+(run, pipe, kum havuzu yolu) normalize edilmesi. Zincir hash'ini toptan
+körleştirmek YASAK; satır sayısı/sırası karşılaştırılmaya devam eder.
+
+**DENENEN.** İki kalem uygulandı, koddan ayrı KENDİ COMMIT'İNDE (ba231d6):
+`sock_bekle()` (100 × 0.1 sn, tavan 10 sn, soket hâlâ ZORUNLU) accept.sh:113
+ve :169'daki uykusuz `seq 50` döngülerinin yerine; `kimliksiz()` ise run3'ün
+TÜM çıktısını (yalnız ledger'ı değil — ret metni de gerçek proje yolunu
+basıyordu) `$H`/`$PJ`, `"run"`, `"pipe"` üzerinden temizliyor. Sonra mühürlü
+betik koşuldu: `bash reports/R7/accept.sh > reports/R7/accept.out 2>&1`.
+
+**SONUÇ 1 — 2a İLK KEZ YEŞİL.** Teşhis doğrulandı: sorun daemon değil,
+uykusuz döngüydü. Gerçek bekleme konunca soket her koşuda belirdi.
+
+**SONUÇ 2 — GOAL 2b, MÜHÜRLÜ ALETLE İLK SAYI. Negatif, olduğu gibi.**
+Deneme 3'ün 1597.3 µs'i yapanın kendi /tmp yeniden kurgusundandı; operatör
+haklı olarak "aletin hiç okumadığı bir şartı emekli edemezsin" dedi. Alet
+artık okudu:
+
+| ölçüm | sayı | kaynak |
+|---|---|---|
+| süreç içi medyan, daemon açık, 300 örnek | **1704.4 µs** | accept.out, GOAL 2b |
+| tavan (KOSU-RABADON R7, DEĞİŞMEDİ) | 1000 µs | accept.sh:121 |
+| 50-olay / 400-olay medyan | 1665.8 / 1748.8 µs | accept.out, GOAL 2c |
+| uzunluk sapması | **4.98%** | accept.out, GOAL 2c |
+
+Mühürlü sayı yapanın kendi sayısından **daha kötü** (1704.4 > 1597.3). Yani
+hız iddiası mühürlü aletle de kırmızı, ve /tmp kurgusu iyimserdi.
+`reports/R7/LENGTH.md` yazıldı → 2c artık kimlik alanları değil, GERÇEK
+eksik yüzünden değil, kayıt yapıldığı için YEŞİL olmaya uygun.
+
+**SONUÇ 3 — GOAL 3: fail-SAME'in KENDİSİ ARTIK KANITLANDI; kalan fark tek
+bir alanda.** Normalizasyondan sonra üç komutun da çıkış kodu, `ev`, `mode`,
+`rule`, ret metni, `seq`, satır SAYISI ve SIRASI **bayt bayt aynı**. Örnek
+(`rm -rf /`, iki kol yan yana) tüm satır aynı, tek fark `"prev"`:
+
+    ...,"rule":"baseline-rm-rf-outside",...,"prev":"47bbbbad29fe23..."
+    ...,"rule":"baseline-rm-rf-outside",...,"prev":"359ef055d3fa34..."
+
+Bu, deneme 3'ün iki fail-open düzeltmesinin **mühürlü betikle teyididir**
+(operatörün sıraya aldığı kalem): ölü daemon artık sessiz izin vermiyor,
+davranış birebir aynı.
+
+**SONUÇ 4 — GOAL 4–7'nin 13 kırmızısının kök sebebi TEK ve teşhis edildi.**
+İki kollu koşu HİÇ KOŞULMADI, dolayısıyla `reports/R7/` altında JSONL yok;
+5a/5b/5c, 6a–6e, 7a/7b bunun türevleri. 4d ayrı ve küçük: HARNESS.md
+.git-temizliği / egress-kapatma hazırlığını "best-effort" etiketiyle
+kaydetmiyor. **Bu oturum 4d'yi YAZMADI**: koşu yokken hazırlık belgesi
+yazmak, kontrolü yeşile çekip değeri var etmemek olurdu (ödül hacklemesi).
+
+**ELENEN HİPOTEZ.**
+- "2a hiçbir uygulamayla geçemez" (CHALLENGE iddia 1) — **ELENDİ**, tavanlı
+  bekleme ile geçti. Teşhis doğru, ama "geçilemez" yanlıştı.
+- "GOAL 3 temp-dir hash'i yüzünden geçemez" (CHALLENGE iddia 2'nin yapan
+  tarafından verilen sebebi) — **ELENDİ**: sebep temp-dir değil, runId'nin
+  pid'i + `prev` zincir alanıydı. Operatörün teşhisi (gate.cpp:2738) doğruydu.
+- "1597 µs yapanın kurgusunun eseri, mühürlü alette düşer" — **ELENDİ**,
+  mühürlü alette 1704.4 µs, daha yüksek.
+
+**KALAN HİPOTEZLER.**
+- **`"prev"` ve `.head` sidecar'ı kimlik türevidir ve GOAL 3'ü hâlâ
+  geçilemez kılıyor.** `prev`, bir ÖNCEKİ satırın NORMALİZE EDİLMEMİŞ
+  içeriğinin SHA-256'sıdır (native/chain.h:191) — o içerikte gerçek `ts` ve
+  gerçek `run` vardır, ki ikisi de zaten normalize ediliyor. Dolayısıyla
+  `prev` iki koşu arasında ASLA eşleşemez. Aynısı `spool/*.head` için:
+  biçimi `<64hex> <satır sayısı>`. Bu operatörün izin verdiği üç alanın
+  DIŞINDA, yani bu oturum DOKUNMADI — ayrı operatör kararı gerekiyor
+  (`reports/R7/CHALLENGE-2.md`).
+- 1704.4 µs hâlâ bileşenlerine ayrılmadı. En güçlü aday gated.cpp:19-24'te
+  BELGELENMİŞ "istek başına İKİ fork" — daemon'ın sildiği süreç maliyetini
+  ölçümün içine geri koyuyor. ÖLÇÜLMEDİ.
+- `native/gate.cpp:720` `open_sock()` sessiz `strncpy` kesmesi hâlâ açık
+  (Promise 1). Bu turda incelenmedi.

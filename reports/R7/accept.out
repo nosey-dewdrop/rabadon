@@ -5,38 +5,34 @@ PASS  1b native/gated.cpp binds and listens on a unix socket (a daemon, not a on
 PASS  1c a thin client path referencing the daemon socket exists (native/gated_client.h)
 
 == GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
-FAIL  2a rabadon-gated did not produce a listening socket at /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/rabadon-gated.sock
-      
-./reports/R7/accept.sh: line 178: 61913 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
-FAIL  2b the < 1 ms median was NOT measured: no daemon to measure with
-      ceiling is 1000 us in-process; the instrument is the R1.3 probe (header)
-FAIL  2c the residual length dependence was NOT re-measured under the daemon
-      R1.3 closed at 3.5-4.9% under a 10% ceiling with process spawn IN the
-      denominator; the daemon removes spawn, so the same absolute cost reads as
-      a LARGER percentage. The plan requires R7 to re-read it. Unread today.
+PASS  2a the daemon started and its socket is listening
+reports/R7/accept.sh: line 223: 85147 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+      in-process median with the daemon up: 1704.4 us over 300 samples
+      ceiling = 1000 us (KOSU-RABADON R7); instrument = R1.3 in-process probe
+FAIL  2b the gate's median is 1704.4 us with the daemon up, ceiling is 1000 us
+      50-event session: 1665.8 us   400-event session: 1748.8 us   divergence 4.98%
+      R1.3 closed this at 3.5-4.9% WITH process spawn in the denominator
+FAIL  2c measured 4.98% but reports/R7/LENGTH.md does not record it
+reports/R7/accept.sh: line 247: 85231 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
 
 == GOAL 3 — with the daemon down, behaviour is byte-identical to today
 FAIL  3-[echo hello world] behaviour diverges when the daemon is down — this is not fail-SAME
-      3,4c3,4
-      < {"v":1,"seq":1,"ts":T,"run":"ng-68589448-61926","pipe":"p.fKvHk1:session","ev":"STEP_START","sess":"s7","step":"bash: echo hello world","prev":"genesis"}
-      < 7a48429b0d2c6574935b55cf54d6a6b145358ddfedf14b056953343119d3b012 1
+      4c4
+      < 65c97fb945ecc1417089cee1010261570c2490743d19cd442fbebf4e4536e489 1
       ---
-      > {"v":1,"seq":1,"ts":T,"run":"ng-68589483-61942","pipe":"p.XQyK6D:session","ev":"STEP_START","sess":"s7","step":"bash: echo hello world","prev":"genesis"}
-      > a76918903e9e5f137db4795944ab9c8a4667b6584fffc09de0681d8e670ef874 1
+      > 025da6e18c55a36d318d53329a00c0dd8511f846ce78910d0b9dd2fdbffe2c90 1
 FAIL  3-[rm -rf /] behaviour diverges when the daemon is down — this is not fail-SAME
-      5c5
-      < rm -r '/' resolves to /, outside the project tree (/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/p.ij5uog)
+      9,10c9,10
+      < {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"47bbbbad29fe236c972d66640aec8c4ad20812a836523a1a75b12bd269667090"}
+      < e72dcea8b3ec09dbbf8f0242341a8ea2d5588e0660602c65b23e5329890e49a8 2
       ---
-      > rm -r '/' resolves to /, outside the project tree (/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/p.BHGYjv)
-      8,10c8,10
-      < {"v":1,"seq":1,"ts":T,"run":"ng-68589517-61963","pipe":"p.ij5uog:session","ev":"CHECK_FAIL","sess":"s7","step":"Bash","mode":"enforce","fails":[{"check":"baseline-rm-rf-outside","why":"rm -r '/' resolves to /, outside the project tree (/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.mNbSuWiruq/p.ij5uog) — a recursive delete outside the project tree cannot be undone by git"}],"prev":"genesis"}
+      > {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"359ef055d3fa348e6a239d207b6c82832ea179e39951c576e50a051c5abfe324"}
+      > 51bf6c0b9d522e6140fcb497c7f77dd09879f28c41be6961fbd803f1c9a1d47e 2
 FAIL  3-[git commit --no-verify -m x] behaviour diverges when the daemon is down — this is not fail-SAME
-      3,4c3,4
-      < {"v":1,"seq":1,"ts":T,"run":"ng-68589587-62000","pipe":"p.ZXhYln:session","ev":"STEP_START","sess":"s7","step":"bash: git commit --no-verify -m x","prev":"genesis"}
-      < 05d36a53fb410163e78a3ccc003a7b41e0c50faebef91fabb65692f525e67acb 1
+      4c4
+      < 4a36999041c2b8b0af11ebd6f66dc00655c6f1a0dd379d76eb092492f0de0bad 1
       ---
-      > {"v":1,"seq":1,"ts":T,"run":"ng-68589620-62016","pipe":"p.zBznoN:session","ev":"STEP_START","sess":"s7","step":"bash: git commit --no-verify -m x","prev":"genesis"}
-      > 62ad9ebb6709cd7fedb8c8b5a93f3fb28bd855232039ab53bc159abf5089219c 1
+      > 7e4ff79ef65b1d83c98c977e97929a4dc7cde328788b193acbec9c17d78394c6 1
 
 == GOAL 4 — the harness is named, exactly, with its commit
 PASS  4a reports/R7/ exists
@@ -66,5 +62,5 @@ PASS  8a native/moves_test.sh 21/0
 PASS  8b native/signals_test.sh 39/0
 PASS  8c reports/R2/accept.sh 19 green, 0 red
 
-== R7 acceptance: 9 green, 17 red
+== R7 acceptance: 10 green, 16 red
 R7 NOT ACCEPTED
