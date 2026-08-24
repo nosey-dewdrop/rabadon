@@ -1224,9 +1224,65 @@ ve kabul kapının **konuştuğunu** hiç sormuyor.
     grep -c additionalContext hooks/gate.mjs        # 0
     grep -n 'legacy JS gate path' hooks/install.mjs # 111
 
+## deneme 23 — 2026-08-24 (tur 17, yapan) — BAĞLAMA DÜZELTİLDİ; 6e/7b'nin SEBEBİ BAĞLAMA DEĞİLMİŞ
+
+**DENENEN.** Deneme 22'nin teşhisini uygulamak: `ab_run.sh`'in B kolunu
+`hooks/gate.mjs`'den `native/rabadon-gate`'e çevirmek, tek olay yerine altı
+olayı bağlamak, bağlama kabulünü sertleştirmek. **Hiçbir ajan koşulmadı, para
+harcanmadı.** Tam kayıt: `reports/R7/TESHIS-BAGLAMA.md`.
+
+**SONUÇ.** Bağlama düzeldi ve **ölçüldü**: altı olay elle beslenen sentetik bir
+oturumda **COUNTER ateşlendi** (eski `PreToolUse`-tek bağlamada yapısal olarak
+imkânsızdı; COUNTER yalnız `SessionEnd`/`Stop`'ta, `gate.cpp:4001`). Ama
+**`saved_usd` = `null` döndü** — sıfır değil, gerçek değer de değil:
+`chains_cut:0, median_n:0, reason:"no-chains"`, ve `counter.h:63 MIN_HISTORY=3`
+üç ölçülmüş zincirden azında hiçbir rakam basmıyor.
+
+Kabul betiği **23 yeşil / 3 kırmızı — kapanan kırmızı 0**, ve bu beklenendi:
+`accept.sh` 6e/7b'yi önceki (geçersiz) koşunun JSONL'inden okur; düzenleme
+sonraki koşuyu değiştirir.
+
+**ELENEN HİPOTEZ — "6e/7b kırmızı çünkü yanlış ikili bağlıydı / COUNTER
+ateşlenmiyordu."** Hayır. Kapatan şey bağlama değil; **iki ayrı duvar** var:
+1. `ab_run.sh` `estimated_saved` alanını **hiç yazmıyor**
+   (`grep -c estimated_saved reports/R7/ab_run.sh` → 0). Kablo yok, yani rakam
+   üretilse bile JSONL'e taşınmıyor.
+2. Her görev tek oturum → `chains_cut=0`, `median_n=0` < `MIN_HISTORY=3` →
+   `saved_usd` her hâlükârda `null`. Kablo çekilse `null` taşınırdı.
+
+**İKİNCİ ELENEN — 2b "geriledi".** `accept.sh` 8148,9 µs okudu ama ölçüm anında
+`load average 7,51 / 7,77 / 8,84`, %99,2 Python, %24,2 WindowServer, %18,9
+WebKit. Emir gereği ölçüm alınmadı; alınan da delil değil. 2b'nin kırmızısı
+"kapı yavaş" değil "**ölçüm yapılmadı**" demektir.
+
+**KALAN HİPOTEZLER / AÇIK KARAR.** Sertleştirilen kabul (SIGNAL veya INJECT
+şartı) aynen uygulandı, ama taban oran ölçüldü ve ağır: gerçek dogfooding
+ledger'ında **186 oturumun yalnız 8'i (%4,3)** SIGNAL/INJECT üretmiş
+(INJECT: 3, %1,6; COUNTER: 52, %28,0). Şart aynen kalırsa B koşularının
+çoğunluğu — **ödenmiş para** — atılır ve kalan küme "rabadon'un konuştuğu
+oturumlar"a doğru **yanlı** olur, yani turun sorusunun cevabını varsayar.
+Bu yüzden bağlamanın kanıtı sinyalden bağımsız iki deterministik satıra da
+bağlandı (native `run:"ng-…"` imzası + COUNTER) ve `ledger_signal_inject`
+JSONL'e yazılıyor. **Şartın nihai hâli OPERATÖR KARARIDIR** ve paralı koşudan
+önce verilmelidir — bkz. `TESHIS-BAGLAMA.md` §4. Yapan kabul gevşetmez.
+
+**KANIT KOMUTLARI.**
+
+    bash -n reports/R7/ab_run.sh
+    bash reports/R7/accept.sh                        # 23 yesil, 3 kirmizi (rc=1)
+    grep -c estimated_saved reports/R7/ab_run.sh     # 0
+    grep -n 'MIN_HISTORY' native/counter.h           # 63: = 3
+    sed -n '2733,2734p' native/gate.cpp              # taninan alti olay
+
 ## PARKED
 
-- ÇÖZÜLDÜ → deneme 22. (Eski madde: "gate.cpp PreToolUse'ta INJECT/SIGNAL
+- **6e/7b'nin kablosu (ölçüldü, YAPILMADI — bu turun işi değildi).** `ab_run.sh`
+  `estimated_saved` yazmıyor. Reçete: B kolu bittikten sonra o pipe etiketinin
+  son `COUNTER` satırını spool'dan okuyup `saved_usd`'yi (null ise `null`
+  bırakarak) JSONL'e `estimated_saved` olarak yazmak. **Tek başına 6e'yi
+  kapatmaz**: sayaç `MIN_HISTORY=3` ölçülmüş zincir görmeden `null` döner ve her
+  görev tek oturum. İkinci parça bir koşu-şekli kararıdır, operatöre aittir.
+- ÇÖZÜLDÜ → deneme 22 (uygulandı → deneme 23). (Eski madde: "gate.cpp PreToolUse'ta INJECT/SIGNAL
   üretiyor (4697-4707) ama geçerli B örneklerinde yalnız STEP_START var;
   ölçülen B kolu ajana hiç konuşmayan bir rabadon olabilir. ÖLÇÜLMEDİ.")
   Teşhis edildi, sebebi bulundu, düzeltme **UYGULANMADI** — `ab_run.sh`'i

@@ -22,7 +22,15 @@ RUN=/tmp/rbrun
 JSONL="$ROOT/reports/R7/ab_run.jsonl"
 PREVER="$ROOT/reports/R7/ab_prever.tsv"
 LOGS="$RUN/logs"
-GATE="$ROOT/hooks/gate.mjs"
+# B kolunun bagladigi ikili. TUR 16'DA OLCULDU (reports/R7/TESHIS-B-KOLU.md):
+# burasi `hooks/gate.mjs` yaziyordu ve BIRIKIM MOTORU O IKILIDE YOK — SIGNAL,
+# queue_injection, INJECT ve ajanla konusan `additionalContext` yalniz
+# native/gate.cpp'de. Olculdu: gate.mjs gecerli B kosularina 51 satir yazdi,
+# 51'i de STEP_START; sifir SIGNAL/INJECT/COUNTER. `hooks/install.mjs:111`
+# gate.mjs'yi zaten "legacy JS gate path" diye adlandirip gercek kurulumda
+# SILIP native ile degistiriyor. Yani B kolu, urunun olculmek istenen
+# parcasi olmayan bir ikiliyi olcuyordu.
+GATE="$ROOT/native/rabadon-gate"
 GOREVLER="$RUN/gorevler.json"
 
 # P2P TAVANI — sessiz degil, ILAN EDILMIS kisitlama. Tam listeler 574-4174 test;
@@ -63,6 +71,14 @@ mkdir -p "$LOGS" "$RUN/tasks" "$RUN/scorer" "$P2P_EXCL_DIR"
 [ -f "$PREVER" ] || printf 'instance_id\tkurulum\tf2p_bozukta\tp2p_bozukta\tp2p_dislanan\tkarar\n' > "$PREVER"
 
 say(){ printf '%s | %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+# Ikili yoksa B kolu SESSIZCE gate.mjs cagindaki hatasina donerdi (hook komutu
+# calismaz, ledger'a satir gitmez, kosu gecersiz sayilir ama sebebi gorunmez).
+# Burada, ajan kosmadan ve para harcanmadan once, yuksek sesle olur.
+if [ ! -x "$GATE" ]; then
+  say "NATIVE GATE YOK: $GATE — once 'make' kos. B kolu baglanamaz, kosu baslamiyor."
+  exit 1
+fi
 
 # (instance,arm) zaten JSONL'de mi?
 bitti_mi(){
@@ -244,14 +260,65 @@ bagla_hook(){       # $1 agac  — B1.5 recetesi: goreli komut + sarmalayici
   #   `... node gate`            -> ledger'a YENI SATIR: 1
   # Yani B1.5'in kendi "baglama kabulu" (ledger'da yeni satir goster) kendi
   # recetesiyle KARSILANAMAZ. Bu bir CHALLENGE kalemidir, DENEMELER'e yazildi.
-  # Asilma korkusunu `timeout 2` zaten karsiliyor; stdin'i kesmeye gerek yok.
-  # stderr susturulur (gureltu), stdout ve stdin DOKUNULMAZ, exit daima 0.
+  # Asilma korkusunu sarmalayicidaki `timeout` karsiliyor; stdin'i kesmeye
+  # gerek yok. stderr susturulur (gurultu), stdout ve stdin DOKUNULMAZ,
+  # exit daima 0.
+  #
+  # OLAY KUMESI — tur 16 teshisinin ikinci sebebi. Burasi YALNIZ `PreToolUse`
+  # yaziyordu; native gate baglansa bile zincir kopuktu, cunku birikim motoru
+  # olaylar ARASINDA calisir:
+  #     PostToolUse -> SIGNAL -> queue_injection -> (sonraki) PreToolUse -> INJECT
+  # Ilk halka (PostToolUse) kayitli degildi, yani INJECT yapisal olarak
+  # imkansizdi. COUNTER SessionEnd/Stop'ta (gate.cpp:4001,4008,4015),
+  # RUN_DONE Stop'ta, oturum hedefi UserPromptSubmit'te (3869), oturum
+  # sifirlama SessionStart'ta (3889) uretiliyor.
+  #
+  # Model: `hooks/install.mjs:169-175` (gercek `rabadon init`). Oradan iki fark
+  # var ve ikisi de bilerek:
+  #  - SessionEnd EKLENDI. install.mjs onu baglamiyor (Stop yedegine guveniyor);
+  #    burada COUNTER'in olculmesi turun kabul kalemi (6e/7b), o yuzden planin
+  #    kendi hook'u da baglanir. gate.cpp:3992-3994 ikisini de kabul ediyor ve
+  #    once geleni yaziyor.
+  #  - rabadon-drift BAGLANMADI. Bu kol birikim motorunu olcuyor; drift ayri bir
+  #    urun yuzeyi ve kola ait olmayan gurultu ekler.
+  #  `PreToolUseResult` diye bir olay YOK: gate.cpp:2733-2734 tam olarak alti
+  #  olay taniyor ve tanimadigini sessizce dusuruyor. Bagli olan alti da odur.
+  #
+  # TIMEOUT — B1.5'in literal `timeout 2`sinden bilerek sapildi, gerekcesiyle.
+  # O rakam tek isi hizli bir verdict olan bir kapi icin yazildi. Native gate'in
+  # KAPANIS yolu (COUNTER) butun spool'u ve projedeki her ring'i yuruyor; ortak
+  # spool 220k+ satir. 2 saniyede oldurmek, kolun olcmek icin var oldugu olayi
+  # tam da yazilirken keserdi — ve bu, tur 14'teki `>/dev/null` hatasinin
+  # zamanlama kilignda tekrari olurdu. Sicak yol (PreToolUse/PostToolUse) 10 s,
+  # kapanis 60 s. B1.5'in korudugu iki sey aynen duruyor: sure SINIRLI (yetim
+  # surec yok, B1.9) ve exit DAIMA 0 (hook oturumu tutamaz).
+  local PRE=10 POST=10 CLOSE=60
   cat > "$d/.claude/settings.local.json" <<JSON
 {
   "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command",
+        "command": "sh -c 'timeout $PRE $GATE 2>/dev/null; exit 0'" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command",
+        "command": "sh -c 'timeout $PRE $GATE 2>/dev/null; exit 0'" } ] }
+    ],
     "PreToolUse": [
       { "matcher": "*", "hooks": [ { "type": "command",
-        "command": "sh -c 'timeout 2 node $GATE 2>/dev/null; exit 0'" } ] }
+        "command": "sh -c 'timeout $PRE $GATE 2>/dev/null; exit 0'" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command",
+        "command": "sh -c 'timeout $POST $GATE 2>/dev/null; exit 0'" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command",
+        "command": "sh -c 'timeout $CLOSE $GATE 2>/dev/null; exit 0'" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command",
+        "command": "sh -c 'timeout $CLOSE $GATE 2>/dev/null; exit 0'" } ] }
     ]
   }
 }
@@ -268,6 +335,31 @@ ledger_satir_sayisi(){
 ledger_wouldrefuse_sayisi(){
   cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
     | grep -ciE '"(wouldRefuse|would_refuse)"[[:space:]]*:[[:space:]]*true|"ev"[[:space:]]*:[[:space:]]*"WOULD_REFUSE"'
+}
+# BAGLAMA KABULUNUN SERT HALI. `ledger_new_lines > 0` bir kapinin YASADIGINI
+# gosterir, KONUSTUGUNU degil: STEP_START o sarti karsilar ve tur 16'da tam
+# olarak boyle gecti — 51 satirin 51'i STEP_START'ti ve kabul yesil sandi.
+# Birikim motorunun calistiginin en kucuk kaniti SIGNAL (bir sey yakalandi)
+# veya INJECT (ajana bir sey soylendi) satiridir; ikisi de yalniz
+# native/gate.cpp'de uretilir.
+ledger_sinyal_sayisi(){
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
+    | grep -cE '"ev"[[:space:]]*:[[:space:]]*"(SIGNAL|INJECT)"'
+}
+# BAGLAMANIN KENDISININ KANITI — sinyalden BAGIMSIZ, cunku bunlar her oturumda
+# deterministik olarak yazilir (olculdu, bkz. DENEMELER deneme 23):
+#  - native yazar imzasi: `run:"ng-..."` + `call` alani. gate.mjs ikisini de
+#    yazmaz, yani "dogru ikili bagli mi" sorusu satirdan cevaplanir.
+#  - COUNTER: yalniz SessionEnd/Stop'ta uretilir (gate.cpp:4001). Varligi,
+#    olay kumesinin ILK halkasinin degil SON halkasinin da bagli oldugunun
+#    kanitidir — eski `PreToolUse`-tek baglamada yapisal olarak imkansizdi.
+ledger_native_sayisi(){
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
+    | grep -cE '"run"[[:space:]]*:[[:space:]]*"ng-'
+}
+ledger_counter_sayisi(){
+  cat "$HOME"/.rabadon/spool/*.jsonl 2>/dev/null | grep -F "\"pipe\":\"$1:" \
+    | grep -cE '"ev"[[:space:]]*:[[:space:]]*"COUNTER"'
 }
 
 # --------------------------------------------------------------------- ana
@@ -364,6 +456,8 @@ for iid in $GOREV_SIRASI; do
     # oauthlib A kollari tam olarak boyle YANLIS elendi (36 ve 40 eski satir).
     # Karar DELTA ile verilir, toplamla degil.
     led0="$(ledger_satir_sayisi "$etiket")"; wr0="$(ledger_wouldrefuse_sayisi "$etiket")"
+    sig0="$(ledger_sinyal_sayisi "$etiket")"
+    nat0="$(ledger_native_sayisi "$etiket")"; cnt0="$(ledger_counter_sayisi "$etiket")"
     if [ "$arm" = B ]; then bagla_hook "$d"; fi
 
     ps="$RUN/ps.$iid.txt"
@@ -420,7 +514,7 @@ PY
     hp=false; { [ "$fg" -eq "$ft" ] && [ "$ft" -gt 0 ] && [ "$pg" -eq "$pt" ]; } && hp=true
 
     # ---- B kolu BAGLAMA KABULU: ledger'da YENI SATIR yoksa satir YAZILMAZ
-    fp=false; ledyeni=0; wryeni=0
+    fp=false; ledyeni=0; wryeni=0; sigyeni=0
     # KONTROL KOLU SAFLIGI (tur 14'te dogan sart, B'nin baglama kabulunun aynasi).
     # A kolunda rabadon HIC olmamali. Ledger'da o kosuya ait TEK satir bile varsa
     # kontrol kolu kirlenmis demektir ve satir JSONL'e YAZILMAZ. Bu sart olmadan
@@ -437,19 +531,46 @@ PY
     if [ "$arm" = B ]; then
       led1="$(ledger_satir_sayisi "$etiket")"; ledyeni=$((led1-led0))
       wr1="$(ledger_wouldrefuse_sayisi "$etiket")"; wryeni=$((wr1-wr0))
+      sig1="$(ledger_sinyal_sayisi "$etiket")"; sigyeni=$((sig1-sig0))
+      natyeni=$(( $(ledger_native_sayisi "$etiket") - nat0 ))
+      cntyeni=$(( $(ledger_counter_sayisi "$etiket") - cnt0 ))
       [ "$wryeni" -gt 0 ] && fp=true
       if [ "$ledyeni" -le 0 ]; then
         say "  [$arm] LEDGER'DA YENI SATIR YOK — bu kosu GECERSIZ, JSONL'e YAZILMIYOR"
         printf '%s\t%s\tLEDGER_SATIRI_YOK\n' "$iid" "$arm" >> "$RUN/gecersiz.tsv"
         continue
       fi
+      # 1) DOGRU IKILI bagli mi? gate.mjs `ng-` run yazmaz.
+      if [ "$natyeni" -le 0 ]; then
+        say "  [$arm] NATIVE GATE SATIRI YOK ($ledyeni yeni satirin hicbiri 'ng-' run'li) — GECERSIZ"
+        printf '%s\t%s\tNATIVE_SATIRI_YOK_ledger_yeni=%s\n' "$iid" "$arm" "$ledyeni" >> "$RUN/gecersiz.tsv"
+        continue
+      fi
+      # 2) OLAY KUMESININ SON HALKASI bagli mi? COUNTER yalniz SessionEnd/Stop'ta.
+      if [ "$cntyeni" -le 0 ]; then
+        say "  [$arm] COUNTER YOK — SessionEnd/Stop baglanmamis ya da atesleyememis, GECERSIZ"
+        printf '%s\t%s\tCOUNTER_YOK_ledger_yeni=%s\n' "$iid" "$arm" "$ledyeni" >> "$RUN/gecersiz.tsv"
+        continue
+      fi
+      # 3) SERT KABUL (operator emri, tur 17): kapi yasadi mi degil, KONUSTU mu.
+      #    UYARI — OLCULDU, bkz. DENEMELER deneme 23 / CHALLENGE-4.md: gercek
+      #    dogfooding ledger'inda 186 oturumun yalniz 8'i (%4,3) SIGNAL veya
+      #    INJECT uretmis. Bu sart aynen kalirsa B kosularinin buyuk cogunlugu
+      #    ATILIR ve kalan kume "rabadon'un konustugu oturumlar"a dogru
+      #    yanlidir. Operator karari beklemektedir; emredildigi gibi duruyor.
+      if [ "$sigyeni" -le 0 ]; then
+        say "  [$arm] SIGNAL/INJECT SATIRI YOK ($ledyeni yeni satir var ama hicbiri degil) — GECERSIZ, JSONL'e YAZILMIYOR"
+        printf '%s\t%s\tSIGNAL_INJECT_YOK_ledger_yeni=%s\n' "$iid" "$arm" "$ledyeni" >> "$RUN/gecersiz.tsv"
+        continue
+      fi
+      say "  [$arm] baglama kabulu OK (native $natyeni, COUNTER $cntyeni, SIGNAL/INJECT $sigyeni, toplam $ledyeni)"
     fi
 
     python3 - "$JSONL" "$iid" "$arm" "$hp" "$tin" "$tout" "$tcw" "$tcr" "$cost" \
              "$iv" "$fp" "$fg" "$ft" "$pg" "$pt" "$rc" "$((t1-t0))" "$ledyeni" "$nrest" "$P2P_CAP" "$wryeni" \
-             "$P2P_EXCL_DIR/$iid.txt" <<'PY'
+             "$P2P_EXCL_DIR/$iid.txt" "$sigyeni" <<'PY'
 import json,os,sys
-(jl,iid,arm,hp,tin,tout,tcw,tcr,cost,iv,fp,fg,ft,pg,pt,rc,dur,ledyeni,nrest,cap,wryeni,excl)=sys.argv[1:]
+(jl,iid,arm,hp,tin,tout,tcw,tcr,cost,iv,fp,fg,ft,pg,pt,rc,dur,ledyeni,nrest,cap,wryeni,excl,sigyeni)=sys.argv[1:]
 # madde 5: dislanan testler SAYIYLA VE ISIMLE JSONL'e girer. Rapor bu alandan
 # okur; gizli bir kisitlama "hepsini kapsadik" gibi okunur.
 ex=[]
@@ -468,6 +589,11 @@ row={"arm":arm,"instance_id":iid,"task":iid,
      "p2p_excluded":len(ex),"p2p_excluded_ids":ex,
      "agent_rc":int(rc),"duration_s":int(dur),
      "ledger_new_lines":int(ledyeni),"ledger_would_refuse":int(wryeni),
+     # SECICILIK GORUNUR KALSIN: sert kabul, SIGNAL/INJECT uretmeyen B
+     # kosularini kumeden atiyor. Bu, "rabadon'un konustugu" oturumlara dogru
+     # bir ORNEKLEM YANLILIGI uretebilir (bkz. DENEMELER deneme 23, CHALLENGE).
+     # Sayi satirda durur ki rapor bunu gizleyemesin.
+     "ledger_signal_inject":int(sigyeni),
      "f2p_files_restored":int(nrest)}
 with open(jl,"a") as f: f.write(json.dumps(row)+"\n")
 print("YAZILDI", arm, iid, "heldout_pass="+str(row["heldout_pass"]), "tokens="+str(row["tokens"]))
