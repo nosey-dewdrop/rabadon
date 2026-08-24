@@ -15,15 +15,25 @@
 # YENI KURAL — FIZIK GEREKCELI, KEYFI DEGIL:
 #   Cekismeli bir makinede olculen latans, cekismesiz gercek latanstan HER
 #   ZAMAN buyuk ya da esittir. Yuk yalniz EKLER, cikarmaz. Dolayisiyla
-#   tekrarli olcumlerin EN DUSUGU, temiz-ortam degerinin en iyi ALT SINIR
-#   tahminidir. Bu betik o alt siniri arar.
+#   tekrarli olcumlerin EN DUSUGU, temiz-ortam degerinin en iyi UST SINIR
+#   tahminidir. Bu betik o ust siniri arar.
 #
-# HUKUM (bu betik 2b'yi YESILE CEKMEZ; KESIN KIRMIZI ile ACIK'i ayirir):
-#   * en dusuk gozlem >= 1000 us -> 2b KESIN KIRMIZI. Makine bahanesi biter:
-#     daha temiz bir olcum MATEMATIKSEL OLARAK daha dusuk olamaz.
-#   * en dusuk gozlem <  1000 us -> 2b YESIL SAYILMAZ, ACIK kalir. accept.sh'in
-#     olcutu MEDYAN uzerinedir ve medyan kirlidir; sayi yalniz "en iyi gozlenen
-#     kosul" etiketiyle raporlanir, temiz ortamda yeniden olculmesi gerekir.
+# HUKUM — TUR 21 CEVAP 1'DE DUZELTILDI. Asagidaki eski hukum TERSTEN yazilmisti
+# ve yukaridaki fizik onermesinin ZITTINI soyluyordu. Operator hatayi kabul etti
+# ("hata BENIM"); bu betigin urettigi her "KESIN KIRMIZI" etiketi GECERSIZDIR:
+#   ~~en dusuk gozlem >= 1000 us -> 2b KESIN KIRMIZI~~        <- YANLIS, GECERSIZ
+#   ~~en dusuk gozlem <  1000 us -> 2b ACIK, yesil sayilmaz~~ <- YANLIS, GECERSIZ
+# Neden yanlis: min gozlem temiz degerin UST SINIRIdir, ALT SINIRI DEGIL.
+# min >= 1000 olmasi, gercek degerin de >= 1000 oldugunu KANITLAMAZ.
+#
+# DOGRU ASIMETRI — kanit tek yonde cikar, ve o yon YESIL yonudur:
+#   * en dusuk gozlem <  1000 us -> 2b KESIN YESIL. Temiz deger bu sayidan
+#     kucuk ya da esit oldugu icin tavanin altinda oldugu KANITLANMISTIR:
+#     kirli bir makinede tavanin altina inen medyan, temiz makinede de iner.
+#   * en dusuk gozlem >= 1000 us -> BELIRSIZ. Etiket: "bu makinede kirmizi;
+#     temiz tavan <= <min> us". KESIN KIRMIZI DEGIL — gercek deger min'in,
+#     hatta tavanin altinda olabilir ve bu betik onu ayirt EDEMEZ. Kesin
+#     kirmizi ancak temiz bir referans ortamda (CI/konteyner) verilebilir.
 #
 # MUHUR: bu betik accept.sh'i CAGIRIR, DEGISTIRMEZ. accept.sh'in 2b OLCUTU
 # (medyan < 1000 us) DEGISMEZ.
@@ -147,20 +157,21 @@ MAX="$(printf '%s\n' $GOZLEM | sort -g | tail -1)"
 kayit "gecerli gozlem: $GECERLI/$ORNEK | hepsi:$GOZLEM | EN DUSUK ${MIN} us"
 
 if awk -v m="$MIN" -v t="$TAVAN_US" 'BEGIN{exit !(m>=t)}'; then
-  kayit "HUKUM: 2b KESIN KIRMIZI — en dusuk gozlem ${MIN} us >= ${TAVAN_US} us."
-  { echo; echo "**HUKUM: 2b KESIN KIRMIZI.**"
+  kayit "HUKUM: 2b BELIRSIZ — bu makinede kirmizi; temiz tavan <= ${MIN} us."
+  { echo; echo "**HUKUM: 2b BELIRSIZ — bu makinede kirmizi, KESIN KIRMIZI DEGIL.**"
     echo "Gecerli gozlem $GECERLI/$ORNEK, hepsi (us):$GOZLEM"
     echo "EN DUSUK gozlem **${MIN} us**, tavan ${TAVAN_US} us."
-    echo "Yuk yalniz EKLER: daha temiz bir makinede olculen deger bundan DUSUK"
-    echo "olamaz. Makine bahanesi kalmadi — 2b gercekten kirmizi."; } >> "$RAPOR"
-  exit 1
-else
-  kayit "HUKUM: 2b ACIK (yesil DEGIL) — en dusuk gozlem ${MIN} us < ${TAVAN_US} us."
-  { echo; echo "**HUKUM: 2b ACIK — YESIL SAYILMAZ.**"
-    echo "Gecerli gozlem $GECERLI/$ORNEK, hepsi (us):$GOZLEM"
-    echo "EN DUSUK gozlem **${MIN} us** (en iyi gozlenen kosul), en yuksek ${MAX} us."
-    echo "Bu sayi bir ALT SINIR tahminidir. accept.sh'in olcutu MEDYAN uzerinedir"
-    echo "ve buradaki medyan kirli bir makinede alinmistir. 2b temiz bir ortamda"
-    echo "YENIDEN OLCULMELI; o zamana kadar ACIK kalir, yesile YAZILMAZ."; } >> "$RAPOR"
+    echo "Bu sayi temiz degerin UST SINIRIdir: temiz tavan <= ${MIN} us."
+    echo "Gercek deger ${TAVAN_US} us'nin altinda OLABILIR; bu betik ayirt EDEMEZ."
+    echo "Hukum ancak temiz bir referans ortamda (CI/konteyner) verilebilir."; } >> "$RAPOR"
   exit 2
+else
+  kayit "HUKUM: 2b KESIN YESIL — en dusuk gozlem ${MIN} us < ${TAVAN_US} us."
+  { echo; echo "**HUKUM: 2b KESIN YESIL.**"
+    echo "Gecerli gozlem $GECERLI/$ORNEK, hepsi (us):$GOZLEM"
+    echo "EN DUSUK gozlem **${MIN} us** (kirli kosulda), en yuksek ${MAX} us."
+    echo "Yuk yalniz EKLER: temiz ortamdaki deger ${MIN} us'den BUYUK olamaz,"
+    echo "dolayisiyla ${TAVAN_US} us tavaninin altinda oldugu KANITLANMISTIR."
+    echo "Kirli makinede tavanin altina inen olcum, temiz makinede de iner."; } >> "$RAPOR"
+  exit 0
 fi
