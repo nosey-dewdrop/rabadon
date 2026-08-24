@@ -1,0 +1,187 @@
+I'll start by reading the project state before touching anything.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now the fix. First `gated.cpp`:
+[tool: Edit]
+[tool: Edit]
+Now the CLI case arm and the `dev` help line:
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Edit]
+[tool: Read]
+[tool: Edit]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Regression closed. Now the day-string optimization at `gate.cpp:2754`.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now the test first — it must be able to turn red.
+[tool: Write]
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Edit]
+[tool: Bash]
+Now the implementation.
+[tool: Edit]
+[tool: Bash]
+Now warm it in the daemon parent:
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now a controlled A/B — the same probe, old vs new gate, interleaved on this machine.
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now the mandated accept.sh run and report.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+İki iş de teslim, 4 commit, push edildi (`kosu2`).
+
+## 1 — `da9e5b2` regresyonu KAPANDI (`d4fd723`)
+
+Teşhis iki delik görmüştü, ölçüm üçüncüyü buldu:
+
+| | |
+|---|---|
+| `case arm` yok | `gated)` armı + `rabadon dev` ekranında satır |
+| `--help`/`-h`/tanımsız bayrak 10 sn asılıyor | `rb_help` artık `main`'in ilk ifadesi; bayrak yutulmuyor, exit 2 ile reddediliyor |
+| **YENİ:** dört platform paketinin `files` listesinde yok | prebuilt kurulumda `doctor` → "1 of 19 binaries absent". Dörde de eklendi, `make clean`'e de |
+
+```
+./native/cli_test.sh          297 passed, 4 failed  ->  310 passed, 0 failed
+./native/npm_install_test.sh   11 passed, 1 failed  ->   12 passed, 0 failed
+```
++13 çünkü 4 asılma arkalarındaki 9 iddiayı ölçülemez kılıyordu. npm kırmızısının pre-existing olduğu ayrı klonda (`72f5f5f`) doğrulandı: 11/1.
+
+## 2 — gün dizgisi: KIRMIZI test önce (`12fb21f`), sonra uygulama (`a821278`)
+
+Anahtar `t/86400` — UTC günü tam 86400 sn, gece yarısı önbelleği **tam** geçersiz kılıyor. `rabadon-gated` `listen()` öncesi bir kez ısıtıyor, worker'lar COW ile miras alıyor. Forklanan çocuğun ilk çağrısı **21 µs** (cold 269–483 µs idi).
+
+Tek önce/sonra okuması bunu çözemezdi (aynı kod 1108 ve 3058 µs vermişti), o yüzden dönüşümlü A/B:
+
+```
+round      OLD_us     NEW_us   DELTA_us
+1          1531.2     1252.5      278.7
+2          1444.0     1180.0      264.0
+3          1450.0     1269.0      181.0
+4          1564.9     1354.3      210.6
+DELTA 229.8 us (%15.4) — eşleşmiş her tur NEW lehine
+```
+
+**Negatif sonuç:** 229.8 µs, projeksiyonun (306 µs) ALTINDA. Ve tavana ulaşmıyor — `accept.sh` 2b bugün **1235.3 µs**, tavan 1000, hâlâ kırmızı. Profil raporunun aritmetiği zaten bunu söylüyordu: eşik dört kalem istiyordu, bir kalem denendi.
+
+## Kabul betiği
+`bash reports/R7/accept.sh` → **14 green, 12 red, R7 NOT ACCEPTED.** Kısmi yeşil kabul değil. Bu tur accept.sh'ın yeşil sayısını **değiştirmedi** — her iki iş de onun saydığı yerde değil.
+
+---
+
+## DÖKÜM (sorulmayan ama önemli)
+
+- **`make test` rc=0, 0 FAIL satırı** — taban tamamen yeşil, `day_cache_test` dahil.
+- **`REGRESYON.md`'nin PARKED maddesi yanlıştı, düzelttim:** `promises_test.sh` `make test`'in geç sırasında değil, **içinde hiç değil** — `Makefile:932` ayrı `promises` hedefi, ayrı olması bilinçli. Kör nokta gerçek, sebebi yanlış yazılmıştı.
+- `reports/R7/accept.out` dosyasında duran 11/15, tur 8 öncesineydi; bugünkü koşuyla güncelledim.
+- accept.sh'ın 12 kırmızısının **9'u** GOAL 5/6/7'de — iki kollu koşunun ham JSONL'i. Bu tur hiç ele alınmadı; R7'nin asıl kütlesi orada, hız kolunda değil.
+- `CHALLENGE-3` hâlâ açık, insan onayı bekliyor.
+
+**NOT VERIFIED:** temiz container'da hiçbir şey koşulmadı (hepsi bu macOS makinesi); saat dilimi maliyeti platforma bağlı, Linux'ta doğrulanmadı. A/B sırasında makine sakin değildi (load 3.48–5.84) — iddia eşleşmiş fark, mutlak sütun değil. Gece yarısını gerçekten geçen canlı daemon çalıştırılmadı (sınır damga ile test edildi). `npm_install_test.sh` yalnız darwin-arm64 koştu, diğer üç manifest elle düzeltildi. `.kosu-nabiz.*` ve `reports/kosu/10.out.raw*` dosyalarına dokunmadım.
+İki iş de teslim, 4 commit, push edildi (`kosu2`).
+
+## 1 — `da9e5b2` regresyonu KAPANDI (`d4fd723`)
+
+Teşhis iki delik görmüştü, ölçüm üçüncüyü buldu:
+
+| | |
+|---|---|
+| `case arm` yok | `gated)` armı + `rabadon dev` ekranında satır |
+| `--help`/`-h`/tanımsız bayrak 10 sn asılıyor | `rb_help` artık `main`'in ilk ifadesi; bayrak yutulmuyor, exit 2 ile reddediliyor |
+| **YENİ:** dört platform paketinin `files` listesinde yok | prebuilt kurulumda `doctor` → "1 of 19 binaries absent". Dörde de eklendi, `make clean`'e de |
+
+```
+./native/cli_test.sh          297 passed, 4 failed  ->  310 passed, 0 failed
+./native/npm_install_test.sh   11 passed, 1 failed  ->   12 passed, 0 failed
+```
++13 çünkü 4 asılma arkalarındaki 9 iddiayı ölçülemez kılıyordu. npm kırmızısının pre-existing olduğu ayrı klonda (`72f5f5f`) doğrulandı: 11/1.
+
+## 2 — gün dizgisi: KIRMIZI test önce (`12fb21f`), sonra uygulama (`a821278`)
+
+Anahtar `t/86400` — UTC günü tam 86400 sn, gece yarısı önbelleği **tam** geçersiz kılıyor. `rabadon-gated` `listen()` öncesi bir kez ısıtıyor, worker'lar COW ile miras alıyor. Forklanan çocuğun ilk çağrısı **21 µs** (cold 269–483 µs idi).
+
+Tek önce/sonra okuması bunu çözemezdi (aynı kod 1108 ve 3058 µs vermişti), o yüzden dönüşümlü A/B:
+
+```
+round      OLD_us     NEW_us   DELTA_us
+1          1531.2     1252.5      278.7
+2          1444.0     1180.0      264.0
+3          1450.0     1269.0      181.0
+4          1564.9     1354.3      210.6
+DELTA 229.8 us (%15.4) — eşleşmiş her tur NEW lehine
+```
+
+**Negatif sonuç:** 229.8 µs, projeksiyonun (306 µs) ALTINDA. Ve tavana ulaşmıyor — `accept.sh` 2b bugün **1235.3 µs**, tavan 1000, hâlâ kırmızı. Profil raporunun aritmetiği zaten bunu söylüyordu: eşik dört kalem istiyordu, bir kalem denendi.
+
+## Kabul betiği
+`bash reports/R7/accept.sh` → **14 green, 12 red, R7 NOT ACCEPTED.** Kısmi yeşil kabul değil. Bu tur accept.sh'ın yeşil sayısını **değiştirmedi** — her iki iş de onun saydığı yerde değil.
+
+---
+
+## DÖKÜM (sorulmayan ama önemli)
+
+- **`make test` rc=0, 0 FAIL satırı** — taban tamamen yeşil, `day_cache_test` dahil.
+- **`REGRESYON.md`'nin PARKED maddesi yanlıştı, düzelttim:** `promises_test.sh` `make test`'in geç sırasında değil, **içinde hiç değil** — `Makefile:932` ayrı `promises` hedefi, ayrı olması bilinçli. Kör nokta gerçek, sebebi yanlış yazılmıştı.
+- `reports/R7/accept.out` dosyasında duran 11/15, tur 8 öncesineydi; bugünkü koşuyla güncelledim.
+- accept.sh'ın 12 kırmızısının **9'u** GOAL 5/6/7'de — iki kollu koşunun ham JSONL'i. Bu tur hiç ele alınmadı; R7'nin asıl kütlesi orada, hız kolunda değil.
+- `CHALLENGE-3` hâlâ açık, insan onayı bekliyor.
+
+**NOT VERIFIED:** temiz container'da hiçbir şey koşulmadı (hepsi bu macOS makinesi); saat dilimi maliyeti platforma bağlı, Linux'ta doğrulanmadı. A/B sırasında makine sakin değildi (load 3.48–5.84) — iddia eşleşmiş fark, mutlak sütun değil. Gece yarısını gerçekten geçen canlı daemon çalıştırılmadı (sınır damga ile test edildi). `npm_install_test.sh` yalnız darwin-arm64 koştu, diğer üç manifest elle düzeltildi. `.kosu-nabiz.*` ve `reports/kosu/10.out.raw*` dosyalarına dokunmadım.
