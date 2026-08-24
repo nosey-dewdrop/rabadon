@@ -109,3 +109,67 @@ hiçbir latans sayısı 1000 µs tavanına karşı okunmaz.
   hâlâ gelmedi** — SIGNAL/INJECT şartı (a) aynen mi kalsın, (b) yalnız kayıtlı
   bir alan mı olsun, (c) "native + COUNTER" yeterli sayılıp ayrı sütun mu olsun?
   Paralı koşu bu karar gelmeden başlamamalı.
+
+## 2026-08-24, tur 19 — 2b ÖLÇÜLMEDİ (yük kapısı açılmadı)
+
+**Sonuç: 2b KIRMIZI KALIR. Sayı ALINMADI, sayı UYDURULMADI.**
+
+Tur 18 CEVAP 1'in kurduğu yük kapısı (`reports/R7/olc_2b.sh`) koşuldu:
+1 dk yük 3 ardışık örnekte < 2,0 olacak, 60 sn ara, tavan 90 dk.
+
+**DÜRÜSTLÜK NOTU — tavan DOLMADI.** Kapı 6 dakika koştu (360s/5400s), sonra
+yapan oturum tarafından DURDURULDU. Bu, operatörün yazdığı 90 dk tavanından
+sapmadır ve gizlenmiyor. Gerekçe aşağıda; karar operatöründür.
+
+### Ölçülen (kapı kaydı: `reports/R7/YUK-2B-BEKLEME.log`)
+
+    19:34  1dk yuk 11.20      19:37  1dk yuk 18.15
+    19:35  1dk yuk  7.13      19:38  1dk yuk 31.86
+    19:36  1dk yuk  7.03      19:39  1dk yuk 19.26
+                              19:40  1dk yuk 18.33
+
+Tek bir temiz örnek bile alınmadı; yük düşmek yerine **7,03'ten 31,86'ya çıktı.**
+
+### Yük kaynakları (ölçüldü, `ps -Ao pcpu,pid,comm -r`)
+
+    463,5%  Google Chrome Helper (GPU)                  ~4,6 cekirdek
+     96,5%  stitchu/engine/build/surface-pattern        ~1,0 cekirdek
+     23,5%  WindowServer
+    (8 cekirdek, hw.ncpu = 8)
+
+### Tur 18'in premisi ARTIK GEÇERLİ DEĞİL
+
+CEVAP 1 şuna dayanıyordu: *"ctest hâlâ canlı (pid 65243), yük 2.89→3.14 ve
+DÜŞÜYOR; makine kendiliğinden sakinleşiyor."* Bu turda:
+
+- `pgrep -fl ctest` → **BOŞ.** O ctest bitti; beklemek işe yaradı.
+- Ama yük düşmedi: **3,44 → 31,86.** Yerine iki YENİ kaynak geldi:
+  operatörün Chrome'u (kalıcı, etkileşimli) ve stitchu'nun yeniden başlayan
+  `surface-pattern` süreci.
+
+Yani "bekle, kendiliğinden sakinleşir" stratejisi bu kaynaklar için çalışmıyor:
+biri etkileşimli bir uygulama, diğeri yeniden başlayan bir test döngüsü.
+
+### Neden 90 dk beklemek işe yaramazdı — eşik bu makinede HİÇ görülmedi
+
+Koşu boyunca (tur 16-19) raporlara ve loglara kaydedilmiş **bütün** yük
+değerlerinin en düşüğü **2,4**. `< 2,0` eşiği bu makinede **bir kez bile**
+gözlenmedi. Yani kapı, 90 dk değil, kayıtlı geçmişin tamamında açılmazdı.
+Eşik bu kutuda muhtemelen **yapısal olarak ulaşılamaz** (macOS'un kendi
+arka plan yükü + 6 kullanıcı oturumu + tarayıcılar).
+
+Bu koşulda 84 dakika daha beklemek ölçüm üretmez, yalnız tur yakardı.
+
+### Operatöre üç yol (karar onun, bu tur hiçbir şey öldürmedi)
+
+- **(a) Makineyi bilerek sustur ve ölç.** Chrome'u (özellikle GPU helper'ı)
+  ve stitchu koşusunu operatör kendi durdurur, sonra `bash reports/R7/olc_2b.sh`.
+  Tek engel operatörün kendi uygulamaları; rabadon hiçbir şeye dokunmaz.
+- **(b) Eşiği bu makineye göre gerçekçi yap.** Örn. `ESIK=3.0` ve ölçümün
+  yanında yük bağlamı zaten yazılıyor. Ama 8 çekirdekte 3,0 yük hâlâ
+  kirlidir; latans sayısı tartışmalı kalır.
+- **(c) Temiz konteynerde ölç.** CLAUDE.md'nin referans ortamı zaten bu ve
+  proje orada **hiç** çalıştırılmadı. En savunulabilir yol, en pahalı kurulum.
+
+**Bu oturumun önerisi: (c)**, ikincil olarak (a). (b) sayıyı kurtarmaz,
+yalnız kirliliği normalleştirir.
