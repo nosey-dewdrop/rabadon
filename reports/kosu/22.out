@@ -1,0 +1,144 @@
+I'll start by reading the OPERATOR file and the current state.
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+Understood. Turn 22: apply the two CEVAP decisions, then run the sampler. Fixing the script first (own commit), since it's a labeling bug, not a value change.
+[tool: Edit]
+[tool: Read]
+[tool: Edit]
+Now the verdict block itself:
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+Sampler launching now — the calm window the operator described may already be closing (load is back to 3.37, not 2.35), so I record that honestly and start immediately.
+[tool: Bash]
+[tool: Bash]
+The operator's precondition is already gone — load is 4.85/3.26/2.37, not the 2.35/1.91/1.77 they measured. I'll say so plainly rather than run and imply calm. But the sampler's whole design is min-over-samples, so 3 samples across 30 min still gives three chances at a dip. Launching it, labeled with the real load.
+[tool: Bash]
+While that runs (~30 min), the other CEVAP items. B1.9 extension first:
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+The pgrep fix must wait — `olc_2b.sh` is executing right now, and bash re-reads a script from byte offsets while running; editing it mid-run can corrupt the loop. Deferring that edit until the sampler exits. Meanwhile, CHALLENGE-5 resolution:
+[tool: Edit]
+[tool: Edit]
+Now the PARKED entry for the container measurement, then check the sampler:
+[tool: Bash]
+Sample 1: **1483.0 µs** at load 4.28 — worse than turn 21's 1218.3, exactly as the load correlation predicts. Now the PARKED entry:
+[tool: Read]
+[tool: Edit]
+[tool: Bash]
+Load just spiked to 11.04 during the wait — the machine is far from calm. Letting the sampler run its remaining ~20 min; I'll block on it rather than poll:
+[tool: Bash]
+[tool: Bash]
+R7's other two reds (6e, 7b) are the parked `estimated_saved` wiring, which needs a run-shape decision that belongs to the operator. So 2b is the only front I can move this turn. Waiting on the sampler.
+[tool: Bash]
+[tool: Read]
+Sampler still in its 600 s inter-sample wait. I'll hold until it exits rather than burn turns polling.
+[tool: Bash]
+[tool: Read]
+Load is easing (11.04 → 3.81) but still well above the 2.35 the operator caught. Waiting for the sampler to finish samples 2 and 3.
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+Sample 2: **1680.6 µs** at load 3.54 — *higher* than sample 1 at load 4.28. Load correlation is real but not monotonic, matching turn 21. One sample left.
+[tool: Bash]
+Sampler done, 3/3 valid. The corrected verdict fired — **BELİRSİZ**, not the old bogus "KESIN KIRMIZI". B1.9 cleanup check first:
+[tool: Bash]
+Clean. Now the deferred pgrep fix, safe to apply since the script is no longer executing:
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+The new check immediately caught 2 live `ctest` processes — which the old `pgrep -c` reported as `0` throughout turn 21 *and* turn 22's own samples. That's a real finding about this turn's numbers too.
+[tool: Bash]
+Now DENEMELER deneme 28 and the turn report:
+[tool: Bash]
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+Turn 22 done, pushed. Both CEVAP decisions applied, then the A4 work continued.
+
+## Ne yapıldı — 5 commit, hepsi ayrı
+
+| commit | iş |
+|---|---|
+| `b37af54` | CEVAP 1: `olc_2b.sh`'ın ters hükmü düzeltildi |
+| `49e70c0` | CEVAP 2: B1.9 genişletildi (kapsam tipe değil **kökene** göre) |
+| `288d1c7` | CHALLENGE-5 kapatıldı + temiz-ortam ölçümü PARKED |
+| `10ec3f5` | B1.9 artık-süreç kontrolü kırmızıya dönebilir hâle geldi |
+| `6097bb9` | tur 22 raporu + deneme 28 |
+
+Mühür dosyalarına dokunulmadı. Tavan **1000 µs'de duruyor** — (d) reddedilmişti.
+
+## Ölçüm: 3/3 geçerli, min **1381,8 µs**
+
+Düzeltilmiş dal ilk kez ateşlendi ve eski kodun basacağı "KESIN KIRMIZI" etiketini **basmadı** → `2b BELIRSIZ — temiz tavan <= 1381.8 us`.
+
+## Üç şeyi öne çıkarmam gerekiyor (sorulmadı)
+
+**1. Operatörün "sakin pencere" önkoşulu tutmadı.** Mesaj bana ulaştığında pencere kapanmıştı: örnekleme 4.28'de başladı, ilk beklemede yük **11.04**'e fırladı, tur boyunca hiç 2,84'ün altına inmedi. Kaynak daemon değil, canlı stitchu (`surface-pattern` %90,7) + WebKit — tur 19 kararıyla susturulmazlar. Yine de ölçtüm, çünkü düzeltilmiş asimetri altında kirli ölçüm **yanıltamaz**, yalnız yeşil kanıtlayabilir. Kaybedecek şey yoktu; dip ana denk gelmedi.
+
+**2. Daemon hipotezi ELENDİ, ve en iyi kanıt daralmadı.** Sekiz gözlemin en düşüğü hâlâ tur 21'in **1218,3 µs**'si — ve o gözlem 10 saatlik daemon **canlıyken** alındı, daemon öldükten sonraki üç gözlemin hepsinden düşük. Daemon gerçek bir kirleticiydi ama tek belirleyici değildi. Elimizdeki tek çıkarım hâlâ `temiz_medyan ≤ 1218,3 µs` ve bu 1000'i dışlamıyor.
+
+**3. Bu turun kendi ölçümleri de sanılandan kirli.** `pgrep -c` düzelince kontrol ilk kez gerçek sayı bastı: **2 canlı `ctest`**. Eski kontrol bunları tur 21'in beşinde ve tur 22'nin üçünde de `0` diye raporlamıştı. Kardeş `/rabadon` deposundan, benim değil — ama sekiz gözlemin tamamı onlar canlıyken alındı. **Kirliliğin büyüklüğü ÖLÇÜLMEDİ.**
+
+Bir de yapısal nokta: **bu worktree'de 2b'nin kırmızılığı prensip olarak kanıtlanamaz.** Her gözlem üst sınır olduğu için burada yalnız yeşil kanıtlanabilir. "Daha çok örnek al" çözüm değil — kanıt yönü yanlış. Konteyner bir konfor değil, tek yol.
+
+## Kabul: `23 yeşil, 3 kırmızı`
+
+2b bu tur ele alındı (etiketi düzeltildi, temiz ortama devredildi). Kalan 6e ve 7b **tek kökten** ve **operatör kararı bekliyor**: kabloyu çekmek 6e'yi tek başına kapatmıyor, çünkü sayaç `MIN_HISTORY=3` zincir görmeden `null` dönüyor ve her görev tek oturum. İkinci parça koşu-şekli kararı ve **para harcatıyor** — yapan oturum alamaz.
+
+## NOT VERIFIED
+- `ctest`'in sekiz gözlemi ne kadar kirlettiği ölçülmedi
+- 2b'nin temiz ortam değeri ölçülmedi (~970 µs sadece 5 noktalı ekstrapolasyon, kanıt değil)
+- Düzeltilmiş `baglam()` tam örnekleme turunda koşmadı; `bash -n` + doğrudan çalıştırmayla doğrulandı
+- Temiz makinede fresh clone denenmedi
+
+`reports/kosu/` dosyalarına dokunmadım — tek-yazar kuralı (B1.7) gereği onlar sürücünün/değerlendirenin.
+Turn 22 done, pushed. Both CEVAP decisions applied, then the A4 work continued.
+
+## Ne yapıldı — 5 commit, hepsi ayrı
+
+| commit | iş |
+|---|---|
+| `b37af54` | CEVAP 1: `olc_2b.sh`'ın ters hükmü düzeltildi |
+| `49e70c0` | CEVAP 2: B1.9 genişletildi (kapsam tipe değil **kökene** göre) |
+| `288d1c7` | CHALLENGE-5 kapatıldı + temiz-ortam ölçümü PARKED |
+| `10ec3f5` | B1.9 artık-süreç kontrolü kırmızıya dönebilir hâle geldi |
+| `6097bb9` | tur 22 raporu + deneme 28 |
+
+Mühür dosyalarına dokunulmadı. Tavan **1000 µs'de duruyor** — (d) reddedilmişti.
+
+## Ölçüm: 3/3 geçerli, min **1381,8 µs**
+
+Düzeltilmiş dal ilk kez ateşlendi ve eski kodun basacağı "KESIN KIRMIZI" etiketini **basmadı** → `2b BELIRSIZ — temiz tavan <= 1381.8 us`.
+
+## Üç şeyi öne çıkarmam gerekiyor (sorulmadı)
+
+**1. Operatörün "sakin pencere" önkoşulu tutmadı.** Mesaj bana ulaştığında pencere kapanmıştı: örnekleme 4.28'de başladı, ilk beklemede yük **11.04**'e fırladı, tur boyunca hiç 2,84'ün altına inmedi. Kaynak daemon değil, canlı stitchu (`surface-pattern` %90,7) + WebKit — tur 19 kararıyla susturulmazlar. Yine de ölçtüm, çünkü düzeltilmiş asimetri altında kirli ölçüm **yanıltamaz**, yalnız yeşil kanıtlayabilir. Kaybedecek şey yoktu; dip ana denk gelmedi.
+
+**2. Daemon hipotezi ELENDİ, ve en iyi kanıt daralmadı.** Sekiz gözlemin en düşüğü hâlâ tur 21'in **1218,3 µs**'si — ve o gözlem 10 saatlik daemon **canlıyken** alındı, daemon öldükten sonraki üç gözlemin hepsinden düşük. Daemon gerçek bir kirleticiydi ama tek belirleyici değildi. Elimizdeki tek çıkarım hâlâ `temiz_medyan ≤ 1218,3 µs` ve bu 1000'i dışlamıyor.
+
+**3. Bu turun kendi ölçümleri de sanılandan kirli.** `pgrep -c` düzelince kontrol ilk kez gerçek sayı bastı: **2 canlı `ctest`**. Eski kontrol bunları tur 21'in beşinde ve tur 22'nin üçünde de `0` diye raporlamıştı. Kardeş `/rabadon` deposundan, benim değil — ama sekiz gözlemin tamamı onlar canlıyken alındı. **Kirliliğin büyüklüğü ÖLÇÜLMEDİ.**
+
+Bir de yapısal nokta: **bu worktree'de 2b'nin kırmızılığı prensip olarak kanıtlanamaz.** Her gözlem üst sınır olduğu için burada yalnız yeşil kanıtlanabilir. "Daha çok örnek al" çözüm değil — kanıt yönü yanlış. Konteyner bir konfor değil, tek yol.
+
+## Kabul: `23 yeşil, 3 kırmızı`
+
+2b bu tur ele alındı (etiketi düzeltildi, temiz ortama devredildi). Kalan 6e ve 7b **tek kökten** ve **operatör kararı bekliyor**: kabloyu çekmek 6e'yi tek başına kapatmıyor, çünkü sayaç `MIN_HISTORY=3` zincir görmeden `null` dönüyor ve her görev tek oturum. İkinci parça koşu-şekli kararı ve **para harcatıyor** — yapan oturum alamaz.
+
+## NOT VERIFIED
+- `ctest`'in sekiz gözlemi ne kadar kirlettiği ölçülmedi
+- 2b'nin temiz ortam değeri ölçülmedi (~970 µs sadece 5 noktalı ekstrapolasyon, kanıt değil)
+- Düzeltilmiş `baglam()` tam örnekleme turunda koşmadı; `bash -n` + doğrudan çalıştırmayla doğrulandı
+- Temiz makinede fresh clone denenmedi
+
+`reports/kosu/` dosyalarına dokunmadım — tek-yazar kuralı (B1.7) gereği onlar sürücünün/değerlendirenin.
