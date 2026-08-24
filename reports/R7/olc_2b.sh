@@ -72,11 +72,29 @@ baglam(){   # olcumun yanina giden kirlilik kaydi — bu olmadan sayi gecersiz
   echo "yuk 1/5/15 dk      : $(yuk)"
   echo "en cok CPU yiyen 3 surec:"
   ps -Ao pcpu,pid,comm -r 2>/dev/null | sed -n '2,4p' | sed 's/^/  /'
-  # B1.9: latans olcen tur, olcumden ONCE artik surec olmadigini DOGRULAR
+  # B1.9: latans olcen tur, olcumden ONCE artik surec olmadigini DOGRULAR.
+  # `pgrep -c` KULLANILMAZ: BSD pgrep'te -c YOKTUR (CHALLENGE-5 EK). Komut her
+  # zaman kullanim hatasi verir, 2>/dev/null hatayi yutar, `|| echo 0` devreye
+  # girer -> kontrol kac artik surec olursa olsun HER ZAMAN "0" basardi.
+  # Kirmiziya donemeyen bir kontrol, kontrol degildir; tur 21'in bes olcumunun
+  # BESI de 10 saatlik bir daemon canliyken alindi ve rapor bes kez "0" yazdi.
+  # Tasinabilir sayim: ps|grep + wc -l, KENDI kabugunu ve grep'i disla.
   echo "artik surec kontrolu (B1.9):"
-  for p in pytest pip ctest rabadon-gated rabadon-gate; do
-    printf '  %-16s %s\n' "$p" "$(pgrep -c -f "$p" 2>/dev/null || echo 0)"
+  ARTIK_TOPLAM=0
+  for p in pytest pip ctest rabadon-gated rabadon-gate sprof; do
+    c=$(ps -Ao pid,comm,command 2>/dev/null | grep -F "$p" | grep -v grep \
+        | grep -v "olc_2b" | grep -cv "^ *$$ " || true)
+    c=${c:-0}
+    ARTIK_TOPLAM=$((ARTIK_TOPLAM+c))
+    printf '  %-16s %s\n' "$p" "$c"
   done
+  # Sayi artik RAPORA YAZILMAKLA KALMIYOR, gorunur bir UYARI tetikliyor.
+  if [ "$ARTIK_TOPLAM" -gt 0 ]; then
+    echo "  ** UYARI: $ARTIK_TOPLAM artik surec CANLI — bu olcum KIRLI, latans"
+    echo "     sayisi bu baglam olmadan okunmamali (B1.9). **"
+  else
+    echo "  (artik surec yok)"
+  fi
 }
 
 # accept.sh'in 2b satirindan medyan mikrosaniyeyi ceker. YESIL ve KIRMIZI
