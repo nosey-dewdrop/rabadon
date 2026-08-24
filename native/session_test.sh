@@ -155,14 +155,22 @@ ac="$(sget "$I" actionCount)"
 [ "$ac" = "0" ] && ok "SessionStart resets the per-session counters" || bad "actionCount not reset ($ac)"
 
 # --- K: Stop reads REAL usage from the transcript, incrementally ---
+# KEY ORDER IS PART OF THE FIXTURE: message{} comes BEFORE the top-level "type",
+# the way Claude Code actually writes the file, so the first "type" on the line
+# is message's own ("message"). Written type-first, this block passed while the
+# gate's Stop ledger read zero on every real session. See usage_order_test.sh.
 K="$(mktemp -d)"; RD="$(mktemp -d)"; : > "$RD/enabled"
 T="$(mktemp)"
-printf '{"type":"assistant","message":{"usage":{"input_tokens":100,"output_tokens":40}}}\n{"type":"assistant","message":{"usage":{"input_tokens":7,"output_tokens":3}}}\n' > "$T"
+tline() {  # $1=in $2=out
+  printf '{"parentUuid":null,"isSidechain":false,"message":{"model":"claude-opus-5","id":"msg_%s","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":%s,"output_tokens":%s}},"requestId":"req_%s","type":"assistant","uuid":"u-%s"}\n' \
+    "$RANDOM" "$1" "$2" "$RANDOM" "$RANDOM"
+}
+{ tline 100 40; tline 7 3; } > "$T"
 pev "$K" Stop ",\"transcript_path\":\"$T\"" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 toks="$(sget "$K" tokensOut) $(sget "$K" tokensIn)"
 [ "$toks" = "43 107" ] && ok "token ledger measured from the transcript (43 out / 107 in)" || bad "tokens wrong: $toks"
 sleep 2.1
-printf '{"type":"assistant","message":{"usage":{"input_tokens":1,"output_tokens":2}}}\n' >> "$T"
+tline 1 2 >> "$T"
 pev "$K" Stop ",\"transcript_path\":\"$T\"" | RABADON_DIR="$RD" "$BIN" >/dev/null 2>&1
 toks2="$(sget "$K" tokensOut) $(sget "$K" tokensIn)"
 [ "$toks2" = "45 108" ] && ok "ledger is incremental: only the new bytes are counted" || bad "incremental read wrong: $toks2"

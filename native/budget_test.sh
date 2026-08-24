@@ -22,9 +22,16 @@ ok()  { PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
 
 # one assistant transcript line: $1=model $2=in $3=cacheCreate $4=cacheRead $5=out
+#
+# KEY ORDER IS PART OF THE FIXTURE. Claude Code writes message{} BEFORE the
+# top-level "type", so the first "type" on a real line is message's own
+# ("message"). This helper used to write type first — the shape stream-json
+# prints, not the shape on disk — and that hid a meter which took the first
+# "type" it saw, refused every real line, and let the cap read zero tokens
+# forever. See native/usage_order_test.sh. Do not reorder for tidiness.
 line() {
-  printf '{"type":"assistant","message":{"model":"%s","usage":{"input_tokens":%s,"cache_creation_input_tokens":%s,"cache_read_input_tokens":%s,"output_tokens":%s}}}\n' \
-    "$1" "$2" "$3" "$4" "$5"
+  printf '{"parentUuid":null,"isSidechain":false,"message":{"model":"%s","id":"msg_%s","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":%s,"cache_creation_input_tokens":%s,"cache_read_input_tokens":%s,"output_tokens":%s}},"requestId":"req_%s","type":"assistant","uuid":"u-%s"}\n' \
+    "$1" "$RANDOM" "$2" "$3" "$4" "$5" "$RANDOM" "$RANDOM"
 }
 # fire a PreToolUse tool call through the real gate: $1=cwd $2=transcript $3=RABADON_DIR
 fire() {

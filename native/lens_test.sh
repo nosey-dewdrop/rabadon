@@ -174,8 +174,17 @@ def usage(i, o, cw, cr, order="normal", trap=False):
 def asst(ts, sid, cwd, model, u, ntools):
     content = [{"type": "text", "text": "ok"}]
     content += [{"type": "tool_use", "id": "t%d" % k, "name": "Bash", "input": {}} for k in range(ntools)]
-    return {"type": "assistant", "timestamp": ts, "cwd": cwd, "sessionId": sid,
-            "message": {"role": "assistant", "model": model, "usage": u, "content": content}}
+    # KEY ORDER IS PART OF THE FIXTURE. Claude Code writes message{} BEFORE the
+    # top-level "type", so the first "type" on a real line is message's own
+    # ("message"). A corpus that wrote type first hid a meter that took the
+    # first "type" it saw and priced every live session at zero — see
+    # native/usage_order_test.sh. This mirrors the real order. Do not reorder it
+    # for tidiness: the order IS the assertion.
+    return {"parentUuid": None, "isSidechain": False,
+            "message": {"model": model, "id": "msg_" + ts, "type": "message",
+                        "role": "assistant", "content": content, "usage": u},
+            "requestId": "req_" + ts, "type": "assistant",
+            "timestamp": ts, "cwd": cwd, "sessionId": sid}
 
 for n, (sid8, proj, model, turns) in enumerate(SPEC):
     sid = sid8 + "-1111-2222-3333-444444444444"

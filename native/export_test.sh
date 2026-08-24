@@ -328,7 +328,11 @@ PY
 GATE_DIR="$TMP/rd-gate"; mkdir -p "$GATE_DIR"; : > "$GATE_DIR/enabled"
 GATE_CWD="$TMP/proj"; mkdir -p "$GATE_CWD"
 GATE_TS="$TMP/transcript.jsonl"
-printf '{"type":"assistant","message":{"usage":{"input_tokens":1200,"output_tokens":345}}}\n' > "$GATE_TS"
+# KEY ORDER IS PART OF THE FIXTURE: message{} before the top-level "type", the
+# way Claude Code writes it, so the first "type" on the line is "message". The
+# type-first shape hid a meter that read zero on every real transcript, which
+# would have made this whole arm prove nothing. See usage_order_test.sh.
+printf '{"parentUuid":null,"isSidechain":false,"message":{"model":"claude-opus-5","id":"msg_x","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1200,"output_tokens":345}},"requestId":"req_x","type":"assistant","uuid":"u-x"}\n' > "$GATE_TS"
 printf '{"hook_event_name":"Stop","cwd":"%s","session_id":"sess-export-arm10","transcript_path":"%s"}' \
   "$GATE_CWD" "$GATE_TS" \
   | env -u RABADON_NOW -u RABADON_OFF RABADON_DIR="$GATE_DIR" ./native/rabadon-gate >/dev/null 2>&1
