@@ -148,12 +148,19 @@ PY
 bagla_hook(){       # $1 agac  — B1.5 recetesi: goreli komut + sarmalayici
   local d="$1"
   mkdir -p "$d/.claude"
+  # STDOUT ASLA SUSTURULMAZ. Claude Code hook'u ajanla STDOUT uzerinden
+  # konusur; rabadon'un enjeksiyonu oradan gider. Tur 14'te bir kez
+  # `>/dev/null 2>&1` yazildi ve B kolu "ledger yazan ama AJANA HIC KONUSMAYAN"
+  # bir rabadon'u olctu — yani bos bir mudahale. Olculdu: B transcript'inde
+  # "rabadon: attempt" 0 kez geciyordu, ledger'da INJECT olayi VARKEN.
+  # B1.5 recetesi zaten yalniz STDIN'i yonlendiriyor; sapma bize aitti.
+  # stderr susturulur (gureltu), stdout DOKUNULMAZ, exit daima 0.
   cat > "$d/.claude/settings.local.json" <<JSON
 {
   "hooks": {
     "PreToolUse": [
       { "matcher": "*", "hooks": [ { "type": "command",
-        "command": "sh -c 'timeout 2 node $GATE </dev/null >/dev/null 2>&1; exit 0'" } ] }
+        "command": "sh -c 'timeout 2 node $GATE </dev/null 2>/dev/null; exit 0'" } ] }
     ]
   }
 }
