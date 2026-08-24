@@ -6,33 +6,33 @@ PASS  1c a thin client path referencing the daemon socket exists (native/gated_c
 
 == GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
 PASS  2a the daemon started and its socket is listening
-reports/R7/accept.sh: line 223: 85147 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
-      in-process median with the daemon up: 1704.4 us over 300 samples
+reports/R7/accept.sh: line 216: 96966 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+      in-process median with the daemon up: 1583.2 us over 300 samples
       ceiling = 1000 us (KOSU-RABADON R7); instrument = R1.3 in-process probe
-FAIL  2b the gate's median is 1704.4 us with the daemon up, ceiling is 1000 us
-      50-event session: 1665.8 us   400-event session: 1748.8 us   divergence 4.98%
+FAIL  2b the gate's median is 1583.2 us with the daemon up, ceiling is 1000 us
+      50-event session: 1732.5 us   400-event session: 1765.8 us   divergence 1.92%
       R1.3 closed this at 3.5-4.9% WITH process spawn in the denominator
-FAIL  2c measured 4.98% but reports/R7/LENGTH.md does not record it
-reports/R7/accept.sh: line 247: 85231 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
+reports/R7/accept.sh: line 246: 97048 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
+PASS  2c the residual length dependence is re-measured (1.92%) and written to reports/R7/LENGTH.md
 
 == GOAL 3 — with the daemon down, behaviour is byte-identical to today
 FAIL  3-[echo hello world] behaviour diverges when the daemon is down — this is not fail-SAME
       4c4
-      < 65c97fb945ecc1417089cee1010261570c2490743d19cd442fbebf4e4536e489 1
+      < da5280ac8f1fe56c539745e0c3f73be689f9c75f25f3064e65276a0ef55cdf29 1
       ---
-      > 025da6e18c55a36d318d53329a00c0dd8511f846ce78910d0b9dd2fdbffe2c90 1
+      > 686e6214738c4666d5196aa3c105416b1f28d18551a057ec6ec978ff3e53f31a 1
 FAIL  3-[rm -rf /] behaviour diverges when the daemon is down — this is not fail-SAME
       9,10c9,10
-      < {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"47bbbbad29fe236c972d66640aec8c4ad20812a836523a1a75b12bd269667090"}
-      < e72dcea8b3ec09dbbf8f0242341a8ea2d5588e0660602c65b23e5329890e49a8 2
+      < {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"0d8594721ba4123ce8ee0f8ea0ccf9d2b4d76697fdbd2fb6b57299b2e0a82a68"}
+      < 75be664cee050d2f55facac1b0be03cd52a6193d943a024bf09f0acd8fe1203f 2
       ---
-      > {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"359ef055d3fa348e6a239d207b6c82832ea179e39951c576e50a051c5abfe324"}
-      > 51bf6c0b9d522e6140fcb497c7f77dd09879f28c41be6961fbd803f1c9a1d47e 2
+      > {"v":1,"seq":2,"ts":T,"run":"RUN","pipe":"PIPE","ev":"STOP","sess":"s7","reason":"BLOCKED","rule":"baseline-rm-rf-outside","sid":"s7","detail":"rm -r '/' resolves to /, outside the project tree (/privateSBPROJ)","prev":"873972c78e3c0fc8812cd7d474554273931179b3fd37c601c2e7ce1bb0fe9f7a"}
+      > 918704c026ebac1840bfc3bc91a537ba647928bf4e14ef900c22f76636bd42ca 2
 FAIL  3-[git commit --no-verify -m x] behaviour diverges when the daemon is down — this is not fail-SAME
       4c4
-      < 4a36999041c2b8b0af11ebd6f66dc00655c6f1a0dd379d76eb092492f0de0bad 1
+      < bcf5bb045e14d3bdf483365bf9472e2be618e493daabac7579c9ac4c475427e7 1
       ---
-      > 7e4ff79ef65b1d83c98c977e97929a4dc7cde328788b193acbec9c17d78394c6 1
+      > d5d6571af9e45f10bcd7fcbf7d4289280b6dab9d47db7d13f52ec8080e20920a 1
 
 == GOAL 4 — the harness is named, exactly, with its commit
 PASS  4a reports/R7/ exists
@@ -62,5 +62,5 @@ PASS  8a native/moves_test.sh 21/0
 PASS  8b native/signals_test.sh 39/0
 PASS  8c reports/R2/accept.sh 19 green, 0 red
 
-== R7 acceptance: 10 green, 16 red
+== R7 acceptance: 11 green, 15 red
 R7 NOT ACCEPTED

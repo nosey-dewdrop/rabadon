@@ -13,19 +13,34 @@ events, one to 400 — BOTH before EITHER is timed, then the two are called
 interleaved, one after the other, 250 times each, so clock drift and machine
 load land on both arms in the same millisecond.
 
-## Numbers
+## Numbers — TWO runs, because the second one disagreed with the first
 
-| session length | in-process median |
-|---|---|
-| 50 events  | 1665.8 us |
-| 400 events | 1748.8 us |
+The script was run twice on the same machine, same binaries, same commit,
+minutes apart. Both are recorded. Reporting only the second, kinder one would
+be exactly the move this project exists to refuse.
 
-**Divergence: 4.98%.**
+| run | 50 events | 400 events | divergence | GOAL 2b median (300 samples) |
+|---|---|---|---|---|
+| 1 | 1665.8 us | 1748.8 us | **4.98%** | **1704.4 us** |
+| 2 | (see accept.out) | | **1.92%** | **1583.2 us** |
 
-Companion number from GOAL 2b, same run, same instrument: the overall
-in-process median with the daemon up is **1704.4 us over 300 samples**,
-against R7's 1000 us ceiling. That is RED. See `reports/R7/DENEMELER.md`
-deneme 4.
+**The headline is not either number, it is the spread.** The divergence
+metric moved 4.98% -> 1.92%, a factor of 2.6, between two runs that differ in
+nothing an experiment is supposed to control for. The 2b median moved 7.1%.
+
+That means the GOAL 2c check currently passes or fails on run-to-run noise,
+not on a property of the gate. Its 10% ceiling is far enough above both
+readings that the verdict happens to be stable, but the NUMBER is not
+citable and must not be published (Law 7). A number whose second measurement
+is half the first has not been measured; it has been sampled once, twice.
+
+**Not diagnosed here.** The obvious suspects — background load on a laptop,
+too few samples, the interleaving not actually cancelling drift — were not
+separated. NOT VERIFIED.
+
+The 2b ceiling verdict is not affected by the spread: both runs are ~1.6x
+over the 1000 us ceiling, which is far outside the observed noise. RED either
+way. See `reports/R7/DENEMELER.md` deneme 4.
 
 ## What it means, honestly
 

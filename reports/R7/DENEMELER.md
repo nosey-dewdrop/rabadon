@@ -208,3 +208,16 @@ yazmak, kontrolü yeşile çekip değeri var etmemek olurdu (ödül hacklemesi).
   ölçümün içine geri koyuyor. ÖLÇÜLMEDİ.
 - `native/gate.cpp:720` `open_sock()` sessiz `strncpy` kesmesi hâlâ açık
   (Promise 1). Bu turda incelenmedi.
+
+**SONUÇ 5 (ikinci koşu) — 2c YEŞİL ama SAYISI GÜVENİLMEZ.** LENGTH.md
+yazıldıktan sonra betik ikinci kez koşuldu: **11 yeşil / 15 kırmızı**. 2c
+yeşile döndü (kayıt şartı sağlandı). ANCAK sayılar oynadı: sapma
+4.98% → **1.92%** (2.6 kat), 2b medyanı 1704.4 → **1583.2 µs** (%7.1). Aynı
+makine, aynı binary, aynı commit, dakikalar arayla. Yani 2c'nin SAYISI
+ölçülmüş sayılmaz — gürültü içinde. LENGTH.md ikisini de kaydediyor; iyimser
+olanı seçmek yok. 2b'nin VERDICT'i etkilenmiyor: iki koşu da tavanın ~1.6
+katı, gürültünün çok dışında. KIRMIZI.
+
+**KALAN HİPOTEZ (yeni).** 2c/2b ölçümünün koşudan koşuya saçılımının sebebi
+ayrıştırılmadı (arka plan yükü / örnek sayısı / interleave'in drift'i gerçekte
+iptal etmemesi). ÖLÇÜLMEDİ.
