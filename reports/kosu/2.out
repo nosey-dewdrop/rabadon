@@ -1,0 +1,95 @@
+I'll start by reading the ground truth — PROJECT.md and the current run state — before touching anything.
+[tool: Bash]
+[tool: Bash]
+All three exist. Reading them plus the run docs.
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+GUNLUK.tsv confirmed non-empty (the leading `1` was the Read tool's line-number prefix; real format is `index<TAB>first-line`, matching `kos.sh:253`). Now the R7 scan.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Diagnosis is complete. Now running the R7 acceptance script (expected RED) while I write the report.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Diagnosis is solid. Writing the report.
+[tool: Write]
+[tool: Bash]
+R7 acceptance: **4 green, 22 red** — matches the diagnosis exactly, and GOAL 8 confirms nothing standing fell over. Now the two report appends.
+[tool: Bash]
+The prior SMOKE.md entry contains a false claim I can now correct with evidence. Appending both sections.
+[tool: Bash]
+[tool: Write]
+Now committing and pushing.
+[tool: Bash]
+## R7 teşhis — 8 satır özet
+
+```
+1. rabadon-gated YOK: binary yok, gated.cpp/daemon.cpp/gated.h yok, Makefile:12 all: hedefi yok.
+2. RABADON_GATED_SOCK hiçbir KAYNAKTA geçmiyor — yalnız reports/R7/accept.sh + belgelerde.
+3. AF_UNIX sunucusu tek: core/bus.mjs:263-283 (net.createServer+listen), sahibi `rabadon watch`.
+4. native/gate.cpp:714-724 yalnız İSTEMCİ (connect var; bind/listen yok). Yol sabit:
+   native/gate.cpp:2718 -> $RABADON_DIR/rabadon.sock (varsayılan $HOME/.rabadon, pathres.h:187).
+5. native/serve.cpp:477-498 bind/listen/accept var ama AF_INET/TCP — konu dışı.
+6. A1 uyumu SIFIR: XDG_RUNTIME_DIR hiçbir kaynakta yok; 0600 izni hiçbir sokette yok.
+7. YENİ: gate.cpp:720 strncpy(sun_path) sessizce KESIYOR, guard yok -> belirti "daemon kapalı".
+8. ./reports/R7/accept.sh = 4 green, 22 red, R7 NOT ACCEPTED (GOAL 8 regresyonları 21/39/19 yeşil).
+```
+
+**Yapılanlar:** B6.2 yeşil (üç dosya da var ve dolu) → `reports/kosu/SMOKE.md`; teşhis → `reports/R7/TESHIS.md` (yeni dosya, üzerine yazılmadı); tur bloğu → `reports/R7/DENEMELER.md`; commit `03d4688`, kosu2'ye push edildi.
+
+---
+
+## Bulduğum ama sorulmayan şeyler (§5.5 dökümü)
+
+**Önceki turun bir iddiası YANLIŞTI, düzelttim.** `reports/kosu/SMOKE.md` şunu yazıyordu: *"`native/gate.cpp` AF_UNIX istemci tarafını ve `RABADON_GATED_SOCK` fallback'ini içeriyor."* İkinci yarısı uydurma — o env adı hiçbir kaynak dosyada yok. accept.sh GOAL 1c bunu bağımsız doğruladı. Bu iddiaya güvenip "ince istemci yarı hazır" diye plan yapılsaydı, sıfırdan yazılacak bir şey "bağlanacak" sanılırdı. SMOKE.md'ye geri alma notu yazıldı.
+
+**Belgenin öngördüğü tehlike zaten sevk edilmiş kodda.** A1 `ENAMETOOLONG`'u *gelecekteki* daemon riski olarak yazıyor. Ama `native/gate.cpp:720` bugün `strncpy` ile `sun_path`'e uzunluk kontrolsüz yazıyor ve kesme sessiz: `connect` ENOENT alır, `sockFd = -1` olur, kapı devam eder, hiçbir sayaç artmaz. `RABADON_DIR` derin bir worktree'ye gösterildiğinde canlı yayın sessizce ölür ve bu "daemon kapalı"dan ayırt edilemez — CLAUDE.md'nin Promise 1 kuralının ihlali. **Düzeltmedim** (R7 kapsamı, bu turun talimatı değildi).
+
+**Kabul betiğinin kendisi A1 kuralını çiğniyor olabilir.** `reports/R7/accept.sh:107` daemon soketini `mktemp -d` altına koyuyor; macOS'ta bu `/var/folders/…/T/` ve `sun_path` tavanına yaklaşıyor. Yani daemon yazıldığında test, A1'in tam yasakladığı uzun yolla koşacak. **DOĞRULANMADI** — daemon olmadığı için o kol hiç çalışmadı.
+
+**Sürücü YENİLENMEDİ — ve bu bir çelişki.** Kararın girişi *"Sürücü yeniden başlatılmadan R7'ye geçmek, ölü watchdog üzerinde çalışmak demek. Önce sürücüyü yenilat, sonra R7'ye başla"* diyor. Ama ardından verilen iki numaralı iş bunu içermiyor; ikisi de R7 işi. Ben verilen iki işi yaptım, sürücüye dokunmadım (B1.8: worktree dokunulmaz, sürücü bu oturumun ebeveyni). Yani **watchdog fix'i ve `DISABLE_AUTOUPDATER=1` hâlâ yürürlükte değil** — bu tur da eski binary ile döndü. Bu, değerlendirenin kendi ön koşulunu talimata çevirmemesinden kaynaklanıyor; sürücüyü yeniden başlatmak operatör işidir, yapan oturumun değil.
+
+**R7'nin 22 kırmızısının 13'ü hiç incelenmedi.** GOAL 4/5/6/7 (harness adı+commit, ham JSONL, beş sayı, çürütme koşulları) yalnız kaydedildi, teşhis edilmedi. Bunlar daemon'dan tamamen bağımsız ve daemon olmadan da ilerletilebilir.
+
+**Cevapsız duran operatör sorusu R7'yi bloklaması gerekiyor.** `KOSU-RABADON-2.md:54-57` R7 başlamadan sorulacak bir öncelik sorusu tanımlıyor: accept.sh olduğu gibi mi kalsın, yoksa R7a (kanıt) / R7b (daemon) diye ayrılsın mı? Bu soru hiç sorulmadı ve `reports/kosu/OPERATOR.md` yok. Sayılar bu kararı destekliyor: 22 kırmızının 9'u daemon kolunda, 13'ü kanıt kolunda — yani kanıt kolu tek başına daha büyük ve daemon'a hiç bağlı değil.
+## R7 teşhis — 8 satır özet
+
+```
+1. rabadon-gated YOK: binary yok, gated.cpp/daemon.cpp/gated.h yok, Makefile:12 all: hedefi yok.
+2. RABADON_GATED_SOCK hiçbir KAYNAKTA geçmiyor — yalnız reports/R7/accept.sh + belgelerde.
+3. AF_UNIX sunucusu tek: core/bus.mjs:263-283 (net.createServer+listen), sahibi `rabadon watch`.
+4. native/gate.cpp:714-724 yalnız İSTEMCİ (connect var; bind/listen yok). Yol sabit:
+   native/gate.cpp:2718 -> $RABADON_DIR/rabadon.sock (varsayılan $HOME/.rabadon, pathres.h:187).
+5. native/serve.cpp:477-498 bind/listen/accept var ama AF_INET/TCP — konu dışı.
+6. A1 uyumu SIFIR: XDG_RUNTIME_DIR hiçbir kaynakta yok; 0600 izni hiçbir sokette yok.
+7. YENİ: gate.cpp:720 strncpy(sun_path) sessizce KESIYOR, guard yok -> belirti "daemon kapalı".
+8. ./reports/R7/accept.sh = 4 green, 22 red, R7 NOT ACCEPTED (GOAL 8 regresyonları 21/39/19 yeşil).
+```
+
+**Yapılanlar:** B6.2 yeşil (üç dosya da var ve dolu) → `reports/kosu/SMOKE.md`; teşhis → `reports/R7/TESHIS.md` (yeni dosya, üzerine yazılmadı); tur bloğu → `reports/R7/DENEMELER.md`; commit `03d4688`, kosu2'ye push edildi.
+
+---
+
+## Bulduğum ama sorulmayan şeyler (§5.5 dökümü)
+
+**Önceki turun bir iddiası YANLIŞTI, düzelttim.** `reports/kosu/SMOKE.md` şunu yazıyordu: *"`native/gate.cpp` AF_UNIX istemci tarafını ve `RABADON_GATED_SOCK` fallback'ini içeriyor."* İkinci yarısı uydurma — o env adı hiçbir kaynak dosyada yok. accept.sh GOAL 1c bunu bağımsız doğruladı. Bu iddiaya güvenip "ince istemci yarı hazır" diye plan yapılsaydı, sıfırdan yazılacak bir şey "bağlanacak" sanılırdı. SMOKE.md'ye geri alma notu yazıldı.
+
+**Belgenin öngördüğü tehlike zaten sevk edilmiş kodda.** A1 `ENAMETOOLONG`'u *gelecekteki* daemon riski olarak yazıyor. Ama `native/gate.cpp:720` bugün `strncpy` ile `sun_path`'e uzunluk kontrolsüz yazıyor ve kesme sessiz: `connect` ENOENT alır, `sockFd = -1` olur, kapı devam eder, hiçbir sayaç artmaz. `RABADON_DIR` derin bir worktree'ye gösterildiğinde canlı yayın sessizce ölür ve bu "daemon kapalı"dan ayırt edilemez — CLAUDE.md'nin Promise 1 kuralının ihlali. **Düzeltmedim** (R7 kapsamı, bu turun talimatı değildi).
+
+**Kabul betiğinin kendisi A1 kuralını çiğniyor olabilir.** `reports/R7/accept.sh:107` daemon soketini `mktemp -d` altına koyuyor; macOS'ta bu `/var/folders/…/T/` ve `sun_path` tavanına yaklaşıyor. Yani daemon yazıldığında test, A1'in tam yasakladığı uzun yolla koşacak. **DOĞRULANMADI** — daemon olmadığı için o kol hiç çalışmadı.
+
+**Sürücü YENİLENMEDİ — ve bu bir çelişki.** Kararın girişi *"Sürücü yeniden başlatılmadan R7'ye geçmek, ölü watchdog üzerinde çalışmak demek. Önce sürücüyü yenilat, sonra R7'ye başla"* diyor. Ama ardından verilen iki numaralı iş bunu içermiyor; ikisi de R7 işi. Ben verilen iki işi yaptım, sürücüye dokunmadım (B1.8: worktree dokunulmaz, sürücü bu oturumun ebeveyni). Yani **watchdog fix'i ve `DISABLE_AUTOUPDATER=1` hâlâ yürürlükte değil** — bu tur da eski binary ile döndü. Bu, değerlendirenin kendi ön koşulunu talimata çevirmemesinden kaynaklanıyor; sürücüyü yeniden başlatmak operatör işidir, yapan oturumun değil.
+
+**R7'nin 22 kırmızısının 13'ü hiç incelenmedi.** GOAL 4/5/6/7 (harness adı+commit, ham JSONL, beş sayı, çürütme koşulları) yalnız kaydedildi, teşhis edilmedi. Bunlar daemon'dan tamamen bağımsız ve daemon olmadan da ilerletilebilir.
+
+**Cevapsız duran operatör sorusu R7'yi bloklaması gerekiyor.** `KOSU-RABADON-2.md:54-57` R7 başlamadan sorulacak bir öncelik sorusu tanımlıyor: accept.sh olduğu gibi mi kalsın, yoksa R7a (kanıt) / R7b (daemon) diye ayrılsın mı? Bu soru hiç sorulmadı ve `reports/kosu/OPERATOR.md` yok. Sayılar bu kararı destekliyor: 22 kırmızının 9'u daemon kolunda, 13'ü kanıt kolunda — yani kanıt kolu tek başına daha büyük ve daemon'a hiç bağlı değil.
