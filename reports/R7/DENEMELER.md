@@ -359,3 +359,53 @@ CHALLENGE-3.md'de, insan onayı bekliyor. Bu madde KIRMIZI sayılır.
   yeniden derlenerek doğrulandı) — yani bu turun eseri değil, ama AÇIK.
   `rabadon-gated --help` asılması R8 yayınından önce kapanmalı.
 - GOAL 4d ve 5-7 (kanıt kolu) hâlâ hiç başlamadı — 12 kırmızının 11'i orada.
+
+## deneme 6 — 2026-08-24 (tur 9)
+
+**DENENEN.** İki iş, operatörün CEVAP sırasıyla. (1) Tur 8'in "pre-existing"
+iddiası ölçüldü: koşu başlangıcı `a59138b` ve `da9e5b2^` ayrı bir `/tmp`
+klonunda derlenip koşuldu. (2) 1075 µs yargılama kovası ayrıştırıldı: iki
+bağımsız prob (71 kovalı dışlamalı zaman yığını + `main()` içine 531 satır
+damgalı kontrol noktası), 300×3 tur + yük altında tur, hepsi `/tmp` kopyalarına
+yamalandı, `native/` altına yazılmadı.
+
+**SONUÇ.**
+- "Pre-existing" iddiası YARIYA BÖLÜNDÜ. `promises_test.sh` 3 kırmızı gerçekten
+  pre-existing (a59138b'de birebir aynı çıktı). `cli_test.sh` 4 kırmızı ise
+  **BU KOŞUDA GİRDİ**: `a59138b` ve `d4e7a90` yeşil (297/0), `da9e5b2` kırmızı
+  (297/4). Suçlu commit R7'nin kendi GOAL 1 teslimatı. Ayrıntı REGRESYON.md.
+- Yargılama ayrıştırıldı, mutabakat tam (kovalar toplamı − ölçülen toplam =
+  +0.2 µs, %0.0; prob maliyeti +20.1 µs / %1.7). En büyük kalem **%28.5:
+  `gate.cpp:2754`'teki gün dizgisi** — ayrı bir deneyle kanıtlandı ki bu bir
+  saat dilimi ilklendirmesidir (soğuk worker'da 269–483 µs, aynı süreçte ikinci
+  çağrı **1.0 µs**). Forklanan her worker bunu yeniden ödüyor.
+- **Kural motoru yargılamanın %4.4'ü.** %95 defter tutma. Ayrıntı
+  reports/R7/PROFIL-YARGILAMA.md.
+
+**ELENEN HİPOTEZ.**
+- **"Bu mimaride <1 ms ULAŞILAMAZ" ELENDİ.** Tur 8'in kendi deyimiyle bir
+  ekstrapolasyondu; ölçüm çürüttü. Anlamı değişmeyen üç kalem (gün dizgisi,
+  `note_mode` spool taraması, tekrarlanan `resolve_real`) %43; oturum durumu
+  gidiş-dönüşü eklenince %72. Operatörün %55 eşiği AŞILABİLİR görünüyor.
+  Karar kuralı gereği **tavan KALIR, seçenek (b) açılmaz.**
+- **"1075 µs regex + dosya I/O'dur" ELENDİ.** Regex (`rx_test`) %1.5, guard
+  okuması %4.3. Tur 8'in (b) gerekçesindeki "C'de tipik 200–800 µs regex+I/O"
+  literatür tahmini bu ağaçta YANLIŞ.
+- **"cli_test kırmızıları bizim eserimiz değil" ELENDİ** (yukarıya bak).
+
+**KALAN HİPOTEZLER (sıradaki iş).**
+- Sıradaki turun İLK işi: `da9e5b2` regresyonunu kapatmak (rabadon-gated'a
+  case arm + `rb_help`). Bunlar R7'nin kendi teslimatının kusuru ve
+  `--help` asılması R8'i de bloklar.
+- Projeksiyon ÖLÇÜM DEĞİL: "1075 → 303 µs" aritmetiktir. İlk denenecek kalem
+  tartışmasız olan gün dizgisi (%28.5, semantik bedeli yok).
+- **SINIR ÇİZGİSİ:** %55 eşiği yalnız oturum durumu gidiş-dönüşü dahil
+  edilirse aşılıyor (%43 vs %72) ve o kalem dayanıklılık semantiğini
+  değiştirir. Defter yazımı (%15.3) optimizasyon hedefi DEĞİLDİR — sayı için
+  delil kısmak bu ürünün varlık sebebine aykırıdır.
+- Mutlak sayılar bu koşuda güvenilmez: makine yük ortalaması 3.93–5.21 idi,
+  medyanım 1205.7 µs, tur 8'in 1061–1134 aralığının dışında. Paylar dayanıklı
+  (3 kat yük değişiminde sabit), mutlaklar değil. Kamuya <1 ms iddiası bu
+  ölçümden TÜRETİLEMEZ.
+- Boş guard.json ile ölçüldü; kurallı bir projede regex payı yükselir, ölçülmedi.
+- 2c hâlâ güvenilmez; GOAL 4d ve 5-7 (kanıt kolu) hâlâ hiç başlamadı.
