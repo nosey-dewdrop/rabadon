@@ -45,6 +45,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"; cd "$ROOT"
 GATE="$ROOT/native/rabadon-gate"
 GATED="$ROOT/native/rabadon-gated"
+AUDITBIN="$ROOT/native/rabadon-audit"   # GOAL 3 requires it; see the CEVAP block there
 RD="$ROOT/reports/R7"
 P_N=0; F_N=0
 pass(){ printf 'PASS  %s\n' "$1"; P_N=$((P_N+1)); }
@@ -255,6 +256,15 @@ if [ "$GATED_OK" != 1 ] || [ -z "$CSRC" ]; then
   fail "3c refusals with the daemon down are UNCOMPARED"
   note "with no client, 'the daemon is down' is indistinguishable from today by"
   note "construction, and a comparison that cannot fail is not evidence"
+elif [ ! -x "$AUDITBIN" ]; then
+  # NOT A SKIP. `prev` is blanked in the comparison below, and the only thing
+  # that buys that signal back is the in-arm audit. Without the binary GOAL 3
+  # would go green on a chain nobody checked, so it is RED instead.
+  fail "3a exit codes with the daemon down are UNCOMPARED — native/rabadon-audit is missing, run make"
+  fail "3b ledger lines with the daemon down are UNCOMPARED"
+  fail "3c refusals with the daemon down are UNCOMPARED"
+  note "GOAL 3 blanks the chain's prev field and pays for it with an INTACT audit"
+  note "inside each arm; with no auditor that payment cannot be made"
 else
   DEAD="$W/definitely-not-a-socket.sock"
   # IDENTITY, NOT BEHAVIOUR (operator CEVAP, reports/kosu/6.operator.md).
@@ -267,24 +277,75 @@ else
   # the product would print the user a directory that does not exist.
   # STILL COMPARED, byte for byte: exit code, `ev`, mode, rule, the refusal
   # text itself, and the NUMBER and ORDER of ledger lines.
+  #
+  # THE CHAIN FIELDS (operator CEVAP, reports/kosu/7.operator.md — option (d)).
+  # `prev` is the SHA-256 of the previous line in its UNNORMALISED form
+  # (native/chain.h:191,200-204: the hash is taken over `chained`, the raw line),
+  # so it commits to that line's real `ts`/`run`/`pipe`. Those differ between any
+  # two runs by construction, therefore `prev` differs, therefore no honest
+  # implementation can make two runs match on it. Demanding it is demanding that
+  # time not pass. The `.head` sidecar is `<64hex> <line count>`; only its hash
+  # moves. Both are blanked here, NARROWLY:
+  #   - only a 64-hex `prev` is blanked. "genesis" and a MISSING prev stay
+  #     visible, because a prev that vanishes is a real behavioural signal.
+  #   - only the leading hash of `.head` is blanked. THE COUNTER STAYS, so a run
+  #     that writes a different number of chained lines still diverges. (The
+  #     `^[0-9a-f]{64} ` anchor cannot match a ledger line: those start with `{`.)
+  # WHAT THIS WOULD OTHERWISE HIDE, and how it is bought back: blinding `prev`
+  # hides the chain's LINK ARITHMETIC — a prev computed correctly but taken from
+  # the WRONG line would slip through. So GOAL 3 now runs rabadon-audit inside
+  # EACH arm (see `denetle` below) and requires INTACT. The blinding above is
+  # valid ONLY with that check; stop asking two runs to share a hash they cannot
+  # share, and instead prove the chain is sound WITHIN each run. That is a
+  # strengthening, not a loosening.
+  #
+  # REJECTED, permanently: computing the chain over the NORMALISED line to make
+  # it deterministic. It measures as deterministic, and it is forbidden — the
+  # chain would then not commit to ts/run/path, so an attacker could rewrite a
+  # timestamp and the ledger would still verify. Destroying the product's
+  # tamper-evidence to pass a test is the exact move this project exists to
+  # refuse.
   kimliksiz(){ sed -E -e "s|$H|SBHOME|g" -e "s|$PJ|SBPROJ|g" \
                       -e 's/"ts":[0-9]+/"ts":T/g' \
                       -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z?/TS/g' \
                       -e 's/"run":"ng-[0-9]+-[0-9]+"/"run":"RUN"/g' \
-                      -e 's/"pipe":"[^"]*"/"pipe":"PIPE"/g'; }
-  run3(){ # $1 = extra env; prints "exit\n<stdout>\n<stderr>\n<ledger>", identity blanked
+                      -e 's/"pipe":"[^"]*"/"pipe":"PIPE"/g' \
+                      -e 's/"prev":"[0-9a-f]{64}"/"prev":"PREV"/g' \
+                      -e 's/^[0-9a-f]{64} /HASH /'; }
+  # MANDATORY (same CEVAP, clause 3): verify THIS arm's spool in place, before
+  # anything is compared. Writes a single verdict token so the audit's own
+  # output — which is full of per-run hashes — never enters the comparison.
+  denetle(){ # $1 = arm tag
+    local o r
+    o="$(env HOME="$H" RABADON_DIR="$H/.rabadon" "$AUDITBIN" --days 2 2>&1)"; r=$?
+    if [ "$r" -eq 0 ] && printf '%s' "$o" | grep -q 'verdict: INTACT'; then
+      printf 'INTACT' > "$W/zincir.$1"
+    else
+      printf 'BROKEN(rc=%s)' "$r" > "$W/zincir.$1"
+      printf '%s\n' "$o" > "$W/zincir.$1.out"
+    fi
+  }
+  run3(){ # $1 = extra env, $2 = command, $3 = arm tag
     sb; local out rc
     out="$(printf '%s' "$(ev s7 "$2")" | env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_NOTIFY=0 $1 "$GATE" 2>"$W/e3")"; rc=$?
+    denetle "$3"
     { printf '%s\n%s\n' "$rc" "$out"; cat "$W/e3"
       ls "$H"/.rabadon/spool/* >/dev/null 2>&1 && cat "$H"/.rabadon/spool/*
     } | kimliksiz
   }
   for CMD in 'echo hello world' 'rm -rf /' 'git commit --no-verify -m x'; do
-    A="$(run3 '' "$CMD")"; B="$(run3 "RABADON_GATED_SOCK=$DEAD" "$CMD")"
-    if [ -z "$A" ]; then
+    rm -f "$W"/zincir.A "$W"/zincir.B "$W"/zincir.A.out "$W"/zincir.B.out
+    A="$(run3 '' "$CMD" A)"; B="$(run3 "RABADON_GATED_SOCK=$DEAD" "$CMD" B)"
+    ZA="$(cat "$W/zincir.A" 2>/dev/null)"; ZB="$(cat "$W/zincir.B" 2>/dev/null)"
+    if [ "$ZA" != INTACT ] || [ "$ZB" != INTACT ]; then
+      fail "3-[$CMD] the hash chain is not INTACT inside the run (daemon up: ${ZA:-NOT RUN}, daemon down: ${ZB:-NOT RUN})"
+      note "prev is blanked in the comparison, so the chain's link arithmetic is"
+      note "proven HERE or not at all — a broken chain cannot be a green"
+      cat "$W"/zincir.A.out "$W"/zincir.B.out 2>/dev/null | head -6 | sed 's/^/      /'
+    elif [ -z "$A" ]; then
       fail "3-[$CMD] the baseline run produced nothing — an empty comparison is not a green"
     elif [ "$A" = "$B" ]; then
-      pass "3-[$CMD] exit code, ledger lines and refusal text are byte-identical with the daemon down"
+      pass "3-[$CMD] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down"
     else
       fail "3-[$CMD] behaviour diverges when the daemon is down — this is not fail-SAME"
       diff <(printf '%s\n' "$A") <(printf '%s\n' "$B") | head -6 | sed 's/^/      /'
