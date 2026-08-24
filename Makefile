@@ -844,6 +844,16 @@ test: all
 # /var/folders are exempt by design, and the first version of this file was
 # measuring that carve-out rather than the rule.
 	./native/fd_dup_test.sh
+# sun_path is 104 bytes on macOS and 108 on Linux, and the emitter in gate.cpp
+# strncpy'd into it with no length check. that does not fail: it builds a
+# SHORTER path that is a prefix of the intended one and connects to that, so a
+# deep RABADON_DIR shipped the ledger event stream to whoever could create a
+# socket on the prefix -- silently, exit 0, nothing on stderr. the two sibling
+# call sites (gated.cpp, gated_client.h) already guarded it; this one was
+# missed, and the architecture note claimed a test covered it that did not
+# exist (reports/R7/CHALLENGE-3.md). ~85 bytes of a 104 cap is what a plain
+# mktemp -d HOME already spends.
+	./native/sock_path_test.sh
 # the two events the ledger was not keeping. a session ran `rabadon off` at
 # 02:25 on 3 August and the machine was unguarded from then on while four other
 # sessions kept working under it, and nothing recorded that. and three refusals
