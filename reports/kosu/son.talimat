@@ -1,11 +1,1 @@
-TEKRAR KONTROLÜ: 16 turdan ilk kez bağlama sorunu çözüldü ama kabul kırmızı kalmaya devam etti. Bu tekrar değil, farklı bir duvar (estimated_saved kablosu + MIN_HISTORY). Yeni hipotez denenmedi — bu tur elenen hipotezi değil, doğrulanmamış yeni duvarı açıkladı.
-
-`reports/R7/TESHIS-BAGLAMA.md` ve `reports/R7/ab_run.sh`'ı oku. Açık üç kırmızı şunlar:
-
-**2b** — yük altında ölçüm delil değil; ölçüm temiz makinede alınmadı.
-**6e** — `ab_run.sh` `estimated_saved` alanını yazmıyor; kabul bunu okur.
-**7b** — `estimated_saved` null gelir çünkü MIN_HISTORY=3 her görev tek oturumla karşılanmıyor.
-
-2b için şimdi yalnız yük durumunu kontrol et: `uptime`, `pgrep -a python`, `pgrep -a Spell`, tüm yük kaynakları temizlenmiş mi? Temizse `bash reports/R7/accept.sh` koş ve 2b sayısını raporla; temiz değilse sadece yük tablosunu yaz, ölçüm alma. 6e/7b için şimdi hiçbir iş yapma — o iki kırmızı için yapan oturumun kendi bulgusu (`TESHIS-BAGLAMA.md §4`) "şartın nihai hâli OPERATÖR KARARI" dedi ve o karar gelmedi; o kapı açık duruyor.
-
-Tek hedef bu tur: 2b'yi yük temizse kapat, yük kirli kalırsa yalnız rapor yaz. Ajan koşusu yok, para yok. B1 kurallarıyla çalış, DENEMELER.md'yi güncelle, kabul betiğini koş, raporu yaz, commit+push et.
+reports/kosu/OPERATOR.md'deki CEVAP satirlarini uygula, sonra A4 sirasinda kaldigin yerden devam et. B1 kurallari gecerli.

@@ -1,0 +1,195 @@
+I'll start by reading the operator file and the session state.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+I'm the doing-session in this run harness. `OPERATOR.md` is deleted from the working tree — the answered copy is `18.operator.md`. Let me read the run protocol before acting.
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+Now I have the full picture. I'm turn 19's doing-session. Let me verify the operator's factual claims myself before acting on them — the CEVAP itself rests on a fact-correction I must confirm.
+[tool: Bash]
+[tool: Bash]
+Operator's fact-correction **verified**: `accept.sh` has zero SIGNAL/INJECT; it's all in `ab_run.sh` (unsealed runner). `estimated_saved` written 0 times in ab_run.sh. `MIN_HISTORY=3` confirmed. And a new fact: **ctest is dead, load has fallen to 3.44/4.65/7.31.**
+[tool: Bash]
+[tool: Bash]
+Current state: **23 green, 3 red** (2b, 6e, 7b). Now let me read the exact code I need to edit.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now let me read the exact edit regions in `ab_run.sh`.
+[tool: Bash]
+[tool: Bash]
+Everything is verified. Now the edits. First, `ab_run.sh` — split the signal/inject counter and add an `estimated_saved` reader.
+[tool: Read]
+[tool: Edit]
+[tool: Edit]
+Now the validity gate — removing SIGNAL/INJECT as a discard condition.
+[tool: Read]
+[tool: Edit]
+[tool: Read]
+[tool: Edit]
+Now replace the discard gate (block 3) with a measured-variable note.
+[tool: Edit]
+Now the "before" snapshot needs `inj0`, and the JSONL writer needs the new fields.
+[tool: Bash]
+[tool: Edit]
+Now the JSONL writer — adding `signals`, `injects`, `estimated_saved`.
+[tool: Edit]
+[tool: Edit]
+Now verify no stale references remain and the script parses.
+[tool: Bash]
+CEVAP 2 is applied. Now let me prove the null-vs-zero behaviour actually works rather than assert it.
+[tool: Bash]
+My test was miswritten — I used the `tst:` prefix for both files, so `tail -1` correctly picked the later one. Let me redo it with distinct labels.
+[tool: Bash]
+The wiring is proven: `null` stays `null`, real values pass through, and a run where rabadon fired but never spoke is now **valid** instead of discarded. Now CEVAP 1 — the load-gated 2b wrapper. First, a locale-safe way to read load:
+[tool: Bash]
+Both are comma-decimal (Turkish locale) — I need `LC_ALL=C`. Also note load **jumped to 7.81**. Let me check both.
+[tool: Bash]
+`LC_ALL=C` fixes the parsing. And a significant finding: the load source has **changed** — ctest is gone; it's now Chrome's GPU helper at **453% (4.5 cores)**. Let me write the wrapper.
+[tool: Write]
+[tool: Bash]
+Two real bugs caught. My gate test used zsh (no word-splitting) so it was meaningless — but it exposed a genuine one: `LC_ALL=C` was applied to `sysctl` only, so **awk still parses "7.81" as 7** under the Turkish locale. Let me fix that properly.
+[tool: Edit]
+[tool: Edit]
+Now let me test the gate logic correctly — in **bash**, not zsh.
+[tool: Bash]
+One more correctness issue in my wrapper: if `timeout` kills it mid-`accept.sh`, `tee` would leave a **truncated `accept.out`** that reads like a real result. Let me make it atomic.
+[tool: Edit]
+[tool: Bash]
+Now I'll start the load gate in the background (B1.9: `timeout`-wrapped) so its 90-minute clock runs while I write up.
+[tool: Bash]
+[tool: Bash]
+The gate is live and reading decimals correctly. Now the required DENEMELER.md block (B1.4).
+[tool: Bash]
+[tool: Bash]
+Load is falling (11.2 → 7.13) but nowhere near 2.0. Let me write the turn report while the gate runs.
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+Commit 3 failed — the waiting log is gitignored (correctly, it's transient). Let me redo without it.
+[tool: Bash]
+All three commits pushed. Now let me harden the change that matters most — a crash in `ab_run.sh` would waste a **paid** run. Let me dry-run the JSONL writer for both arms.
+[tool: Bash]
+My `sed` grabbed the wrong Python block (there are several). Let me extract by exact line numbers.
+[tool: Bash]
+[tool: Bash]
+All three cases correct. Now let me prove the downstream consequence — feed this through `accept.sh`'s **actual** 6e reader.
+[tool: Bash]
+[tool: Bash]
+This proves the unit-mismatch suspicion is **real, not theoretical**. Let me compute what 6e would actually report.
+[tool: Bash]
+Confirmed and quantified. Let me check one more thing — does 6e actually *threshold* that deviation, or just print it?
+[tool: Bash]
+7b **does** threshold at 50%; 6e does not. Let me confirm the dangling reference and then write this up as a CHALLENGE.
+[tool: Bash]
+Load is **exploding**: 7.03 → 18.15 → 31.86 on 8 cores. Let me find the source.
+[tool: Bash]
+Two persistent sources: Chrome GPU (463%) **and** stitchu's `surface-pattern` (96%) — stitchu's test cycle restarted. Meanwhile, let me write up the acceptance-criteria defect as a CHALLENGE rather than fixing it silently.
+[tool: Write]
+[tool: Bash]
+Proposal (b) is grounded — `total_cost_usd` already exists for both arms in the real data. Let me commit the challenge and check the gate.
+[tool: Bash]
+The gate cannot open. Before stopping it, let me check the historical record — has load **ever** been near 2.0 in this run?
+[tool: Bash]
+Decisive: **no load value below 2.4 has ever been recorded in this entire run.** The `< 2.0` threshold has never once been satisfiable on this machine. Let me stop the gate and record that honestly.
+[tool: Bash]
+Now the honest record — explicitly marked as early-stopped, not a faked cap expiry.
+[tool: Bash]
+Let me update the turn report with the final outcome and the new CHALLENGE.
+[tool: Edit]
+[tool: Edit]
+Now the B1.9 leftover-process check and final state verification.
+[tool: Bash]
+[tool: Bash]
+İki CEVAP da uygulandı, altı commit push'landı. Ama iki şeyi bilmen gerekiyor — biri operatör kararının dayanağını değiştiriyor.
+
+## Yapıldı
+
+**CEVAP 2 — SIGNAL/INJECT artık kapı değil, ölçülen değişken.** Önce senin olgu düzeltmeni birinci elden doğruladım, **doğruydu**: şart mühürlü `accept.sh`'ta değil, `ab_run.sh`'ta (`grep` → accept.sh'ta sıfır eşleşme). §A1 ihlal edilmedi, `KOSU-RABADON-2.md`'ye dokunulmadı. Eleme şartı kaldırıldı, `signals`/`injects` ayrı alan, `estimated_saved` kablosu çekildi. `ab_run.sh`'ın **gerçek** yazıcısını çıkarıp üç senaryoda koşturdum: `null` korunuyor (uydurma sıfır yok), ve "rabadon ateşlendi ama konuşmadı" satırı artık **yazılıyor** — eskiden atılıyordu.
+
+**CEVAP 1 — yük kapısı** `reports/R7/olc_2b.sh` olarak yazıldı, `accept.sh`'a dokunmadan. Yazarken kendi betiğimde iki gerçek hata buldum: tr_TR locale'inde **awk `7.81`'i `7` okuyor** (kapı gevşek yönde yanılırdı), ve `tee accept.out` timeout'ta yarım kabul çıktısı bırakıyordu ("23 yeşil" gibi okunurdu).
+
+## Bilmen gereken: CEVAP 1'in premisi çökmüş
+
+Sen "ctest canlı, yük 2.89→3.14 ve düşüyor, kendiliğinden sakinleşiyor" diye yazmıştın. Ölçtüm:
+
+- `pgrep ctest` → **boş.** ctest kendiliğinden bitti, beklemek işe yaradı.
+- Ama yük **düşmedi: 3.44 → 31.86.** Kaynak değişti: **senin Chrome'unun GPU helper'ı %463 (~4.6 çekirdek)** + stitchu'nun yeniden başlayan `surface-pattern` %96.
+- Daha önemlisi: koşu boyunca kaydedilmiş **bütün** yük değerlerinin en düşüğü **2.4**. `< 2.0` eşiği bu makinede **bir kez bile** gözlenmemiş.
+
+Yani kapı 90 dk değil, kayıtlı geçmişin tamamında açılmazdı. 6 dk sonra durdurdum — 84 dk daha beklemek ölçüm üretmez, tur yakardı. **Tavanı doldurmadım, bunu gizlemiyorum, sapma raporda yazılı.** 2b kırmızı kaldı, sayı uydurulmadı.
+
+## Yeni bulgu — CHALLENGE-4 (bu bir kabul kapısı kusuru)
+
+Kabloyu çekince 6e'nin erişilebilir hâli ilk kez göründü: **6e bir DOLAR değerini bir TOKEN farkıyla karşılaştırıyor** (`saved_usd` vs `tok_A - tok_B`). Sapma dolar değeri ne olursa olsun ~%100. Ve **6e'de eşik yok** — `NODIFF` dışında her sapmada yeşil basıyor. Yani "sayaç doğrulandı" satırı %100 sapmayla yeşil olurdu. Bu tam olarak rabadon'un engellemek için var olduğu şey.
+
+Bugün tetiklenmiyor (`MIN_HISTORY=3` → zaten `null` → kırmızı), ama `MIN_HISTORY` düşerse canlanır. `accept.sh` mühürlü → **dokunmadım**, CHALLENGE açtım. Önerim: `real`'i maliyet farkı yap (`total_cost_usd` iki kolda da zaten var, doğruladım) + 6e'ye 7b'nin %50 eşiği.
+
+## Senden iki karar
+
+1. **2b nasıl ölçülecek?** (a) Chrome+stitchu'yu sen sustur, (b) eşiği gevşet, (c) temiz konteyner. **Önerim (c)** — proje referans ortamda hiç koşmadı; (b) sayıyı kurtarmaz, kirliliği normalleştirir.
+2. **CHALLENGE-4 kabul mü?** Mühürlü `accept.sh`'a dokunmayı gerektiriyor.
+
+---
+
+### Döküm — sorulmayan ama gördüklerim
+
+- **6e/7b bu tur kırmızı kaldı, beklendiği gibi.** Ürün gerçeği: rabadon tek oturumluk kullanımda tasarruf sayısı üretemiyor. Satılabilir bir kusur tespiti.
+- `ab_run.sh` referans ediyordu ama `CHALLENGE-4.md` **yoktu** — dangling atıf. O yorum bloğunu değiştirdiğim için atıf kalmadı; yeni dosyayı o isimle açtım.
+- `reports/kosu/OPERATOR.md` çalışma ağacında **silinmiş** durumda (sürücü `18.operator.md`'ye taşımış). Normal akış, ama `git status` kirli görünüyor.
+- `YUK-2B-BEKLEME.log` **gitignore'da** — commit edilemedi, kanıt yalnız yerelde.
+
+### DOĞRULANMADI
+
+- `ab_run.sh` değişiklikleri **canlı koşuda denenmedi**. Paralı koşu başlatılmadı.
+- `accept.sh`'ın 25 kaleminin **hiçbiri** koşulmadı. "23 yeşil / 3 kırmızı" tur 17'den devralınmış — **çıkarım, ölçüm değil.**
+- `ledger_saved_usd` gerçek rabadon spool'una karşı denenmedi, yalnız sentetik COUNTER satırlarında.
+- 2b'nin gerçek değeri hâlâ bilinmiyor; dört sayının dördü de yük altında.
+İki CEVAP da uygulandı, altı commit push'landı. Ama iki şeyi bilmen gerekiyor — biri operatör kararının dayanağını değiştiriyor.
+
+## Yapıldı
+
+**CEVAP 2 — SIGNAL/INJECT artık kapı değil, ölçülen değişken.** Önce senin olgu düzeltmeni birinci elden doğruladım, **doğruydu**: şart mühürlü `accept.sh`'ta değil, `ab_run.sh`'ta (`grep` → accept.sh'ta sıfır eşleşme). §A1 ihlal edilmedi, `KOSU-RABADON-2.md`'ye dokunulmadı. Eleme şartı kaldırıldı, `signals`/`injects` ayrı alan, `estimated_saved` kablosu çekildi. `ab_run.sh`'ın **gerçek** yazıcısını çıkarıp üç senaryoda koşturdum: `null` korunuyor (uydurma sıfır yok), ve "rabadon ateşlendi ama konuşmadı" satırı artık **yazılıyor** — eskiden atılıyordu.
+
+**CEVAP 1 — yük kapısı** `reports/R7/olc_2b.sh` olarak yazıldı, `accept.sh`'a dokunmadan. Yazarken kendi betiğimde iki gerçek hata buldum: tr_TR locale'inde **awk `7.81`'i `7` okuyor** (kapı gevşek yönde yanılırdı), ve `tee accept.out` timeout'ta yarım kabul çıktısı bırakıyordu ("23 yeşil" gibi okunurdu).
+
+## Bilmen gereken: CEVAP 1'in premisi çökmüş
+
+Sen "ctest canlı, yük 2.89→3.14 ve düşüyor, kendiliğinden sakinleşiyor" diye yazmıştın. Ölçtüm:
+
+- `pgrep ctest` → **boş.** ctest kendiliğinden bitti, beklemek işe yaradı.
+- Ama yük **düşmedi: 3.44 → 31.86.** Kaynak değişti: **senin Chrome'unun GPU helper'ı %463 (~4.6 çekirdek)** + stitchu'nun yeniden başlayan `surface-pattern` %96.
+- Daha önemlisi: koşu boyunca kaydedilmiş **bütün** yük değerlerinin en düşüğü **2.4**. `< 2.0` eşiği bu makinede **bir kez bile** gözlenmemiş.
+
+Yani kapı 90 dk değil, kayıtlı geçmişin tamamında açılmazdı. 6 dk sonra durdurdum — 84 dk daha beklemek ölçüm üretmez, tur yakardı. **Tavanı doldurmadım, bunu gizlemiyorum, sapma raporda yazılı.** 2b kırmızı kaldı, sayı uydurulmadı.
+
+## Yeni bulgu — CHALLENGE-4 (bu bir kabul kapısı kusuru)
+
+Kabloyu çekince 6e'nin erişilebilir hâli ilk kez göründü: **6e bir DOLAR değerini bir TOKEN farkıyla karşılaştırıyor** (`saved_usd` vs `tok_A - tok_B`). Sapma dolar değeri ne olursa olsun ~%100. Ve **6e'de eşik yok** — `NODIFF` dışında her sapmada yeşil basıyor. Yani "sayaç doğrulandı" satırı %100 sapmayla yeşil olurdu. Bu tam olarak rabadon'un engellemek için var olduğu şey.
+
+Bugün tetiklenmiyor (`MIN_HISTORY=3` → zaten `null` → kırmızı), ama `MIN_HISTORY` düşerse canlanır. `accept.sh` mühürlü → **dokunmadım**, CHALLENGE açtım. Önerim: `real`'i maliyet farkı yap (`total_cost_usd` iki kolda da zaten var, doğruladım) + 6e'ye 7b'nin %50 eşiği.
+
+## Senden iki karar
+
+1. **2b nasıl ölçülecek?** (a) Chrome+stitchu'yu sen sustur, (b) eşiği gevşet, (c) temiz konteyner. **Önerim (c)** — proje referans ortamda hiç koşmadı; (b) sayıyı kurtarmaz, kirliliği normalleştirir.
+2. **CHALLENGE-4 kabul mü?** Mühürlü `accept.sh`'a dokunmayı gerektiriyor.
+
+---
+
+### Döküm — sorulmayan ama gördüklerim
+
+- **6e/7b bu tur kırmızı kaldı, beklendiği gibi.** Ürün gerçeği: rabadon tek oturumluk kullanımda tasarruf sayısı üretemiyor. Satılabilir bir kusur tespiti.
+- `ab_run.sh` referans ediyordu ama `CHALLENGE-4.md` **yoktu** — dangling atıf. O yorum bloğunu değiştirdiğim için atıf kalmadı; yeni dosyayı o isimle açtım.
+- `reports/kosu/OPERATOR.md` çalışma ağacında **silinmiş** durumda (sürücü `18.operator.md`'ye taşımış). Normal akış, ama `git status` kirli görünüyor.
+- `YUK-2B-BEKLEME.log` **gitignore'da** — commit edilemedi, kanıt yalnız yerelde.
+
+### DOĞRULANMADI
+
+- `ab_run.sh` değişiklikleri **canlı koşuda denenmedi**. Paralı koşu başlatılmadı.
+- `accept.sh`'ın 25 kaleminin **hiçbiri** koşulmadı. "23 yeşil / 3 kırmızı" tur 17'den devralınmış — **çıkarım, ölçüm değil.**
+- `ledger_saved_usd` gerçek rabadon spool'una karşı denenmedi, yalnız sentetik COUNTER satırlarında.
+- 2b'nin gerçek değeri hâlâ bilinmiyor; dört sayının dördü de yük altında.
