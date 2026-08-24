@@ -91,3 +91,60 @@ Bu makine 8 çekirdekli ve **hiçbir örnekte 1 dk yükü 2,41'in altına inmedi
 2b'nin gerçek değeri bu worktree'de ölçülemiyor olabilir. Karar operatörün:
 2b temiz bir ortamda (boş bir makine / container) mı ölçülecek, yoksa "bu
 makinede kırmızı" etiketiyle mi kapanacak?
+
+---
+
+# EK — aynı betikteki İKİNCİ kusur: B1.9 artık-süreç kontrolü KIRMIZIYA DÖNEMİYOR
+
+tur 21'de, ölçümler bittikten sonra bulundu.
+
+## Kusur
+
+`reports/R7/olc_2b.sh:67-69`:
+
+    for p in pytest pip ctest rabadon-gated rabadon-gate; do
+      printf '  %-16s %s\n' "$p" "$(pgrep -c -f "$p" 2>/dev/null || echo 0)"
+    done
+
+macOS'un BSD `pgrep`'inde **`-c` bayrağı YOKTUR.** Ölçüldü:
+
+    $ pgrep -c -f "rabadon-gated"
+    usage: pgrep [-Lfilnoqvx] ...
+    rc=2
+
+Komut her zaman kullanım hatası verir, `2>/dev/null` hatayı yutar, `|| echo 0`
+devreye girer. Yani **bu kontrol, makinede kaç artık süreç olursa olsun her
+zaman `0` basar.** Kırmızıya dönemeyen bir kontrol, kontrol değildir — bu
+betiğin B1.9'u uyguladığı iddia edilen tek yeri budur.
+
+## Kaçırdığı gerçek artık süreç (bu turda, beş ölçümün beşinde de)
+
+    $ ps -o pid,lstart,etime,command -p 60547
+      PID STARTED                    ELAPSED COMMAND
+    60547 24 Agu 15:12:57 2026      06:23:08 /tmp/sprof/dmn/rabadon-gated-sprof
+
+    $ pgrep -f "rabadon-gated"      # -c'siz, DOGRU kullanim
+    60547
+
+Önceki bir turun profilleme kalıntısı, **15:12'den beri ayakta**. Tur 21'in
+beş ölçümünün TAMAMI bu süreç canlıyken alındı ve rapor beş kez
+`rabadon-gated 0` yazdı. Sürecin ölçümü ne kadar kirlettiği **ÖLÇÜLMEDİ** —
+büyük ihtimalle boşta bekleyen bir daemon, ama bunu bilmiyoruz, ve B1.9 tam
+olarak "bilmiyoruz"u ortadan kaldırmak için var.
+
+## Önerilen diff (insan onayı olmadan uygulanmaz)
+
+`-c`'yi kaldır, sayımı taşınabilir biçimde yap:
+
+    printf '  %-16s %s\n' "$p" "$(pgrep -f "$p" 2>/dev/null | grep -c . || echo 0)"
+
+ve sıfırdan büyük bir sayı görüldüğünde ölçümü GEÇERSİZ say ya da en azından
+rapora görünür bir UYARI satırı düşür — bugün sayı rapora yazılıyor ama hiçbir
+şeyi tetiklemiyor.
+
+## Süreç ÖLDÜRÜLMEDİ
+
+Bu oturumun başlatmadığı bir süreçtir ve şu anda bu bulgunun KANITIDIR, o
+yüzden dokunulmadı. Temizlemek isteyen için tek komut:
+
+    kill 60547
