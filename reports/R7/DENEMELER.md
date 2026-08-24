@@ -1274,6 +1274,70 @@ JSONL'e yazılıyor. **Şartın nihai hâli OPERATÖR KARARIDIR** ve paralı ko�
     grep -n 'MIN_HISTORY' native/counter.h           # 63: = 3
     sed -n '2733,2734p' native/gate.cpp              # taninan alti olay
 
+## deneme 24 — 2026-08-24 (tur 18, yapan) — 2b: yük KİRLİ, ölçüm ALINMADI; kaynak başka projenin ctest'i
+
+**DENENEN.** Emir tekti: 2b için yalnız yük durumu kontrol edilecek; temizse
+`accept.sh` koşulup 2b sayısı raporlanacak, temiz değilse yalnız yük tablosu
+yazılacak ve **ölçüm alınmayacak**. 6e/7b'ye dokunulmadı (operatör kararı
+bekliyor). Ajan koşulmadı, para harcanmadı, kod değiştirilmedi.
+
+**SONUÇ — YÜK KİRLİ, BETİK KOŞULMADI.** 8 çekirdekli makinede 1 dakikalık yük
+5 örnekte **8,70 → 9,67** ve yükseliyor (5dk: 11,2–11,3). Tur 17'de ölçümü
+geçersiz kılan sayı 7,51'di; bugün daha kötü. Tam tablo: `reports/R7/YUK-2B.md`.
+
+`accept.sh` **hiç koşulmadı** ve sebebi bir tercih değil: betik 2b ölçümünü
+kendisi alıyor (satır 164-167 probe'u derliyor, 199-206 medyanı basıp tavana
+karşı okuyor) ve ölçümü atlatan bayrak yok. "Diğer 25 kalemi göreyim" diye
+koşmak, yasaklanan sayıyı üretip `accept.out`'a yazardı; sonraki tur onu
+"ölçüldü" diye okurdu. Tur 14'ün `>/dev/null` hatası tam böyle, iyi niyetli bir
+yan etki olarak doğmuştu.
+
+**YENİ BULGU — yükün kökü bulundu, bu repo değil.** `surface-pattern` PID'i her
+örnekte değişiyordu (58956 → 60050 → 60117); ebeveyn zinciri sürüldü:
+
+    60117  surface-pattern EU36
+    60048  /bin/sh .../stitchu/engine/tests/walkgate_check.sh
+    54076  ctest --test-dir build --output-on-failure
+
+Yani `~/damla_projects_2026/stitchu` altında **koşmakta olan bir `ctest`** her
+testte bir süreç doğuruyor; yeniden doğan Python süreçleri de aynı ağacın
+parçası. rabadon'a ait değil, bu oturum onu **öldürmedi** — başka bir projenin
+test koşusunu haber vermeden kesmek bu turun yetkisinde değil. rabadon'un kendi
+yetim süreci yok (`pgrep pytest` = 0, `pgrep pip` = 0).
+
+**ELENEN HİPOTEZ.**
+- "Tur 17'nin yük kaynakları temizlenmiş olabilir, ölçüm artık alınır" —
+  **ELENDİ.** Kaynaklar kısmen değişti ama yük düşmedi, arttı.
+- "AppleSpell hâlâ yük kaynağı" (PARKED maddesi, %111) — **ELENDİ.** PID 50343
+  yaşıyor ama %0,0. Bu madde artık geçersiz.
+- "Tur 17'nin %99,2'lik Python'u tek uzun süreç" — **ELENDİ.** Ardışık
+  örneklerde PID değişip kayboluyor: döngüyle yeniden doğan kısa süreçler,
+  yukarıdaki ctest ağacının parçası.
+
+**YENİ, tur 17'de yoktu:** `com.apple.Safari.History` bir çekirdeği sürekli
+doyuruyor (%97,5–99,2), ve Chrome GPU helper %136–469 (1,4–4,7 çekirdek).
+
+**KALAN HİPOTEZLER / açık uçlar.**
+- 2b'nin gerçek değeri **BİLİNMİYOR**. Bugüne kadarki üç sayı (8148,9 / 1385,2 /
+  2443,8 µs) hepsi yük altında, hiçbiri tavana karşı okunamaz.
+- Bu proje temiz bir kutuda **hiç** ölçülmedi; CLAUDE.md'nin referans ortamı
+  (temiz konteyner) kullanılmadı.
+- `accept.sh`'ın diğer 25 kalemi bu turda **yeniden doğrulanmadı**; "23 yeşil /
+  3 kırmızı" tur 17'den devralınmış bir sayıdır. Kod değişmediği için değişmesi
+  beklenmez — ama bu bir çıkarım, ölçüm değil.
+- 6e/7b: `TESHIS-BAGLAMA.md §4`'ün sorduğu **operatör kararı hâlâ gelmedi**.
+  Paralı koşu o karar gelmeden başlamamalı.
+
+**KANIT KOMUTLARI.**
+
+    uptime                              # 1dk load 8,70-9,67, 8 cekirdek
+    sysctl -n hw.ncpu                   # 8
+    pgrep -a ctest                      # yukun koku (stitchu), rabadon degil
+    ps -p $(pgrep -n surface-pattern) -o pid,ppid,command
+    ps -p 50343 -o pcpu=                # AppleSpell 0,0 — temiz
+    pgrep -a pytest; pgrep -a pip       # ikisi de bos: rabadon yetim surec yok
+    # bash reports/R7/accept.sh         # BILEREK KOSULMADI, gerekce yukarida
+
 ## PARKED
 
 - **6e/7b'nin kablosu (ölçüldü, YAPILMADI — bu turun işi değildi).** `ab_run.sh`
