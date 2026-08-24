@@ -205,7 +205,50 @@ conan'ın bilinen zayıflığı da kayıtta kalsın: P2P listesi yalnız 3 test
 
 ---
 
-## `estimated_saved` — 6e ve 7b yapısal olarak kapanamaz
+## `estimated_saved` — 6e ve 7b KIRMIZI KALIR: RABADON TASARRUF SAYISINI ÜRETEMİYOR
+
+**OPERATÖR KARARI (24.08, `reports/kosu/14.operator.md` CEVAP 1).** 6e ve 7b
+kırmızı kalır, R7 **23/25** ile kapanır, ön-kayda DOKUNULMAZ. Bu bir betik
+kusuru ya da birim hatası **değildir** — bir **ürün boşluğudur**, ve şartı
+değiştirmek onu gizlerdi. Aşağıdaki "birim çelişkisi" çerçevelemesi bu kararla
+GEÇERSİZDİR; teşhisi doğru, sonucu yanlıştı ve düzeltilmek üzere bırakıldı.
+
+Ön-kaydı `total_cost_usd`'ye çevirme önerisi ölçümle çürüdü: `ab_run.jsonl`'in
+8 satırının 8'inde de `estimated_saved` alanı **zaten yok**, yani 6e'nin
+düştüğü yer payda değil PAY; birim değişse de kırmızı kalırdı. Üstelik `est`
+harness'ın kendi `total_cost_usd` farkına çevrilseydi geriye `|x-x|/x = %0`
+kalırdı — her koşuda otomatik yeşil bir totoloji, yani testi zayıflatmanın
+birebir tarifi.
+
+**ÜÇ BAĞIMSIZ BARİYER — üçü de ölçüldü:**
+
+1. **Predikat körlüğü — tur 15'te DÜZELTİLDİ.** `native/usage.h`'in sayacı bir
+   satırdaki İLK `"type"` anahtarını alıp `"assistant"` bekliyordu. Claude Code
+   `message{}`'i üst seviye `type`'tan ÖNCE yazdığı için o anahtar her gerçek
+   satırda `"message"` çıkıyor ve predikat hiçbir gerçek satırı eşleştirmiyordu.
+   Gerçek 425 satırlık bir transcript'te stok json ayrıştırıcı **414 çağrı /
+   136 816 678 cache-read token** sayarken rabadon **1 çağrı / 0 token**
+   okuyordu. Sayaç, Stop token ledger'ı (`gate.cpp`) ve lens aynı predikattan
+   besleniyor — yani rabadon'un üç iddiasından üçüncüsü, "parayı söyler",
+   canlıda ölüydü ve suite yeşildi. Depodaki BÜTÜN fixture'lar üst seviye
+   `type`'ı önce yazdığı için hiçbir test bunu göremiyordu; fixture'lar maskeydi.
+   `native/usage_order_test.sh` ile kapatıldı (`make test` içinde).
+2. **B kolunda sayaç HİÇ KOŞMUYOR — tur 15'te DOĞRULANDI, AÇIK.**
+   `ab_run.sh:249-258` B kolunun `settings.local.json`'ına yalnız `PreToolUse`
+   yazıyor. COUNTER olayı ise yalnız `gate.cpp:4008` (`SessionEnd`) ve
+   `gate.cpp:4092` (`Stop`) üzerinden üretiliyor. Ledger bunu bağımsız
+   doğruluyor: geçerli koşunun B örneklerinde **sadece STEP_START** var
+   (feedparser__B: 9, pydicom__B: 5 — JSONL'deki `ledger_new_lines` ile birebir),
+   COUNTER ve RUN_DONE **yok**.
+3. **`median_n:0` — AÇIK, yapısal.** `counter.h:71` `MIN_HISTORY=3` istiyor;
+   her görev tek oturum, birikmiş örnek yok. Predikat düzelse ve hook doğru
+   bağlansa bile 6e bu turda kapanmazdı. Beklenen sonuç, tekrar denenmeyecek.
+
+**YAYIN YASAĞI (CEVAP 2).** Dolar/tasarruf cümlesi, 1 ve 2 kapanıp bir koşuda
+sıfırdan farklı bir sayı ÖLÇÜLENE kadar POSITIONING.md, SAVUNMA.md, landing
+page ya da başka HİÇBİR yerde yayınlanmayacak.
+
+### (geçersiz çerçeveleme, kayıt için bırakıldı) birim çelişkisi
 
 Bu, koşunun bir başarısızlığı değil, ön-kayıtla ürünün arasındaki bir
 **birim çelişkisidir** ve koşudan bağımsızdır:
@@ -234,3 +277,71 @@ DENEMELER deneme 14'te.
   ajan zaman sınırına takılır/hata ile biterse 1). İki kolda 0 çıkarsa bu
   metrik "ayrım üretmedi" diye raporlanır, sessizce yeşile sayılmaz.
 - 2b latansı (daemon kolu) bu koşunun KAPSAMI DIŞINDA ve KIRMIZI kalıyor.
+
+---
+
+## P2P DIŞLAMASI — İLAN (ON-KAYIT §7 madde 5)
+
+Bozuk dalda zaten düşen P2P testleri taban kümeden çıkarılır. Bu **sessiz bir
+kısıtlama değildir**; sayı ve isimle burada, `ab_prever.tsv`'de ve JSONL'in
+`p2p_excluded` / `p2p_excluded_ids` alanlarında durur.
+
+Ön-doğrulama tur 15'te altı instance'ın ALTISI için yeniden koşuldu
+(`reports/R7/prever.tur15.out`, `PREVER_ONLY=1` — hiçbir ajan oturumu, yani
+hiçbir para harcanmadı):
+
+| instance | F2P (bozukta) | P2P | dışlanan | karar |
+|---|---|---|---|---|
+| autograd | 0/11 düştü | 120/120 | 0 | ALINDI |
+| oauthlib | 0/18 düştü | 120/120 | 0 | ALINDI |
+| conan | 0/29 düştü | 3/3 | 0 | ALINDI |
+| pydicom | 0/1 düştü | 120/120 | 0 | ALINDI |
+| astroid | 0/9 düştü | 118/118 | **2** | ALINDI |
+| feedparser | 39/55 düştü | 120/120 | 0 | ALINDI |
+
+Dışlanan iki test (`p2p_excluded/pylint-dev__astroid...txt`), iki ayrı
+ön-doğrulama koşusunun KESİŞİMİ:
+`tests/brain/test_brain.py::TypingBrain::test_has_dunder_args` ve
+`::test_typing_types`. Üçüncü aday çıkmadı, flake çıkmadı.
+
+**Neden bu bir kaçış yolu değil:** çıkarılan şey SAYI değil **İSİMDİR**, ve
+iki kol birebir aynı küçültülmüş kümeyi koşar. Ajan başka iki P2P testini
+bozarsa `pg < pt` çıkar; `heldout_pass` şartı `pg == pt` olarak aynen durur.
+Küme ajan koşmadan önce, ayrı bir ağaçta, ayrı bir commit'te üretildi.
+
+## HARNESS HATASI — conan'ın elenmesi ölçümle çürüdü
+
+conan tur 14'te "P2P 0/3 = toplama/ortam çöküşü" diye elendi. Log'un TAMAMI:
+
+    ERROR: file or directory not found: @.nodeids
+    no tests ran in 0.39s
+
+Bu bir ortam çöküşü değil, **harness'ımızın hatasıydı**: node id'ler pytest'e
+`@dosya` argfile'ıyla veriliyordu, o da pytest'in argparse
+`fromfile_prefix_chars` desteğine bağlıdır ve eski sürümlerde YOKTUR — o sürüm
+`@.nodeids`'i bir dosya yolu sanar. Argümanla geçmeye çevrildi; conan yeniden
+ölçüldüğünde **3/3 geçti**. Tur 14'te elenen üç instance da harness hatasıydı;
+bu dördüncüsü. **N'in bugüne kadarki değeri harness kusurlarıyla bastırılmıştı.**
+
+conan'ın koşuya alınması yine de OPERATÖR kararıdır: ON-KAYIT §2'nin ayrı
+gerekçesi (P2P listesi yalnız 3 test, `heldout_pass`'i ucuzlatır) bu ölçümden
+bağımsız olarak geçerlidir.
+
+## P2P_CAP KIRILGANLIĞI — kayda geçti
+
+`P2P_CAP=120` ilk 120 node id'yi alır (`ab_run.sh:178`). astroid'in P2P listesi
+**1584** test; düşen iki test bu listenin **62.** ve **97.** sırasında, yani
+dilimin içine tamamen SIRA ŞANSIYLA düşmüşler. Cap 60 olsaydı biri, cap 50
+olsaydı ikisi de görünmezdi ve astroid "temiz" sanılırdı. Kapsama %7.6.
+Bu, ölçümün cap seçimine duyarlı olduğunun kaydıdır.
+
+## A KOLU LEDGER SATIRI — hangi koşuya ait olduğu doğrulandı
+
+`HIPS__autograd...__A` etiketli COUNTER olayı (`reason:"no-chains"`,
+ts=1787580484063 → 24.08 17:08:04) **karantinaya alınmış** koşuya ait:
+`/tmp/rbrun/ab_run.out` A kolu 17:06:21–17:08:04 (103 sn) ve
+`ab_run_INVALID_global_hook.jsonl` autograd A `duration_s=103`. Geçerli
+koşudaki (ab_run.jsonl) autograd A `duration_s=184`. Aynı karantina koşusunda
+`autograd__B`, `oauthlib__A`, `oauthlib__B` COUNTER'ları da var — yani "global
+hook A koluna da bağlıydı" tespiti ledger'da bağımsız olarak doğrulanıyor.
+**Geçerli koşuda hiçbir `__A` ledger satırı yok; kontrol kolu temiz.**
