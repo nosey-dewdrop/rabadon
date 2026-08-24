@@ -1359,3 +1359,89 @@ doyuruyor (%97,5–99,2), ve Chrome GPU helper %136–469 (1,4–4,7 çekirdek).
 - Makinede `AppleSpell` 3s 39dk boyunca %111 CPU yakıyor (rabadon'un yetim
   süreci DEĞİL, `pgrep pytest|pip` = 0). Latans ölçen her tur bunu önce
   temizlemeli; bu turun ölçümleri geç/kal tipi olduğu için etkilenmedi.
+
+## deneme 25 — 2026-08-24 (tur 19, yapan) — OPERATÖR CEVAPLARI UYGULANDI; 2b'nin yük kaynağı DEĞİŞTİ
+
+**DENENEN.** `reports/kosu/18.operator.md`'deki iki CEVAP uygulandı:
+(1) 2b için mühürlü `accept.sh`'a dokunmadan yük ön-koşulu, ayrı sarmalayıcıda;
+(2) SIGNAL/INJECT'in geçerlilik kapısı olmaktan çıkarılıp ölçülen değişkene
+çevrilmesi + `estimated_saved` kablosunun çekilmesi. Uygulamadan önce CEVAP'ın
+dayandığı olgular birinci elden doğrulandı.
+
+**SONUÇ — olgu doğrulaması (CEVAP 2'nin dayanağı DOĞRU çıktı).**
+
+    grep -n 'SIGNAL\|INJECT' reports/R7/accept.sh   -> HİÇBİR EŞLEŞME
+    grep -n 'SIGNAL\|INJECT' reports/R7/ab_run.sh   -> 26,27,29,253,270,342,347,557...
+    grep -c estimated_saved reports/R7/accept.sh    -> 2
+    grep -c estimated_saved reports/R7/ab_run.sh    -> 0
+
+Şart mühürlü `accept.sh`'ta DEĞİL, koşucu `ab_run.sh`'ta. §A1 ("accept.sh olduğu
+gibi kalır") ihlal edilmeden düzeltilebilir; `KOSU-RABADON-2.md`'ye DOKUNULMADI.
+
+**SONUÇ — 2b'nin yük kaynağı tur 18'den BERİ DEĞİŞTİ. Bu bir düzeltmedir.**
+Tur 18 CEVAP 1'in gerekçesi "ctest hâlâ canlı (pid 65243), yük 2.89→3.14 ve
+DÜŞÜYOR; makine kendiliğinden sakinleşiyor" idi. Bu turda ölçüldü — **premis
+artık geçerli değil:**
+
+    pgrep -fl ctest                 -> BOŞ (ctest ÖLDÜ, kendiliğinden bitti)
+    LC_ALL=C sysctl -n vm.loadavg   -> 3.44 -> 8.06 -> 10.3 -> 11.20 (YÜKSELDİ)
+    ps -Ao pid,pcpu,comm -r | head  -> Google Chrome Helper (GPU) %453,5
+
+Yük düşmedi, **3,44'ten 11,2'ye ÇIKTI**; ve kaynağı artık başka projenin
+testi değil, **operatörün kendi Chrome'unun GPU helper'ı (4,5 çekirdek).**
+Yani "bekle, kendiliğinden sakinleşir" stratejisi bu kaynak için ÇALIŞMAZ:
+ctest bitip giden bir toplu işti, Chrome etkileşimli ve sürekli.
+
+**YAPILAN — kod.**
+- `reports/R7/olc_2b.sh` (YENİ, mühür dışı): 1 dk yük 3 ardışık örnekte < 2,0
+  olana kadar bekler (60 sn ara, tavan 90 dk). Tavan dolarsa 2b KOŞULMAZ,
+  `YUK-2B.md`'ye "ölçülemedi + yük bağlamı" yazar, kırmızı bırakır; sayı
+  uydurmaz. Kapı açılırsa ölçümün yanına 1/5/15 yük, en çok CPU yiyen 3 süreç
+  ve B1.9 artık-süreç kontrolü yazılır.
+- `reports/R7/ab_run.sh`: SIGNAL/INJECT eleme şartı KALDIRILDI (bağlama kabulü
+  artık yalnız native `ng-` + COUNTER); `signals`/`injects` ayrı JSONL alanı;
+  `estimated_saved` kablosu çekildi (COUNTER'ın `saved_usd`'si, yoksa `null`).
+
+**ÖLÇÜLDÜ — sarmalayıcıda iki gerçek hata bulundu ve düzeltildi (ikisi de
+sessizce yanlış sonuç üretirdi).**
+1. **Locale tuzağı.** Makine tr_TR; `sysctl` yükü virgüllü basıyor
+   (`{ 8,06 ... }`). Sinsi olanı: **awk da locale'e uyuyor** — tr_TR altında
+   `echo 7.81 | awk '{print $1+0}'` → **7**. Yalnız `sysctl`'i C'ye almak
+   YETMİYOR; kapı ondalığı düşürüp GEVŞEK yönde yanılırdı. `LC_ALL=C`
+   betiğin tamamına export edildi. Doğrulandı: awk artık `11.2` okuyor.
+2. **Yarım kabul çıktısı.** `accept.sh | tee accept.out` doğrudan yazıyordu;
+   dış `timeout` accept.sh'ın ortasında dolarsa `accept.out` YARIM kalır ve
+   yarım bir kabul çıktısı "23 yeşil/3 kırmızı" gibi OKUNUR. Artık geçici
+   dosyaya yazılıp yalnız `R7 acceptance:` kapanış satırı görülürse taşınıyor.
+
+**ELENEN HİPOTEZ.**
+- "Tur 18'in yük kaynağı (stitchu ctest) hâlâ engel" — **ELENDİ**, ctest ölü.
+- "Makine kendiliğinden sakinleşiyor, beklemek yeter" — **ELENDİ**, yük
+  3,44→11,2 yükseldi; yeni kaynak etkileşimli (Chrome), kendiliğinden bitmez.
+- "6e'nin sebebi bağlama" — deneme 23'te zaten elenmişti, bu tur değişmedi.
+
+**KALAN HİPOTEZLER / açık uçlar.**
+- 2b'nin gerçek değeri HÂLÂ BİLİNMİYOR. Dört sayı (8148,9 / 1385,2 / 2443,8 µs
+  ve tur 17'nin 1075 µs yargılama kovası) hepsi yük altında.
+- **`accept.sh` 6e'de BİRİM UYUŞMAZLIĞI ŞÜPHESİ (YENİ, bu turda görüldü,
+  ÇÖZÜLMEDİ).** `accept.sh:456` `estimated_saved`'i toplayıp `tok_A - tok_B`
+  (TOKEN farkı) ile karşılaştırıyor; ama sayacın ürettiği `saved_usd` bir
+  DOLAR değeri (`counter.h:299`). Token farkıyla dolar karşılaştırmak sapma
+  yüzdesini anlamsız kılar. Kablo operatörün tarif ettiği gibi çekildi, ama
+  **6e yeşile dönse bile sayısı şüphelidir.** Bu mühürlü `accept.sh`'a
+  dokunmayı gerektirir → bu turun işi DEĞİL, operatör kararı.
+- `MIN_HISTORY=3` nedeniyle `estimated_saved` iki kollu koşuda her hâlükârda
+  `null`; 6e/7b'nin kırmızı kalması BEKLENEN sonuç (operatör CEVAP 2 aynen
+  böyle diyor). Bu bir ÜRÜN gerçeği: rabadon tek oturumluk kullanımda tasarruf
+  sayısı üretemiyor.
+- `ab_run.sh` değişiklikleri **CANLI KOŞUDA DENENMEDİ** — yalnız `bash -n` ve
+  sentetik ledger'la birim testi yapıldı. Paralı koşu bu turda başlatılmadı.
+
+**KANIT KOMUTLARI.**
+
+    bash -n reports/R7/ab_run.sh && bash -n reports/R7/olc_2b.sh   # ikisi de OK
+    grep -c estimated_saved reports/R7/ab_run.sh                    # 0 -> 3
+    pgrep -fl ctest                                                 # bos
+    LC_ALL=C sysctl -n vm.loadavg                                   # 11.20 7.35 7.48
+    timeout 6600 bash reports/R7/olc_2b.sh                          # yuk kapisi, calisiyor
+    tail reports/R7/YUK-2B-BEKLEME.log                              # bekleme kaydi
