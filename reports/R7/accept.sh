@@ -385,7 +385,13 @@ fi
 
 ############################################################################
 head_ "GOAL 5 — the raw run lands here, and can be re-run"
-JL="$(ls "$RD"/*.jsonl 2>/dev/null | head -1)"
+# THE RUN IS NAMED, NOT GUESSED. This was `ls "$RD"/*.jsonl | head -1`, which
+# picked whatever sorted first among THREE jsonl files here — ab_run.jsonl and two
+# deliberately INVALID ones. It happened to pick the right file ('.' sorts before
+# '_'), but that is luck, not a rule: a new jsonl with an alphabetically earlier
+# name would silently point the whole of GOALs 5 and 6 at the wrong data and the
+# acceptance would still print numbers. Named explicitly; a missing file is red.
+JL="$RD/ab_run.jsonl"
 if [ -n "$JL" ] && [ -s "$JL" ]; then
   pass "5a raw JSONL is under reports/R7/ and is not empty ($(basename "$JL"))"
 else
