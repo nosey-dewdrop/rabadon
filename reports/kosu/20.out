@@ -1,0 +1,108 @@
+I'll read the operator file and current run state first.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+I'm the turn-20 doing session, launched by the driver. Reading the rules.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Baseline first — record the pre-change 23/3 before touching `accept.sh`.
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+Baseline locked: **23 green / 3 red** (2b, 6e, 7b), 2b = 2506.9 µs at load 12.46. Now the sealed-script fix, in its own commit.
+[tool: Edit]
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+Now prove the fixed 6e can actually turn red — verbatim logic, synthetic data.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now the post-change run, to report the difference.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+[tool: Read]
+Post-change run: **23 green / 3 red** — unchanged, exactly as bound in advance. Now the 2b sampler.
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+All four verdict paths verified (exit 1/2/3, min-selection numeric, load recorded). Committing.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+Turn 20 done, pushed. Three commits, each in its own scope.
+
+**Kabul: 23 yeşil / 3 kırmızı — değişmedi** (2b, 6e, 7b). Ölçüldü değişiklikten hem önce hem sonra, operatörün istediği sırayla.
+
+**CHALLENGE-4 (`dd2a652`)** — önce doğruladım, sonra düzelttim. Eski 6e bloğunu `git show HEAD`'den aynen çıkarıp koşturdum:
+
+```
+PASS  6e counter validation: estimate 5.0000 vs real difference 2399.0, deviation 99.8%
+```
+
+5 dolarlık iddia, 2399 token'lık farkla karşılaştırılıp %99,8 sapmada yeşil bastı. Eşik yoktu. İzin verilen iki kalem yapıldı (birim → `cost_A - cost_B`, eşik → %50). Düzeltilmiş blok artık dört yolda da doğru: iddia $5,00 / ölçülen $0,30 → **FAIL %1566,7**.
+
+**İzin dışına taşan tek kalem, bildiriyorum:** 7b'nin hata satırı DEV'i 6e ile paylaşıyor ve `"the real token difference"` diyordu — birim değişince yanlış bir cümle olurdu, metni düzelttim. Karar mantığına dokunmadım. Fazla bulursan tek satırlık geri alma.
+
+Bağladığın beklenti aynen çıktı: `estimated_saved` 8 satırın hepsinde `null` (MIN_HISTORY=3), 6e "impossible" dalından kırmızı kaldı. Yeşile çekilmedi, MIN_HISTORY'ye dokunulmadı.
+
+**`olc_2b.sh` (`1f80788`)** — kapı değil örnekleyici. Stub'la dört hüküm yolu doğrulandı (exit 1/2/3), en düşük seçimi sayısal.
+
+**Sorulmadı ama önemli:**
+- Aynı turda 2b iki kez ölçüldü: yük 12,46'da **2506,9 µs**, yük 9,63'te **1918,8 µs**. Yük düştü, latans düştü — CEVAP 1'in fizik argümanının doğrudan gözlemsel desteği. Bugünkü en iyi alt sınır tavanın ~1,9 katı.
+- 2c de yüke duyarlı çıktı: %4,56 → %3,35. Yeşil kalıyor ama sayısı ortama bağlı.
+- **Yeni kusur, dokunmadım:** `accept.sh`'ta `JL="$(ls "$RD"/*.jsonl | head -1)"` — dizinde üç jsonl var, bugün doğrusunu alfabetik şansla seçiyor. Adı önce gelen yeni bir dosya kabul betiğini sessizce geçersiz veriye çevirir.
+
+**Doğrulanmadı:** örnekleyici gerçek `accept.sh` ile hiç koşmadı — 5 örnek × 20 dk ≈ 100 dk, turun 7200 sn tavanına kabul işiyle birlikte sığmıyor. 6e'nin yeşil dalı gerçek veriyle görülmedi. Temiz makine/konteyner denenmedi.
+
+**NEXT:** tek iş — `ORNEK=5 ARA=1200 bash reports/R7/olc_2b.sh`, turun tamamını kaplayacak şekilde. 2b ya KESİN KIRMIZI'ya ya AÇIK'a ayrılacak.
+Turn 20 done, pushed. Three commits, each in its own scope.
+
+**Kabul: 23 yeşil / 3 kırmızı — değişmedi** (2b, 6e, 7b). Ölçüldü değişiklikten hem önce hem sonra, operatörün istediği sırayla.
+
+**CHALLENGE-4 (`dd2a652`)** — önce doğruladım, sonra düzelttim. Eski 6e bloğunu `git show HEAD`'den aynen çıkarıp koşturdum:
+
+```
+PASS  6e counter validation: estimate 5.0000 vs real difference 2399.0, deviation 99.8%
+```
+
+5 dolarlık iddia, 2399 token'lık farkla karşılaştırılıp %99,8 sapmada yeşil bastı. Eşik yoktu. İzin verilen iki kalem yapıldı (birim → `cost_A - cost_B`, eşik → %50). Düzeltilmiş blok artık dört yolda da doğru: iddia $5,00 / ölçülen $0,30 → **FAIL %1566,7**.
+
+**İzin dışına taşan tek kalem, bildiriyorum:** 7b'nin hata satırı DEV'i 6e ile paylaşıyor ve `"the real token difference"` diyordu — birim değişince yanlış bir cümle olurdu, metni düzelttim. Karar mantığına dokunmadım. Fazla bulursan tek satırlık geri alma.
+
+Bağladığın beklenti aynen çıktı: `estimated_saved` 8 satırın hepsinde `null` (MIN_HISTORY=3), 6e "impossible" dalından kırmızı kaldı. Yeşile çekilmedi, MIN_HISTORY'ye dokunulmadı.
+
+**`olc_2b.sh` (`1f80788`)** — kapı değil örnekleyici. Stub'la dört hüküm yolu doğrulandı (exit 1/2/3), en düşük seçimi sayısal.
+
+**Sorulmadı ama önemli:**
+- Aynı turda 2b iki kez ölçüldü: yük 12,46'da **2506,9 µs**, yük 9,63'te **1918,8 µs**. Yük düştü, latans düştü — CEVAP 1'in fizik argümanının doğrudan gözlemsel desteği. Bugünkü en iyi alt sınır tavanın ~1,9 katı.
+- 2c de yüke duyarlı çıktı: %4,56 → %3,35. Yeşil kalıyor ama sayısı ortama bağlı.
+- **Yeni kusur, dokunmadım:** `accept.sh`'ta `JL="$(ls "$RD"/*.jsonl | head -1)"` — dizinde üç jsonl var, bugün doğrusunu alfabetik şansla seçiyor. Adı önce gelen yeni bir dosya kabul betiğini sessizce geçersiz veriye çevirir.
+
+**Doğrulanmadı:** örnekleyici gerçek `accept.sh` ile hiç koşmadı — 5 örnek × 20 dk ≈ 100 dk, turun 7200 sn tavanına kabul işiyle birlikte sığmıyor. 6e'nin yeşil dalı gerçek veriyle görülmedi. Temiz makine/konteyner denenmedi.
+
+**NEXT:** tek iş — `ORNEK=5 ARA=1200 bash reports/R7/olc_2b.sh`, turun tamamını kaplayacak şekilde. 2b ya KESİN KIRMIZI'ya ya AÇIK'a ayrılacak.

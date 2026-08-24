@@ -1,8 +1,0 @@
-
-OPERATÖR: İki karar bekliyor; ikisi de paralı koşuyu bloke ediyor.
-
-**2b — ölçüm ortamı.** Yapan oturum kesin bir veri ortaya koydu: bu makinede `< 2.0` yük eşiği **hiçbir zaman** gözlemlenmedi (minimum 2.4). Seçenekler: (a) Chrome + stitchu'yu sen susturursun — yapan hemen ölçer; (b) eşiği gerçekçi bir değere gevşet (ör. `< 4.0`) — ama bu "referans ortam" iddiasını zayıflatır; (c) CI/konteyner ortamında ölç — doğru ama kurulum gerektirir. **Önerim: (a)** — en hızlı, kurulum yok; Chrome+stitchu süresi ne zaman uygunsa sen söyle, yapan o anda ölçer.
-
-**CHALLENGE-4 — 6e birim uyuşmazlığı.** `saved_usd` (dolar) `tok_A - tok_B` (token) ile karşılaştırılıyor; sapma ~%100 ve eşiksiz — her zaman yeşil basar. Mühürlü `accept.sh`'a dokunmayı gerektiriyor. Seçenekler: (a) `accept.sh`'taki karşılaştırmayı `total_cost_usd` farkına çevir (her iki kolda mevcut), 7b'nin %50 eşiğini ekle — sağlam ama mühür açılır; (b) 6e'yi devre dışı bırak, ölçüm `ab_run.sh` raporuna taşın — kabul kapısı zayıflar; (c) `MIN_HISTORY=1` ile çalışılabilir mi dene, birim uyuşmazlığını kabul et — tehlikeli, sayı anlamsız. **Önerim: (a)** — bulunan kusur tam olarak rabadon'un engellediği şey; düzeltmeden geçmek paradoks.
-
-Her iki soruya `CEVAP:` satırlarıyla yanıt ver, en sona tek başına `ONAY` yaz.
