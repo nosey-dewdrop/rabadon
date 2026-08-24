@@ -540,7 +540,7 @@ law to hold, and with none of them set nothing calls a model.
 | `RABADON_MODEL` | unset | proposer model for `do` / `loop` / `repair`. **Not** read by the gate — one name for two jobs sends the judge somewhere nobody asked for. |
 | `RABADON_TIERS` | unset | cheap-first tier ladder for `loop`, e.g. `haiku,opus` |
 | `RABADON_CLAUDE_BIN` | `claude` | proposer binary for `repair` |
-| `RABADON_DIR` | `~/.rabadon` | spool + state root |
+| `RABADON_DIR` | `~/.rabadon` | spool + state root. Keep it shallow: the live watcher socket is `$RABADON_DIR/rabadon.sock`, and `sun_path` caps a unix socket path at 104 bytes on macOS / 108 on Linux. Over the cap, rabadon says so on stderr and writes to the spool only — judging is unaffected. |
 | `RABADON_LENS_DIR` | `~/.claude/projects` | transcript source for `lens` |
 | `RABADON_NOTIFY` | on | `0` silences desktop notifications |
 | `RABADON_OFF` | unset | `1` makes the gate a no-op for this process and its children (set on every model subprocess rabadon spawns, so the supervisor never supervises itself) |

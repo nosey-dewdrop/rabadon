@@ -713,12 +713,34 @@ struct Emitter {
   int sockFd = -1;
 
   void open_sock() {
+    struct sockaddr_un addr; memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    // sun_path is 104 bytes on macOS, 108 on Linux, and overrunning it does NOT
+    // fail. strncpy simply stops early, which leaves a valid path that is a
+    // PREFIX of the intended one -- and this process then connects to it and
+    // writes the ledger stream there. Measured: a RABADON_DIR four bytes past
+    // the cap delivered a real STEP_START event to a socket sitting on the
+    // prefix, exit 0, nothing on stderr. On a world-writable prefix that is the
+    // event feed handed to whoever bound it first.
+    //
+    // Spooling to disk alone is the right outcome here; doing it in silence is
+    // not (Promise 1). Without this the caller cannot tell "no watcher" from
+    // "wrong watcher" from "the path is too long", and only the last one is
+    // something they can fix. native/gated.cpp:157 and gated_client.h:98 have
+    // guarded this since the daemon was written; this call site was missed.
+    if (sockPath.size() >= sizeof addr.sun_path) {
+      fprintf(stderr,
+              "rabadon: watcher socket path is %zu bytes, the kernel limit is %zu — "
+              "not connecting; events go to the spool only.\n"
+              "  path: %s\n"
+              "  Set RABADON_DIR to a shorter absolute path.\n",
+              sockPath.size(), sizeof addr.sun_path, sockPath.c_str());
+      return;                        // sockFd stays -1; emit() still spools
+    }
     sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockFd < 0) return;
     fcntl(sockFd, F_SETFL, O_NONBLOCK);
-    struct sockaddr_un addr; memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sockPath.c_str(), sizeof(addr.sun_path) - 1);
+    memcpy(addr.sun_path, sockPath.c_str(), sockPath.size());
     if (connect(sockFd, (struct sockaddr*)&addr, sizeof(addr)) < 0 && errno != EINPROGRESS) {
       close(sockFd); sockFd = -1;
     }
