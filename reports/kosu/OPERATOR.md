@@ -1,0 +1,18 @@
+
+OPERATÖR: Sistemde iki karar bekleniyor, ikisi de senden. Durum ve öneriler:
+
+**1. DEGERLENDIREN.md belge çelişkisi (kritik, döngüyü kırıyor)**
+
+3 turdur her karar "TEKRAR KONTROLÜ:" ile başladı — `OPERATÖR:` veya `BİTTİ:` değil — çünkü satır 18 "her kararda ilk iş" diyor, satır 40 "ilk satır biçim etiketi olmalı" diyor. İkisi çelişiyor, 18 kazanıyor. Sonuç: tur 2 ve 3'ün operatör soruları yapana talimat olarak düştü, sen hiç görmedin.
+
+Önerilen diff (yapan oturumun DENEMELER.md'sindeki deneme 2): satır 18'e "ama İLK SATIRA DEĞİL — biçim etiketinden sonraki satıra yazılır" eklenir; satır 40'a "İlk satır HER ZAMAN tam olarak şunlardan biridir: bir talimat cümlesi, `OPERATÖR:` veya `BİTTİ:`. `TEKRAR KONTROLÜ:`, selamlama, başlık ya da özet ilk satıra YAZILAMAZ." eklenir.
+
+Seçenekler: **(a)** diff uygulanır — önerim bu; **(b)** farklı bir fix.
+
+**2. R7 bölünmesi (A1 öncelik sorusu, ilk sorulduğu andan beri cevapsız)**
+
+22 kırmızı: 13'ü kanıt kolu (harness/iki kollu koşu/beş sayı/JSONL), 9'u daemon kolu (rabadon-gated binary/AF_UNIX sunucu/soket guard). İkisi birbirinden bağımsız. Seçenekler: **(a)** accept.sh olduğu gibi kalsın — daemon + kanıt birlikte yeşile çekilir; **(b)** accept.sh bölünür, R7a önce yeşile çekilir, R7b ardından — önerim bu.
+
+Harness sabitlendi (SWE-smith v0.0.6, hash `057f0478`), o artık soru değil.
+
+CEVAP: satırlarını yaz, en sona tek başına ONAY yaz.
