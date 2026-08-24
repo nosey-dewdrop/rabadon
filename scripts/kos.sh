@@ -184,8 +184,19 @@ while true; do
     printf '\n[SÜRÜCÜ NOTU: ÇIKTI TAŞMASI — stream %s baytı aştı, muhtemel thrash (hızlı hata döngüsü). Hipotez ELENMEZ ama iş KÜÇÜK ADIMLARA bölünmeli.]\n' "$RAW_MAX" >> "reports/kosu/$i.out"
   elif [ "$durum" -eq 8 ]; then
     printf '\n[SÜRÜCÜ NOTU: oturum %s sn mutlak tavaninda kesildi — kismi cikti yukarida.]\n' "$SESSION_TIMEOUT" >> "reports/kosu/$i.out"
+  # LIMIT SEZGISI — DAR KAPSAM. Eskiden TUM govde grep'lenirdi; tur 13'te yapan oturum
+  # `rate_limit_info: five_hour` OLCUMUNU rapor edince 16 KB'lik saglam bir tur "limit
+  # hatasi" sanildi, cope atildi, 15 dk beklendi ve tur BASTAN kosuldu. Yani arac, kendi
+  # olctugu seyi yazan oturumu cezalandiriyordu. Gercek bir limit kesintisi KISA cikti
+  # uretir (ya da hic uretmez) ve mesaj CLI stderr kuyruguna duser; dolu bir rapor uretmez.
+  # Bu yuzden desen yalniz (a) bos cikti, (b) <3000 bayt kisa cikti, (c) stderr kuyrugu
+  # icinde aranir. Yanlis pozitif = bir tur token + 15 dk; yanlis negatif = bir tur bos
+  # doner ve degerlendiren zaten gorur. Asimetri kisitlamayi hakli kilar.
   elif [ ! -s "reports/kosu/$i.out" ] \
-       || grep -qiE 'rate.?limit|usage limit|overloaded|too many requests' "reports/kosu/$i.out"; then
+       || { [ "$(wc -c < "reports/kosu/$i.out")" -lt 3000 ] \
+            && grep -qiE 'rate.?limit|usage limit|overloaded|too many requests' "reports/kosu/$i.out"; } \
+       || sed -n '/\[CLI STDERR kuyrugu:\]/,$p' "reports/kosu/$i.out" \
+            | grep -qiE 'rate.?limit|usage limit|overloaded|too many requests'; then
     bekle_toplam=$((bekle_toplam+900))
     if [ "$bekle_toplam" -ge "$MAX_WAIT_S" ]; then
       operator_duragi "toplam $((MAX_WAIT_S/3600)) saattir limit/bos-cikti beklemesindeyim. Plan/hesap kontrolu gerekebilir. CEVAP: yaz, en sona ONAY."
