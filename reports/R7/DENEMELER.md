@@ -874,3 +874,62 @@ aleyhine yazılıyor: N büyümeden bu farka anlam yüklenemez.
 - Kalan görevlerde (oauthlib, conan, pydicom, astroid, feedparser) yön aynı
   mı — koşu devam ediyor, satırlar ham kayda ekleniyor.
 - `estimated_saved` için tek yol operatör kararı (deneme 14, (b)/(c)).
+
+---
+
+## deneme 16 — 2026-08-24 (tur 14, yapan) — B kolu SUSTURULMUŞTU; ayrıca B1.5 reçetesi SAĞIR (CHALLENGE)
+
+**DENENEN.** İlk iki B satırı yazıldıktan sonra tek soru soruldu: rabadon'un
+enjeksiyonu ajana FİİLEN ULAŞTI MI? Varsayılmadı, transcript'te arandı.
+
+**SONUÇ 1 — ULAŞMAMIŞ. İlk iki B satırı GEÇERSİZ.**
+`grep -c "rabadon: attempt" <B stream>` → **0**, ledger'da `INJECT` olayı
+VARKEN. Sebep bendeydi: hook sarmalayıcısını
+`sh -c 'timeout 2 node <gate> </dev/null >/dev/null 2>&1; exit 0'`
+diye yazdım. Claude Code hook'u ajanla **STDOUT** üzerinden konuşur;
+`>/dev/null` onu susturdu. Yani B kolu "ledger yazan ama ajana hiç
+konuşmayan" bir rabadon'u ölçtü — müdahale değil, BOŞ müdahale.
+7a'nın anlamı bu satırlarla test EDİLEMEZ.
+
+O iki satır SİLİNMEDİ, `reports/R7/ab_run_INVALID_muted_hook.jsonl`'e
+`_invalid_reason` etiketiyle taşındı. Ham kayıtta yalnız A satırları kaldı,
+B kolu yeniden koşuluyor.
+
+Bu arada ölçülen ikinci şey: aynı görevde A 10 660 / B 15 099 token, ama
+oauthlib'de A 9 868 / B 8 962 — yani yön DEĞİŞİYOR. Susturulmuş bir kolda
+zaten anlam yoktu; iki nokta arasındaki bu salınım N=1-2'de token farkına
+anlam yüklemenin neden yanlış olduğunu ayrıca gösteriyor.
+
+**SONUÇ 2 — CHALLENGE: B1.5'in yazılı reçetesi kapıyı SAĞIR yapıyor.**
+KOSU-RABADON-2.md:138 sarmalayıcıyı literal olarak şöyle veriyor:
+
+    sh -c 'timeout 2 <gate> ... </dev/null; exit 0'
+
+`</dev/null` kapının **STDIN**'ini keser. Claude Code hook olay JSON'unu
+STDIN'e yazar; kesilince kapı hiçbir olay görmez. ÖLÇÜLDÜ (aynı olay, aynı
+kapı, tek fark redirect):
+
+    ... node gate </dev/null   -> ledger'a yeni satır: 0
+    ... node gate              -> ledger'a yeni satır: 1
+
+Yani **B1.5'in kendi "BAĞLAMA KABULÜ" şartı (ledger'da yeni satır göster)
+kendi reçetesiyle karşılanamaz** — belge kendi içinde çelişiyor. Asılma
+korkusunu `timeout 2` zaten karşılıyor, stdin'i kesmeye gerek yok.
+
+**ÖNERİLEN DİFF (insan onayı ister, sessizce uygulanmadı).**
+KOSU-RABADON-2.md:138'de `</dev/null` KALDIRILSIN:
+
+    sh -c 'timeout 2 <gate> 2>/dev/null; exit 0'
+
+Bu turda koşu bu düzeltilmiş haliyle koşuldu ve gerekçe `ab_run.sh`
+`bagla_hook` fonksiyonunun içine yorum olarak yazıldı. Reçetenin kendisi
+DEĞİŞTİRİLMEDİ — belge değişikliği insanın.
+
+**ELENEN HİPOTEZ.** "Hook ledger'a satır yazıyorsa B kolu geçerlidir."
+YANLIŞ. Ledger satırı kapının DUYDUĞUNU kanıtlar, KONUŞTUĞUNU değil.
+Bağlama kabulü bu yüzden yetersiz bir ölçüt: yanına "enjeksiyon ajanın
+transcript'inde görünüyor" şartı gerekir.
+
+**KALAN HİPOTEZLER.**
+- Kapı artık konuşurken B kolu A'dan farklı mı — koşu sürüyor.
+- `estimated_saved` hâlâ üretilemiyor (deneme 14 ve 15); operatör kararı.
