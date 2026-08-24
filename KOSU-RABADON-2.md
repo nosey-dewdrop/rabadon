@@ -422,6 +422,20 @@ while true; do
   BUTCE_DAR=0
   printf '%s\n' "$karar_ham" > "reports/kosu/$i.karar"
   ilk="$(printf '%s\n' "$karar_ham" | sed -e 's/^[[:space:]>*#`-]*//' -e '/^$/d' | head -1)"
+  # KURTARMA AGI: bicim ihlali. Degerlendiren protokolu "ilk satir bicimi belirler"
+  # der ama ayni prompt "TEKRAR KONTROLU her kararda ilk is" de diyordu; model 4 turun
+  # 3'unde ikinciye uydu ve OPERATÖR: blogunu metnin ORTASINA gomdu -> soru operatore
+  # HIC ulasmadi, talimat sanilip yapana gitti (tur 2-3). Belge celiskisi giderildi ama
+  # davranis olasiliksal; sessiz olum yasagi tek basina model itaatine dayanamaz.
+  # Kosul BILEREK ilk-satir-etiketsizligine bagli: duz talimatlar bu repoda surekli
+  # "OPERATÖR:" metnini ALINTILIYOR, kosulsuz arama suresiz yanlis durak uretirdi.
+  # BİTTİ: icin ag YOK — yanlis pozitifi exit 0, cok daha pahali (bilincli asimetri).
+  case "$ilk" in
+    OPERATÖR*|OPERATOR*|BİTTİ*|BITTI*) ;;
+    *) if printf '%s\n' "$karar_ham" | grep -qE '^OPERAT(Ö|O)R:'; then
+         ilk="OPERATÖR: [SÜRÜCÜ KURTARMASI — biçim ihlali, etiket ilk satırda değildi]"
+       fi ;;
+  esac
   printf '%s\t%s\n' "$i" "$ilk" >> "$GUNLUK"
   case "$ilk" in
     OPERATÖR*|OPERATOR*)
@@ -492,7 +506,8 @@ sayıları, ölçümler, commit'ler. "Yapamadım/durdum/soru" durum bildirimidir
 kararı sen verirsin. Yapanın teknik sorusuna cevap sende YOKSA cevabı yapana
 ürettirirsin; operatöre teknik soru GİTMEZ.
 
-TEKRAR KONTROLÜ (her kararda ilk iş): GUNLUK'a bak — bu kaçıncı aynı kırmızı?
+TEKRAR KONTROLÜ (her kararda ilk DÜŞÜNCE — ilk SATIR DEĞİL; cevabın ilk satırı
+aşağıdaki biçim kuralına aittir): GUNLUK'a bak — bu kaçıncı aynı kırmızı?
 STRATEJİ KARARI DENEMELER.md'DEN VERİLİR: hangi hipotezler denendi ve elendi,
 hangileri duruyor. Yeni talimatın DENENMEMİŞ bir hipotezi hedeflemeli; elenen
 bir yolu tekrar yazmak yasaktır. Yapan DENEMELER.md'yi güncellememişse ilk
@@ -516,6 +531,11 @@ observe modda ve sarmalayıcıyla bağlatmak da senin talimatınla olur.
 
 Cevabın yalnız üç biçimden biridir; İLK SATIR biçimi belirler; başka hiçbir
 şey (selamlama, başlık, açıklama) yazmazsın:
+
+İlk satır HER ZAMAN ya bir talimat cümlesidir, ya "OPERATÖR:" ile, ya da
+"BİTTİ:" ile başlar. "TEKRAR KONTROLÜ:", selamlama, başlık, özet ya da
+markdown başlığı ilk satıra YAZILAMAZ — sürücü yalnız ilk satıra bakar,
+gömülü "OPERATÖR:" bloğu operatöre ULAŞMAZ, yapana talimat olarak gider.
 
 1. Sonraki yapan oturumun talimatı. Tek parça, kendi kendine yeterli, dosya
    yollarıyla; şu cümleyle biter: "B1 kurallarıyla çalış, DENEMELER.md'yi

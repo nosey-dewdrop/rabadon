@@ -250,6 +250,20 @@ while true; do
   BUTCE_DAR=0
   printf '%s\n' "$karar_ham" > "reports/kosu/$i.karar"
   ilk="$(printf '%s\n' "$karar_ham" | sed -e 's/^[[:space:]>*#`-]*//' -e '/^$/d' | head -1)"
+  # KURTARMA AGI: bicim ihlali. Degerlendiren protokolu "ilk satir bicimi belirler"
+  # der ama ayni prompt "TEKRAR KONTROLU her kararda ilk is" de diyordu; model 4 turun
+  # 3'unde ikinciye uydu ve OPERATÖR: blogunu metnin ORTASINA gomdu -> soru operatore
+  # HIC ulasmadi, talimat sanilip yapana gitti (tur 2-3). Belge celiskisi giderildi ama
+  # davranis olasiliksal; sessiz olum yasagi tek basina model itaatine dayanamaz.
+  # Kosul BILEREK ilk-satir-etiketsizligine bagli: duz talimatlar bu repoda surekli
+  # "OPERATÖR:" metnini ALINTILIYOR, kosulsuz arama suresiz yanlis durak uretirdi.
+  # BİTTİ: icin ag YOK — yanlis pozitifi exit 0, cok daha pahali (bilincli asimetri).
+  case "$ilk" in
+    OPERATÖR*|OPERATOR*|BİTTİ*|BITTI*) ;;
+    *) if printf '%s\n' "$karar_ham" | grep -qE '^OPERAT(Ö|O)R:'; then
+         ilk="OPERATÖR: [SÜRÜCÜ KURTARMASI — biçim ihlali, etiket ilk satırda değildi]"
+       fi ;;
+  esac
   printf '%s\t%s\n' "$i" "$ilk" >> "$GUNLUK"
   case "$ilk" in
     OPERATÖR*|OPERATOR*)
