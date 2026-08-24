@@ -153,14 +153,23 @@ bagla_hook(){       # $1 agac  — B1.5 recetesi: goreli komut + sarmalayici
   # `>/dev/null 2>&1` yazildi ve B kolu "ledger yazan ama AJANA HIC KONUSMAYAN"
   # bir rabadon'u olctu — yani bos bir mudahale. Olculdu: B transcript'inde
   # "rabadon: attempt" 0 kez geciyordu, ledger'da INJECT olayi VARKEN.
-  # B1.5 recetesi zaten yalniz STDIN'i yonlendiriyor; sapma bize aitti.
-  # stderr susturulur (gureltu), stdout DOKUNULMAZ, exit daima 0.
+  #
+  # STDIN de YONLENDIRILEMEZ. B1.5 receteside literal olarak `</dev/null`
+  # yaziyor ama OLCULDU (tur 14): o redirect kapiyi SAGIR yapiyor — Claude Code
+  # olay JSON'unu hook'un STDIN'ine yazar, /dev/null'a cevirince gate hicbir
+  # olay gormez. Olcum:
+  #   `... node gate </dev/null` -> ledger'a YENI SATIR: 0
+  #   `... node gate`            -> ledger'a YENI SATIR: 1
+  # Yani B1.5'in kendi "baglama kabulu" (ledger'da yeni satir goster) kendi
+  # recetesiyle KARSILANAMAZ. Bu bir CHALLENGE kalemidir, DENEMELER'e yazildi.
+  # Asilma korkusunu `timeout 2` zaten karsiliyor; stdin'i kesmeye gerek yok.
+  # stderr susturulur (gureltu), stdout ve stdin DOKUNULMAZ, exit daima 0.
   cat > "$d/.claude/settings.local.json" <<JSON
 {
   "hooks": {
     "PreToolUse": [
       { "matcher": "*", "hooks": [ { "type": "command",
-        "command": "sh -c 'timeout 2 node $GATE </dev/null 2>/dev/null; exit 0'" } ] }
+        "command": "sh -c 'timeout 2 node $GATE 2>/dev/null; exit 0'" } ] }
     ]
   }
 }
