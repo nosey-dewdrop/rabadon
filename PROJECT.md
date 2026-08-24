@@ -324,22 +324,33 @@ each by asking "did the thing I assumed actually happen?" and measuring:
 All invalidated rows were quarantined, not deleted:
 `ab_run_INVALID_muted_hook.jsonl`, `ab_run_INVALID_global_hook.jsonl`.
 
-DONE — **the result, stated plainly.** A and B both fix **66.7 %** (3 tasks);
-tokens A 26 780 / B 23 697. accept.sh 7a goes green on the token line, **and
-that green is not evidence**: fix rate is identical, one of three tasks runs
-the other way (+4.4 %), the whole gap comes from one task, N=3, and there is
-one measurement per cell while the same task+arm swung 16–52 % across runs.
-Run-to-run noise is larger than the between-arm gap, so per
-KOSU-RABADON-2.md:61-62 **the number is not published.** What this turn proved
-is that the measurement chain works, not that the thesis holds.
+DONE — **the exclusions were my bugs too, and fixing them raised N.** Three
+instances failed pre-verification; reading their pytest logs showed all three
+were harness faults, not bad instances: conan and feedparser died in conftest
+on missing test **extras** (`mock`, `responses`), and astroid's "73/120" was
+really `2 failed, 73 passed, 45 skipped` — my counter treated skips as
+failures. Fixed (extras installed; P2P now scores "did not fail", F2P scores
+"actually passed"). feedparser then ran and both arms solved it. N: 3 → 4.
+
+DONE — **the result, stated plainly.** A and B both fix **75.0 %** (4 tasks);
+tokens A 35 620 / B 33 221. accept.sh 7a goes green on the token line, **and
+that green is not evidence**: the fix rate is identical, and the per-task
+direction is split **2–2** — B is cheaper on autograd (−12.0 %) and pydicom
+(−24.5 %), dearer on oauthlib (+4.4 %) and feedparser (+7.7 %). The aggregate
+−6.7 % is the mean of four measurements half of which point the other way.
+There is one measurement per cell and no variance estimate, while the same
+task+arm swung 16–52 % across runs. Run-to-run noise exceeds the between-arm
+gap, so per KOSU-RABADON-2.md:61-62 **the number is not published.** What this
+turn proved is that the measurement chain works, not that the thesis holds.
 
 NOT VERIFIED — no agent run was repeated under identical conditions, so there
-is **no variance estimate**; three of the six pre-registered instances (conan,
-astroid, feedparser) failed pre-verification on P2P and never ran, so N=3 not
-6; turn 13's "7/10 clean" was an upper bound produced by a 2-test P2P sample,
-and a 120-test sample eliminated three of them; P2P itself is capped at 120 of
-574–4174 (`p2p_cap` is in every row); `joke2k__faker` was swapped for conan
-because its `problem_statement` is **empty** — and 18 033 of SWE-smith's
+is **no variance estimate**; two of the six pre-registered instances still did
+not run (conan's conftest wants heavy `test/functional` deps; astroid has 2
+P2P tests already failing on the broken branch), so N=4 not 6; turn 13's
+"7/10 clean" was an upper bound produced by a 2-test P2P sample; P2P is
+capped at 120 of 574–4174 (`p2p_cap` is in every row); `joke2k__faker` was
+swapped for conan because its `problem_statement` is **empty** — and the
+substitute did not run either, so that swap bought nothing; 18 033 of SWE-smith's
 59 136 rows (**30.49 %**) are likewise empty, a selection criterion nobody was
 applying; egress is best-effort only (`claude -p` must reach the API); measured
 on this macOS arm64 box, not a clean container; 2b (daemon latency, 1341 µs vs
