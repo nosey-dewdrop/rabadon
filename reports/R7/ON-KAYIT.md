@@ -188,3 +188,64 @@ Bu maddeler HARNESS.md'ye 4d kaydı olarak, koşu FİİLEN kurulduğunda yazıl�
 - **İstatistiksel yayın gücü.** N=6, gürültüyü yenmek için küçüktür. Sonuç
   KOSU-RABADON-2.md:61-62 uyarınca değerlendirilir: fark gürültü içinde kalırsa
   **YAYINLANMAZ**, ama ham JSONL ve bu ön-kayıt yine de repoda durur.
+
+---
+
+## 7. DEĞİŞİKLİK — P2P dışlaması (24.08, insan onaylı, tur 15)
+
+Bu ön-kayıt dondurulmuştu; §7 onu **genişleten tek değişikliktir** ve buraya
+kendi commit'inde, hiçbir sonuç üretilmeden önce yazıldı. Onay:
+`reports/kosu/14.operator.md` CEVAP 3 (operatör, insan). Değerlendirenin
+önerdiği hâli REDDEDİLDİ; aşağıdaki yedi maddeli hâli onaylandı.
+
+**Ne değişiyor.** Bozuk dalda ZATEN düşen P2P testleri taban kümeden çıkarılır.
+Gerekçe: ön-doğrulama ajandan bağımsız ayrı bir ağaçta, ajan koşmadan **önce**
+koşar (`ab_run.sh`, "KOSU ONCESI ZORUNLU DOGRULAMA" bloğu). O yüzden bu küme
+gürültüdür, kaçış yolu değil. Ölçülmüş örnek: astroid'in iki testi
+(`tests/brain/test_brain.py::TypingBrain::test_has_dunder_args`,
+`::test_typing_types`) ortam kaynaklı düşüyor ve sağlam bir instance'ı eliyordu.
+
+**Ne DEĞİŞMİYOR.** `heldout_pass` şartı `pg == pt` olarak aynen kalır. Hiçbir
+eşik gevşetilmez. §4'ün alan tanımlarına dokunulmadı.
+
+**Neden "taban 120 yerine 118" YAZILMADI.** O hâl oynanabilirdi: ajan BAŞKA iki
+P2P testini bozunca 118/118 çıkar ve `heldout_pass` yeşile dönerdi. Çıkarılan
+şey SAYI değil **İSİMDİR**; ajanın bozduğu her test hâlâ sayılır.
+
+**Yedi madde (hepsi zorunlu, `ab_run.sh`'ta uygulandı):**
+1. Ön-doğrulamada pytest `-rfE` ile koşar, düşen **node id'ler** yakalanır.
+2. Liste instance başına `reports/R7/p2p_excluded/<iid>.txt`'ye ve
+   `ab_prever.tsv`'ye yazılır — ajan koşmadan ÖNCE, AYRI commit'te. Sonuçla
+   aynı commit'te asla (CLAUDE.md kural 2). `PREVER_ONLY=1` tam burada durur ve
+   hiçbir ajan oturumu (yani hiçbir para) harcamaz.
+3. Puanlamada iki kol da BİREBİR AYNI küçültülmüş kümeyi koşar: `kos_pytest`
+   aynı dosyayı okur, kol ayrımı yoktur.
+4. `heldout_pass` şartı `pg == pt`, aynen.
+5. JSONL'e `p2p_excluded` (sayı) + `p2p_excluded_ids` (isimler) yazılır ve
+   raporda ilan edilir.
+6. Kural altı instance'ın HEPSİNE uygulanır, seçici değil.
+7. Ön-doğrulama İKİ KEZ koşulur, KESİŞİM alınır. Yalnız bir koşuda düşen test
+   FLAKE'tir ve dışlanmaz.
+
+**İLAN EDİLMİŞ TAVAN (madde 7'ye ek, bu oturumun kararı).** Dilimin %10'undan
+fazlası düşerse bu gürültü değil ÇÖKÜŞTÜR: hiçbir şey dışlanmaz ve instance
+koşuya ALINMAZ (`P2P_EXCL_MAX_PCT`). "Hepsini dışla" hiçbir koşulda yeşile
+dönemez. Bu madde operatörün yedisine EK bir kısıttır, gevşetme değildir.
+
+**conan hakkında — OPERATÖRÜN GEREKÇESİ ÖLÇÜMLE ÇÜRÜDÜ, karar operatöre ait.**
+CEVAP 3 "conan DIŞARIDA kalır: onunki P2P 0/3 = toplama/ortam çöküşü" diyor.
+`/tmp/rbrun/logs/*conan*prever.p2p` dosyasının TAMAMI şudur:
+
+    ERROR: file or directory not found: @.nodeids
+    no tests ran in 0.39s
+
+Bu bir ortam çöküşü değil, **bizim harness'ımızın hatasıdır**: node id'ler
+pytest'e `@dosya` argfile'ıyla veriliyordu, o da pytest'in argparse
+`fromfile_prefix_chars` desteğine bağlıdır ve eski pytest sürümlerinde YOKTUR —
+o sürümde "@.nodeids" bir dosya yolu sanılır. Tur 14'te elenen üç instance'ın
+üçü de harness hatasıydı; bu dördüncüsü. `ab_run.sh` artık node id'leri argüman
+olarak geçiyor, sürüm bağımlılığı kalktı. conan'ın gerçek P2P sonucu bu turda
+YENİDEN ÖLÇÜLECEK. §2'nin "P2P listesi yalnız 3 test, `heldout_pass`'i
+ucuzlatır" gerekçesi bundan BAĞIMSIZ olarak geçerliliğini korur ve conan'ın
+yedek statüsü DEĞİŞMEZ — bu paragraf bir gerekçe düzeltmesidir, bir kabul
+değil. conan'ın koşuya alınıp alınmayacağı OPERATÖR kararıdır.
