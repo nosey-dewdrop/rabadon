@@ -10,9 +10,15 @@
 // The leading quote in each key disambiguates "input_tokens" from the longer
 // "..._input_tokens" fields (their preceding char is '_', never '"'), and
 // add_field takes the FIRST match after "usage": — the top-level count — so the
-// nested "iterations"/"cache_creation" copies that follow are ignored. Proven
-// byte-exact against a real 571M-token transcript (31 tool-result lines, 0
-// delta vs a canonical message.usage sum).
+// nested "iterations"/"cache_creation" copies that follow are ignored.
+//
+// A previous version of this comment said the meter was "proven byte-exact
+// against a real 571M-token transcript". That claim did not survive 24 Aug
+// 2026: the sum was right about which BYTES to add, and wrong about which LINES
+// to add them from — see is_assistant_usage_line below. The standing proof is
+// now native/usage_order_test.sh, which checks this header against a real
+// transcript on the machine with a stock json parser as the oracle, and says
+// SKIP rather than passing quietly when there is no real transcript to read.
 #ifndef RABADON_USAGE_H
 #define RABADON_USAGE_H
 
@@ -48,6 +54,54 @@ static std::size_t value_at(const std::string& line, std::size_t from, const cha
   return rb_ws(line, i + 1);
 }
 
+// ...and WHICH "type" is the line's type is not answered by "the first one on
+// the line". A real Claude Code transcript puts message{} BEFORE the top-level
+// type:
+//
+//   {"parentUuid":...,"message":{...,"type":"message","role":"assistant",
+//    "usage":{...}},"requestId":...,"type":"assistant","uuid":...}
+//
+// so the first "type" on every real line is "message", the predicate was false
+// for all of them, and rabadon priced live sessions at zero. Measured on a real
+// 425-line transcript: a stock parser finds 414 billable calls, this meter
+// found 1. The suite stayed green because every fixture in the repo wrote the
+// top-level type FIRST — the shape `--output-format=stream-json` prints, not
+// the shape the transcript on disk has. The fixtures were the mask, so
+// native/usage_order_test.sh now holds both shapes and the live file.
+//
+// The fix cannot be "find "type":"assistant" anywhere on the line" either: this
+// repo's own logs quote fixture-shaped lines inside assistant TEXT, as does any
+// transcript where an agent discusses a transcript, and that invents billable
+// calls that were never made. So the key is read at a nesting DEPTH: one pass,
+// string-aware — a brace inside a JSON string is not nesting and a \" does not
+// end the string — returning the value position of `key` only where it appears
+// as a key at exactly `depth`. Depth 1 is the top-level object; message's own
+// keys are depth 2.
+static std::size_t value_at_depth(const std::string& s, const char* key, int depth) {
+  const std::string pat = std::string("\"") + key + "\"";
+  int d = 0;
+  bool in_str = false;
+  for (std::size_t i = 0; i < s.size(); i++) {
+    const char c = s[i];
+    if (in_str) {
+      if (c == '\\') { i++; continue; }   // escaped: the next byte is data, not syntax
+      if (c == '"') in_str = false;
+      continue;
+    }
+    if (c == '"') {
+      if (d == depth && s.compare(i, pat.size(), pat) == 0) {
+        const std::size_t j = rb_ws(s, i + pat.size());
+        if (j < s.size() && s[j] == ':') return rb_ws(s, j + 1);
+      }
+      in_str = true;
+      continue;
+    }
+    if (c == '{' || c == '[') d++;
+    else if (c == '}' || c == ']') d--;
+  }
+  return std::string::npos;
+}
+
 static void add_field(const std::string& line, std::size_t from, const char* key, long long& acc) {
   std::size_t v = value_at(line, from, key);
   if (v != std::string::npos) acc += atoll(line.c_str() + v);
@@ -55,15 +109,19 @@ static void add_field(const std::string& line, std::size_t from, const char* key
 
 // one transcript line that is a genuine, billable assistant API response
 static bool is_assistant_usage_line(const std::string& line, std::size_t& usageAt) {
-  usageAt = value_at(line, 0, "usage");
-  if (usageAt == std::string::npos) return false;
   // count ONLY genuine assistant API responses. The billable usage lives on
-  // "type":"assistant" lines; a "type":"user" line can embed a subagent's
-  // result (toolUseResult) whose nested usage is billed to the SUBAGENT's own
-  // transcript, not this session — summing it double-counts.
-  const std::size_t t = value_at(line, 0, "type");
+  // top-level "type":"assistant" lines; a "type":"user" line can embed a
+  // subagent's result (toolUseResult) whose nested usage is billed to the
+  // SUBAGENT's own transcript, not this session — summing it double-counts.
+  const std::size_t t = value_at_depth(line, "type", 1);
   if (t == std::string::npos || line.compare(t, 11, "\"assistant\"") != 0) return false;
-  return line.find("\"toolUseResult\"") == std::string::npos;
+  if (value_at_depth(line, "toolUseResult", 1) != std::string::npos) return false;
+  // the usage object hangs off message. The depth-1 fallback is for the
+  // stream-json shape and for any writer that hoists it to the top level; both
+  // are read, neither is assumed.
+  usageAt = value_at_depth(line, "usage", 2);
+  if (usageAt == std::string::npos) usageAt = value_at_depth(line, "usage", 1);
+  return usageAt != std::string::npos;
 }
 
 // tokens, and how many assistant CALLS produced them. R6's counter divides one
