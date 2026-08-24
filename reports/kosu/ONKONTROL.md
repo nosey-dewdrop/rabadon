@@ -49,6 +49,11 @@ Makine: darwin 24.2.0 (arm64). Worktree:
   `ab_run.jsonl` 8 kayıt = kol başına 4 görev; `ON-KAYIT.md` N = 6 × 2 diyor;
   `accept.sh` 5b kol başına `>=2` arıyor. Düzeltme yapılmadı (turlara başlama
   emri yoktu) — ilk R işi bu.
+- **İşçi logları git'e GİRMİYOR:** `.gitignore:1` `*.log` onları eliyor
+  (`git check-ignore -v reports/kosu/log/onkontrol-make-test.log`). Yani ham
+  kanıt YEREL kalır; `RAPOR/*.md` commit'lenir. Uzaktan izleyen biri işçinin ham
+  çıktısını göremez — bilinçli kabul, ama DEVİR'de "HAM: <yol>" yazan satırın
+  bu dosyalar için yalnız yerelde çözüleceği unutulmamalı.
 - **Rabadon kapısı BAĞLANMADI** (talimat gereği). Hiçbir hook ayarına dokunulmadı.
 - **`reports/kosu/son.talimat` SİLİNDİ** — kosu2'den miras kalan "OPERATOR.md'deki
   CEVAP satırlarını uygula" cümlesiydi; durmuş olsaydı kosu3 ilk turda B6 yerine
