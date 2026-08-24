@@ -107,3 +107,26 @@ Export hem script'e hem doc §B2'ye eklendi.
   soketi işletiyor; `rabadon-gated` diye bir binary/daemon kaynağı yok.
   A1'in soket-yolu kuralı (kısa+mutlak, repo dışı) `RABADON_GATED_SOCK`
   varsayılanına karşı ayrıca denetlenmeli — **DOĞRULANMADI**.
+
+## B6.2 doğrulaması
+
+Tur 1 altyapısının üç dosyası da VAR ve doludur, yani sürücünün karar→günlük→talimat
+zinciri gerçekten dönmüştür: `reports/kosu/1.karar` (1732 bayt) değerlendirenin tam
+kararını taşıyor; `reports/kosu/GUNLUK.tsv` BOŞ DEĞİL, tam olarak bir satır içeriyor
+ve biçimi `kos.sh:253`'ün yazdığı `printf '%s\t%s\n' "$i" "$ilk"` ile birebir uyuşuyor
+(alan 1 = tur indeksi `1`, alan 2 = kararın ilk satırı "GUNLUK'a bakıyorum: ilk tur,
+tekrar yok…" — ilk okumada üç alan sanılan şey Read aracının satır-numarası önekiydi,
+dosyada iki alan var); `reports/kosu/son.talimat` (1732 bayt) mevcut ve `1.karar` ile
+`diff` sonucu BİREBİR AYNI — bu beklenen sonuçtur, çünkü `kos.sh:144` bir sonraki turun
+talimatını `son.talimat`'tan okur ve `kos.sh:267` onu karar metninden yazar, yani tur 1'de
+ikisinin özdeş olması zincirin doğru çalıştığının kanıtıdır, bir kopyalama hatası değil.
+Eksik dosya yok, boş dosya yok, raporlanacak bir arıza yok — B6.2 bu turda YEŞİL.
+
+**DÜZELTME (bu turun bulgusu, yukarıdaki R7 paragrafına karşı).** Bu dosyanın bir önceki
+bloğundaki "`native/gate.cpp` … `RABADON_GATED_SOCK` fallback'ini içeriyor" cümlesi
+**YANLIŞTIR ve geri alınmıştır**. `RABADON_GATED_SOCK` repo genelinde hiçbir kaynak
+dosyada geçmiyor; yalnız `reports/R7/accept.sh` ve talimat metinlerinde var.
+`native/gate.cpp:714-724`'teki AF_UNIX soketi bir watch-yayını istemcisidir ve yolunu
+`native/gate.cpp:2718`'de `$RABADON_DIR/rabadon.sock` olarak sabit kurar. Kanıt:
+`./reports/R7/accept.sh` GOAL 1c → `FAIL 1c nothing in the gate reaches for a daemon
+socket — there is no thin client`. Ayrıntılı teşhis `reports/R7/TESHIS.md`.

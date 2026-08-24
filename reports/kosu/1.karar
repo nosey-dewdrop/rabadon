@@ -1,0 +1,15 @@
+GUNLUK'a bakıyorum: ilk tur, tekrar yok. DENEMELER okundu. B6.4 (tekrar freni) yapan oturumun kendi çevrimlerinde kanıtlanmalı — sahte claude ile olmaz, doğru teşhis. B6 resmi olarak kapanmadı ama geri kalan kanıt döngünün kendi seyrinde birikecek.
+
+Durum: B6.1–B6.3 + B6.5 kanıtlı, B6.4 ertelenmiş, canlı sürücü eski binary ile dönüyor (watchdog fix + sürüm sabitleme yürürlükte değil). R7 sırada, daemon yok.
+
+Sürücü yeniden başlatılmadan R7'ye geçmek, ölü watchdog üzerinde çalışmak demek. Önce sürücüyü yenilat, sonra R7'ye başla.
+
+---
+
+Şu iki işi yap, sırasıyla:
+
+**1. B6.2 doğrulama (tur 1 altyapısı):** `reports/kosu/1.karar` ve `reports/kosu/GUNLUK.tsv` ile `reports/kosu/son.talimat` var mı kontrol et. Varsa içeriklerini `reports/kosu/SMOKE.md`'ye "## B6.2 doğrulaması" başlığıyla tek paragraf ekle (yoksa "YOK" yaz). `reports/kosu/1.karar` yoksa ya da `GUNLUK.tsv` boşsa bunu raporla.
+
+**2. R7 ilk teşhis — daemon yok:** `native/` ve `core/` altındaki kaynak dosyaları `scripts/` dahil tara: `rabadon-gated` ya da AF_UNIX sunucu soketi açan herhangi bir kaynak var mı? `accept(2)` / `bind(2)` çağrısı içeren dosyaları listele. Varsa soket yolu sabit mi, `RABADON_GATED_SOCK` env'inden mi geliyor, ve A1'in `${XDG_RUNTIME_DIR:-/tmp}/rabadon-$UID.sock` kuralına uyuyor mu kontrol et. Bulguları `reports/R7/TESHIS.md`'ye yaz (varsa üstüne değil, EN ALTA yeni blok olarak ekle). stdout'a 8 satır özet bas.
+
+Sonra commit+push, teşhis bulgusunu DENEMELER.md'ye ekle (bu tur için yeni blok, A1'de belirtilen tek-yazar kuralı geçerli). B1 kurallarıyla çalış, DENEMELER.md'yi güncelle, kabul betiğini koş, raporu yaz, commit+push et.
