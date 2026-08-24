@@ -933,3 +933,64 @@ transcript'inde görünüyor" şartı gerekir.
 **KALAN HİPOTEZLER.**
 - Kapı artık konuşurken B kolu A'dan farklı mı — koşu sürüyor.
 - `estimated_saved` hâlâ üretilemiyor (deneme 14 ve 15); operatör kararı.
+
+---
+
+## deneme 17 — 2026-08-24 (tur 14, yapan) — KONTROL KOLU HİÇ TEMİZ DEĞİLDİ: global settings sızıntısı
+
+**DENENEN.** Deneme 16'da B kolunun sustuğu bulunup düzeltildikten sonra, aynı
+soru simetrik olarak A koluna soruldu: **A kolunda rabadon gerçekten YOK MU?**
+Varsayılmadı; A transcript'i ve ledger tarandı.
+
+**SONUÇ — YOK DEĞİLDİ. TÜM SATIRLAR (A ve B) GEÇERSİZ.**
+
+Operatörün **global `~/.claude/settings.json`** dosyası
+`/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate`'i
+`PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `UserPromptSubmit`
+olaylarının HEPSİNE bağlıyor — bu makinedeki HER claude oturumu için.
+Görev checkout'unda koşan `claude -p` de bir claude oturumudur.
+
+İki bağımsız kanıt:
+1. A kolu transcript'inde rabadon'un kendi cümlesi:
+   `rabadon: here is what I will do in this project. check: python3 -m pytest -q`
+   — üstelik görev deposunun test komutuyla, yani kapı O checkout'ta koşuyor.
+2. Ledger'da A koluna ait satırlar: autograd `__A` → **36**, oauthlib `__A` → **40**.
+
+ON-KAYIT §3 şunu şart koşuyor: "**A kolu:** `settings.local.json` yok, hook
+hiç bağlanmaz. **rabadon yoktur.**" Bu şart HİÇBİR ZAMAN sağlanmadı. Yani
+ölçülen şey "rabadon'suz ajan vs rabadon'lu ajan" değil, "rabadon'lu ajan vs
+rabadon'lu ajan + ikinci bir rabadon hook'u" idi. İki kollu koşunun kontrastı
+YOKTU; fix oranı ve token sayıları gerçek sayılardır ama ön-kayıttaki
+hipotezi TEST ETMEZLER.
+
+Satırlar silinmedi: `reports/R7/ab_run_INVALID_global_hook.jsonl`,
+`_invalid_reason` alanıyla.
+
+**ELENEN HİPOTEZ.** "Görev checkout'unda `settings.local.json` yazmamak, o
+koşuyu rabadon'suz yapar." YANLIŞ — kullanıcı düzeyi (global) ayarlar her
+oturuma iner, proje dizini ne olursa olsun.
+
+**ÇÖZÜM ÖLÇÜLDÜ, VARSAYILMADI.** `claude --setting-sources <user,project,local>`
+hangi ayar kaynaklarının yükleneceğini seçiyor. Üç ölçüm, hepsi çalıştırıldı:
+
+| kurulum | yeni ledger satırı |
+|---|---|
+| `--setting-sources project`, boş dizin | **0** |
+| `--setting-sources local`, `settings.local.json` YOK | **0** |
+| `--setting-sources local`, hook'lu `settings.local.json` VAR | **1** |
+
+Seçilen tasarım: **her iki kol da `--setting-sources local`**. A kolunda
+dosya yoktur, B kolunda vardır. Böylece iki kol arasındaki tek fark
+ON-KAYIT §3'ün istediği şeydir — hook'un bağlı olup olmaması. Abonelik
+auth'u bu bayrakla bozulmadı (üç testte de ajan normal koştu).
+
+**YENİ ŞART — KONTROL KOLU SAFLIĞI (B'nin bağlama kabulünün aynası).**
+B kolu için "ledger'da yeni satır GÖSTER" şartı vardı; A kolu için karşılığı
+YOKTU ve boşluk tam buradan sızdı. `ab_run.sh`'a eklendi: A koşusundan sonra
+o koşuya ait ledger satırı **sıfır değilse** satır JSONL'e YAZILMAZ,
+`gecersiz.tsv`'ye düşer. Yasa 7 ruhu: kontrol kolunun temizliği de
+varsayılmaz, KANITLANIR.
+
+**KALAN HİPOTEZLER.**
+- İzole edilmiş iki kolda fark var mı — koşu 3. kez, düzeltilmiş haliyle koşuyor.
+- `estimated_saved` hâlâ üretilemiyor (deneme 14, 15); operatör kararı bekliyor.
