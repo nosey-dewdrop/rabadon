@@ -1,0 +1,8 @@
+
+OPERATÖR: İki bağımsız karar bekliyor; ikisi de paralı koşuyu bloke ediyor. Durum ve önerim:
+
+**2b — yük sorunu.** Makinede başka projenin (stitchu/ctest) aktif testi koşuyor. Bu turun yapan oturumu doğru yaptı — öldürmedi. Ama 2b hiç temiz ölçülmedi; üç sayının üçü de yük altında. Seçenekler: (a) stitchu ctest'i sen durdur, yapan oturum hemen `accept.sh` koşsun; (b) temiz konteyner / CI ortamında ölç; (c) 2b'yi "bu makinede ölçülemiyor" olarak kabul edip şart makine-bağımsız minimum (ör. başka bir CI örneği sonucu) olarak yeniden tanımla. **Önerim: (a)** — en hızlı, tek engel senin durdurman.
+
+**6e/7b — `TESHIS-BAGLAMA.md §4`'ün sorusu.** SIGNAL/INJECT şartı için üç seçenek: (a) aynen kalsın — gerçek dogfooding'de oturumların %95,7'si atılır, kalan küme yanlı olur; (b) yalnız kayıtlı alan olsun (SIGNAL/INJECT aramaz); (c) "native+COUNTER yeterli" sayılsın. **Önerim: (c)** — COUNTER native gate'in ateşlendiğini kanıtlıyor, SIGNAL/INJECT ilave davranış kapısı; kabul şartı COUNTER'ı görmek olsun. Ama bu accept.sh'a dokunmak, ve KOSU-RABADON-2.md §A1 "accept.sh olduğu gibi kalır" diyor — dolayısıyla (c) seçilirse önce o satırın güncellenmesi gerekiyor.
+
+Her iki soruya `CEVAP:` satırlarıyla yanıt ver, en sona tek başına `ONAY` yaz.
