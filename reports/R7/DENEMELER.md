@@ -1606,3 +1606,60 @@ tek şey etiketi: "kesin, makine bahanesi bitti" değil, "bu makinede kırmızı
     bash reports/R7/accept.sh > reports/R7/accept.turn21.out 2>&1   # 23 yesil / 3 kirmizi
     grep -n "^FAIL" reports/R7/accept.turn21.out               # 2b, 6e, 7b
     grep -n "5a raw JSONL" reports/R7/accept.turn21.out        # PASS ... (ab_run.jsonl)
+
+## deneme 28 — 2026-08-25 (tur 22, yapan) — DÜZELTİLMİŞ HÜKÜM İLK KEZ KOŞTU; 2b "kesin kırmızı" ETİKETİ GERİ ALINDI, temiz tavan ≤ 1218,3 µs
+
+**DENENEN.** Operatörün tur 21 CEVAP'ları uygulandı: (1) `olc_2b.sh`'ın ters
+hükmü düzeltildi, (2) B1.9 genişletildi, (3) daemon öldükten sonraki "sakin"
+pencerede `ORNEK=3 ARA=600` örneklemesi koşuldu.
+
+**SONUÇ — 3/3 geçerli gözlem (bu tur):**
+
+| örnek | 1 dk yük | medyan (µs) |
+|-------|----------|-------------|
+| 1     | 4.28     | 1483,0      |
+| 2     | 3.54     | 1680,6      |
+| 3     | 4.25     | **1381,8**  |
+
+Betiğin hükmü: `2b BELIRSIZ — bu makinede kirmizi; temiz tavan <= 1381.8 us`.
+Düzeltilmiş dal ilk kez ateşlendi ve eskisi olsa basacağı **"KESIN KIRMIZI"**
+etiketini BASMADI. Kod değişikliği yok, yalnız hüküm mantığı.
+
+**OPERATÖRÜN "SAKİN PENCERE" ÖNKOŞULU TUTMADI — bu turun en önemli sonucu.**
+Operatör daemon'ı öldürdükten sonra 2.35/1.91/1.77 ölçtü ve "hemen koş, bu
+pencere kapanabilir" dedi. Pencere mesaj bana ulaştığında ZATEN KAPANMIŞTI:
+örnekleme 4.28'de başladı, ilk beklemede yük **11.04**'e fırladı, tur boyunca
+1 dk yükü hiç 2,84'ün altına inmedi. Yani daemon'ın ölmesi kalıcı bir sakinlik
+getirmedi; yükün asıl kaynağı operatörün canlı işleri (stitchu
+`surface-pattern` %90,7, WebKit %62,2) ve bunlar susturulmaz.
+
+**ELENEN HİPOTEZ — "daemon ölünce makine 2b'yi ölçebilir hâle gelir."** ELENDİ.
+Daemon öldü, 8 gözlem daha alındı, hiçbiri tavanın altına inmedi. Dahası bu
+turun min'i (1381,8) tur 21'in min'inden (1218,3) **DAHA KÖTÜ**: daemon canlıyken
+alınan bir gözlem, daemon ölüyken alınan üç gözlemin hepsinden düşük. Daemon
+tek başına belirleyici değildi.
+
+**ELENEN HİPOTEZ — "yük ile latans monotonik."** ELENDİ (tur 21'de zaten
+şüpheliydi, burada kesinleşti): örnek 2 daha DÜŞÜK yükte (3.54) daha YÜKSEK
+latans (1680,6) verdi. Yük iyi bir yordayıcı ama tek değişken değil.
+
+**EN İYİ KANIT DEĞİŞMEDİ.** Sekiz gözlemin (tur 21'in 5'i + tur 22'nin 3'ü) en
+düşüğü hâlâ tur 21 örnek 5'in **1218,3 µs**'sidir. Düzeltilmiş asimetri gereği
+elimizdeki tek çıkarım: **temiz_medyan ≤ 1218,3 µs**. Bu, tavanı (1000 µs)
+DIŞLAMAZ.
+
+**YENİ BULGU — bu turun kendi ölçümleri de sanılandan kirli.** `pgrep -c`
+düzeltildikten sonra kontrol ilk kez gerçek bir sayı bastı ve **2 canlı `ctest`
+süreci** buldu. Eski kontrol bunları tur 21'in beş örneğinde ve tur 22'nin üç
+örneğinde de `0` diye raporlamıştı. Süreçler bu oturumun değil (kardeş
+`/rabadon` deposundan), ama sekiz gözlemin tamamı onlar canlıyken alındı.
+Kirliliğin büyüklüğü **ÖLÇÜLMEDİ**.
+
+**KALAN HİPOTEZLER.**
+- (canlı) 2b temiz bir referans ortamda tavanın ALTINDA. Tur 21'in doğrusal
+  uyumu yük=0'da ~970 µs veriyordu; kanıt değil, ama bu turun verisiyle de
+  çelişmiyor. Yalnız konteynerde/CI'da sınanabilir → PARKED, R8 öncesi.
+- (canlı) 2b gerçekten tavanın üstünde. Bu worktree'de **PRENSİP OLARAK**
+  sınanamaz: her gözlem üst sınır olduğu için burada kırmızı ASLA kanıtlanamaz.
+- (elendi) Daemon'ın ölmesi yeterlidir.
+- (elendi) Yük–latans ilişkisi monotoniktir.

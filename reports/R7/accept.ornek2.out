@@ -6,14 +6,14 @@ PASS  1c a thin client path referencing the daemon socket exists (native/gated_c
 
 == GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
 PASS  2a the daemon started and its socket is listening
-reports/R7/accept.sh: line 231: 61031 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
-      in-process median with the daemon up: 1846.2 us over 300 samples
+reports/R7/accept.sh: line 229: 71267 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+      in-process median with the daemon up: 1680.6 us over 300 samples
       ceiling = 1000 us (KOSU-RABADON R7); instrument = R1.3 in-process probe
-FAIL  2b the gate's median is 1846.2 us with the daemon up, ceiling is 1000 us
-      50-event session: 1658.2 us   400-event session: 1758.6 us   divergence 6.05%
+FAIL  2b the gate's median is 1680.6 us with the daemon up, ceiling is 1000 us
+      50-event session: 1797.7 us   400-event session: 1950.8 us   divergence 8.51%
       R1.3 closed this at 3.5-4.9% WITH process spawn in the denominator
-reports/R7/accept.sh: line 247: 61140 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
-PASS  2c the residual length dependence is re-measured (6.05%) and written to reports/R7/LENGTH.md
+reports/R7/accept.sh: line 247: 71577 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
+PASS  2c the residual length dependence is re-measured (8.51%) and written to reports/R7/LENGTH.md
 
 == GOAL 3 — with the daemon down, behaviour is byte-identical to today
 PASS  3-[echo hello world] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down

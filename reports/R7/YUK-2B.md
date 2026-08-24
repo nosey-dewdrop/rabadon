@@ -268,3 +268,65 @@ Gecerli gozlem 5/5, hepsi (us): 3302.3 1846.2 3002.8 2112.6 1218.3
 EN DUSUK gozlem **1218.3 us**, tavan 1000 us.
 Yuk yalniz EKLER: daha temiz bir makinede olculen deger bundan DUSUK
 olamaz. Makine bahanesi kalmadi — 2b gercekten kirmizi.
+
+== 2b TEKRARLI ORNEKLEME — 2026-08-25T01:25:56
+Kural: tur 19 CEVAP 1. En dusuk gozlem, cekismesiz degerin ALT SINIRIdir.
+Hedef ornek sayisi: 3, ara: 600s.
+
+#### ornek 1/3
+### olcum baglami — 2026-08-25T01:25:56
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  4.28 3.28 2.41 
+en cok CPU yiyen 3 surec:
+   99.0 45814 /Users/damummyphus/damla_projects_2026/stitchu/engine/build/surface-pattern
+   98.0 45675 /opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+   20.5   399 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 1483.0 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+#### ornek 2/3
+### olcum baglami — 2026-08-25T01:36:44
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  3.54 4.05 3.61 
+en cok CPU yiyen 3 surec:
+   54.9  1103 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU
+   39.6 74252 claude
+   20.2   399 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 1680.6 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+#### ornek 3/3
+### olcum baglami — 2026-08-25T01:47:33
+cekirdek (hw.ncpu) : 8
+yuk 1/5/15 dk      :  4.25 4.09 3.95 
+en cok CPU yiyen 3 surec:
+   27.5   399 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+   17.6 64207 claude
+   15.3 74252 claude
+artik surec kontrolu (B1.9):
+  pytest           0
+  pip              0
+  ctest            0
+  rabadon-gated    0
+  rabadon-gate     0
+olcum: medyan 1381.8 us
+kabul: == R7 acceptance: 23 green, 3 red
+
+**HUKUM: 2b BELIRSIZ — bu makinede kirmizi, KESIN KIRMIZI DEGIL.**
+Gecerli gozlem 3/3, hepsi (us): 1483.0 1680.6 1381.8
+EN DUSUK gozlem **1381.8 us**, tavan 1000 us.
+Bu sayi temiz degerin UST SINIRIdir: temiz tavan <= 1381.8 us.
+Gercek deger 1000 us'nin altinda OLABILIR; bu betik ayirt EDEMEZ.
+Hukum ancak temiz bir referans ortamda (CI/konteyner) verilebilir.
