@@ -24,10 +24,8 @@ FAIL  3c refusals with the daemon down are UNCOMPARED
 
 == GOAL 4 — the harness is named, exactly, with its commit
 PASS  4a reports/R7/ exists
-FAIL  4b no reports/R7/HARNESS.md naming a known harness by org/repo
-      one of: laude-institute/terminal-bench, harbor-framework/terminal-bench-2,
-      harbor-framework/harbor, alibaba/terminal-bench-pro, SWE-smith
-FAIL  4c no 40-hex commit hash for the harness — 'Terminal-Bench' alone points at four repos
+PASS  4b the harness is named by full repo: SWE-bench/SWE-smith
+PASS  4c the harness commit hash is pinned (40 hex)
 FAIL  4d the .git-cleaning / egress-closing preparation is not recorded (with its best-effort label)
 
 == GOAL 5 — the raw run lands here, and can be re-run
@@ -52,5 +50,5 @@ PASS  8a native/moves_test.sh 21/0
 PASS  8b native/signals_test.sh 39/0
 PASS  8c reports/R2/accept.sh 19 green, 0 red
 
-== R7 acceptance: 4 green, 22 red
+== R7 acceptance: 6 green, 20 red
 R7 NOT ACCEPTED

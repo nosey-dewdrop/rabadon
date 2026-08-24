@@ -1,2 +1,3 @@
 1	GUNLUK'a bakıyorum: ilk tur, tekrar yok. DENEMELER okundu. B6.4 (tekrar freni) yapan oturumun kendi çevrimlerinde kanıtlanmalı — sahte claude ile olmaz, doğru teşhis. B6 resmi olarak kapanmadı ama geri kalan kanıt döngünün kendi seyrinde birikecek.
 2	TEKRAR KONTROLÜ: GUNLUK'ta 1 tur, tekrar yok. DENEMELER'den durum: daemon sıfırdan yazılacak, R7'nin 9 kırmızısı daemon kolunda — 13'ü kanıt kolunda ve daemon'a bağımsız. A1'in öncelik sorusu sorulmadı, OPERATOR.md yok.
+3	TEKRAR KONTROLÜ: GUNLUK'ta 2 tur, tekrar yok. Yapan oturum kritik iki bulguyu tespit etti: (1) `OPERATÖR:` durağı kırık — evaluator kararının ilk satırına değil, herhangi bir satırına bakmalı; (2) A1 öncelik sorusu hâlâ operatöre ulaşmadı.
