@@ -305,8 +305,11 @@ for iid in $GOREV_SIRASI; do
     dusen_idler "$LOGS/$iid.prever.p2p"   > "$RUN/.d1"
     dusen_idler "$LOGS/$iid.prever.p2p.2" > "$RUN/.d2"
     comm -12 "$RUN/.d1" "$RUN/.d2" > "$RUN/.dkes"
-    nexc=$(grep -c . "$RUN/.dkes" || true); nexc=${nexc:-0}
-    nflake=$(( $(grep -c . "$RUN/.d1" || echo 0) + $(grep -c . "$RUN/.d2" || echo 0) - 2*nexc ))
+    # `grep -c` bos dosyada "0" BASAR VE rc=1 doner; `$(grep -c . f || echo 0)`
+    # o durumda "0\n0" uretir ve aritmetigi kirar. wc -l boyle bir tuzagi yok.
+    nexc=$(wc -l < "$RUN/.dkes" | tr -d ' ')
+    n1=$(wc -l < "$RUN/.d1" | tr -d ' '); n2=$(wc -l < "$RUN/.d2" | tr -d ' ')
+    nflake=$(( n1 + n2 - 2*nexc ))
     [ "$nflake" -gt 0 ] && say "  ($nflake test yalniz BIR kosuda dustu — FLAKE, dislanmaz)"
 
     # TAVAN: dilimin %10'undan fazlasi duserse bu gurultu degil COKUSTUR.
