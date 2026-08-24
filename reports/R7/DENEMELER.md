@@ -1445,3 +1445,67 @@ sessizce yanlış sonuç üretirdi).**
     LC_ALL=C sysctl -n vm.loadavg                                   # 11.20 7.35 7.48
     timeout 6600 bash reports/R7/olc_2b.sh                          # yuk kapisi, calisiyor
     tail reports/R7/YUK-2B-BEKLEME.log                              # bekleme kaydi
+
+---
+
+## deneme 26 — 2026-08-24 (tur 20, yapan) — CHALLENGE-4 DOĞRULANDI ve KAPATILDI; 2b için yük kapısı yerine ÖRNEKLEYİCİ
+
+**DENENEN.** Tur 19'un iki operatör CEVAP'ı uygulandı: (1) `olc_2b.sh` bekleyen
+yük kapısı olmaktan çıkıp tekrarlı örnekleyiciye dönüştürüldü; (2) CHALLENGE-4
+uyarınca mühürlü `accept.sh`'ın 6e bloğu, dar kapsamlı ve kendi commit'inde
+düzeltildi. Değişiklikten ÖNCE ve SONRA `accept.sh` koşuldu, fark ölçüldü.
+
+**SONUÇ.**
+- CHALLENGE-4 **DOĞRU çıktı ve KANITLANDI**. Eski 6e bloğu, `git show HEAD`'den
+  aynen çıkarılıp sentetik veriyle koşuldu: `est=5.00` dolarlık bir iddiayı
+  2399 token'lık bir farkla karşılaştırıp **%99,8 sapmada `PASS` bastı**.
+  Eşik yoktu; blok yalnız veri eksikse ya da fark tam sıfırsa kırmızıya
+  dönebiliyordu. **Kırmızıya dönemeyen bir kontrol, kontrol değildir.**
+- Düzeltme sonrası aynı blok dört yolda da doğru davranıyor: eşleşen iddia
+  PASS (%0,0), `est=5.00` vs ölçülen `$0.30` **FAIL (%1566,7 > %50)**,
+  `est` yok → "impossible" FAIL, sıfır maliyet farkı → "NODIFF" FAIL.
+- **Kabul sonucu DEĞİŞMEDİ: 23 yeşil / 3 kırmızı, hem önce hem sonra.** Tek
+  fark 6e'nin kırmızı METNİ. Operatörün "6e null yüzünden kırmızı kalacak"
+  bağlaması aynen gerçekleşti — düzeltme 6e'yi yeşile ÇEKMEDİ, ANLAMLI yaptı.
+- **2b için yeni ve önemli bir veri: yük düştükçe latans düştü.** Aynı turda
+  iki bağımsız ölçüm: yük 12,46'da **2506,9 µs**, yük 9,63'te **1918,8 µs**.
+  Bu, CEVAP 1'in dayandığı fizik argümanının doğrudan gözlemsel desteğidir
+  (yük yalnız EKLER). İkisi de 1000 µs tavanının ÇOK üstünde.
+- 2c de aynı yönde kaydı: %4,56 → %3,35 (yük düştü, sapma düştü). 2c yeşil
+  kalmaya devam ediyor ama sayısının yüke duyarlı olduğu artık ÖLÇÜLDÜ.
+
+**ELENEN HİPOTEZLER.**
+- "6e'nin birim uyuşmazlığı sadece ŞÜPHE" (deneme 25) — **ELENDİ**, artık
+  çalıştırma çıktısıyla kanıtlanmış OLGU.
+- "6e düzeltilirse başka GOAL'ler etkilenir" — **ELENDİ**. Önce/sonra çıktı
+  farkı yalnız 6e'nin metni ve yüke bağlı 2b/2c sayıları; başka hiçbir
+  yargı satırı değişmedi.
+- "`total_cost_usd` verisi yok, dolar-dolar karşılaştırma yapılamaz" —
+  **ELENDİ**. `ab_run.jsonl`'in 8 satırının HEPSİNDE, iki kolda da mevcut.
+
+**KALAN HİPOTEZLER / açık uçlar.**
+- **Örnekleyici HENÜZ KOŞMADI.** 5 örnek × 20 dk ≈ 100 dk; turun 7200 sn
+  tavanına kabul işiyle birlikte sığmıyor. Sonraki turun TEK işi bu.
+- 2b'nin gerçek değeri hâlâ BİLİNMİYOR, ama alt sınırı daralıyor: bugünkü en
+  düşük gözlem 1918,8 µs. Örnekleyici bu sayıyı daha da aşağı çekebilir;
+  1000 µs'nin altına inmezse 2b KESİN KIRMIZI olur ve makine bahanesi biter.
+- 7b, `est` null olduğu sürece "UNCHECKABLE" kırmızı kalır. 6e ile aynı kök:
+  `MIN_HISTORY=3`. Bu bir ÜRÜN gerçeği — rabadon tek oturumluk kullanımda
+  tasarruf sayısı üretemiyor — ve MIN_HISTORY 6e'yi yeşile çekmek için
+  OYNANMAYACAK (operatör bağlaması).
+- `accept.sh`'ta `JL="$(ls "$RD"/*.jsonl | head -1)"` — dizinde üç jsonl var
+  (`ab_run.jsonl`, `ab_run_INVALID_global_hook.jsonl`,
+  `ab_run_INVALID_muted_hook.jsonl`). Bugün doğrusu seçiliyor (`.` < `_`
+  sıralamasıyla) ama bu ŞANS, kural değil: adı alfabetik olarak önce gelen
+  yeni bir jsonl kabul betiğini sessizce GEÇERSİZ veriye çevirir. **Bu turun
+  izni dışında, düzeltilmedi.**
+- `ab_run.sh` değişiklikleri hâlâ CANLI KOŞUDA DENENMEDİ (deneme 25'ten devir).
+
+**KANIT KOMUTLARI.**
+
+    bash -n reports/R7/accept.sh && bash -n reports/R7/olc_2b.sh   # ikisi de OK
+    bash reports/R7/accept.sh > reports/R7/accept.ONCE.out 2>&1    # ONCE:  23/3
+    bash reports/R7/accept.sh > reports/R7/accept.SONRA.out 2>&1   # SONRA: 23/3
+    diff reports/R7/accept.ONCE.out reports/R7/accept.SONRA.out    # yalniz 6e metni + yuke bagli 2b/2c
+    grep -c total_cost_usd reports/R7/ab_run.jsonl                 # 8 (8 satirin hepsi)
+    ORNEK=2 ARA=60 bash reports/R7/olc_2b.sh                       # stub accept.sh ile: KESIN KIRMIZI, exit 1
