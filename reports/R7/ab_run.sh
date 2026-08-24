@@ -32,9 +32,35 @@ P2P_CAP=${P2P_CAP:-120}
 AGENT_TIMEOUT=${AGENT_TIMEOUT:-1500}    # tek ajan oturumu tavani (sn)
 PYTEST_TIMEOUT=${PYTEST_TIMEOUT:-900}
 
-mkdir -p "$LOGS" "$RUN/tasks" "$RUN/scorer"
+# P2P DISLAMA (operator karari 24.08, 14.operator.md CEVAP 3 — insan onayli).
+# Bozuk dalda ZATEN dusen P2P testleri taban kumeden cikarilir: on-dogrulama
+# ajandan BAGIMSIZ ayri bir agacta, ajan kosmadan ONCE kosar, yani bu kume
+# gurultudur, kacis yolu degil.
+#
+# KACIS YOLU TAM BURADA ACILIRDI ve yedi madde onu kapatir:
+#  1. Dusen NODE ID'ler yakalanir (-rfE), sayi degil.
+#  2. ID listesi instance basina bu dizine yazilir + ab_prever.tsv'ye islenir,
+#     AJAN KOSMADAN ONCE, AYRI COMMIT'TE. Sonucla ayni commit'te ASLA.
+#  3. Puanlamada iki kol da BIREBIR AYNI kucultulmus kumeyi kosar — kos_pytest
+#     ayni dosyayi okur, kol ayrimi yoktur.
+#  4. heldout_pass sarti pg == pt olarak AYNEN kalir. Esik gevsetilmez.
+#  5. JSONL'e p2p_excluded + id listesi yazilir, raporda ilan edilir.
+#  6. Kural BUTUN instance'lara uygulanir, secici degil.
+#  7. On-dogrulama IKI KEZ kosulur, KESISIM alinir — flake bir dislama gerekcesi
+#     degildir.
+# Kural "taban 120 yerine 118" diye SAYI CIKARMA olarak yazilsaydi ajan BASKA 2
+# P2P testini bozunca 118/118 cikar ve heldout_pass yesil olurdu. Cikarilan sey
+# ISIMDIR; ajanin bozdugu her test hala sayilir.
+#
+# TAVAN (ilan edilmis): dilimin %10'undan fazlasi duserse bu bir gurultu degil
+# cokustur, hicbir sey dislanmaz ve instance KOSUYA ALINMAZ. "Hepsini disla"
+# hicbir kosulda yesile donemez.
+P2P_EXCL_DIR="$ROOT/reports/R7/p2p_excluded"
+P2P_EXCL_MAX_PCT=${P2P_EXCL_MAX_PCT:-10}
+
+mkdir -p "$LOGS" "$RUN/tasks" "$RUN/scorer" "$P2P_EXCL_DIR"
 [ -f "$JSONL" ] || : > "$JSONL"
-[ -f "$PREVER" ] || printf 'instance_id\tkurulum\tf2p_bozukta\tp2p_bozukta\tkarar\n' > "$PREVER"
+[ -f "$PREVER" ] || printf 'instance_id\tkurulum\tf2p_bozukta\tp2p_bozukta\tp2p_dislanan\tkarar\n' > "$PREVER"
 
 say(){ printf '%s | %s\n' "$(date +%H:%M:%S)" "$*"; }
 
@@ -135,22 +161,47 @@ PY
   printf '%s' "$n"
 }
 
+# bir pytest logundan DUSEN node id'ler (kisa ozet satirlari). "ERROR: file or
+# directory not found" gibi bosluksuz ERROR: satirlari node id degildir ve
+# desene TAKILMAZ.
+dusen_idler(){      # $1 logdosyasi -> node id'ler, satir satir, sirali+tekil
+  grep -E '^(FAILED|ERROR) [^ ]+::' "$1" 2>/dev/null \
+    | sed -E 's/^(FAILED|ERROR) //; s/ +- .*$//' | sed '/^$/d' | sort -u
+}
+
 kos_pytest(){       # $1 agac, $2 iid, $3 F2P|P2P, $4 logdosyasi -> "gecti toplam"
   local d="$1" iid="$2" kume="$3" log="$4"
-  python3 - "$GOREVLER" "$iid" "$kume" "$P2P_CAP" > "$d/.nodeids" <<'PY'
-import json,sys
+  local excl=""
+  [ "$kume" = P2P ] && excl="$P2P_EXCL_DIR/$iid.txt"
+  python3 - "$GOREVLER" "$iid" "$kume" "$P2P_CAP" "$excl" > "$d/.nodeids" <<'PY'
+import json,os,sys
 g=json.load(open(sys.argv[1]))[sys.argv[2]]
 ids=g["F2P"] if sys.argv[3]=="F2P" else g["P2P"][:int(sys.argv[4])]
-print("\n".join(ids))
+# DISLAMA: iki kol da bu ayni dosyayi okur, kol ayrimi yok (madde 3).
+p=sys.argv[5]
+drop=set()
+if p and os.path.exists(p):
+    drop={l.strip() for l in open(p) if l.strip() and not l.startswith("#")}
+print("\n".join(i for i in ids if i not in drop))
 PY
-  local tot; tot=$(grep -c . "$d/.nodeids")
+  # Node id'ler pytest'e ARGUMAN olarak verilir, `@dosya` ile DEGIL. `@` argfile
+  # pytest'in argparse fromfile_prefix_chars'ina baglidir ve eski pytest'lerde
+  # YOKTUR: o surumde "@.nodeids" bir DOSYA YOLU sanilir, "file or directory not
+  # found: @.nodeids" basilir, "no tests ran" denir ve harness bunu ORTAM
+  # COKMESI olarak okur. conan tam olarak boyle elendi (0/3) — instance saglam,
+  # elenme sebebi BIZIM harness'imizdi. Argumanla gecmek surum bagimliligini
+  # tamamen kaldirir.
+  local -a nid=(); local satir
+  while IFS= read -r satir; do [ -n "$satir" ] && nid+=("$satir"); done < "$d/.nodeids"
+  local tot=${#nid[@]}
   [ "$tot" -eq 0 ] && { printf '0 0'; return; }
   # `-o addopts=''` ZORUNLU: depoların kendi addopts'u coverage/xdist/özel bayrak
   # istiyor; biz node id listesiyle hedefli kosuyoruz, o bayraklar yalniz kirar.
   # `-x` YOK: ilk hatada durmak "kac test gecti" sayisini bozar.
+  # `-rfE` : dusen node ID'leri kisa ozete yazdirir (madde 1) — sayi degil isim.
   ( cd "$d" && timeout "$PYTEST_TIMEOUT" ./.venv/bin/python -m pytest \
-      -p no:cacheprovider -o addopts='' -q --no-header \
-      --continue-on-collection-errors @.nodeids ) >"$log" 2>&1
+      -p no:cacheprovider -o addopts='' -q --no-header -rfE \
+      --continue-on-collection-errors "${nid[@]}" ) >"$log" 2>&1
   # SAYIM: "gecti" = DUSMEYEN. pytest ozet satiri "2 failed, 73 passed,
   # 45 skipped" verebilir; `passed == toplam` aramak SKIP'LERI dusmus sayar ve
   # saglam bir instance'i eler (olculdu tur 14: astroid 73/120 diye ELENDI,
@@ -243,20 +294,59 @@ for iid in $GOREV_SIRASI; do
     # found" deyip 0 kosar ve saglam instance yanlislikla elenirdi.
     nr="$(geri_koy_f2p "$pv" "$iid")"
     read -r fg ft <<<"$(kos_pytest "$pv" "$iid" F2P "$LOGS/$iid.prever.f2p")"
-    read -r pg pt <<<"$(kos_pytest "$pv" "$iid" P2P "$LOGS/$iid.prever.p2p")"
     say "  (geri konan F2P dosyasi: $nr)"
-    # bozuk dalda: F2P DUSMELI (gecen < toplam), P2P GECMELI
-    if [ "$fg" -lt "$ft" ] && [ "$pg" -eq "$pt" ]; then
-      printf '%s\tOK\t%s/%s_DUSTU\t%s/%s_GECTI\tKOSUYA_ALINDI\n' "$iid" "$fg" "$ft" "$pg" "$pt" >> "$PREVER"
-      say "  on-dogrulama OK (F2P $fg/$ft dustu, P2P $pg/$pt gecti)"
+
+    # ---- P2P DISLAMA KUMESI: iki kosunun KESISIMI (madde 7)
+    # Onceki turdan kalmis bir dislama dosyasi bu olcumu tautolojiye cevirirdi
+    # (dislanani kosmadan "hepsi gecti" demek). Kume her zaman SIFIRDAN kurulur.
+    rm -f "$P2P_EXCL_DIR/$iid.txt"
+    read -r pg1 pt1 <<<"$(kos_pytest "$pv" "$iid" P2P "$LOGS/$iid.prever.p2p")"
+    read -r pg2 pt2 <<<"$(kos_pytest "$pv" "$iid" P2P "$LOGS/$iid.prever.p2p.2")"
+    dusen_idler "$LOGS/$iid.prever.p2p"   > "$RUN/.d1"
+    dusen_idler "$LOGS/$iid.prever.p2p.2" > "$RUN/.d2"
+    comm -12 "$RUN/.d1" "$RUN/.d2" > "$RUN/.dkes"
+    nexc=$(grep -c . "$RUN/.dkes" || true); nexc=${nexc:-0}
+    nflake=$(( $(grep -c . "$RUN/.d1" || echo 0) + $(grep -c . "$RUN/.d2" || echo 0) - 2*nexc ))
+    [ "$nflake" -gt 0 ] && say "  ($nflake test yalniz BIR kosuda dustu — FLAKE, dislanmaz)"
+
+    # TAVAN: dilimin %10'undan fazlasi duserse bu gurultu degil COKUSTUR.
+    tavan=$(( pt1 * P2P_EXCL_MAX_PCT / 100 ))
+    if [ "$nexc" -gt 0 ] && [ "$nexc" -gt "$tavan" ]; then
+      say "  P2P COKMESI: $nexc/$pt1 dustu, ilan edilmis %$P2P_EXCL_MAX_PCT tavaninin ustunde — HICBIR SEY DISLANMIYOR"
+      printf '%s\tOK\t%s/%s\t%s/%s\tCOKME_%s\tKOSUYA_ALINMADI\n' "$iid" "$fg" "$ft" "$pg1" "$pt1" "$nexc" >> "$PREVER"
+      rm -rf "$pv"; continue
+    fi
+
+    pg="$pg1"; pt="$pt1"
+    if [ "$nexc" -gt 0 ]; then
+      { printf '# %s — bozuk dalda ZATEN dusen P2P testleri (iki on-dogrulama kosusunun KESISIMI).\n' "$iid"
+        printf '# Ajan kosmadan ONCE uretildi. Iki kol da bu kumeyi cikararak kosar. Elle duzenlenmez.\n'
+        cat "$RUN/.dkes"; } > "$P2P_EXCL_DIR/$iid.txt"
+      say "  P2P dislama: $nexc test (bkz. reports/R7/p2p_excluded/$iid.txt)"
+      # SAYI CIKARMA YOK: kucultulmus kume GERCEKTEN yeniden kosulur.
+      read -r pg pt <<<"$(kos_pytest "$pv" "$iid" P2P "$LOGS/$iid.prever.p2p.excl")"
+    fi
+
+    # bozuk dalda: F2P DUSMELI (gecen < toplam), P2P GECMELI — esik AYNEN
+    if [ "$fg" -lt "$ft" ] && [ "$pg" -eq "$pt" ] && [ "$pt" -gt 0 ]; then
+      printf '%s\tOK\t%s/%s_DUSTU\t%s/%s_GECTI\t%s\tKOSUYA_ALINDI\n' "$iid" "$fg" "$ft" "$pg" "$pt" "$nexc" >> "$PREVER"
+      say "  on-dogrulama OK (F2P $fg/$ft dustu, P2P $pg/$pt gecti, dislanan $nexc)"
     else
-      printf '%s\tOK\t%s/%s\t%s/%s\tKOSUYA_ALINMADI\n' "$iid" "$fg" "$ft" "$pg" "$pt" >> "$PREVER"
-      say "  ON-DOGRULAMA DUSTU (F2P $fg/$ft, P2P $pg/$pt) — koşuya alinmadi"
+      printf '%s\tOK\t%s/%s\t%s/%s\t%s\tKOSUYA_ALINMADI\n' "$iid" "$fg" "$ft" "$pg" "$pt" "$nexc" >> "$PREVER"
+      say "  ON-DOGRULAMA DUSTU (F2P $fg/$ft, P2P $pg/$pt, dislanan $nexc) — koşuya alinmadi"
+      rm -f "$P2P_EXCL_DIR/$iid.txt"
       rm -rf "$pv"; continue
     fi
     rm -rf "$pv"
   fi
   grep -q "^$iid	.*KOSUYA_ALINDI" "$PREVER" || { say "  on-dogrulamayi gecmemis, atlaniyor"; continue; }
+
+  # Madde 2, uygulanabilir hale getirilmis: dislama listesi ajan kosmadan ONCE,
+  # SONUCTAN AYRI bir commit'te durmali. PREVER_ONLY=1 tam olarak orada durur —
+  # on-dogrulama kosar, tsv ve p2p_excluded/ yazilir, HICBIR ajan oturumu (yani
+  # hicbir para) harcanmaz. Kollar sonraki calistirmada, listeler commit'lenmis
+  # halde kosar.
+  if [ "${PREVER_ONLY:-0}" = 1 ]; then say "  PREVER_ONLY=1 — kollar kosulmuyor"; continue; fi
 
   for arm in A B; do
     if bitti_mi "$iid" "$arm"; then say "  [$arm] zaten JSONL'de, atlandi"; continue; fi
@@ -353,9 +443,15 @@ PY
     fi
 
     python3 - "$JSONL" "$iid" "$arm" "$hp" "$tin" "$tout" "$tcw" "$tcr" "$cost" \
-             "$iv" "$fp" "$fg" "$ft" "$pg" "$pt" "$rc" "$((t1-t0))" "$ledyeni" "$nrest" "$P2P_CAP" "$wryeni" <<'PY'
-import json,sys
-(jl,iid,arm,hp,tin,tout,tcw,tcr,cost,iv,fp,fg,ft,pg,pt,rc,dur,ledyeni,nrest,cap,wryeni)=sys.argv[1:]
+             "$iv" "$fp" "$fg" "$ft" "$pg" "$pt" "$rc" "$((t1-t0))" "$ledyeni" "$nrest" "$P2P_CAP" "$wryeni" \
+             "$P2P_EXCL_DIR/$iid.txt" <<'PY'
+import json,os,sys
+(jl,iid,arm,hp,tin,tout,tcw,tcr,cost,iv,fp,fg,ft,pg,pt,rc,dur,ledyeni,nrest,cap,wryeni,excl)=sys.argv[1:]
+# madde 5: dislanan testler SAYIYLA VE ISIMLE JSONL'e girer. Rapor bu alandan
+# okur; gizli bir kisitlama "hepsini kapsadik" gibi okunur.
+ex=[]
+if os.path.exists(excl):
+    ex=[l.strip() for l in open(excl) if l.strip() and not l.startswith("#")]
 row={"arm":arm,"instance_id":iid,"task":iid,
      "heldout_pass":hp=="true",
      "tokens":int(tin)+int(tout),
@@ -366,6 +462,7 @@ row={"arm":arm,"instance_id":iid,"task":iid,
      "false_positive":(fp=="true"),
      "f2p_passed":int(fg),"f2p_total":int(ft),
      "p2p_passed":int(pg),"p2p_total":int(pt),"p2p_cap":int(cap),
+     "p2p_excluded":len(ex),"p2p_excluded_ids":ex,
      "agent_rc":int(rc),"duration_s":int(dur),
      "ledger_new_lines":int(ledyeni),"ledger_would_refuse":int(wryeni),
      "f2p_files_restored":int(nrest)}
