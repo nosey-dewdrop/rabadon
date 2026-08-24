@@ -1,0 +1,311 @@
+I'll read the operator file and the current run state first.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+I'm turn 9's working session. Operator's CEVAP is clear: **regression diagnosis FIRST, then profiling only.** Let me start.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+cli_test's 4 reds trace to a binary born **in this run**. Now the real bisect for promises_test. Setting up the isolated clone (B1.8 — live worktree untouched):
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+**promises_test: identical 3 reds at run-start `a59138b` — pre-existing, confirmed.** Now cli_test at the same commit:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Diagnosis is closed with byte-identical evidence. Writing the report:
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+Regression front is closed and committed. Now CEVAP 1 — the profile. First I need to know exactly how turn 8 measured the 1075 µs bucket, so my sub-buckets sum to the same thing.
+[tool: Agent]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now I need exact, non-overlapping instrumentation points on the hook path. Let me get the real call sites rather than guess:
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+Nesting is real (`note_mode` → `last_ledger_mode` + `rbchain::append`), so naive per-function timers would double-count. I'll use an exclusive-time stack so buckets sum to the total by construction. Let me get exact anchors:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+The fixture uses an **empty guard.json** — so the deny-rule regex loop may never execute. That itself is a finding. Let me pin every leaf definition:
+[tool: Bash]
+[tool: Bash]
+Now I'll build the sub-bucket probe. Exclusive-time stack so buckets sum to the total by construction:
+[tool: Write]
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+Compiles clean. Now a **coarse** control build (turn-8-style 2-stamp probe) so I can measure what my extra stamps cost:
+[tool: Bash]
+Both probes built. Now the interleaved run harness (same protocol as turn 8):
+[tool: Write]
+[tool: Bash]
+Zero samples — need to diagnose before trusting anything.
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+The daemon never served — the client fell back in-process. Reading the client seam:
+[tool: Read]
+Found it — `gated_client.h:123` ships the **client's** whole environment to the worker. The probe env var must be set on the client, not the daemon. That also makes line-count a proof that the daemon actually served:
+[tool: Edit]
+[tool: Edit]
+[tool: Bash]
+[tool: Bash]
+20/20 served, and buckets reconcile to 99.8% of total. But the headline is a problem:
+
+**`main_rest` = 721 µs of 1157 µs (62%).** The named phases aren't where the time is. I'd be repeating turn 8's mistake one level down if I stopped here — I need to drill into that bucket.
+[tool: Agent]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Read]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+[tool: Read]
+The subagent's anchors are unverified guesses. I'll pin the real signatures myself rather than build on that:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+All anchors unique. Adding layer 2:
+[tool: Bash]
+[tool: Bash]
+main_rest is down to 405 µs but still 40%. Rather than keep guessing function names, I'll auto-instrument **every** function in gate.cpp and let the data name the culprit:
+[tool: Bash]
+[tool: Write]
+[tool: Bash]
+71 buckets, compiled. Running it:
+[tool: Bash]
+Every gate.cpp function is now instrumented, so the remaining 372 µs is **straight-line code inside `main()` itself**. To localize it I'll insert line-tagged checkpoints through main's body:
+[tool: Bash]
+Brace counting broke on JSON string literals. Fixing:
+[tool: Bash]
+[tool: Bash]
+`main` actually ends at 4697 — and my inserts landed mid-expression. Fixing both:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Now I have precise line-level localization. Reading the top four:
+[tool: Bash]
+[tool: Read]
+[tool: Read]
+Line 2754 is the biggest single item. Before I call it, let me verify *why* with a standalone microbenchmark rather than assert a cause:
+[tool: Bash]
+[tool: Bash]
+stdout buffering in the forked child ate the output (`_exit` skips flush) — same class of bug the probe itself had:
+[tool: Bash]
+Confirmed, decisively: **cold first call 269–483 µs, second call 1.0 µs.** That's one-time timezone init paid by every forked worker. Now the final measured run — 3 rounds + under load, with intervals:
+[tool: Write]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Reconciliation is exact (0.0% unattributed) and overhead is only +1.7%. One honesty check on machine state before I write this up:
+[tool: Bash]
+My "quiet" rounds ran at load 3.9–5.2 — not quiet. That inflates absolutes vs turn 8's 1075 µs, so shares are the robust output. Let me get a solid sample for the hottest line:
+[tool: Bash]
+Shares held stable (28.5% vs 29.1%) across a 3× swing in absolute time — that's the robust result. Naming the last two:
+[tool: Read]
+[tool: Read]
+All eight items named. Writing the report:
+[tool: Write]
+Now the mandatory DENEMELER entry (B1.4) and the session log:
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+[tool: Bash]
+Verifying my central claim — that `native/` was never touched:
+[tool: Bash]
+İki iş de bitti, kapsam dışına çıkılmadı: bu turda `native/` altında **sıfır** satır değişti, sadece raporlar.
+
+## 1. CEVAP 2 — regresyon teşhisi (profil öncesi, istendiği gibi)
+
+Tur 8'in "hepsi pre-existing" iddiası **ölçümle ikiye bölündü**:
+
+| suite | commit a59138b (koşu başı) | bugün | hüküm |
+|---|---|---|---|
+| `promises_test.sh` | 6 kept / **3 broken** | birebir aynı | **pre-existing — doğru** |
+| `cli_test.sh` | **297 / 0 — YEŞİL** | 297 / **4** | **REGRESYON** |
+
+Suçlu commit `da9e5b2` — R7'nin kendi GOAL 1 teslimatı (`rabadon-gated`). Ebeveyni `d4e7a90` yeşil, kendisi kırmızı, 4 FAIL satırı bugünküyle birebir. Bisect'e gerek kalmadı, uç noktalar ayrıştırdı. Ayrı `/tmp` klonunda koşuldu, worktree'ye dokunulmadı (B1.8).
+
+→ `reports/kosu/REGRESYON.md`
+
+## 2. CEVAP 1 — 1075 µs'nin içi
+
+**Kural motoru, yargılama maliyetinin %4.4'ü. %95'i defter tutma.**
+
+En büyük tek kalem `gate.cpp:2754` — gün dizgisi (`gmtime_r`+`strftime`), **%28.5**. Bunu tahmin etmedim, ayrı bir deneyle kanıtladım:
+
+```
+cold worker: 1st=320.0us  2nd=1.0us  3rd=0.0us
+warm-parent worker: 1st=71.0us
+```
+
+Tek seferlik saat dilimi ilklendirmesi; forklanan her worker baştan ödüyor, ikinci çağrıda 1 µs. Gün dizgisi zaten gün boyu sabit.
+
+Kalanı: defter yazımı %15.3, `stt.save` %14.3, `stt.load` %8.8, `note_mode` spool taraması %7.2, `judge_command` %4.4, regex %1.5.
+
+Ölçümün kendi kalite sayıları: kovalar toplamı − ölçülen toplam = **+0.2 µs (%0.0)**, prob maliyeti **+20.1 µs (%1.7)**, 900/900 çağrı daemon tarafından servis edildi.
+
+### Karar kuralının hükmü: TAVAN KALIR, (b) AÇILMAZ
+
+Semantiği değişmeyen üç kalem %43 (1075→614, yetmez). Oturum durumu gidiş-dönüşü eklenince **%72** (1075→303). Eşik aşılabilir göründüğü için, senin önceden bağladığın kural gereği fırsat denenir ve şart kalır. Tur 8'in "mimari olarak ulaşılamaz" ekstrapolasyonu **çürüdü**.
+
+→ `reports/R7/PROFIL-YARGILAMA.md`
+
+## Sorulmayan ama önemli
+
+- **%55 eşiği yalnız dayanıklılık semantiğine dokunularak aşılıyor** (%43 vs %72). Rapora sınır çizgisi olarak yazdım: defter yazımı (%15.3) optimizasyon hedefi değildir — gecikme sayısı için delil kısmak bu ürünün var olma sebebine aykırı. Yeni bir operatör sorusu AÇMADIM; kuralı zaten önceden bağlamıştın.
+- Tur 8'in (b) gerekçesi olan "regex+I/O C'de tipik 200–800 µs" tahmini bu ağaçta yanlış: regex %1.5.
+- `rabadon-gated --help` asılması R8 yayınını da bloklar — npm'den kuran binary'i çözümleyemiyor.
+- `make test` ilk kırmızı suite'te duruyor ve `promises_test.sh` sıranın çok sonunda; C.0 ön kontrolünün rc=0'ı bu yüzden 3 kırmızıyı gizlemiş. PARKED'e yazdım, kabul kriteri değişikliği olduğu için dokunmadım.
+
+## DOĞRULANMADI
+
+- **Mutlak sayılarım güvenilmez.** Makine yük ortalaması 3.93–5.21 idi; medyanım 1205.7 µs, tur 8'in 1061–1134 aralığının dışında ve fark prob maliyetiyle (20 µs) açıklanamıyor. Sonuç **paylardır** — 3 kat yük değişiminde sabit kaldılar. Kamuya <1 ms iddiası bu ölçümden türetilemez.
+- "1075 → 303 µs" **aritmetik projeksiyon, ölçüm değil.** Hiçbir optimizasyon denenmedi.
+- Boş `guard.json` ile ölçüldü — kurallı projede regex payı yükselir, ölçmedim.
+- Sadece bu macOS makinesinde; Linux'ta ve temiz container'da koşulmadı.
+- `rabadon-gated`'ın neden asıldığının kök sebebi okunmadı (`gate.cpp`'de `rb_help` var, `gated.cpp`'de yok — güçlü ipucu ama doğrulamadım).
+- Aradaki 8 commit tek tek koşulmadı; uç noktalar yettiği için.
+
+**NEXT:** `da9e5b2` regresyonunu kapatmak (case arm + `rb_help`), sonra gün dizgisi kalemi — %28.5, semantik bedeli yok, nedeni kanıtlı.
+İki iş de bitti, kapsam dışına çıkılmadı: bu turda `native/` altında **sıfır** satır değişti, sadece raporlar.
+
+## 1. CEVAP 2 — regresyon teşhisi (profil öncesi, istendiği gibi)
+
+Tur 8'in "hepsi pre-existing" iddiası **ölçümle ikiye bölündü**:
+
+| suite | commit a59138b (koşu başı) | bugün | hüküm |
+|---|---|---|---|
+| `promises_test.sh` | 6 kept / **3 broken** | birebir aynı | **pre-existing — doğru** |
+| `cli_test.sh` | **297 / 0 — YEŞİL** | 297 / **4** | **REGRESYON** |
+
+Suçlu commit `da9e5b2` — R7'nin kendi GOAL 1 teslimatı (`rabadon-gated`). Ebeveyni `d4e7a90` yeşil, kendisi kırmızı, 4 FAIL satırı bugünküyle birebir. Bisect'e gerek kalmadı, uç noktalar ayrıştırdı. Ayrı `/tmp` klonunda koşuldu, worktree'ye dokunulmadı (B1.8).
+
+→ `reports/kosu/REGRESYON.md`
+
+## 2. CEVAP 1 — 1075 µs'nin içi
+
+**Kural motoru, yargılama maliyetinin %4.4'ü. %95'i defter tutma.**
+
+En büyük tek kalem `gate.cpp:2754` — gün dizgisi (`gmtime_r`+`strftime`), **%28.5**. Bunu tahmin etmedim, ayrı bir deneyle kanıtladım:
+
+```
+cold worker: 1st=320.0us  2nd=1.0us  3rd=0.0us
+warm-parent worker: 1st=71.0us
+```
+
+Tek seferlik saat dilimi ilklendirmesi; forklanan her worker baştan ödüyor, ikinci çağrıda 1 µs. Gün dizgisi zaten gün boyu sabit.
+
+Kalanı: defter yazımı %15.3, `stt.save` %14.3, `stt.load` %8.8, `note_mode` spool taraması %7.2, `judge_command` %4.4, regex %1.5.
+
+Ölçümün kendi kalite sayıları: kovalar toplamı − ölçülen toplam = **+0.2 µs (%0.0)**, prob maliyeti **+20.1 µs (%1.7)**, 900/900 çağrı daemon tarafından servis edildi.
+
+### Karar kuralının hükmü: TAVAN KALIR, (b) AÇILMAZ
+
+Semantiği değişmeyen üç kalem %43 (1075→614, yetmez). Oturum durumu gidiş-dönüşü eklenince **%72** (1075→303). Eşik aşılabilir göründüğü için, senin önceden bağladığın kural gereği fırsat denenir ve şart kalır. Tur 8'in "mimari olarak ulaşılamaz" ekstrapolasyonu **çürüdü**.
+
+→ `reports/R7/PROFIL-YARGILAMA.md`
+
+## Sorulmayan ama önemli
+
+- **%55 eşiği yalnız dayanıklılık semantiğine dokunularak aşılıyor** (%43 vs %72). Rapora sınır çizgisi olarak yazdım: defter yazımı (%15.3) optimizasyon hedefi değildir — gecikme sayısı için delil kısmak bu ürünün var olma sebebine aykırı. Yeni bir operatör sorusu AÇMADIM; kuralı zaten önceden bağlamıştın.
+- Tur 8'in (b) gerekçesi olan "regex+I/O C'de tipik 200–800 µs" tahmini bu ağaçta yanlış: regex %1.5.
+- `rabadon-gated --help` asılması R8 yayınını da bloklar — npm'den kuran binary'i çözümleyemiyor.
+- `make test` ilk kırmızı suite'te duruyor ve `promises_test.sh` sıranın çok sonunda; C.0 ön kontrolünün rc=0'ı bu yüzden 3 kırmızıyı gizlemiş. PARKED'e yazdım, kabul kriteri değişikliği olduğu için dokunmadım.
+
+## DOĞRULANMADI
+
+- **Mutlak sayılarım güvenilmez.** Makine yük ortalaması 3.93–5.21 idi; medyanım 1205.7 µs, tur 8'in 1061–1134 aralığının dışında ve fark prob maliyetiyle (20 µs) açıklanamıyor. Sonuç **paylardır** — 3 kat yük değişiminde sabit kaldılar. Kamuya <1 ms iddiası bu ölçümden türetilemez.
+- "1075 → 303 µs" **aritmetik projeksiyon, ölçüm değil.** Hiçbir optimizasyon denenmedi.
+- Boş `guard.json` ile ölçüldü — kurallı projede regex payı yükselir, ölçmedim.
+- Sadece bu macOS makinesinde; Linux'ta ve temiz container'da koşulmadı.
+- `rabadon-gated`'ın neden asıldığının kök sebebi okunmadı (`gate.cpp`'de `rb_help` var, `gated.cpp`'de yok — güçlü ipucu ama doğrulamadım).
+- Aradaki 8 commit tek tek koşulmadı; uç noktalar yettiği için.
+
+**NEXT:** `da9e5b2` regresyonunu kapatmak (case arm + `rb_help`), sonra gün dizgisi kalemi — %28.5, semantik bedeli yok, nedeni kanıtlı.
