@@ -1041,3 +1041,55 @@ taramasında dar P2P örneklemi yanıltıcı.
 - Anlamlı bir token cümlesi için hücre başına tekrarlı ölçüm gerekiyor
   (aynı görev+kol en az 3 kez), yoksa varyans bilinmiyor.
 - 6e/7b: `estimated_saved` hâlâ üretilemiyor — operatör kararı (deneme 14/15).
+
+---
+
+## deneme 19 — 2026-08-24 (tur 14, yapan) — elenen üç instance'ın sebebi HARNESS'TI; N 3'ten 4'e çıktı
+
+**DENENEN.** Deneme 18'de üç instance ön-doğrulamayı geçemedi (conan P2P 0/3,
+astroid 73/120, feedparser 0/120). "Instance bozuk" diye geçilmedi; üçünün de
+pytest logu okundu.
+
+**SONUÇ — üçünün de sebebi benim harness'imdi, instance değil.**
+
+1. **conan / feedparser: test "extras"ları kurulmuyordu.**
+   `ImportError while loading conftest ... No module named 'mock'` (conan),
+   `... No module named 'responses'` (feedparser). venv'e yalnız
+   `pip install -e .` + pytest eklentileri kuruluyordu; depoların test
+   bağımlılıkları setuptools **extras**'ında duruyor. Düzeltme: `kur_venv`
+   artık `.[test]`, `.[tests]`, `.[dev]`, `.[testing]` varyantlarını sırayla
+   deniyor, ayrıca `mock responses freezegun hypothesis` son çare olarak
+   kuruluyor.
+2. **astroid: SKIP'ler düşme sayılıyordu.** Özet satırı gerçekte
+   `2 failed, 73 passed, 45 skipped` idi. Sayacım `passed == toplam` arıyordu,
+   yani 45 skip'i başarısızlık yerine koyuyordu. Düzeltme: ölçüt kümeye göre
+   ayrıldı — **P2P için "DÜŞMEDİ"** (skip bozulma değil), **F2P için
+   "gerçekten GEÇTİ"** (skip bir düzeltme kanıtı değil). Özet satırı hiç
+   yoksa (collection/import çökmesi) sonuç 0 kalır, çünkü o durumda gerçekten
+   hiçbir şey koşmamıştır.
+
+**SONUÇ — N 3'ten 4'e çıktı.** feedparser koşuya girdi, iki kol da çözdü
+(55/55 F2P, 120/120 P2P). Yeni toplam:
+
+| metrik | A | B |
+|---|---|---|
+| held-out fix | 75.0 % (4) | 75.0 % (4) |
+| token | 35 620 | 33 221 |
+
+**VE SİNYAL DAHA DA ZAYIFLADI — dürüst yön budur.** feedparser B kolunda
+**daha pahalı** çıktı (+7.7 %). Artık dört görevin **ikisi B lehine**
+(−12.0 %, −24.5 %), **ikisi A lehine** (+4.4 %, +7.7 %). Yani toplamdaki
+−6.7 %, işaretçe 2-2 bölünmüş dört ölçümün ortalaması. Düzeltme oranı hâlâ
+tıpatıp aynı (75/75). accept.sh 7a yeşil kalıyor ama bu yeşil bir kanıt
+değildir ve KOSU.md'de böyle yazıldı.
+
+**ELENEN HİPOTEZ.** "Ön-doğrulamayı geçemeyen instance kötü instance'tır."
+YANLIŞ — üç örnekte de kötü olan ölçüm aletiydi. Bir eleme ölçütü, eleme
+sebebini LOGDAN okumadan uygulanırsa sessizce örneklemi daraltır ve N'i
+düşürür; bu turda tam olarak öyle oldu.
+
+**KALAN.** conan (conftest `test/functional` ağır bağımlılık ister) ve
+astroid (2 P2P testi bozuk dalda zaten düşüyor) hâlâ dışarıda, ama sebepleri
+artık teşhis edilmiş. N=6 istenirse: astroid için "bozuk dalda zaten düşen
+P2P testleri taban kümeden çıkarılır" kuralı gerekir — bu, ON-KAYIT'ın
+dondurduğu puanlama semantiğine dokunur, dolayısıyla insan onayı ister.

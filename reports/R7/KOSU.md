@@ -58,8 +58,8 @@ Kabul betiği: `./reports/R7/accept.sh` → **23 yeşil / 3 kırmızı**
 
 | metrik | A kolu (rabadon YOK) | B kolu (rabadon VAR) |
 |---|---|---|
-| held-out düzeltme oranı | **66.7 %** (3 görev) | **66.7 %** (3 görev) |
-| toplam token | **26 780** | **23 697** |
+| held-out düzeltme oranı | **75.0 %** (4 görev) | **75.0 %** (4 görev) |
+| toplam token | **35 620** | **33 221** |
 | insan müdahalesi | 0 | 0 |
 | yanlış pozitif | 0 % (yapısal) | 0 % |
 
@@ -67,25 +67,27 @@ Görev bazında token:
 
 | görev | A | B | fark | heldout_pass |
 |---|---|---|---|---|
-| autograd | 14 775 | 13 007 | −12.0 % | ikisi de geçti |
+| autograd | 14 775 | 13 007 | **−12.0 %** | ikisi de geçti |
+| pydicom | 6 378 | 4 813 | **−24.5 %** | ikisi de geçti |
 | oauthlib | 5 627 | 5 877 | **+4.4 %** | ikisi de DÜŞTÜ (15/18 F2P) |
-| pydicom | 6 378 | 4 813 | −24.5 % | ikisi de geçti |
+| feedparser | 8 840 | 9 524 | **+7.7 %** | ikisi de geçti |
 
 ### Bu sayı YAYINLANAMAZ — ve bunu 7a'nın "geçmesi" değiştirmez
 
 accept.sh 7a yeşil verdi ("B kolu net token'ı iyileştiriyor"). **Bu bir
 kanıt değildir ve öyle sunulmayacaktır.** Sebepler, hepsi ham kayıttan:
 
-1. **Düzeltme oranı AYNI** (66.7 % / 66.7 %). Üç görevin ikisinde iki kol da
+1. **Düzeltme oranı AYNI** (75.0 % / 75.0 %). Dört görevin üçünde iki kol da
    çözdü, birinde (oauthlib) iki kol da **aynı şekilde** düştü — ikisi de
-   18 F2P'nin 15'ini geçti. rabadon burada hiçbir fark yaratmadı.
-2. **Üç görevin biri ters yönde** (+4.4 %). Toplam fark tek bir görevden
-   (pydicom, −24.5 %) geliyor.
-3. **N = 3.** Ön-kayıt N=6 diyordu; üç instance ön-doğrulamayı geçemedi.
+   18 F2P'nin 15'ini geçti. rabadon hiçbir görevde farklı bir sonuç üretmedi.
+2. **Yön 2-2 BÖLÜNMÜŞ.** İki görevde B daha ucuz (−12.0 %, −24.5 %), iki
+   görevde daha pahalı (+4.4 %, +7.7 %). Toplamdaki −6.7 %, dört ölçümün
+   işaretçe yarısının ters olduğu bir ortalamadır.
+3. **N = 4.** Ön-kayıt N=6 diyordu; iki instance ön-doğrulamayı geçemedi.
 4. **Hücre başına TEK ölçüm var, varyans tahmini YOK.** Buna karşılık aynı
    görev+kol farklı koşularda şu kadar oynadı: autograd B 15 099 → 13 007
    (%16), oauthlib B 8 962 → 5 877 (%52). Koşu-içi salınım, iki kol
-   arasındaki %11.5'lik toplam farktan **BÜYÜK**.
+   arasındaki farktan **BÜYÜK**.
 
 KOSU-RABADON-2.md:61-62 gereği: fark gürültü içinde kalırsa YAYINLANMAZ.
 Kalıyor. Ham JSONL ve bu ön-kayıt repoda durur; dışarıya bir oran/tasarruf
@@ -93,7 +95,7 @@ cümlesi çıkmaz.
 
 **Doğru okuma:** bu tur, iki kollu koşunun **koşulabilir olduğunu** ve
 ölçüm zincirinin uçtan uca çalıştığını kanıtladı. Hipotezi ne doğruladı ne
-çürüttü — N bunun için yeterli değil.
+çürüttü — N ve tekrar sayısı bunun için yeterli değil.
 
 ## Ne kadarı koşuldu
 
@@ -103,21 +105,30 @@ Ham kayıttaki satır sayısı bu bölümün tek doğrulayıcısıdır:
     print(len(rows),'satır');\
     print({a:sum(1 for r in rows if r['arm']==a) for a in ('A','B')})"
 
-**Altı görevin üçü koşuldu.** Üçü koşu öncesi zorunlu doğrulamayı geçemedi
-ve ALINMADI (`ab_prever.tsv`):
+**Altı görevin dördü koşuldu.** İkisi koşu öncesi zorunlu doğrulamayı
+geçemedi ve ALINMADI (`ab_prever.tsv`):
 
 | instance | sebep |
 |---|---|
-| conan | P2P 0/3 — bozuk dalda P2P koşmadı |
-| astroid | P2P 73/120 — bozuk dalda P2P zaten kırık, "bozulmadı" ölçülemez |
-| feedparser | P2P 0/120 — aynı |
+| conan | P2P 0/3 — conftest hâlâ çöküyor (`test/functional` ağır bağımlılık ister) |
+| astroid | P2P 118/120 — iki P2P testi bozuk dalda ZATEN düşüyor, "bozulmadı" o ikisi için ölçülemez |
 
-Bu üçü tur 13'ün taramasında "tam temiz" görünüyordu; fark, tur 13'ün P2P
-örnekleminin satır başına **ilk 2 test** olması, buradaysa 120 test
-koşulması. Yani tur 13'ün "7/10 temiz" sayısı bir ÜST sınırdı, alt sınır
-değil — daha geniş P2P örneklemi üçünü eledi. Bu, taramanın değil örneklem
-genişliğinin sonucudur ve ileriki seçimlerde P2P örnekleminin dar
-tutulmaması gerektiğini gösterir.
+**Başlangıçta ÜÇ instance elenmişti ve üçünün elenme sebebi de HARNESS
+HATASIYDI, instance hatası değil.** İki ayrı kusur:
+
+1. **Test "extras"ları kurulmuyordu.** conan `No module named 'mock'`,
+   feedparser `No module named 'responses'` diye conftest'te çöküyordu.
+   `kur_venv` artık `pip install -e '.[test]'` (ve dev/tests/testing)
+   varyantlarını deniyor.
+2. **Skip'ler düşme sayılıyordu.** astroid "P2P 73/120" diye elenmişti;
+   pytest özeti aslında "2 failed, 73 passed, **45 skipped**" diyordu.
+   Sayaç `passed == toplam` arıyordu. Artık P2P için ölçüt "DÜŞMEDİ"
+   (skip bozulma değildir), F2P için "gerçekten GEÇTİ" (skip bir düzeltme
+   kanıtı değildir).
+
+Düzeltmeden sonra **feedparser koşuya girdi** ve iki kol da çözdü (55/55 F2P).
+astroid ve conan hâlâ dışarıda, ama artık sebepleri TEŞHİS EDİLMİŞ durumda
+(yukarıdaki tablo), "bilinmeyen bir duvar" değil.
 
 Koşu **yeniden başlatılabilir**: tamamlanmış (instance, kol) çiftleri ham
 kayıtta durur ve `ab_run.sh` yeniden çalıştırıldığında atlanır. Oturum zaman
