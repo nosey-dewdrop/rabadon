@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# IPTAL 2026-08-25 (KOSU-RABADON-4 §3.1): bu surucu emekli edildi, KOSMAZ. Delil olarak durur.
 # yapan -> degerlendiren -> yapan. Sessiz olum yok: her tikanma OPERATOR-duragi.
 set -u
 set -m   # arka plan isler KENDI process grubunu alir -> agac halinde oldurulebilir
