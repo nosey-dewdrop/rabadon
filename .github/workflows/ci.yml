@@ -6,7 +6,8 @@ name: ci
 # stranger reading the repo had no way to see them pass, and a regression had
 # nothing to trip over.
 #
-# Both halves run here, on both supported platforms:
+# Both halves run here, on both supported platforms x both supported Node
+# lines (2 x 2 = 4 cells):
 #   make all && make test   the native core (gate, ledger, sandbox, repair)
 #   npm test                the JS half (installer, ui server, store, bus)
 # `make test` includes npm_install_test.sh, which packs the tarballs and
@@ -25,7 +26,7 @@ concurrency:
 
 jobs:
   test:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }} node${{ matrix.node }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false          # a red macOS must not hide a green linux
@@ -39,12 +40,20 @@ jobs:
         # without including <cstdint> and had never compiled on a modern
         # libstdc++, while the release matrix stayed green on the older one.
         os: [ubuntu-latest, macos-15]
+        # Two Node lines, not one. package.json declares engines >=18 and CI
+        # only ever ran 22, so the whole range below it was an untested claim.
+        # 20 is here for a specific reason: release.yml publishes on Node 20
+        # (publish and smoke both pin node-version: "20"), so the version that
+        # cuts and installs the tarballs is now the version CI proves first.
+        # The published path is the tested path. 22 stays as the newest line,
+        # to catch what only breaks on the newer runtime.
+        node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
 
       - name: compiler
         run: c++ --version
