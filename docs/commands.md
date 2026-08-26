@@ -70,35 +70,67 @@ rabadon on
 rabadon status
 ```
 
-### The three silencers — and why `off` is not one of them
+### The six silencers — and why `off` is not one of them
 
 `off` is **watch**, not silence: the rules still run and the ledger still fills.
 There is a fourth state below all three modes, **SILENT**, where the gate
 returns exit `0` immediately — no rule is evaluated, no event is recorded,
-nothing is printed. Three things put it there, and any one of them is enough:
+nothing is printed. Six things put it there, and any one of them is enough:
 
 | what | where | what it does | the one command that removes it |
 |---|---|---|---|
 | `RABADON_OFF=1` | environment variable | silences this process and every child it spawns (rabadon sets it on its own model subprocesses, so the supervisor never supervises itself) | `unset RABADON_OFF` |
-| `off` file | `<project>/.rabadon/off` | silences the gate for that project tree, for every shell and every user, until the file is deleted | `rm <project>/.rabadon/off` |
-| `silent` file | `$RABADON_DIR/silent` (default `~/.rabadon/silent`) | silences the gate on this machine, in every project | `rm ~/.rabadon/silent` |
+| `.rabadon/off` | `<project>/.rabadon/off` | silences the gate for that project tree, for every shell and every user, until the file is deleted | `rm <project>/.rabadon/off` |
+| `silent` | `$RABADON_DIR/silent` | silences the gate on this machine, in every project. `rabadon-gate --silent` writes this file AND `silent` into the mode file, so deleting the file alone leaves the mode behind | `rabadon off` |
+| `mode = silent` | `$RABADON_DIR/mode` | the machine mode layer reading `silent` — it silences every project on this machine | `rabadon off` |
+| `.rabadon/mode = silent` | `<project>/.rabadon/mode` | the project mode layer reading `silent` — it silences that project tree | `rm <project>/.rabadon/mode` |
+| `RABADON_MODE=silent` | environment variable | the environment mode layer reading `silent` — it silences this shell and every child it spawns | `unset RABADON_MODE` |
 
 Read that table as the exit door it is: an agent guard that cannot be switched
 off is a guard people rip out instead. But the door has to be labelled, because
-a silencer you do not know about is indistinguishable from a broken guard.
+a silencer you do not know about is indistinguishable from a broken guard. That
+is why `rabadon status` prints the silencer in force by name, by location, and
+with the row's own command — the names in the first column are the names the
+screen prints.
 
-**`rabadon off` does NOT remove any of these.** It writes watch mode and stops.
-If a silencer is present, `rabadon on` will report ENFORCE and the gate will
-still refuse nothing — the file wins over the mode, because it is checked first
-and returns before the mode is read. `rabadon status` reports the mode, not the
-silencer. When rabadon appears to be doing nothing, check the three rows above
-before anything else, in that order.
+<!-- rabadon:claims-begin -->
+Corrected on 2026-08-26. Three sentences that stood in this section until that
+day were measured false against the shipped gate and are quoted below beside
+what replaced them. Nothing here is prose alone: every claim line in this block
+is bound to a check in `docs/claims.tsv` that `native/docs_truth_test.sh` runs
+against the real binary on every `make test`.
 
-Measured on 2026-08-26 against the shipped gate: with any one of the three in
+Was: "`rabadon off` does NOT remove any of these." Measured false, one row at a
+time:
+
+- `rabadon off` deletes `$RABADON_DIR/silent` and writes `watch` over a
+  `silent` mode file, so it does lift rows three and four by itself.
+- `rabadon off` is not a way out of `RABADON_OFF=1` — row one survives it.
+- `rabadon off` is not a way out of `<project>/.rabadon/off` — row two survives.
+- `rabadon off` is not a way out of `<project>/.rabadon/mode` — row five too.
+- `rabadon off` is not a way out of `RABADON_MODE=silent` — nor row six.
+
+Was: "with a silencer present, `rabadon on` will report ENFORCE."
+Measured false: under a silencer `rabadon on` will report SILENT.
+
+Was: "`rabadon status` reports the mode, not the silencer."
+Measured false: `rabadon status` reports the silencer as well — by name, by
+location, and with the one command that lifts it.
+
+The sentence that was right and stays: `rabadon off` is not silence. After it
+the gate still runs every rule and still records what it would have stopped.
+
+The table above always lists every silencer the binary can report; today that
+is six rows, and the suite goes red the day the two sets differ.
+<!-- rabadon:claims-end -->
+
+Measured on 2026-08-26 against the shipped gate: with any one of the six in
 place, a `git push --force origin main` event that exits `2` with
-`baseline-force-push` on a clean tree exits `0` with no output and leaves an
-empty `$RABADON_DIR` — nothing was written. `rm`-ing the file restores the
-refusal on the very next event; there is no cache and no restart.
+`baseline-force-push` on a clean tree exits `0` with no output and writes
+nothing to the ledger. Running the row's own command restores the refusal on
+the very next event; there is no cache and no restart. Reproduce every row of
+the table with `bash native/docs_truth_test.sh`, which sets each one up in a
+throwaway project and runs the command printed beside it.
 
 ---
 
@@ -577,7 +609,7 @@ law to hold, and with none of them set nothing calls a model.
 | `RABADON_DIR` | `~/.rabadon` | spool + state root. Keep it shallow: the live watcher socket is `$RABADON_DIR/rabadon.sock`, and `sun_path` caps a unix socket path at 104 bytes on macOS / 108 on Linux. Over the cap, rabadon says so on stderr and writes to the spool only — judging is unaffected. |
 | `RABADON_LENS_DIR` | `~/.claude/projects` | transcript source for `lens` |
 | `RABADON_NOTIFY` | on | `0` silences desktop notifications |
-| `RABADON_OFF` | unset | `1` makes the gate a no-op for this process and its children (set on every model subprocess rabadon spawns, so the supervisor never supervises itself). One of three silencers — the other two are files, `<project>/.rabadon/off` and `$RABADON_DIR/silent`; see [the three silencers](#the-three-silencers--and-why-off-is-not-one-of-them) |
+| `RABADON_OFF` | unset | `1` makes the gate a no-op for this process and its children (set on every model subprocess rabadon spawns, so the supervisor never supervises itself). One of six silencers; see [the six silencers](#the-six-silencers--and-why-off-is-not-one-of-them) for the other five and the one command that lifts each |
 | `RABADON_DRILL` | unset | `1` tags emitted events as self-test, excluded from every count |
 
 When the judge or the diagnosis does run, each call writes one `LLM_CALL` event

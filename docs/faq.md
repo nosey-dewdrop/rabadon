@@ -10,17 +10,24 @@ Work through these in order:
 
 1. **Check the mode.** `rabadon status`. In **watch** mode nothing is stopped —
    rules only record `WOULD_BLOCK`. Turn it on with `rabadon on`.
-2. **Check for a silencer — `rabadon status` will not tell you about these.**
-   Three things make the gate a total no-op: it exits `0` before any rule runs
-   and writes nothing to the ledger, no matter what mode says. They are checked
-   before the mode, so they beat `rabadon on`:
-   - `echo $RABADON_OFF` → if `1`, remove it with `unset RABADON_OFF`
-   - `ls <project>/.rabadon/off` → if it exists, remove it with
-     `rm <project>/.rabadon/off`
-   - `ls ~/.rabadon/silent` → if it exists, remove it with `rm ~/.rabadon/silent`
+2. **Check for a silencer.** Six things make the gate a total no-op: it exits
+   `0` before any rule runs and writes nothing to the ledger, no matter what
+   mode says. They are checked before the mode, so they beat `rabadon on`. The
+   full table, with the one command that lifts each, is
+   [the six silencers](commands.md#the-six-silencers--and-why-off-is-not-one-of-them).
 
-   `rabadon off` does **not** create or remove any of them; it only sets watch
-   mode. Details: [commands.md](commands.md#the-three-silencers--and-why-off-is-not-one-of-them).
+   <!-- rabadon:claims-begin -->
+   Run `rabadon status` first. Since 2026-08-26 it names the silencer that is
+   in force, says where the silencer is, and prints the one command that
+   lifts it.
+   Corrected on 2026-08-26. This step used to open with "`rabadon status` will
+   not tell you about these" and used to list three silencers. Both were
+   measured false with `bash native/docs_truth_test.sh`: the screen reports the
+   silencer, and the binary can report six of them.
+   `rabadon off` is not a way out of `RABADON_OFF=1`, `<project>/.rabadon/off`,
+   `<project>/.rabadon/mode` or `RABADON_MODE=silent`. It does lift
+   `$RABADON_DIR/silent` and a `$RABADON_DIR/mode` that says `silent`.
+   <!-- rabadon:claims-end -->
 3. **Prove the gate works at all.** `rabadon drill` fires a synthetic dangerous
    command through the real gate. If the drill refuses but your real command does
    not, the gate is healthy and your **guard rule** does not match the command —

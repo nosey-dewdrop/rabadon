@@ -51,12 +51,25 @@ touch <project>/.rabadon/off
 
 While that file exists the gate returns exit `0` immediately for that project:
 no rule is evaluated, nothing is written to the ledger, nothing is printed. The
-machine-wide version is `touch ~/.rabadon/silent`, and the per-shell version is
-`export RABADON_OFF=1`. Each is removed by deleting it — `rm
-<project>/.rabadon/off`, `rm ~/.rabadon/silent`, `unset RABADON_OFF` — and the
-gate is live again on the very next event. `rabadon status` shows the mode, not
-these, so if rabadon says ENFORCE and refuses nothing, look here first. Full
-table in [commands.md](commands.md#the-three-silencers--and-why-off-is-not-one-of-them).
+machine-wide version is `rabadon-gate --silent`, and the per-shell version is
+`export RABADON_OFF=1`.
+
+<!-- rabadon:claims-begin -->
+Corrected on 2026-08-26. This section used to give `rm ~/.rabadon/silent` as
+the machine-wide lift. Measured false with `bash native/docs_truth_test.sh`:
+deleting that file alone is not enough, because `rabadon-gate --silent` writes
+`silent` into `$RABADON_DIR/mode` too and the mode outlives the file. Use
+`rabadon off`, which clears both.
+This section also used to say that `rabadon status` shows the mode, not these.
+Measured false the same day: `rabadon status` reports the silencer by name, by
+location, and with the one command that lifts it — so if rabadon refuses
+nothing, run it first.
+So the three lifts are `rm <project>/.rabadon/off`, `rabadon off`, and
+`unset RABADON_OFF`, and the gate is live again on the very next event.
+<!-- rabadon:claims-end -->
+
+Full table in
+[the six silencers](commands.md#the-six-silencers--and-why-off-is-not-one-of-them).
 
 Note that `rabadon remove --purge` below deletes the project's `.rabadon/`
 directory, and the `off` file with it — a purge un-silences before it uninstalls.
