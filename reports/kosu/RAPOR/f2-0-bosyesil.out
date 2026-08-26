@@ -1,0 +1,38 @@
+# f2-0 EMPTY GREEN (a): fixture added, code UNCHANGED, binary at f03320f
+# date: 2026-08-26T08:30:31Z
+# cmd: ./native/heredoc_prose_test.sh
+
+heredoc prose: a rule that spells a pipe reads commands, not documents
+
+== positives: the two rules still fire on REAL commands ==
+  ok   exit code after | tail -> BLOCK
+  ok   exit code after | grep -> BLOCK
+  ok   exit code on one line -> BLOCK
+  ok   exit code after a real cat -> BLOCK
+  ok   gnu timeout at line start -> BLOCK
+  ok   gnu timeout after && -> BLOCK
+  ok   bare pipe, no quotes -> BLOCK
+  ok   bash -c carries a real pipeline -> BLOCK
+
+== negatives: the same shapes, sitting inside a document being written ==
+  ok   the measured C6 write -> ALLOW
+  ok   heredoc prose, | tail form -> ALLOW
+  ok   heredoc prose, unquoted delim -> ALLOW
+  ok   heredoc prose, gnu timeout -> ALLOW
+  ok   heredoc prose, timeout after ; -> ALLOW
+  ok   two heredocs, prose in both -> ALLOW
+
+== the other half: a QUOTED word is data too, not only a heredoc body ==
+  FAIL printf, single-quoted prose: expected ALLOW, gate said BLOCK
+  FAIL printf, double-quoted prose: expected ALLOW, gate said BLOCK
+  FAIL echo, double-quoted prose: expected ALLOW, gate said BLOCK
+  FAIL python3 -c prints the shape: expected ALLOW, gate said BLOCK
+  FAIL git commit message: expected ALLOW, gate said BLOCK
+
+== the exception stays an exception: real pipes still reach the rule ==
+  ok   heredoc AND a real violation -> BLOCK
+
+  ok   canary intact (judging is not running)
+
+FAILED
+EXIT=1

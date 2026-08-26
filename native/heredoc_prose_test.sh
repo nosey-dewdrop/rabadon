@@ -110,6 +110,16 @@ t "exit code on one line"         BLOCK 'make test | head -3 ; echo exit=$?'
 t "exit code after a real cat"    BLOCK "$(printf 'cat out.txt | awk "{print}"\necho exit=$?')"
 t "gnu timeout at line start"     BLOCK 'timeout 5 make test'
 t "gnu timeout after &&"          BLOCK 'make all && timeout 30 ./native/rabadon-gate'
+# the bare shape, quotes off. This is the line the rule was written about, and
+# it is checked before every quoted twin below: the cheapest way to make the
+# quoted cases allow is to stop the rule firing, and this cell is what refuses
+# that shortcut.
+t "bare pipe, no quotes"          BLOCK 'make test | grep -c ok ; echo exit=$?'
+# a QUOTED string can still be a program: `bash -c` hands its argument to a
+# shell, so the same characters that are prose after `printf` are a pipeline
+# here. Neutralizing quoted text without excepting a shell's -c string would
+# turn this cell green by turning the rule off.
+t "bash -c carries a real pipeline" BLOCK 'bash -c "make test | grep -c ok ; echo exit=$?"'
 
 echo
 echo "== negatives: the same shapes, sitting inside a document being written =="
@@ -125,6 +135,23 @@ t "heredoc prose, gnu timeout"    ALLOW "$(printf 'cat > notes.md <<%s\non macOS
 # single rule.
 t "heredoc prose, timeout after ;" ALLOW "$(printf 'cat > notes.md <<%s\nwrong: cd build ; timeout 5 make test\nEOF' "'EOF'")"
 t "two heredocs, prose in both"   ALLOW "$(printf 'cmd <<A <<B\nmake test | head -1\necho exit=$?\nA\ntimeout 9 sleep 1\nB')"
+
+echo
+echo "== the other half: a QUOTED word is data too, not only a heredoc body =="
+# A heredoc is not the only place prose sits on a command line. These five were
+# all measured BLOCK on the shipped gate at f03320f, and not one of them hands a
+# pipe to a shell: the pipe is inside a quoted word, which a shell passes on as
+# characters. Refusing them means an operator cannot print, echo, or commit a
+# sentence about the rule that is refusing him.
+t "printf, single-quoted prose"   ALLOW "printf 'C6: make test | grep -c ok ; echo exit=\$? hides the red\n' >> notes.md"
+t "printf, double-quoted prose"   ALLOW "printf \"never: make test | tail -5 ; echo exit=\$?\n\" >> notes.md"
+t "echo, double-quoted prose"     ALLOW "echo \"never: make test | grep -c ok ; echo exit=\$?\" >> notes.md"
+# python3 is not a shell — cmdtext.h says so out loud — so its -c argument is
+# data, and the sentence inside it is a string literal being printed.
+t "python3 -c prints the shape"   ALLOW "python3 -c \"print('make test | tail -5 ; echo exit=\$?')\""
+# the incident that started the whole surface question, in its other spelling:
+# a commit message describing the mistake being fixed.
+t "git commit message"            ALLOW "git commit -m \"fix: make test | grep -c ok ; echo exit=\$? hid a red suite\""
 
 echo
 echo "== the exception stays an exception: real pipes still reach the rule =="
