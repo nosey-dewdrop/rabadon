@@ -213,7 +213,14 @@ struct GateState {
   bool blind = false;         // the switch could not be READ -> enforce, loudly
   bool homeFlagPresent = false;
   string badModeEnv;          // RABADON_MODE said something unreadable
+  bool modeSilencer = false;  // the MODE layer is what is silencing, not a file
 };
+
+// One mode layer that actually said something, in narrowest-first order.
+// `next` is the ONE command that removes THIS layer and no other — the whole
+// bug this struct was extracted for was a screen printing the machine layer's
+// command (`rabadon off`) for silence that came from the environment.
+struct ModeLayer { string value, from, path, name, next; };
 
 // dir is the PROJECT directory — the cwd of the event on the hot path, the
 // cwd of the shell on the CLI, workspace.current_dir for the lamp.
@@ -234,27 +241,41 @@ static GateState compute_state(const string& dir) {
   s.muted = !s.muters.empty();
 
   // 2. THE LAYERED MODE, narrowest to widest. First layer that speaks wins.
+  // Every layer that SPOKE is collected, not just the winner. The winner alone
+  // was enough to answer "what mode am I in"; it is not enough to answer "what
+  // do I run to get out", because unsetting a silent env layer that sits on top
+  // of a silent machine layer changes nothing the user can see. See below.
+  std::vector<ModeLayer> spoke;
   if (const char* me = getenv("RABADON_MODE")) {
     if (*me) {
       const string v = me;
-      if (v == "enforce" || v == "watch" || v == "silent") {
-        s.layer = v; s.modeFrom = "env"; s.modePath = "RABADON_MODE";
-      } else {
-        s.layer = "enforce"; s.modeFrom = "env(unreadable)";
-        s.modePath = "RABADON_MODE"; s.badModeEnv = v;
+      if (v == "enforce" || v == "watch" || v == "silent")
+        spoke.push_back(ModeLayer{v, "env", "RABADON_MODE",
+                                  "RABADON_MODE=" + v, "unset RABADON_MODE"});
+      else {
+        spoke.push_back(ModeLayer{"enforce", "env(unreadable)", "RABADON_MODE",
+                                  "RABADON_MODE=" + v, "unset RABADON_MODE"});
+        s.badModeEnv = v;
       }
     }
   }
-  if (s.layer.empty()) {
+  {
     const string pm = read_mode_file(dir + "/.rabadon/mode");
-    if (!pm.empty()) { s.layer = pm; s.modeFrom = "project"; s.modePath = dir + "/.rabadon/mode"; }
-    else if (file_exists(dir + "/.rabadon/on")) {
-      s.layer = "enforce"; s.modeFrom = "project(legacy on)"; s.modePath = dir + "/.rabadon/on";
-    }
+    if (!pm.empty())
+      spoke.push_back(ModeLayer{pm, "project", dir + "/.rabadon/mode",
+                                ".rabadon/mode = " + pm, "rm " + dir + "/.rabadon/mode"});
+    else if (file_exists(dir + "/.rabadon/on"))
+      spoke.push_back(ModeLayer{"enforce", "project(legacy on)", dir + "/.rabadon/on",
+                                ".rabadon/on", "rm " + dir + "/.rabadon/on"});
   }
-  if (s.layer.empty()) {
+  {
     const string mm = read_mode_file(rhome + "/mode");
-    if (!mm.empty()) { s.layer = mm; s.modeFrom = "machine"; s.modePath = rhome + "/mode"; }
+    if (!mm.empty())
+      spoke.push_back(ModeLayer{mm, "machine", rhome + "/mode",
+                                "mode = " + mm, "rabadon off"});
+  }
+  if (!spoke.empty()) {
+    s.layer = spoke[0].value; s.modeFrom = spoke[0].from; s.modePath = spoke[0].path;
   }
 
   const FlagState homeFlag = flag_state(rhome + "/enabled");
@@ -272,6 +293,36 @@ static GateState compute_state(const string& dir) {
     if (homeFlag == FLAG_PRESENT) { s.modeFrom = "machine(legacy enabled)"; s.modePath = rhome + "/enabled"; }
     else if (s.blind)             { s.modeFrom = "blind"; s.modePath = rhome; }
     else                          { s.modeFrom = "default"; s.modePath = ""; }
+  }
+
+  // 3. A MODE OF `silent` IS A SILENCER, and it is recorded as one HERE so that
+  // every surface reads it from the same struct. It was not, and the screen
+  // shipped an escape door that does not open: with RABADON_MODE=silent the
+  // status line printed "`rabadon off` to watch again" — the machine layer's
+  // command — the user ran it, `rabadon off` wrote <RABADON_DIR>/mode and the
+  // environment kept overriding it, and the same event through the same binary
+  // was still exit 0 with zero bytes. Measured, verbatim, in
+  // reports/kosu/RAPOR/f1e-0-onolcum.out. 4.9: every state has an exit, and an
+  // exit that does not open is worse than none because the user stops looking.
+  //
+  // The LEADING RUN of silent layers is listed, not just the winner: once the
+  // narrowest is lifted the next one speaks, so telling the operator about one
+  // sends them to a switch that changes nothing. The run stops at the first
+  // layer that says something else — a `silent` sitting under a `watch` is
+  // shadowed, silences nothing, and naming it would send the user to delete a
+  // file that was not doing anything.
+  if (s.mode == "silent") {
+    s.modeSilencer = true;
+    for (size_t i = 0; i < spoke.size() && spoke[i].value == "silent"; i++) {
+      // `rabadon off` already appears above for <RABADON_DIR>/silent, and it
+      // lifts both in one go; printing it twice is noise, not disclosure.
+      if (spoke[i].from == "machine" && file_exists(rhome + "/silent")) continue;
+      s.muters.push_back(Muter{spoke[i].name,
+                               spoke[i].from == "env" ? string("environment variable")
+                                                      : spoke[i].path,
+                               spoke[i].next});
+    }
+    s.muted = true;
   }
   return s;
 }
@@ -320,7 +371,10 @@ static void print_state(const GateState& s, bool showSource, const char* didLine
   if (showSource) {
     const string src = s.modePath.empty() ? (rabadon_home() + "/mode") : s.modePath;
     const char* what =
-      s.muted                      ? "not consulted — a silencer above answers first"
+      // "not consulted" is only true when something ELSE silenced. When the mode
+      // layer is itself the silencer it very much was consulted, and saying it
+      // was not would hide the file the user has to remove.
+      (s.muted && !s.modeSilencer) ? "not consulted — a silencer above answers first"
       : s.modePath.empty()         ? "absent — no file means WATCH"
       : s.modeFrom == "env" || s.modeFrom == "env(unreadable)" ? "environment variable"
                                    : "present";
