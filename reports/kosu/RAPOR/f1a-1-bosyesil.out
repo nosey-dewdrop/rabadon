@@ -1,0 +1,28 @@
+f1a-1 — EMPTY GREEN PROOF (KOSU §8.2)
+date: 2026-08-26T02:39:55Z   repo: /Users/damummyphus/damla_projects_2026/rabadon   branch: main
+
+== BEFORE (audit added, help screen untouched) ==
+$ ./native/cli_test.sh ; echo EXIT=$?
+92:  ok   - the main help screen lists exactly 5 product commands
+93:  ok   - the product commands are exactly {init, on|off, usage, repair, doctor}
+94:  ok   - `version` and `dev` are listed separately, in that order, and are not counted as product commands
+95:  ok   - the whole screen carries 7 command lines, nothing else
+cli: 315 passed, 0 failed
+EXIT=0
+
+== INJECTED DEFECT (native/rabadon-cli.sh, help screen, after the doctor line) ==
+  scan                a sixth verb on purpose
+
+== RED ==
+$ ./native/cli_test.sh ; echo EXIT=$?
+  FAIL - BLOCKED: the main help screen lists 6 product commands, not 5 — [init on|off usage repair doctor scan]. WHY: five commands IS the product surface (T2); a sixth line on this screen is a product decision, not an edit. NEXT: move it under `rabadon dev` in native/rabadon-cli.sh, or change PROJECT.md first in its own commit.
+  FAIL - BLOCKED: the main screen's product commands do not match. unexpected: [scan] missing: [-]. WHY: this set is the whole advertised surface and is fixed. NEXT: `./native/rabadon-cli.sh --help` to see what it prints now.
+  FAIL - BLOCKED: the main screen carries 8 command lines, expected 7 — [init on|off usage repair doctor scan version dev]. WHY: an entry that is neither one of the five nor version/dev is an unaccounted surface. NEXT: `./native/rabadon-cli.sh --help`.
+cli: 312 passed, 3 failed
+EXIT=1
+
+== REVERTED ==
+$ git diff --stat native/rabadon-cli.sh
+(empty above = rabadon-cli.sh is byte-identical to HEAD)
+$ git status --porcelain native/rabadon-cli.sh
+(empty above = no untracked/modified state)

@@ -208,6 +208,106 @@ while IFS=$'\t' read -r VERDICT MSG; do
 done < "$VERB_REPORT"
 rm -f "$VERB_REPORT"
 
+# ---- 1c. the main screen has a CEILING, and it can go red ----
+# Section 1b enforces the floor: every shipped binary must be findable on SOME
+# screen. Nothing enforced the other direction. "Five commands is the whole
+# product" was a sentence in the help text and in T2's rationale — not a check.
+# A sixth product line could be added to the main screen and all 310 assertions
+# stayed green, because every one of them asks "is this verb listed?" and none
+# asks "is anything listed that should not be?". That is an EMPTY GREEN: the
+# claim the product is built on had no test behind it.
+#
+# So the count is PARSED out of the rendered screen, never typed in as a number
+# to compare against a number. The screen is read the way a stranger reads it:
+# entries are the lines indented exactly two spaces, up to the `examples`
+# heading; each entry's left column (everything before the first double space)
+# is its signature, and `on | off` is ONE entry with the label `on|off`.
+# `version` and `dev` are not product verbs — they are the standard one and the
+# door to everything else — so they are counted and asserted separately.
+# Add a sixth product line and the parsed count becomes 6 and the parsed name
+# set gains a word: both assertions below turn red and print the word.
+CEIL_REPORT=$(mktemp /tmp/rabadon-ceiling.XXXXXX)
+python3 - "$HOME_DIR/help.txt" "$CEIL_REPORT" <<'PY'
+import re, sys
+
+helpfile, report = sys.argv[1], sys.argv[2]
+out = []
+def rec(good, msg): out.append(("PASS" if good else "FAIL") + "\t" + msg)
+
+text = open(helpfile, encoding="utf-8").read()
+# vacuity guard: an empty capture would make every count below trivially wrong
+# in the passing direction if the assertions were negatives, and unreadable
+# either way. Assert the screen exists before asserting what is on it.
+rec(len(text) > 200,
+    "the main help screen was captured (%d bytes) to count entries on" % len(text)
+    if len(text) > 200 else
+    "the captured main help screen is %d bytes — the surface ceiling below "
+    "would be counting nothing. Next: run `./native/rabadon-cli.sh --help`"
+    % len(text))
+
+PRODUCT = ["init", "on|off", "usage", "repair", "doctor"]
+META = ["version", "dev"]
+
+entries = []
+for line in text.splitlines():
+    s = line.strip()
+    if s.lower() == "examples":       # below this the left column is `rabadon ...`
+        break
+    if not line.startswith("  ") or line.startswith("   ") or not s:
+        continue
+    sig = re.split(r"\s{2,}", s)[0]
+    words = [alt.split()[0] for alt in sig.split("|") if alt.split()]
+    if not words or words[0] == "rabadon":
+        continue
+    entries.append("|".join(words))
+
+product = [e for e in entries if e not in META]
+meta = [e for e in entries if e in META]
+
+n = len(product)
+rec(n == len(PRODUCT),
+    "the main help screen lists exactly %d product commands" % n if n == len(PRODUCT) else
+    "BLOCKED: the main help screen lists %d product commands, not %d — [%s]. "
+    "WHY: five commands IS the product surface (T2); a sixth line on this screen "
+    "is a product decision, not an edit. NEXT: move it under `rabadon dev` in "
+    "native/rabadon-cli.sh, or change PROJECT.md first in its own commit."
+    % (n, len(PRODUCT), " ".join(product)))
+
+extra = [e for e in product if e not in PRODUCT]
+missing = [e for e in PRODUCT if e not in product]
+names_ok = not extra and not missing
+rec(names_ok,
+    "the product commands are exactly {%s}" % ", ".join(PRODUCT) if names_ok else
+    "BLOCKED: the main screen's product commands do not match. unexpected: [%s] "
+    "missing: [%s]. WHY: this set is the whole advertised surface and is fixed. "
+    "NEXT: `./native/rabadon-cli.sh --help` to see what it prints now."
+    % (" ".join(extra) or "-", " ".join(missing) or "-"))
+
+meta_ok = meta == META
+rec(meta_ok,
+    "`version` and `dev` are listed separately, in that order, and are not counted "
+    "as product commands" if meta_ok else
+    "BLOCKED: the non-product lines on the main screen are [%s], expected [%s]. "
+    "WHY: `version` is the standard verb and `dev` is the door to the other "
+    "thirty; losing either strands them. NEXT: `./native/rabadon-cli.sh --help`."
+    % (" ".join(meta) or "-", " ".join(META)))
+
+total_ok = len(entries) == len(PRODUCT) + len(META)
+rec(total_ok,
+    "the whole screen carries %d command lines, nothing else" % len(entries) if total_ok else
+    "BLOCKED: the main screen carries %d command lines, expected %d — [%s]. "
+    "WHY: an entry that is neither one of the five nor version/dev is an "
+    "unaccounted surface. NEXT: `./native/rabadon-cli.sh --help`."
+    % (len(entries), len(PRODUCT) + len(META), " ".join(entries)))
+
+open(report, "w").write("\n".join(out) + "\n")
+PY
+while IFS=$'\t' read -r VERDICT MSG; do
+  [ -z "${VERDICT:-}" ] && continue
+  [ "$VERDICT" = "PASS" ] && pass "$MSG" || fail "$MSG"
+done < "$CEIL_REPORT"
+rm -f "$CEIL_REPORT"
+
 # ---- 2. a bare `rabadon` REPORTS, it never changes state ----
 # The flag file IS the state, so the test looks at the file rather than
 # trusting the message printed about it.
