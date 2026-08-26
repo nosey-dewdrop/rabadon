@@ -203,6 +203,50 @@ static string rabadon_home() { return rbpath::rabadon_dir(); }
 // included — reads this struct. A surface that computes its own answer is the
 // bug this function exists to make impossible.
 struct Muter { string name, where, next; };
+
+// ---------- THE SILENCER SOURCES: ONE TABLE, DECLARED BY THE BINARY ----------
+// Every way this gate can go dormant is a row here, and compute_state builds
+// EVERY Muter it pushes out of these rows — there is no second list, the same
+// single-source law that put the state itself in compute_state.
+//
+// The table is also a SURFACE: `rabadon-gate --silencers` prints it. Before
+// that, the number of silencers a test could hold the docs to came from a list
+// a human had typed into native/docs_truth_test.sh (`SITUATIONS=...`), so a
+// SEVENTH silencer added below broke nothing — no situation was written for it,
+// the derived set stayed at six, and the lock went on proving six things about
+// a gate that had seven. It guarded today and not tomorrow. Now the fixture is
+// held equal to what the binary itself declares, and the day this table grows
+// is the day that suite goes red.
+//
+// The rows carry <project> and $RABADON_DIR rather than resolved paths: the
+// table is a statement about the PRODUCT, not about one machine's cwd, and it
+// has to be printable without an event or a project to read.
+enum SilId { SIL_ENV_OFF = 0, SIL_PROJECT_OFF, SIL_MACHINE_SILENT,
+             SIL_ENV_MODE, SIL_PROJECT_MODE, SIL_MACHINE_MODE, SIL_COUNT };
+struct SilencerSource { const char* name; const char* where; const char* next; };
+static const SilencerSource kSilencers[SIL_COUNT] = {
+  {"RABADON_OFF=1",          "environment variable",    "unset RABADON_OFF"},
+  {".rabadon/off",           "<project>/.rabadon/off",  "rm <project>/.rabadon/off"},
+  {"silent",                 "$RABADON_DIR/silent",     "rabadon off"},
+  {"RABADON_MODE=silent",    "environment variable",    "unset RABADON_MODE"},
+  {".rabadon/mode = silent", "<project>/.rabadon/mode", "rm <project>/.rabadon/mode"},
+  {"mode = silent",          "$RABADON_DIR/mode",       "rabadon off"},
+};
+
+static string sil_fill(const char* tpl, const string& dir, const string& rhome) {
+  string s(tpl);
+  for (size_t p = s.find("<project>"); p != string::npos; p = s.find("<project>", p + dir.size()))
+    s.replace(p, 9, dir);
+  for (size_t p = s.find("$RABADON_DIR"); p != string::npos; p = s.find("$RABADON_DIR", p + rhome.size()))
+    s.replace(p, 12, rhome);
+  return s;
+}
+static Muter sil_muter(int id, const string& dir, const string& rhome) {
+  return Muter{sil_fill(kSilencers[id].name, dir, rhome),
+               sil_fill(kSilencers[id].where, dir, rhome),
+               sil_fill(kSilencers[id].next, dir, rhome)};
+}
+
 struct GateState {
   std::vector<Muter> muters;  // every silencer IN FORCE, narrowest first
   bool muted = false;         // any muter at all: the gate returns 0, no rules run
@@ -233,11 +277,11 @@ static GateState compute_state(const string& dir) {
   // is still in force sends them to unset a variable that changes nothing.
   const char* offEnv = getenv("RABADON_OFF");
   if (offEnv && string(offEnv) == "1")
-    s.muters.push_back(Muter{"RABADON_OFF=1", "environment variable", "unset RABADON_OFF"});
+    s.muters.push_back(sil_muter(SIL_ENV_OFF, dir, rhome));
   if (file_exists(dir + "/.rabadon/off"))
-    s.muters.push_back(Muter{".rabadon/off", dir + "/.rabadon/off", "rm " + dir + "/.rabadon/off"});
+    s.muters.push_back(sil_muter(SIL_PROJECT_OFF, dir, rhome));
   if (file_exists(rhome + "/silent"))
-    s.muters.push_back(Muter{"silent", rhome + "/silent", "rabadon off"});
+    s.muters.push_back(sil_muter(SIL_MACHINE_SILENT, dir, rhome));
   s.muted = !s.muters.empty();
 
   // 2. THE LAYERED MODE, narrowest to widest. First layer that speaks wins.
@@ -317,10 +361,19 @@ static GateState compute_state(const string& dir) {
       // `rabadon off` already appears above for <RABADON_DIR>/silent, and it
       // lifts both in one go; printing it twice is noise, not disclosure.
       if (spoke[i].from == "machine" && file_exists(rhome + "/silent")) continue;
-      s.muters.push_back(Muter{spoke[i].name,
-                               spoke[i].from == "env" ? string("environment variable")
-                                                      : spoke[i].path,
-                               spoke[i].next});
+      // the row in kSilencers this layer IS. The loop condition guarantees
+      // value == "silent", so the row's name is the layer's own sentence.
+      const int id = spoke[i].from == "env"     ? SIL_ENV_MODE
+                   : spoke[i].from == "project" ? SIL_PROJECT_MODE
+                   : spoke[i].from == "machine" ? SIL_MACHINE_MODE
+                                                : -1;
+      // A layer with no row is a way to go dormant the binary never declared.
+      // It is still DISCLOSED — a silencer the screen hides is Promise 1
+      // broken, and a wrong label beats none — and native/docs_truth_test.sh
+      // goes red on it: the screen reported a silencer `--silencers` does not
+      // list, which is the second copy of the list this table exists to forbid.
+      if (id >= 0) s.muters.push_back(sil_muter(id, dir, rhome));
+      else s.muters.push_back(Muter{spoke[i].name, spoke[i].path, spoke[i].next});
     }
     s.muted = true;
   }
@@ -2394,7 +2447,8 @@ int main(int argc, char** argv) {
   //             line wedge every tool call on the machine. Fail OPEN, always.
   if (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
     static const char* kKnownFlags[] = {"--version", "--lint", "--statusline",
-                                        "--on", "--off", "--toggle", "--status", "--silent", "--wrong"};
+                                        "--on", "--off", "--toggle", "--status", "--silent", "--wrong",
+                                        "--silencers"};
     bool recognised = false;
     for (const char* k : kKnownFlags) if (strcmp(argv[1], k) == 0) recognised = true;
     if (!recognised) {
@@ -2405,6 +2459,28 @@ int main(int argc, char** argv) {
 
   // --version for install sanity checks
   if (argc > 1 && string(argv[1]) == "--version") { printf("rabadon-gate " RABADON_VERSION "\n"); return 0; }
+
+  // --silencers — this binary's own declaration of every way it can go dormant,
+  // one row per source, tab separated: name, where template, lifting command
+  // template. It is the kSilencers table and nothing else, so it cannot drift
+  // from what compute_state actually pushes.
+  //
+  // WHY IT EXISTS. It is not a screen for a person — `rabadon status` is, and it
+  // names the silencers actually IN FORCE right now. This answers the other
+  // question: what silencers can EXIST. native/docs_truth_test.sh used to answer
+  // it from a hand-typed list of six situations, which made a seventh silencer
+  // invisible to the lock that is supposed to catch exactly that. It reads this
+  // instead. Unlisted on --help for the same reason `rabadon statusline` is
+  // unlisted on the CLI: nobody types it, a machine does.
+  //
+  // Deliberately BEFORE any state is computed and after the argc>1 guard: it
+  // reads no project, no env, no file, and adds nothing to the hot path, where
+  // argc is 1 and this line is not reached.
+  if (argc > 1 && string(argv[1]) == "--silencers") {
+    for (int i = 0; i < SIL_COUNT; i++)
+      printf("%s\t%s\t%s\n", kSilencers[i].name, kSilencers[i].where, kSilencers[i].next);
+    return 0;
+  }
 
   // --lint [dir] — validate a guard.json before it is trusted. A typo'd key
   // ("protectedPath" for "protectedPaths") or an uncompilable regex used to be
