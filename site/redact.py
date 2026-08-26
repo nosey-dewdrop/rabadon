@@ -75,6 +75,25 @@
 #   Published files state HOW MANY records were withheld, never which term did
 #   it. The count is the honest part: a filter that hides its own size turns
 #   "here is everything" into "here is what was chosen", silently.
+#
+# AND THE OTHER HALF, WHICH IS THE ONE THAT ACTUALLY HOLDS
+#   Everything above is default-ALLOW. A private list only withholds the names
+#   somebody remembered to write on it, it exists on one machine, and CI has no
+#   copy — so on any other box the name rules do nothing and the suite goes
+#   green on blindness. Measured 2026-08-17: 58 distinct project names were
+#   published in site/ artifacts and zero were on the private list.
+#
+#   So a second question is asked here, and it is the opposite one: not "is this
+#   name secret" but "was this name DECIDED". The answers live in
+#   site/published-projects.txt, which is public, committed and readable by CI
+#   without it ever learning a private name. A label that denotes a project and
+#   is not on that list is published as `(withheld)` — the same constant every
+#   other withheld name gets, never a distinct marker each, because distinct
+#   markers publish how many withheld projects exist.
+#
+#   Default-WITHHOLD, in both directions: a missing or empty list withholds
+#   every name rather than allowing every name, exactly as site/allowlist.py
+#   fails closed on the same file.
 import os
 import re
 
@@ -193,6 +212,86 @@ _PROJECT_RE = (re.compile("|".join(re.escape(p) for p in SENSITIVE_PROJECTS), re
 # avoid, arriving through the door marked documentation.
 _PROJECT_KEY_RE = (re.compile("|".join(re.escape(encode_key(p)) for p in SENSITIVE_PROJECTS), re.I)
                    if SENSITIVE_PROJECTS else None)
+
+
+# ---------------------------------------------------------------------------
+# the public, committed decision list. Same file and same override that
+# site/allowlist.py checks against, on purpose: the gate that judges the
+# published artifacts and the generator that writes them must not be able to
+# disagree about which names were decided.
+# ---------------------------------------------------------------------------
+HERE = os.path.dirname(os.path.abspath(__file__))
+PUBLISHED_FILE = (os.environ.get("RABADON_ALLOWLIST")
+                  or os.path.join(HERE, "published-projects.txt"))
+
+# THE ONLY SWITCH, AND IT IS NOT A LENIENCY KNOB. It exists so the withholding
+# can be proven to do something: turn it off, regenerate, and the disclosure
+# gate has to go RED again. A green that survives this being off is a green that
+# was never bought by this code. Unset means WITHHOLD, on every machine and in
+# CI, so nothing is riding on an environment variable being present.
+WITHHOLD_UNDECIDED = os.environ.get("RABADON_PUBLISH_UNDECIDED", "") != "1"
+
+
+def load_published(path=None):
+    """The project names somebody decided may be published. Missing file ->
+    empty set.
+
+    AND AN EMPTY SET MEANS THIS RULE DOES NOT FIRE, which reads like the
+    fail-open direction and is not, for one reason: the FAIL-CLOSED DUTY IS THE
+    GATE'S, and site/allowlist.py holds it on this exact file. With no list
+    there are no allowed names, so every published name is off-list and `make
+    disclosure` fails the build. The combination this project has to prevent — a
+    green publish with the decision list missing — cannot occur.
+
+    What an empty set must not do is withhold EVERYTHING, and that is not
+    caution, it is the destruction of a column: `rabadon` itself, the fixtures,
+    every name already decided, all collapsed into one marker on any machine
+    whose checkout is incomplete. A redaction is free to hide a fact and never
+    free to invent one, and "every project here is private" is an invention.
+    site/redact.py's own private list is read on the same terms (load_terms
+    above): no file, no name-based withholding."""
+    names = set()
+    try:
+        with open(path or PUBLISHED_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if line:
+                    names.add(line)
+    except OSError:
+        return names
+    return names
+
+
+PUBLISHED_NAMES = load_published()
+
+
+def _denotes_a_project(label):
+    """The project NAME this label denotes, or None when it denotes no project.
+
+    site/identity.py owns that question — a lab tree, the home directory, a
+    scratch root and the three markers are not names and must not be run past a
+    list of names. It is imported lazily for the reason identity.py imports this
+    module lazily: each has to stand alone in a test that copies only one of
+    them. If it cannot be imported the label is judged raw, which withholds more
+    than necessary and never less."""
+    try:
+        import identity
+    except ImportError:
+        return label
+    kind, name = identity.identity_of(label)
+    if kind in ("project", "fixture"):
+        return name
+    return None
+
+
+def undecided(label):
+    """True when this label names a project nobody decided to publish."""
+    if not WITHHOLD_UNDECIDED or not PUBLISHED_NAMES:
+        return False
+    name = _denotes_a_project(label)
+    if name is None:
+        return False
+    return name not in PUBLISHED_NAMES
 
 
 def _project_hit(blob):
@@ -347,5 +446,18 @@ def project_of(pipe):
     # rows be correlated across pages, which is a fact about the operator's work
     # that the withholding is there to keep.
     if _project_hit(p):
+        return "(withheld)"
+    # AND THE PUBLIC LIST APPLIES HERE TOO, which is the half the private list
+    # cannot cover. Everything above asks whether this name is on a secret list
+    # that exists on one machine; this asks whether anybody DECIDED it may go
+    # out. 41 names were being published on the second question's silence alone.
+    #
+    # It is the last rule on purpose. A label reaches it already unhomed, already
+    # de-keyed and already past the private list, so what is being judged is the
+    # string a reader would actually see — and site/identity.py has been asked
+    # first whether the string denotes a project at all, so a lab tree and the
+    # home directory keep their own answers instead of being buried under this
+    # marker.
+    if undecided(p):
         return "(withheld)"
     return p

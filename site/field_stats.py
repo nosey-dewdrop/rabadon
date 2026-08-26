@@ -156,7 +156,23 @@ def main():
     # This is the number that answers "what would enforce mode have done".
     wb = evs(field, "WOULD_BLOCK")
     wb_own = evs(own, "WOULD_BLOCK")
-    by_rule = collections.Counter(r.get("rule") or r.get("reason") or "-" for r in wb)
+    # A RULE ID IS FREE TEXT HERE TOO, and this counter was the one place left
+    # that did not know it. The engine names a rule after what it is about, and
+    # one of them ends in a withheld repository's name — the leak of 2026-08-17,
+    # fixed for `field.rules_list` two hundred lines below and not for this
+    # counter, because this line publishes only the top twelve and the id had
+    # not climbed that far yet. It climbed. `field.would_block_by_rule` then
+    # carried the name into site/measured.json and site/field.html, and
+    # publish_redaction_test.sh section 6 named both files.
+    #
+    # Scrubbed after the tally and SUMMED, never assigned: if two ids scrub to
+    # the same string their verdicts are added, so the published total stays the
+    # number of verdicts that really happened. Overwriting instead would drop
+    # one of them and shrink a published count to make a redaction tidy.
+    by_rule = collections.Counter()
+    for _rule, _n in collections.Counter(
+            r.get("rule") or r.get("reason") or "-" for r in wb).items():
+        by_rule[clean(_rule, 0)] += _n
     by_proj = collections.Counter(published_label(r.get("pipe")) for r in wb)
 
     # STOP: enforce mode refused and the command never ran.

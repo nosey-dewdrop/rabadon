@@ -1,0 +1,107 @@
+f1a-2-disclosure — empty-green check (§8.2)
+
+THE QUESTION. `make disclosure` is green. Is it green because the
+withholding in site/redact.py WORKS, or because the gate cannot turn red
+on this repository's artifacts at all?
+
+THE SWITCH. site/redact.py WITHHOLD_UNDECIDED, one line, off when
+RABADON_PUBLISH_UNDECIDED=1 is set. Unset means WITHHOLD, so nothing in
+CI rides on an environment variable being present.
+
+date: 2026-08-26T02:48:16Z    commit: b688830
+
+==============================================================
+a. WITHHOLDING ON — the shipped default
+==============================================================
+$ python3 site/allowlist.py --list | tail -1
+12 name(s) found, 12 allowed, 0 off-list
+$ make disclosure
+./native/published_allowlist_test.sh
+published allowlist: a name is published by decision, not by default
+  ok   - an off-list project name fails the check (exit 1)
+  ok   - and the offending name is NAMED, so the human knows what to decide
+  ok   - it reads the JSONL artifact too, not only the JSON one
+  ok   - the allowed name is not reported — this is a decision gate, not a name census
+  ok   - with every published name on the list the check passes (exit 0)
+  ok   - comments, blank lines and surrounding space are not part of a name
+  ok   - a missing allowlist allows NOTHING — it fails closed, not open
+  ok   - an empty allowlist allows nothing either
+  ok   - every project name published under site/ is on the allowlist
+
+published allowlist: 9 ok, 0 fail
+exit=0
+
+==============================================================
+b. WITHHOLDING OFF — same generators, same ledger, same census
+==============================================================
+$ RABADON_PUBLISH_UNDECIDED=1 python3 site/rule_census.py --republish
+wrote /Users/damummyphus/damla_projects_2026/rabadon/site/rule_census.json (287596 bytes, 122 record(s) withheld: by_project=10, comparison.probes_repaired=3, identity.by_project=2, mechanisms_tested_and_not_found.exposure.top_subdirectory_cwds=3, over_fires.allow_twins_withheld_list=2, rules=102)
+$ RABADON_PUBLISH_UNDECIDED=1 python3 site/field_stats.py --write
+wrote site/measured.json (field.*) and site/field.jsonl — 778 published, 942 dropped as sensitive
+$ python3 site/allowlist.py --list | tail -1
+  Each one is a disclosure decision. Add the names that may be public to the allowlist, with the reason; make redact.py withhold the rest.
+$ make disclosure
+./native/published_allowlist_test.sh
+published allowlist: a name is published by decision, not by default
+  ok   - an off-list project name fails the check (exit 1)
+  ok   - and the offending name is NAMED, so the human knows what to decide
+  ok   - it reads the JSONL artifact too, not only the JSON one
+  ok   - the allowed name is not reported — this is a decision gate, not a name census
+  ok   - with every published name on the list the check passes (exit 0)
+  ok   - comments, blank lines and surrounding space are not part of a name
+  ok   - a missing allowlist allows NOTHING — it fails closed, not open
+  ok   - an empty allowlist allows nothing either
+  FAIL - site/ publishes project names nobody decided to publish: 62 name(s) found, 12 allowed, 50 off-list
+          triage them: python3 site/allowlist.py --list
+          a name that may be public goes in site/published-projects.txt
+          with its reason; the rest belong on the private withhold list.
+
+published allowlist: 8 ok, 1 fail
+make: *** [disclosure] Error 1
+exit=2
+
+==============================================================
+c. WITHHOLDING BACK ON — the same three commands, nothing else
+==============================================================
+$ python3 site/rule_census.py --republish
+wrote /Users/damummyphus/damla_projects_2026/rabadon/site/rule_census.json (281095 bytes, 122 record(s) withheld: by_project=10, comparison.probes_repaired=3, identity.by_project=2, mechanisms_tested_and_not_found.exposure.top_subdirectory_cwds=3, over_fires.allow_twins_withheld_list=2, rules=102)
+$ python3 site/field_stats.py --write
+wrote site/measured.json (field.*) and site/field.jsonl — 778 published, 942 dropped as sensitive
+$ python3 site/build.py   (the pages render the same project column)
+  from 755 commits, 20 pull requests, 30 days, 12 suites
+$ python3 site/allowlist.py --list | tail -1
+12 name(s) found, 12 allowed, 0 off-list
+$ make disclosure
+./native/published_allowlist_test.sh
+published allowlist: a name is published by decision, not by default
+  ok   - an off-list project name fails the check (exit 1)
+  ok   - and the offending name is NAMED, so the human knows what to decide
+  ok   - it reads the JSONL artifact too, not only the JSON one
+  ok   - the allowed name is not reported — this is a decision gate, not a name census
+  ok   - with every published name on the list the check passes (exit 0)
+  ok   - comments, blank lines and surrounding space are not part of a name
+  ok   - a missing allowlist allows NOTHING — it fails closed, not open
+  ok   - an empty allowlist allows nothing either
+  ok   - every project name published under site/ is on the allowlist
+
+published allowlist: 9 ok, 0 fail
+exit=0
+
+==============================================================
+VERDICT
+==============================================================
+The green in (a) and (c) is bought by one rule: site/redact.py refuses to
+publish a project name that is not on site/published-projects.txt. Turn
+that rule off and the same two generators, reading the same ledger and the
+same unredacted census, put 50 undecided names back under site/ and the
+gate fails the build with exit 2. The check can turn red here, so its
+green is a fact about the artifacts and not about the check.
+
+50 in (b) against 41 before the work started: the ledger grew between the
+two runs. The number is whatever the ledger says, and it is reported as
+measured, not as it was quoted on the card.
+
+NOT PROVEN BY THIS FILE. site/allowlist.py reads the `project` field a
+record DECLARES; a name embedded in free text — a rule id, a detail
+sentence, a quoted path — carries no such field, so neither the gate nor
+this switch speaks for it. That class is still open. See the report.
