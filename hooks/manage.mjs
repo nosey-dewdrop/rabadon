@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installHooks, installCursorHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, RABADON_CMD_RE } from './install.mjs';
+import { installHooks, installCursorHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, NATIVE_DIRS, RABADON_CMD_RE } from './install.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, '..');
@@ -220,18 +220,50 @@ function cmdRemove(args) {
   process.exit(0);
 }
 
-function pkgVersion() {
-  try { return JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'package.json'), 'utf8')).version; }
-  catch { return '?'; }
+function pkgJson() {
+  try { return JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'package.json'), 'utf8')); }
+  catch { return {}; }
 }
+function pkgVersion() { return pkgJson().version || '?'; }
+
+// realpath or the path itself: /tmp vs /private/tmp, npm-bin symlinks, and a
+// clone reached through a symlinked home all make two spellings of one file,
+// and "is this mine" is a question about the file, not about the spelling.
+function realOr(p) { try { return fs.realpathSync(p); } catch { return p; } }
+const isUnder = (p, root) => p === root || p.startsWith(root + path.sep);
 
 function cmdDoctor() {
   let problems = 0;
   const ok = (s) => console.log(`  ok   ${s}`);
   const warn = (s) => { console.log(`  WARN ${s}`); problems++; };
+  // Every WARN answers three questions or it is a line that sends a stranger to
+  // the issue tracker: WHAT happened (the warn text), WHY it matters, and the
+  // ONE command to run next.
+  const why = (s) => console.log(`       why:  ${s}`);
+  const run = (s) => console.log(`       run:  ${s}`);
 
   console.log(`rabadon doctor — ${PKG_ROOT}`);
   console.log('');
+
+  // 0) the node that runs the hooks, against the floor package.json declares.
+  //    Read from engines.node, never typed here — one place says what is
+  //    supported, and it is the same one npm reads. This is first because
+  //    everything below runs under it: a node under the floor does not fail at
+  //    install time, it fails at the first tool call of a live session, and a
+  //    hook that cannot start is a session that is not being guarded at all.
+  const eng = (pkgJson().engines || {}).node;
+  if (eng) {
+    const m = String(eng).match(/(\d+)/);
+    const floor = m ? Number(m[1]) : null;
+    const cur = Number(process.versions.node.split('.')[0]);
+    if (floor !== null && cur < floor) {
+      warn(`node ${process.versions.node} is below engines.node "${eng}" — this install needs node ${floor} or newer`);
+      why('the hooks run under THIS node on every tool call; below the floor they die mid-session and the gate goes quiet while the install still looks fine');
+      run(`nvm install ${floor} && nvm use ${floor}   (or upgrade node system-wide, then re-run: rabadon doctor)`);
+    } else {
+      ok(`node ${process.versions.node} (satisfies engines.node "${eng}")`);
+    }
+  }
 
   // 1) binaries — the subject list comes from the Makefile (see coreBinaries in
   //    install.mjs), so a binary added to the build is one doctor checks for.
@@ -255,14 +287,42 @@ function cmdDoctor() {
         ? `       build them: (cd ${PKG_ROOT} && make)`
         : `       no C++ compiler found — install one first:\n         macOS: xcode-select --install\n         debian: sudo apt install g++ make`);
     }
+
+    // 1b) present is not the same as runnable. A tarball unpacked without the
+    //     mode bits, a hostile umask, a copy through a filesystem that drops
+    //     the x bit: the file IS there, so every "is it missing" check above
+    //     passes and the failure waits for the first person to run it.
+    const noexec = core.names.map(nativeBin).filter((p) => {
+      if (!fs.existsSync(p)) return false;
+      try { fs.accessSync(p, fs.constants.X_OK); return false; } catch { return true; }
+    });
+    if (noexec.length) {
+      warn(`${noexec.length} native binary/binaries present but not executable`);
+      for (const p of noexec) console.log(`         ${p}`);
+      why('nothing reports them missing — the file exists — so this install passes every "is it there" check and fails only when the command is actually run');
+      run(`chmod +x ${noexec.join(' ')}`);
+    }
   }
 
-  // 2) version lockstep
+  // 2) version lockstep — and the other half of the permission class: a binary
+  //    the OS itself refuses to execute (quarantine on macOS, a mode the file
+  //    system reports one way and enforces another, a wrong-arch download).
+  //    Only the gate is probed: it runs on every tool call, and doctor must not
+  //    start sixteen processes to answer a question about one.
   if (fs.existsSync(GATE_BIN)) {
-    const v = (spawnSync(GATE_BIN, ['--version'], { encoding: 'utf8' }).stdout || '').trim();
-    const pv = `rabadon-gate ${pkgVersion()}`;
-    if (v === pv) ok(`version ${pkgVersion()} (binary matches package.json)`);
-    else warn(`version drift: binary says "${v}", package.json says "${pkgVersion()}" — rebuild (make)`);
+    const r = spawnSync(GATE_BIN, ['--version'], { encoding: 'utf8' });
+    if (r.error) {
+      warn(`${path.basename(GATE_BIN)} is on disk but the OS refused to run it (${r.error.code || r.error.message}) — not executable here`);
+      why('a downloaded binary can be quarantined or carry the wrong architecture; the gate then fails to start on every tool call, which reads as "rabadon does nothing"');
+      run(process.platform === 'darwin'
+        ? `xattr -dr com.apple.quarantine ${PKG_ROOT} && chmod +x ${GATE_BIN}`
+        : `chmod +x ${GATE_BIN}`);
+    } else {
+      const v = (r.stdout || '').trim();
+      const pv = `rabadon-gate ${pkgVersion()}`;
+      if (v === pv) ok(`version ${pkgVersion()} (binary matches package.json)`);
+      else warn(`version drift: binary says "${v}", package.json says "${pkgVersion()}" — rebuild (make)`);
+    }
   }
 
   // 3) sandbox backend
@@ -276,7 +336,37 @@ function cmdDoctor() {
   if (hasClaude()) ok('claude CLI present (guard authoring + repair proposer available)');
   else warn('claude CLI not found — `rabadon guard`/`rabadon repair` need it; deny rules still work without it');
 
-  // 5) global hooks health: every rabadon hook command points at a file that exists
+  // 4b) which `rabadon` the user actually types. Everything doctor prints is
+  //     about THIS tree; if the command on PATH is another one, the whole report
+  //     describes an install nobody runs. Two shapes, both common: an old
+  //     `npm i -g` left beside a fresh clone (two on PATH), and a PATH entry
+  //     that points somewhere else entirely (one, foreign).
+  const mineRoot = realOr(PKG_ROOT);
+  const onPath = [];
+  for (const d of (process.env.PATH || '').split(path.delimiter)) {
+    if (!d) continue;
+    const p = path.join(d, 'rabadon');
+    try { fs.accessSync(p, fs.constants.X_OK); } catch { continue; }
+    const real = realOr(p);
+    if (!onPath.some((s) => s.real === real)) onPath.push({ p, real });
+  }
+  if (onPath.length === 0) {
+    console.log('  info no `rabadon` on PATH — this tree works when called by full path (npm i -g adds the short one)');
+  } else if (onPath.length > 1) {
+    warn(`${onPath.length} different \`rabadon\` commands on your PATH — the one that runs is ${onPath[0].p}`);
+    for (const s of onPath) console.log(`         ${s.p}${s.real !== s.p ? ` -> ${s.real}` : ''}`);
+    why('two installs means the version you type, the rules it reads and the binary it runs can all differ from the tree you are looking at — including this report');
+    run(`npm rm -g rabadon && npm i -g ${PKG_ROOT}   (leaves exactly one, this one)`);
+  } else if (!isUnder(onPath[0].real, mineRoot)) {
+    warn(`the \`rabadon\` on your PATH is a different install — ${onPath[0].real}, not this one (${PKG_ROOT})`);
+    why('what you type is not what you built: changes, rebuilds and guard edits here never reach the command your shell actually runs');
+    run(`npm i -g ${PKG_ROOT}   (points the short command at this tree)`);
+  } else {
+    ok(`\`rabadon\` on PATH is this install (${onPath[0].p})`);
+  }
+
+  // 5) global hooks health: every rabadon hook command points at a file that
+  //    exists AND belongs to this install.
   const gs = path.join(os.homedir(), '.claude', 'settings.json');
   if (fs.existsSync(gs)) {
     try {
@@ -286,9 +376,32 @@ function cmdDoctor() {
       walk(s.hooks || {}); if (s.statusLine) walk(s.statusLine);
       if (cmds.size === 0) console.log('  info global settings has no rabadon hooks (run `rabadon init --global`)');
       else {
-        const dead = [...cmds].filter((c) => { const bin = c.split(' ')[0]; return !fs.existsSync(bin); });
-        if (dead.length === 0) ok(`global hooks healthy (${cmds.size} rabadon command(s), all present)`);
-        else { warn(`global hooks point at ${dead.length} missing path(s) — run \`rabadon init --global\` to repair`); dead.forEach((d) => console.log(`         ${d}`)); }
+        // A hook command is an ABSOLUTE path, written once and never revisited.
+        // Two ways a previous install survives in it: the path is gone (dead),
+        // or the path still resolves — into somebody else's tree (stale). The
+        // second one is the silent one: nothing is missing, so a check that only
+        // asks "does this file exist" certifies it.
+        const roots = [mineRoot, ...NATIVE_DIRS.map(realOr)];
+        const dead = [], stale = [];
+        for (const c of cmds) {
+          const bin = c.split(' ')[0];
+          if (!fs.existsSync(bin)) { dead.push(bin); continue; }
+          const r = realOr(bin);
+          if (!roots.some((root) => isUnder(r, root))) stale.push(bin);
+        }
+        if (dead.length === 0 && stale.length === 0) ok(`global hooks healthy (${cmds.size} rabadon command(s), all from this install)`);
+        if (dead.length) {
+          warn(`${dead.length} global hook command(s) point at a path that does not exist — a removed install's leftovers`);
+          dead.forEach((d) => console.log(`         ${d}`));
+          why('Claude Code runs these on every tool call and gets nothing back, so the session looks supervised and is not');
+          run('rabadon init --global   (rewrites the rabadon entries; the file is backed up first)');
+        }
+        if (stale.length) {
+          warn(`${stale.length} global hook command(s) belong to a different rabadon install`);
+          stale.forEach((d) => console.log(`         ${d}`));
+          why('left behind by an earlier install: your sessions run THAT tree\'s binary, THAT tree\'s version and THAT tree\'s rules, so nothing you fix or upgrade here reaches them');
+          run('rabadon init --global   (repoints the rabadon entries at this install; the file is backed up first)');
+        }
       }
     } catch { warn(`global settings.json is not valid JSON (${gs})`); }
   }
