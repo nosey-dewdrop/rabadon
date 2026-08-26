@@ -79,6 +79,17 @@ supervises less than it claims is worse than one that says where it stops.
 | goal-drift verdict at the end of a turn | yes | yes | yes |
 | ledger, audit, export, lens | yes | yes | yes |
 | put a diagnosis into the agent's context | yes | **late** | yes, if you call it before an action |
+| `rabadon remove` takes the wiring back out | yes | yes | n/a — you own the call site |
+| a ledger line attributable to *this* agent | yes | **not yet** | not yet |
+
+Two rows there are new and worth reading slowly. `rabadon remove` strips its
+own `.cursor/hooks.json` entries as of 2026-08-26 (`native/exit_path_test.sh`
+holds it); before that date it stripped `.claude/settings.json` only, and a
+Cursor user had no exit path at all. The last row is a measured absence rather
+than a guess: no field in the ledger names the agent, so on 2026-08-26 the
+count of ledger lines attributable to Cursor was `0` — and it would have been
+`0` even if Cursor had fired, because there is nothing to attribute with. That
+row changes when the field exists, not when Cursor is believed to work.
 
 **The injection channel.** When a *likely*-level signal fires, rabadon does not
 stop the agent. It writes what the agent cannot see — the file last edited, the

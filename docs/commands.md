@@ -466,6 +466,10 @@ Alias: `rabadon uninstall`. Strip exactly rabadon's hooks (and a rabadon-owned
 statusLine) from `settings.json`, leaving everything else in place. Backs up
 before it edits.
 
+Also strips rabadon's entries from `.cursor/hooks.json` (since 2026-08-26 —
+before that, Cursor wiring was written by `init` and never removed). Your own
+Cursor hooks are left alone; a file that held only rabadon's entries is deleted.
+
 Flags: `--purge` (also delete the `.rabadon/` directory) · `--global` (target
 `~/.claude/settings.json`).
 

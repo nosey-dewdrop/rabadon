@@ -72,6 +72,8 @@ rabadon init — done.
   wired in:
     ~/code/my-project/.rabadon/guard.json   — the law, REVIEW it (deny rules + protected paths)
     ~/code/my-project/.claude/settings.json   — gate hooks merged (original: settings.json.bak-rabadon)
+    ~/.rabadon/config.json   — repair.mode = "ask"  (ask | auto-propose | off)
+    ~/code/my-project/.cursor/hooks.json   — the same gate, for Cursor
 
   see it work in 30 seconds:
     rabadon drill        one tagged test event through the real gate
@@ -80,9 +82,23 @@ rabadon init — done.
   from here:
     claude               work normally in ~/code/my-project — the session is supervised
     rabadon on|off       enforce, or pause to watch-only
+    rabadon remove       take it all back out (add --global here if you used it)
 
   disable exactly one rule with  "disabled": ["<rule-id>"]  in .rabadon/guard.json.
+
+  right now: WATCH — every action is recorded and nothing is refused.
+             watch is the default: the rules prove themselves on your own
+             work first, and enforcing is your call, not ours.
+  next:      rabadon on       start refusing (rabadon off returns to watch)
 ```
+
+That closing block is the screen paying its three debts — what just happened,
+why it is that way, and the one command you run next. The paste above is
+trimmed of the `repair.mode` explainer the real screen also prints; the uncut
+capture is in
+[`reports/kosu/RAPOR/f1c-2-init-ekrani.out`](../reports/kosu/RAPOR/f1c-2-init-ekrani.out),
+and `native/exit_path_test.sh` holds the block itself, so it cannot go stale
+quietly.
 
 **Review the guard before you trust it.** It is your project's law; open
 `.rabadon/guard.json` and read the deny rules and protected paths. See
