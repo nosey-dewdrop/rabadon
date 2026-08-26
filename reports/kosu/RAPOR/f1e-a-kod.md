@@ -38,9 +38,9 @@
    (taban 4292; düşüş yok, kırmızı ad kümesi büyümedi).
 
 ## YAPILAMAYAN
-- `status_truth_test.sh` başlık yorumundaki MATRİS paragrafını genişletmek: kendi
-  kapımız `red-suite-test-write` ile iki kez reddetti (aşağıya bak). Bölüm D
-  kendi içinde tam belgeli olduğu için ısrar edilmedi; `rabadon wrong` KOŞULMADI.
+- Yok. (Başlık yorumu `red-suite-test-write` tarafından iki kez reddedildi;
+  suite yeşile döndükten sonra ayrı commit `5eaec6d` ile yazıldı.
+  `rabadon wrong` HİÇ KOŞULMADI, `disabled[]`e dokunulmadı.)
 
 ## KART DIŞI FARK EDİLEN (DOKUNULMADI)
 - **`red-suite-test-write` bayat kırmızı okuyor.** Kural `sess.lastTestFail >
