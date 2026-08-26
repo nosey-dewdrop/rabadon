@@ -34,6 +34,19 @@
 #      table does not list is red. (On 2026-08-26 the table had 3 and the binary
 #      reported 6.)
 #
+#      2b. THE FIXTURE'S CARDINALITY IS THE BINARY'S, NOT THIS FILE'S. The six
+#      situations below are a list a human typed. Until 2026-08-26 that list was
+#      also the SOURCE of the number: a SEVENTH silencer compiled into
+#      native/gate.cpp silenced nobody's build, because no situation was written
+#      for it, so the derived set stayed at six and every assertion below went on
+#      measuring six things about a gate that had seven. The lock guarded today
+#      and not tomorrow. So the binary now DECLARES its silencer sources —
+#      `rabadon-gate --silencers`, one row per source, straight off the single
+#      table compute_state builds its muters from — and the situation list is
+#      held EQUAL to that declaration. The fixture is evidence now, not source:
+#      a source the binary declares that no situation here can build is red, and
+#      a silencer a situation produces that the table never declared is red.
+#
 #   3. SCREEN = PAGE, BYTE FOR BYTE. For each silencer, the command the screen
 #      prints on its `next:` line and the command the table prints in its last
 #      column must be the same bytes.
@@ -163,7 +176,9 @@ is_silent() { [ "$GRC" -eq 0 ] && [ "$GBYTES" -eq 0 ]; }
 
 # THE SIX SITUATIONS. This list is the fixture; the NAMES and the LOCATIONS and
 # the ESCAPE COMMANDS are never typed here — they are read off the binary's own
-# screen below. `machine-silent` is entered through the product's own door
+# screen below, and the SET this list covers is held equal to the binary's own
+# `--silencers` declaration in section 2b, so this line stops being a ceiling the
+# moment a seventh silencer is compiled in. `machine-silent` is entered through the product's own door
 # (`rabadon-gate --silent`) and not by touching the file, because that door
 # writes the mode file too, and a fixture that only touches the file would let
 # `rm <the file>` look like it works.
@@ -249,6 +264,49 @@ done
 BINCOUNT=$(grep -c . "$BIN")
 if [ "$BINCOUNT" -eq 0 ]; then
   fail "BLOCKED: not one silencer could be derived from the binary; why: everything below compares the page against this set, and an empty set makes every comparison pass on nothing — the empty green this file exists to refuse; run: (cd $ROOT && make all) then bash native/docs_truth_test.sh"
+fi
+
+echo
+
+# ==========================================================================
+# 2b. THE FIXTURE, HELD TO THE BINARY'S OWN DECLARATION.
+#     `$GATE --silencers` prints one row per silencer SOURCE — name, where
+#     template, lifting command template — off the same table compute_state
+#     builds its muters from. The set the SITUATIONS above produced must equal
+#     it, byte for byte, in all three columns. This is the only assertion in
+#     this file whose cardinality does not come from a list a human typed.
+# ==========================================================================
+echo "docs truth: the fixture's silencer set equals the binary's own --silencers declaration"
+DECL="$TMP/declared.tsv"; : > "$DECL"
+if ! ( cd "$PROJ" && "$GATE" --silencers ) > "$DECL" 2>/dev/null; then
+  fail "BLOCKED: \`$GATE --silencers\` did not succeed; why: without the binary's own declaration of its silencer sources, the six situations in this file are both the fixture and the ceiling, and a seventh silencer compiled into native/gate.cpp would be invisible to every assertion here; run: $GATE --silencers; echo \$?"
+fi
+DECLCOUNT=$(grep -c . "$DECL")
+if [ "$DECLCOUNT" -eq 0 ]; then
+  fail "BLOCKED: \`$GATE --silencers\` printed nothing; why: an empty declaration makes the comparison below pass on nothing while looking like a set-equality check — the empty green this file exists to refuse; run: $GATE --silencers | cat -A"
+else
+  pass "the binary declares $DECLCOUNT silencer source(s) on \`--silencers\` (this number is the binary's, not this file's)"
+  DERIVED="$TMP/derived.sorted"; DECLS="$TMP/declared.sorted"
+  cut -f1-3 "$BIN" | LC_ALL=C sort > "$DERIVED"
+  LC_ALL=C sort "$DECL" > "$DECLS"
+  UNBUILT=$(LC_ALL=C comm -23 "$DECLS" "$DERIVED" | sed 's/^/           /')
+  UNDECLARED=$(LC_ALL=C comm -13 "$DECLS" "$DERIVED" | sed 's/^/           /')
+  if [ -z "$UNBUILT" ] && [ -z "$UNDECLARED" ]; then
+    pass "set equality: the situations built here produce exactly the $DECLCOUNT silencer(s) the binary declares, name/where/next"
+  fi
+  [ -n "$UNBUILT" ] && fail "BLOCKED: the binary declares silencer source(s) no situation in this file builds:
+$UNBUILT
+         why: the SITUATIONS list is this suite's fixture, and a source it cannot
+         build is a way the gate goes dormant that nothing on this page, this
+         screen or this test ever sees — the reader meets a dead gate and finds
+         nothing anywhere that names it.
+         next: add the situation to SITUATIONS/apply_situation in native/docs_truth_test.sh and add the row to $DOC, then re-run bash native/docs_truth_test.sh"
+  [ -n "$UNDECLARED" ] && fail "BLOCKED: these situations silence the gate with something \`--silencers\` never declares:
+$UNDECLARED
+         why: the binary is supposed to build every muter from one table, so a
+         muter that reaches the screen without a row in it is a second copy of
+         the silencer list, and two lists drift.
+         next: build that muter from kSilencers in native/gate.cpp, then re-run bash native/docs_truth_test.sh"
 fi
 
 echo
