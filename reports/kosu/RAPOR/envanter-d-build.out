@@ -1,0 +1,25 @@
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-net native/net.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-truth native/truth.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -pthread -o native/rabadon-serve native/serve.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-gate native/gate.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-gated native/gated.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-drift native/drift.cpp
+native/drift.cpp:240:23: warning: unused function 'generated_patterns' [-Wunused-function]
+  240 | static vector<string> generated_patterns(const string& dir, const Promise& pr) {
+      |                       ^~~~~~~~~~~~~~~~~~
+1 warning generated.
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-verify native/verify.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-pipeline native/pipeline.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-do native/do.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-stats native/stats.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-budget native/budget.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-lens native/lens.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-trace native/trace.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-audit native/audit.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-claims native/claims.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-repair native/repair.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-sandbox native/sandbox.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-run native/run.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-export native/export.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/gate_bench native/gate_bench.cpp
+make -C /Users/damummyphus/damla_projects_2026/rabadon-kosu4 all  30,70s user 1,40s system 98% cpu 32,503 total
