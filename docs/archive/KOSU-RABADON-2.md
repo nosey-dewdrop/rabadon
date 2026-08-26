@@ -1,3 +1,5 @@
+İPTAL: KOSU-RABADON-5.md ile değiştirildi, 2026-08-26.
+
 # rabadon — koşu belgesi 2 (2026-08-24 — v2.12, on ikinci tur: değerlendiren rc kalkanı, pager/ls sadeleştirmeleri, R7 soket kuralı)
 
 Bu dosya repo kökünde `KOSU-RABADON-2.md` olarak durur ve **koşunun tek kaynağıdır**.

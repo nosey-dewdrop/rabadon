@@ -1,3 +1,5 @@
+İPTAL: KOSU-RABADON-5.md ile değiştirildi, 2026-08-26.
+
 # rabadon — koşu belgesi 3 (v3.0: ajanlar süreçtir, değerlendiren transkript okumaz)
 
 Bu dosya repo kökünde `KOSU-RABADON-3.md` olarak durur ve **koşunun tek

@@ -1,3 +1,5 @@
+İPTAL: KOSU-RABADON-5.md ile değiştirildi, 2026-08-26.
+
 # rabadon — koşu belgesi 4 (v4.0: sürücü yok, ayrı context'li fazlar, daimi tarafsız cevapçı, bekletmeyen kuyruk)
 
 Bu dosya repo köküne `KOSU-RABADON-4.md` olarak konur ve **kalan koşunun tek

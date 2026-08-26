@@ -1,3 +1,5 @@
+İPTAL: KOSU-RABADON-5.md ile değiştirildi, 2026-08-26.
+
 # rabadon — koşu promptu (R0..R8 + M0..M4)
 
 Tarih: 2026-08-22. Bu dosya tek kaynaktır ve repodaki PROTOCOL-T1-T8.md'nin yerine geçer (o dosya iptal edildi, R0'da arşive indi: `docs/internal/arsiv/PROTOCOL-T1-T8.md`; onun T1 ve T2 turlarında yapılmış iş repoda geçerli kalır). AGENTS-PROTOCOL.md'nin devir kuralı ve üç kapısı aynen geçerli. Teknik turlar R0..R8, pazarlama turları M0..M4. M turları R turlarına bağlıdır, bağımsız koşmaz.
