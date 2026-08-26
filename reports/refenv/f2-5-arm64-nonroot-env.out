@@ -1,0 +1,37 @@
+# rabadon reference environment measurement
+LABEL:        node:22-bookworm · host-default(arm64) · 1000:1000 · --network none
+              (every count from this run is a claim about THIS label only)
+date-utc:     2026-08-26T09:08:39Z
+repo:         /Users/damummyphus/damla_projects_2026/rabadon
+HEAD:         c8a2ad61fd71ab1250fa724d563fef054fca7fea
+host-dirty:   6 file(s) uncommitted in the source tree at measure time
+              (the container measured the COMMITTED tree; a clone, not the working copy)
+image:        node:22-bookworm
+image-digest: node@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+image-id:     sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+image-arch:   arm64
+run-platform: (host default)
+run-user:     1000:1000
+host-arch:    arm64  (emulation is in play when this differs from image-arch)
+docker:       29.2.0
+docker exit:  0
+command:
+  docker run --rm --name rabadon-refenv-42437 --network none  --user 1000:1000 -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.EdWxqD/tree:/w -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.EdWxqD/results:/out -w /w -e SUITE_TIMEOUT=1200 -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.EdWxqD/inside.sh:/inside.sh:ro node:22-bookworm bash /inside.sh
+
+# container environment
+uname:        Linux 46a6a8cd3ca0 6.12.67-linuxkit #1 SMP Sun Jan 25 02:26:28 UTC 2026 aarch64 GNU/Linux
+arch:         aarch64
+id:           uid=1000(node) gid=1000(node) groups=1000(node)
+whoami:       node
+HOME:         /home/node
+HOME-writable: yes
+/w-writable:  yes
+os-release:   Debian GNU/Linux 12 (bookworm)
+c++:          /usr/bin/c++
+c++ version:  c++ (Debian 12.2.0-14+deb12u1) 12.2.0
+git:          git version 2.39.5
+node:         v22.23.2
+python3:      Python 3.11.2
+bwrap:        ABSENT
+unshare:      /usr/bin/unshare
+network:      no DNS (as intended with --network none)
