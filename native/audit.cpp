@@ -128,6 +128,81 @@ static Head read_head(const string& p) {
   return h;
 }
 
+// ---------- --export writes JSON, so it has to write JSON.
+//
+// This used to be a raw printf of `"raw":"%s"` with the recorded bytes dropped
+// in unescaped. A move record holds whatever the agent typed: a command with
+// double quotes in it, a Windows path with backslashes, a diff with newlines and
+// tabs, a colour escape at 0x1b. Every one of those ends the string early or is
+// an illegal control character, and the line stops being JSON. Measured on the
+// frozen corpus at commit 49fd73d: 281 of 608 exported lines would not parse.
+//
+// That is not a cosmetic defect. --export is the ONLY door out of the binary
+// ring — native/moves_test.sh reads through it, and so does anyone studying a
+// session. A reader that hits an unparsable line either dies or (worse, and this
+// is what happened) drops it and keeps going, and then every count taken from
+// the record is quietly short. A record you cannot read is not a record.
+//
+// So: RFC 8259 escaping, and no byte is thrown away to get it.
+//   - " \ and the C0 controls become their escapes (\" \\ \n \r \t \b \f, and
+//     \u00XX for the rest of < 0x20);
+//   - well-formed UTF-8 is passed through as itself;
+//   - a byte that is NOT part of well-formed UTF-8 — and the fixed-width Rec
+//     fields guarantee these, because put() truncates at a byte boundary and can
+//     cut a multi-byte character in half — is emitted as \u00XX of the byte's own
+//     value. The parser then yields U+0080..U+00FF, one codepoint per lost byte,
+//     so the original byte is still recoverable (latin-1 encode) instead of being
+//     replaced by a U+FFFD that destroys it. Escaped, never dropped.
+static string jesc(const string& in) {
+  string out;
+  out.reserve(in.size() + 8);
+  const size_t n = in.size();
+  size_t i = 0;
+  char b[8];
+  while (i < n) {
+    const unsigned char c = (unsigned char)in[i];
+    if (c < 0x80) {
+      switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n";  break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        case '\b': out += "\\b";  break;
+        case '\f': out += "\\f";  break;
+        default:
+          if (c < 0x20) { snprintf(b, sizeof b, "\\u%04x", c); out += b; }
+          else out += (char)c;
+      }
+      i++;
+      continue;
+    }
+    size_t len = 0;
+    unsigned int cp = 0;
+    if      ((c & 0xE0) == 0xC0) { len = 2; cp = c & 0x1Fu; }
+    else if ((c & 0xF0) == 0xE0) { len = 3; cp = c & 0x0Fu; }
+    else if ((c & 0xF8) == 0xF0) { len = 4; cp = c & 0x07u; }
+    bool ok = (len != 0) && (i + len <= n);
+    if (ok)
+      for (size_t k = 1; k < len; k++) {
+        const unsigned char cc = (unsigned char)in[i + k];
+        if ((cc & 0xC0) != 0x80) { ok = false; break; }
+        cp = (cp << 6) | (cc & 0x3Fu);
+      }
+    if (ok) {                                   // reject overlong / surrogate / out of range
+      if (len == 2 && cp < 0x80) ok = false;
+      else if (len == 3 && cp < 0x800) ok = false;
+      else if (len == 4 && cp < 0x10000) ok = false;
+      if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) ok = false;
+    }
+    if (ok) { out.append(in, i, len); i += len; continue; }
+    snprintf(b, sizeof b, "\\u%04x", c);        // lone byte, kept as its own value
+    out += b;
+    i++;
+  }
+  return out;
+}
+
 static const char* kHelp =
   "rabadon-audit — has the ledger been tampered with?\n"
   "Every spool line is hash-chained to the one before it and each day file carries\n"
@@ -177,13 +252,14 @@ int main(int argc, char** argv) {
         rbmoves::Move m; rbmoves::from_rec(r, m);
         // raw only on the newest RAW_KEEP, same rule every reader gets
         const bool oldEnough = (keep - k) > (long long)rbmoves::RAW_KEEP;
+        const string raw = oldEnough ? string() : m.raw;
         printf("{\"seq\":%lld,\"ts\":%lld,\"tool\":\"%s\",\"path\":\"%s\","
                "\"sig\":\"%s\",\"raw\":\"%s\",\"claimed_rc\":%d,"
                "\"err_sig\":\"%s\",\"suite\":%d,\"asserts\":%d,\"prev\":\"%s\"}\n",
-               m.seq, m.ts, m.tool.c_str(), m.path.c_str(), m.sig.c_str(),
-               oldEnough ? "" : m.raw.c_str(), m.claimed_rc,
-               m.err_sig.c_str(), m.suite, m.asserts,
-               rbmoves::get(r.prev, sizeof r.prev).c_str());
+               m.seq, m.ts, jesc(m.tool).c_str(), jesc(m.path).c_str(),
+               jesc(m.sig).c_str(), jesc(raw).c_str(), m.claimed_rc,
+               jesc(m.err_sig).c_str(), m.suite, m.asserts,
+               jesc(rbmoves::get(r.prev, sizeof r.prev)).c_str());
       }
       return 0;
     }

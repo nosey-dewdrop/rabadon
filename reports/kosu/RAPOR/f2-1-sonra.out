@@ -1,0 +1,15 @@
+binary: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-audit
+corpus: /Users/damummyphus/.rabadon-korpus-snapshot-20260826/sessions (34 *.moves.bin files)
+total exported lines: 527
+lines that FAIL json.loads: 0
+lines that parse: 527/527
+
+--- reconciliation: why the line count moved 608 -> 527 ---
+  608 was PHYSICAL LINES of the broken exporter: an unescaped \n inside
+  `raw` split one record across several output lines. 527 is the record
+  count the ring headers themselves commit to, and --export now prints
+  exactly 527. No record was dropped; 81 fragments stopped existing.
+
+--- byte-for-byte: is anything LOST by escaping? ---
+  records compared against the raw binary fields: 527
+  fields whose bytes do not round-trip out of the JSON: 0
