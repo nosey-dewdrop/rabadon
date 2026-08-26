@@ -19,9 +19,9 @@ contract) · `net` (run this repo's strongest check and record the verdict) ·
 `truth` (what this repo already knows how to check) · `drift` (did the session
 wander off its promise) · `serve` (the team ledger) · `fleet` (install the hooks
 across every git repo under a root). `native/cli_test.sh` holds every shipped binary to being reachable
-through this CLI and listed on the help screen, because `npm i -g rabadon`
-installs exactly one file onto your PATH — the dispatcher — so a binary it does
-not name is a binary nobody can run.
+through this CLI and listed on the help screen, because installing rabadon puts
+exactly one file onto your PATH — the dispatcher — so a binary it does not name
+is a binary nobody can run.
 
 ---
 
@@ -69,6 +69,36 @@ Exit: `0`.
 rabadon on
 rabadon status
 ```
+
+### The three silencers — and why `off` is not one of them
+
+`off` is **watch**, not silence: the rules still run and the ledger still fills.
+There is a fourth state below all three modes, **SILENT**, where the gate
+returns exit `0` immediately — no rule is evaluated, no event is recorded,
+nothing is printed. Three things put it there, and any one of them is enough:
+
+| what | where | what it does | the one command that removes it |
+|---|---|---|---|
+| `RABADON_OFF=1` | environment variable | silences this process and every child it spawns (rabadon sets it on its own model subprocesses, so the supervisor never supervises itself) | `unset RABADON_OFF` |
+| `off` file | `<project>/.rabadon/off` | silences the gate for that project tree, for every shell and every user, until the file is deleted | `rm <project>/.rabadon/off` |
+| `silent` file | `$RABADON_DIR/silent` (default `~/.rabadon/silent`) | silences the gate on this machine, in every project | `rm ~/.rabadon/silent` |
+
+Read that table as the exit door it is: an agent guard that cannot be switched
+off is a guard people rip out instead. But the door has to be labelled, because
+a silencer you do not know about is indistinguishable from a broken guard.
+
+**`rabadon off` does NOT remove any of these.** It writes watch mode and stops.
+If a silencer is present, `rabadon on` will report ENFORCE and the gate will
+still refuse nothing — the file wins over the mode, because it is checked first
+and returns before the mode is read. `rabadon status` reports the mode, not the
+silencer. When rabadon appears to be doing nothing, check the three rows above
+before anything else, in that order.
+
+Measured on 2026-08-26 against the shipped gate: with any one of the three in
+place, a `git push --force origin main` event that exits `2` with
+`baseline-force-push` on a clean tree exits `0` with no output and leaves an
+empty `$RABADON_DIR` — nothing was written. `rm`-ing the file restores the
+refusal on the very next event; there is no cache and no restart.
 
 ---
 
@@ -547,7 +577,7 @@ law to hold, and with none of them set nothing calls a model.
 | `RABADON_DIR` | `~/.rabadon` | spool + state root. Keep it shallow: the live watcher socket is `$RABADON_DIR/rabadon.sock`, and `sun_path` caps a unix socket path at 104 bytes on macOS / 108 on Linux. Over the cap, rabadon says so on stderr and writes to the spool only — judging is unaffected. |
 | `RABADON_LENS_DIR` | `~/.claude/projects` | transcript source for `lens` |
 | `RABADON_NOTIFY` | on | `0` silences desktop notifications |
-| `RABADON_OFF` | unset | `1` makes the gate a no-op for this process and its children (set on every model subprocess rabadon spawns, so the supervisor never supervises itself) |
+| `RABADON_OFF` | unset | `1` makes the gate a no-op for this process and its children (set on every model subprocess rabadon spawns, so the supervisor never supervises itself). One of three silencers — the other two are files, `<project>/.rabadon/off` and `$RABADON_DIR/silent`; see [the three silencers](#the-three-silencers--and-why-off-is-not-one-of-them) |
 | `RABADON_DRILL` | unset | `1` tags emitted events as self-test, excluded from every count |
 
 When the judge or the diagnosis does run, each call writes one `LLM_CALL` event

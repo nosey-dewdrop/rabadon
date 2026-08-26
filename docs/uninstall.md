@@ -39,6 +39,28 @@ rabadon remove --global
 
 `rabadon uninstall` is an alias for `rabadon remove`.
 
+## Silence it without uninstalling
+
+If you want rabadon to stop doing anything but do not want to unwire it, do not
+reach for `rabadon off` — that is **watch** mode, where every rule still runs
+and every verdict is still recorded. Total silence is a file:
+
+```
+touch <project>/.rabadon/off
+```
+
+While that file exists the gate returns exit `0` immediately for that project:
+no rule is evaluated, nothing is written to the ledger, nothing is printed. The
+machine-wide version is `touch ~/.rabadon/silent`, and the per-shell version is
+`export RABADON_OFF=1`. Each is removed by deleting it — `rm
+<project>/.rabadon/off`, `rm ~/.rabadon/silent`, `unset RABADON_OFF` — and the
+gate is live again on the very next event. `rabadon status` shows the mode, not
+these, so if rabadon says ENFORCE and refuses nothing, look here first. Full
+table in [commands.md](commands.md#the-three-silencers--and-why-off-is-not-one-of-them).
+
+Note that `rabadon remove --purge` below deletes the project's `.rabadon/`
+directory, and the `off` file with it — a purge un-silences before it uninstalls.
+
 ## Restore settings by hand
 
 If you would rather revert wholesale instead of stripping, restore the backup

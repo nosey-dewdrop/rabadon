@@ -12,27 +12,36 @@ catch something, turn it on, work normally, read the ledger.
 
 - macOS or Linux (no Windows).
 - Node >= 18.
-- A C++ compiler (`clang++` or `g++`) **only if** no prebuilt binary exists for
-  your platform. Prebuilt binaries ship for `darwin-arm64`, `darwin-x64`,
-  `linux-x64`, `linux-arm64`.
+- A C++ compiler (`clang++` or `g++`). The install below builds the native core
+  from source, so the compiler is required today, not optional. (Prebuilt
+  `@rabadon/<platform>` binaries are built for `darwin-arm64`, `darwin-x64`,
+  `linux-x64` and `linux-arm64`, and they are what removes this requirement —
+  once published; see below.)
 - Claude Code CLI (`claude`) is **optional** — needed only for guard authoring
   (`rabadon init` without `--no-llm`) and for `rabadon repair`. Deny rules work
   without it.
 
 ## 1. Install
 
-```
-npm i -g rabadon
+Not on npm yet — install from source. This is the same path README.md
+documents, and it is the only one that works today.
+
+```sh
+git clone https://github.com/nosey-dewdrop/rabadon && cd rabadon
+npm install && npm link   # builds the native core with clang++/g++, puts `rabadon` on your PATH
 ```
 
-npm pulls a prebuilt `@rabadon/<platform>` binary via optionalDependencies.
-If no prebuilt matches your platform, a `postinstall` step compiles from source
-(this is the path that needs `clang++`/`g++`). Modern npm may refuse the build
-script by default; if so:
-
-```
-npm i -g rabadon --allow-scripts=rabadon
-```
+**About the npm path.** The package is built and the release workflow is wired,
+but nothing has been published: `package.json` says `0.2.3` and there is no
+`v0.2.3` tag, so the global install command is not on npm yet and the registry
+answers E404 (measured 2026-08-26). This page will not print a command that
+cannot run, so it is described here instead of given as a block to copy.
+Once published, a global npm install will be the one-liner, it will pull a
+prebuilt `@rabadon/<platform>` binary through optionalDependencies, and no
+compiler will be needed; where no prebuilt matches your platform a
+`postinstall` step compiles from source, and modern npm refusing that script by
+default is what the `--allow-scripts=rabadon` flag is for. `native/install_docs_test.sh`
+holds this page to that rule and lifts it by itself the day the tag exists.
 
 Confirm the install:
 

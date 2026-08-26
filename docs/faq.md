@@ -10,16 +10,27 @@ Work through these in order:
 
 1. **Check the mode.** `rabadon status`. In **watch** mode nothing is stopped —
    rules only record `WOULD_BLOCK`. Turn it on with `rabadon on`.
-2. **Prove the gate works at all.** `rabadon drill` fires a synthetic dangerous
+2. **Check for a silencer — `rabadon status` will not tell you about these.**
+   Three things make the gate a total no-op: it exits `0` before any rule runs
+   and writes nothing to the ledger, no matter what mode says. They are checked
+   before the mode, so they beat `rabadon on`:
+   - `echo $RABADON_OFF` → if `1`, remove it with `unset RABADON_OFF`
+   - `ls <project>/.rabadon/off` → if it exists, remove it with
+     `rm <project>/.rabadon/off`
+   - `ls ~/.rabadon/silent` → if it exists, remove it with `rm ~/.rabadon/silent`
+
+   `rabadon off` does **not** create or remove any of them; it only sets watch
+   mode. Details: [commands.md](commands.md#the-three-silencers--and-why-off-is-not-one-of-them).
+3. **Prove the gate works at all.** `rabadon drill` fires a synthetic dangerous
    command through the real gate. If the drill refuses but your real command does
    not, the gate is healthy and your **guard rule** does not match the command —
    check the regex in `.rabadon/guard.json` (it is matched against the full
    command; run `rabadon lint`).
-3. **Check the hooks are installed and point at real binaries.**
+4. **Check the hooks are installed and point at real binaries.**
    `rabadon doctor` reports global hook health and names any hook command
    pointing at a missing path. If hooks are missing, re-run `rabadon init` in
    the project (or `rabadon init --global`).
-4. **Confirm you initialized this project.** The gate only runs where
+5. **Confirm you initialized this project.** The gate only runs where
    `rabadon init` merged the hooks and a `.rabadon/guard.json` exists.
 
 ## How do I disable one rule?
@@ -51,18 +62,25 @@ Nothing is uploaded. You can verify: `rabadon export --otlp` prints
 OpenTelemetry traces to **stdout** and sends nowhere on its own — it leaves the
 machine only if you pipe it to a collector yourself.
 
-## npm install didn't build the binary — what now?
+## The install didn't build the binary — what now?
 
-You are on the source-build path (no prebuilt binary matched your platform), and
-npm blocked the `postinstall` build script. Either:
+You need a C++ compiler. rabadon is not published yet, so the documented install
+is the from-source one in [quickstart.md](quickstart.md#1-install) (`git clone`,
+`npm install && npm link`), and that path always compiles the native core:
 
-- reinstall allowing the script: `npm i -g rabadon --allow-scripts=rabadon`, or
-- install a C++ compiler first (`clang++` or `g++`), then run `rabadon doctor` —
-  it will point you at the `make` command to build the native core:
+- install a C++ compiler (`clang++` or `g++`), then run `rabadon doctor` — it
+  will point you at the `make` command to build the native core:
   - macOS: `xcode-select --install`
   - Debian/Ubuntu: `sudo apt install g++ make`
 
 Then `rabadon doctor` should show `native core built`.
+
+There is a second failure that only exists on the npm path, and that path is
+not live: once published, a global npm install pulls a prebuilt binary, and only
+when none matches your platform does it fall back to a `postinstall` compile —
+which modern npm may refuse by default, and allowing the script for the rabadon
+package is the fix. Nothing to run here today; `npm view rabadon` answers E404
+(measured 2026-08-26).
 
 ## What if rabadon itself crashes?
 
