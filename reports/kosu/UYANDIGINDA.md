@@ -41,6 +41,34 @@ cevap gelmezse varsayılan yürür ve tutanağa yazılır (§10 "kuyruk bekletme
   götürmediğini kırmızı düşebilen bir testle sabitliyor. Gerekmiyor, sorulmuş olsun diye burada.
 
 ## SAPMA SATIRLARI (gece)
+- **F1d GEÇTİ (hakem). Cevapçı araya son bir mini-faz koydu: F1e.** Sıra:
+  F1d → **F1e** → F2 → F1b → F1n → F3. Sebep dört ÖLÇÜM, hepsi bu gece
+  koşturuldu: (1) `docs/commands.md:90-95`'in üç cümlesi de yanlış — `rabadon off`
+  `$RABADON_DIR/silent`'ı SİLİYOR, `status` susturucuyu ADIYLA basıyor;
+  (2) belgenin "bunu kaldıran tek komut"u (`rm ~/.rabadon/silent`) ürünün kendi
+  yolundan girilen SILENT'ı **kaldırmıyor** — kullanıcı komutu koşuyor ve
+  susturulmuş kalıyor; (3) **ekranın kendisi çalışmayan bir kaçış komutu
+  basıyor**: `RABADON_MODE=silent` ve `<proje>/.rabadon/mode=silent` hâllerinde
+  ekran `rabadon off` diyor, koşuluyor, gate hâlâ EXIT=0 — F1d'nin kilidi bu iki
+  hücreyi hiç gezmiyor; (4) susturucu tablosu 3 satır, ürünün gerçek susturucu
+  sayısı **6**. Yerel, geri alınabilir, para yakmaz. Ayrıntı: `SAPMA-KARARLARI.md`.
+- **TEMİZ KONTEYNER İLK KEZ KOŞTU, ve CLAUDE.md'nin referans ortam barı KIRMIZI.**
+  `make all` konteynerde **exit 0**; `make test` **exit 2** — tek adlı kırmızı
+  `sandbox_test.sh:121 --check message` (ürün "NO usable kernel backend" basıyor,
+  test "no kernel backend" arıyor; bu dal macOS'ta HİÇ koşmamış), ve `make` orada
+  durduğu için **54 süit hiç ölçülmedi**. İyi haber: F1d'nin iki kilidi orada da
+  yeşil (94/0 ve 38/0), `install_docs_test.sh` **ağsız, yalnız git+shell olan bir
+  imajda 38/0** — "çevrimdışı çalışır" iddiası artık ölçüm. Test KIRMIZI BIRAKILDI
+  (CLAUDE.md 1: yeşil için test değiştirilmez), onarım F1e-D'nin CHALLENGE'ı.
+- **HOT-PATH `2b` yayımlanandan KÖTÜ.** Süreç-içi prob bugün **1176–1188 µs**;
+  GERÇEK sevk edilen ikili aynı olayda, iki bağımsız harness'ta **3201,8** ve
+  **3224,5 µs** — boş taban düşülünce rabadon'a atfedilebilir **1677–2057 µs**,
+  yani tavanın **1,7–2,1 katı**. Tavan oynatılmadı; F2-S9 sertleşti (iki sayı yan
+  yana basılacak), F3'ün onarım hedefi artık prob değil **sevk edilen ikili**.
+- **rabadon'un bu koşudaki ilk ölçülmüş YANLIŞ POZİTİFİ (1 adet).** Bu kararı
+  dosyaya yazarken `no-exit-code-after-pipe` beni kesti: yasak kalıp koşulan
+  komutta değil, yazılan BELGENİN metnindeydi. §4.3 sınıfı. Kural gevşetilmedi,
+  iş başka yoldan yapıldı, olay sayıldı ve F1e-E'ye kabul maddesi oldu.
 - **F1d bitti** — "durum ekranı yalan söylemez". YENİ adım gerçek olmadı; var olan
   ADIM 2 ve 4'ün altındaki YALAN kalktı. Gösteren sayı: `native/status_truth_test.sh`
   **17 ok / 77 fail → 94 ok / 0 fail** (16 hücre × 3 iddia, her iddia gerçek gate'in

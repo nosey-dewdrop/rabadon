@@ -255,8 +255,21 @@ girdi. Yeni sıra: F1a → F1c → **F1d** → **F2** → F1b → F1n → F3.
 B1'in yalanı da B2'nin ölü kurulum yolu da kapandı — ikisi de kırmızı düşebilen
 birer testle kilitli ve iki kilit de faz öncesi artefakt üstünde AYRI WORKTREE'de
 kırmızı düştü. Ayrıntı yukarıda "F1d'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER".
-**SIRADAKİ FAZ: F2 (`rabadon usage --signals`).**
-**F2 F1d hakem hükmü GEÇTİ demeden AÇILMAZ.**
+**F1d HAKEM HÜKMÜ: GEÇTİ** (`KAPI.md`). **Ama cevapçı araya son bir mini-faz
+koydu: F1e.** Yeni sıra: F1a → F1c → F1d → **F1e** → **F2** → F1b → F1n → F3.
+**SIRADAKİ FAZ: F1e** ("belge de yalan söylemez, ve kaçış kapısı gerçekten
+açılır"). Gerekçe ölçüm, tamamı `SAPMA-KARARLARI.md`'nin son bölümünde:
+`docs/commands.md:90-95`'in üç cümlesi de bugün YANLIŞ; belgenin verdiği
+"kaldıran tek komut" ürünün kendi yolundan girilen SILENT'ı kaldırmıyor;
+**ekranın kendisi iki hâlde çalışmayan bir kaçış komutu basıyor**
+(`RABADON_MODE=silent`, `<proje>/.rabadon/mode=silent` → `rabadon off` koşuluyor,
+gate hâlâ EXIT=0) ve `status_truth_test.sh` bu hücreleri hiç gezmiyor
+(`grep -c RABADON_MODE` → 0); susturucu tablosu 3 satır, gerçek sayı **6**.
+Ayrıca temiz KONTEYNER ilk kez koştu: `make all` exit 0, **`make test` exit 2**
+(`sandbox_test.sh:121 --check message`, ve 54 süit hiç koşmadı).
+**F2 F1e hakem hükmü GEÇTİ demeden AÇILMAZ.**
+**F2'nin nihai kapsamı** (S1-S11, S9 sertleşti, S10/S11 yeni):
+`SAPMA-KARARLARI.md` · "F2'NİN NİHAİ KAPSAM SINIRI ... (BU SÜRÜM GEÇERLİ)".
 F2'nin önkoşulu F2-S3'tü — "F1a'nın disclosure kartı kapanmadan açılmaz" — ve
 o kart kapandı, `make disclosure` exit 0.
 F1c, F2'nin önüne konmuştu çünkü §11 "kırmızıyı sonraki faza taşımak" yasağı
