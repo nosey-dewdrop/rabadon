@@ -374,7 +374,7 @@ bugüne kadar hiç ölçülmemişlerdi.
 | sayı | **değer (F1e)** |
 |---|---|
 | kapanan faz | **F1e** |
-| §5'te gerçek olan adım | **YENİ adım YOK — ADIM 7'nin ("rahatsız olursa kaçar") ÇIKIŞ KAPISI gerçek oldu**: altı susturucunun altısında da ekranın bastığı tek komut koşulunca gate aynı olayda konuşuyor (faz öncesi 6'da 4). ADIM 2/4'ün BELGESİNDEKİ yalan da kalktı. |
+| §5'te gerçek olan adım | **YENİ adım YOK — ADIM 7'nin ("rahatsız olursa kaçar") ÇIKIŞ KAPISI gerçek oldu**: altı susturucunun altısında da ekranın bastığı tek komut koşulunca gate aynı olayda konuşuyor (faz öncesi **6'da 3** — tutanaktaki "6'da 4" YANLIŞTI: cevapçı `05ab1ac`'ı ayrı klonda derleyip aynı probu iki ikiliye de koşturdu, üç hücre `next:` satırını HİÇ basmıyordu. Düzeltme: SAPMA-KARARLARI.md D2. Sayı silinmedi, düzeltildi). ADIM 2/4'ün BELGESİNDEKİ yalan da kalktı. |
 | kesilen kart | **3** (A kod / B belge / C yalnız ölçüm) |
 | salınan işçi | **3** (tavan 3) |
 | kırmızı ad kümesi | **3 → 3 (büyümedi)** — `{2b, 6e, 7b}` |

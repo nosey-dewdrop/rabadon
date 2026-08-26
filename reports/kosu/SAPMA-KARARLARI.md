@@ -1489,3 +1489,486 @@ denenmez; F2 hakemi KALDI derse F1b açılmaz (F1b-S1).
   dosyada da aynı yalanın olup olmadığı **AÇIK BİR SORUDUR** ve F1e-B/4 onları
   kapsama alıyor; C6'nın kural motorunda kök sebebi (hangi ayrıştırma adımının
   heredoc'u yutmadığı) **ölçülmedi**, yalnız reddin kendisi ölçüldü.
+
+---
+
+## 2026-08-26 · F1e hakem hükmü (GEÇTİ) sonrası · hakemin dört bulgusu (D1-D4) + mini-faz zincirinin kendisi
+
+Hakem F1e'yi GEÇTİ verdi ve dört bulgu bıraktı. Dördünü de KENDİM koşturdum;
+rapordan tek sayı kopyalamadım. Doğrularken **sevk edilen kapı beni de kesti**
+(D1'in canlı tekrarı) ve **beşinci, hepsinden ağır bir bulgu** çıktı: yanlış
+pozitif sayacının hammaddesi zaten defterde duruyor ve bu koşu onu hiç okumadı.
+
+---
+
+### D1 · İLAN EDİLMEMİŞ AÇIK — DOĞRULANDI, ve hakemin bulduğundan GENİŞ
+
+F1e-E'nin normatif cümlesi kuralın "heredoc gövdesini **ve tırnaklanmış belge
+metnini**" komut saymamasını istiyordu. Kaynak okundu: `native/rules.h`
+`whole_line()` yalnız yorumları ve **heredoc gövdelerini** kaldırıyor
+(`rbtext::Parsed::line`); tırnaklanmış metin için hiçbir şey yok, ve bu eksik
+hiçbir tutanakta, hiçbir kabul maddesinde, hiçbir CHALLENGE'ta yazılı değil.
+
+**Kendi probum** (`/tmp/d1probe.sh`, operatörün gerçek `guard.json`'undaki
+regexin bayt kopyası, sevk edilen `native/rabadon-gate` ikilisi, kum havuzu
+`mktemp -d` + sahte `RABADON_DIR`, taban `enforce`). Yasak kalıp her satırda
+`make test | grep -c ok ; echo exit=$?`:
+
+| şekil | sonuç |
+|---|---|
+| `printf '%s' "<kalıp>"` (çift tırnak) | **BLOCK** |
+| `printf '%s' '<kalıp>'` (tek tırnak) | **BLOCK** |
+| `echo "never write: <kalıp>" >> notes.md` | **BLOCK** |
+| `python3 -c "print('<kalıp>')"` | **BLOCK** |
+| `git commit -m "doc: <kalıp> is wrong"` | **BLOCK** |
+| GERÇEK ihlal, çıplak `<kalıp>` | BLOCK (doğru) |
+| heredoc gövdesinde `<kalıp>` (F1e'nin onardığı yarı) | ALLOW |
+
+Yani açık **bir şekil değil, bir aile**: ürünü anlatan hiçbir cümle bir
+tırnağın içinde yazılamıyor — **commit mesajı dahil**. F1e-B/5 "eski cümle
+silinmez, gerekçesiyle düzeltilir" diyor; o gerekçeyi yazan commit'in kendisi
+bu kuralla reddedilebilir.
+
+Ve bu tahmini bir zarar değil: **bu oturumda beni kesti**, ölçüm betiğini
+koştururken (`bash -c '...'` içinde iç tırnaklı dizge). Hakemi de aynı gece
+kesmiş. §4.3'ün ("yanlış pozitif ürünü öldürür") tam sınıfı, sevk edilen
+yolda, `main`'de, bugün.
+
+**Kapanır, ilan edilmez.** Yerel, geri alınabilir, para yakmaz, ve §11
+"kırmızıyı sonraki faza taşımak" yasağının kapsamında. Ama **yeni bir mini-faz
+DOĞMAZ** (gerekçe aşağıda, D5) — F2'nin **BLOKLAYAN İLK KARTI** olur.
+
+**Ayırt edici ölçüldü, ve gevşetme gerektirmiyor.** İki halin farkı tırnak
+değil, **borunun kendisi**: gerçek ihlalde `|` tırnak DIŞINDA
+(`make test | grep -c ok` + ayrıca tırnaklı `"exit=$?"` — bu, F1e'nin kendi
+pozitif fikstürü ve KIRMIZI kalmak zorunda); yanlış pozitifte `|` tırnak
+İÇİNDE. Yani "tırnaklı metni komple at" YASAKTIR (o gerçek ihlali öldürür);
+değişmez şudur: **tırnaklı bir kelimenin içinde duran boru bir boru hattı
+değildir.**
+
+**AÇIK SORU, ölçülmedi, uydurulmayacak:** `bash -c "make test | tail -5; echo
+exit=$?"` — burada boru tırnak içinde ama GERÇEKTEN koşuyor. Bu hücrenin
+cevabını vermiyorum çünkü ölçmedim; kabul maddesi onu fikstüre koyuyor ve
+işçi ayıramıyorsa cevap gevşetme değil **CHALLENGE**'dır.
+
+---
+
+### D1b · YANLIŞ POZİTİF SAYACI — hakemin sorusu, ve cevap ölçüldü: SAYAÇ ZATEN ÜRÜNÜN İÇİNDE, KOŞU ONU HİÇ KULLANMADI
+
+Bu, gecenin en ağır bulgusu ve sorulmamıştı.
+
+**1. Payda defterde duruyor.** `native/gate.cpp:4281` her ret için
+`STOP  reason=BLOCKED  rule=<id>  sid=<oturum>  call=<araç çağrısı>` yazıyor
+(watch modunda `WOULD_BLOCK`, aynı alanlarla). Yani "bu koşuda kaç ret oldu"
+sorusu hatırlamaya değil, tek bir `grep`'e bakıyor.
+
+**2. Pay da defterde duruyor, ve verbi de var.** `rabadon wrong <rule> "<niye>"`
+sevk edilen bir `dev` verbi (`native/gate.cpp:2702`), aynı hash-zincirli
+deftere `WRONG_REFUSAL` yazıyor. Kaynaktaki kendi cümlesi:
+*"so the false-positive count of this rule is READ from the ledger rather than
+asserted"*. **Bu koşu o verbi bir kez bile çağırmadı.**
+
+**3. Ölçüm — koşunun kendi oturumu (`sid` 286fd71d), tüm gün dosyaları:**
+
+    grep -ah '"ev":"STOP"' ~/.rabadon/spool/*.jsonl | grep -a BLOCKED \
+      | grep -a 286fd71d | grep -ao '"rule":"[^"]*"' | sort | uniq -c
+
+| kural | ret |
+|---|---|
+| `no-exit-code-after-pipe` | **7** |
+| `red-suite-test-write` | **4** |
+| `no-blind-inplace-source-rewrite` | **3** |
+| `no-gnu-timeout-on-macos` | **1** |
+| **TOPLAM** | **15** |
+| `WRONG_REFUSAL` (aynı oturum, bu gece öncesi) | **0** |
+
+**Yayımlanan elle sayım: 4 yakalama + 4 yanlış pozitif = 8 olay.
+Defter 15 diyor.** Yedi ret hiçbir sütuna girmedi, ve **iki kural
+(`no-blind-inplace-source-rewrite` 3, `no-shell`-ailesi dışındaki kalanlar)
+hiçbir yayımlanmış sayıda geçmiyor.** §4.3 sinyal başına ORAN istiyor; oran
+paydasız hesaplanamaz ve payda bugüne kadar hiç yazılmadı. §4.5'in
+"kamuya giden her sayı ledger'dan türetilir" cümlesi bu sayıda ihlal edildi —
+kötü niyetle değil, **elle sayıldığı için.**
+
+**Kendi ölçümümü deftere yazdım** (`rabadon wrong no-exit-code-after-pipe
+"..."`, çıktı: `recorded a wrong refusal`). Ve yazarken **iki eksik daha
+ölçüldü:**
+  - `WRONG_REFUSAL` satırında `sess`/`sid`/`call` **YOK** (alanları:
+    `v seq ts run pipe ev rule why prev`). `STOP`'ta var. Yani pay ile payda
+    **kural adı üzerinden** birleşebiliyor, **tek tek retle birleşemiyor.**
+    §4.3 için kural bazlı oran yeterlidir, ama "hangi ret" izlenemez.
+  - `rabadon wrong` her kural için `~/.rabadon/wrong-<kural>` tek-atımlık
+    izin dosyası bırakıyor, ama o dosyayı **yalnız `red-suite-test-write`
+    tüketiyor** (`gate.cpp:4815`). Diğer her kural için kalıcı bir yetim dosya.
+    Şu an diskte: `wrong-no-exit-code-after-pipe`, `wrong-red-base`.
+    Kart açılmadı, dosyalar **kasten bırakıldı** (kanıt).
+
+---
+
+### D2 · FAZ ÖNCESİ SAYI — hakem HAKLI, tutanak YANLIŞ: 6'da 4 değil, **6'da 3**
+
+§10 "iki ajan aynı büyüklük için farklı sayı bastıysa cevapçı iki komutu da
+KENDİSİ koşturur" der. Koşturdum.
+
+Faz öncesi ikili (`05ab1ac`) atılabilir bir klonda (`/tmp/d2-pre`,
+`git clone --no-hardlinks`, `make all` exit 0) derlendi; aynı prob
+(`/tmp/d2probe.sh`) HEM ona HEM HEAD'e (`55c8e29`) koşuldu. Prob, altı
+susturucunun her biri için: hâli kurar, gate'in gerçekten sustuğunu doğrular
+(`exit 0 && 0 bayt`, `docs_truth_test.sh`'in `is_silent` tanımının aynısı),
+ekranın `next:` satırını **ekrandan çeker**, verbatim koşar, aynı olayı
+yeniden verir.
+
+| hücre | 05ab1ac (ÖNCE) | 55c8e29 (HEAD) |
+|---|---|---|
+| `env-off` | `unset RABADON_OFF` → exit 2 · AÇILDI | AÇILDI |
+| `project-off` | `rm <proj>/.rabadon/off` → exit 2 · AÇILDI | AÇILDI |
+| `machine-silent` | `rabadon off` → exit 0 / **296 bayt** · AÇILDI (watch) | AÇILDI |
+| `machine-mode` | **`next:` SATIRI HİÇ YOK** | `rabadon off` → 296 bayt · AÇILDI |
+| `project-mode` | **`next:` SATIRI HİÇ YOK** | `rm <proj>/.rabadon/mode` → exit 2 · AÇILDI |
+| `env-mode` | **`next:` SATIRI HİÇ YOK** | `unset RABADON_MODE` → exit 2 · AÇILDI |
+| | **3 / 6** | **6 / 6** |
+
+Faz öncesi üç hücrenin ekranı sadece
+`rabadon: SILENT — dormant everywhere, records nothing (\`rabadon off\` to watch
+again)` basıyor: **`next:` satırı yok**, ve parantez içindeki komut C5'te
+ölçüldüğü gibi zaten açmıyor.
+
+**HÜKÜM: hakemin 3'ü geçerli, tutanağın 4'ü geçersiz.** Yani "önce" hâli
+iddia edilenden **daha kötüydü** — sapma tutanağın lehine değil aleyhine.
+İki dosyada düzeltilir (**sayı silinmez, düzeltilir**):
+`reports/kosu/DURUM.md:377` ve `reports/kosu/UYANDIGINDA.md`.
+Bu bir gevşetme değil: faz öncesi ne kadar kötüyse F1e'nin teslim ettiği
+o kadar büyüktür; yanlış olan sayı **düşük** olan değil, **yanlış** olandır.
+
+---
+
+### D3 · KİLİDİN TAVANI — DOĞRULANDI, ve türetilebilir
+
+`native/docs_truth_test.sh:170`:
+
+    SITUATIONS='env-off project-off machine-silent machine-mode project-mode env-mode'
+
+Kaynağı okudum. Kilidin **iki tarafı da dürüst ve biri türetilmiş**: belgedeki
+satır kümesi belgeden ayrıştırılıyor (satır numarasıyla değil, başlıkla),
+ikilinin küme elemanlarının **adı, yeri ve kaçış komutu** ekranın kendi
+`silenced by:` / `next:` satırlarından okunuyor — teste yazılmıyor. Ama
+**KARDİNALİTE bu listeden geliyor.** İkilinin susturucu kümesi, yalnız bu altı
+hâl kurulduğu için altı çıkıyor. Yarın `gate.cpp`'ye yedinci bir susturucu
+girse `SITUATIONS` altı kalır, `BINCOUNT` 6 kalır, belge 6 satır kalır,
+**6 = 6 yeşil düşer ve kimse yedinciyi görmez.** Hakem haklı: kilit bugünü
+koruyor, yarını korumuyor.
+
+**Türetilebilir mi: EVET, ve yüzey büyütmeden.** Susturucu kümesi tek bir
+yerde hesaplanıyor (`gate.cpp` `compute_state`, `muters.push_back(Muter{...})`
++ mode katmanları). İkiliye bir **introspeksiyon bayrağı** eklenip
+(`rabadon-gate --silencers`, ürün CLI'ının yardım ekranına DEĞİL) o tablonun
+kendisi bastırılırsa, kilit kardinaliteyi ikiliden alır. §4.10 riski ölçüldü
+ve **yok**: `native/cli_test.sh:248`'in `PRODUCT` listesi yalnız
+`rabadon-cli.sh --help` ana ekranını sayıyor; gate ikilisinin bayrakları
+(`--status --on --off --toggle --silent --statusline --check --export`) o
+listede değil ve hiçbiri onu şişirmedi.
+
+**Kimin işi: F2.** Sebep zorlama değil ölçüm: F2 **YENİ bir ekran**
+(`usage --signals`) ve onu anlatan **YENİ düzyazı** üretiyor, ve F2-S11 bu
+kilidi F2'nin kapı şartı yapıyor. Tavanı fikstüre bağlı bir kilidi F2'nin
+yeni yüzeyine devretmek, F1d'nin hatasını bir kat büyütmektir.
+
+---
+
+### D4 · KONTEYNER BARI — hakem haklı, ve ÖLÇÜLEBİLİR (ölçtüm: emülasyon çalışıyor, ağsız, bedava)
+
+**Doğrulandı.** `native/refenv/run.sh` sabit `IMAGE=node:22-bookworm`
+(satır 48) ve `docker run --rm --network none ... $IMAGE_REF` (satır 218) —
+`--user` YOK, `--platform` YOK. 102 yeşilin hepsi **şişman imaj, linux/arm64,
+root**. `reports/kosu/RAPOR/f1e-c-konteyner.md` bunu kendi NOT VERIFIED
+bölümünde zaten yazıyor (§4/2: *"x86_64 was not measured at all"*, §4/5:
+*"the container ran as root"*) — **ama hiçbir fazın kabul maddesi değil ve
+UYANDIGINDA.md'de hiç geçmiyor.** Sahipsiz ölçüm, §4.5'e göre satılamaz.
+
+**Ölçülebilir mi: EVET, ve bu oturumda kanıtladım.**
+
+    docker run --rm --network none --platform linux/amd64 \
+      mcr.microsoft.com/mssql/server:2022-latest uname -m
+    ->  x86_64
+
+Yani **x86_64 emülasyonu bu makinede ÇALIŞIYOR, `--network none` ile, para
+sıfır** (amd64 bir imaj zaten yerelde duruyordu). Eksik olan tek şey amd64
+etiketli bir **inşa** imajı; o da bir kerelik ücretsiz `docker pull
+--platform linux/amd64 node:22-bookworm`, ve `run.sh` **hiç değişmeden**
+`--image <amd64-etiketi>` ile koşar. Non-root koşum için de tek satır
+(`--user`) yeterli, ve konteyner kırmızılarından biri (`rule_census` düzyazıda
+`-root` eşleşmesi) bunun ürün kusuru değil ortam artefaktı olduğunu
+gösteriyor — non-root koşum o iddiayı sınar.
+
+**DÜRÜST UYARI, uydurmuyorum:** emülasyon altında `g++` ve süitler **daha
+yavaş** koşacak ve `run.sh`'in `SUITE_TIMEOUT=300` tavanına takılabilir.
+Bunu ölçmedim. Kabul maddesi bu yüzden **ölçüm zorunlu, yeşil zorunlu değil,
+susmak yasak** (F1e-D'nin aynı formülü): ne çıkarsa yazılır, zaman aşımı
+çıkarsa o yazılır.
+
+**Kimin işi: F2**, ve **yalnız ölçüm** olarak. F2 devralınan konteyner
+kırmızısını onarmakla yükümlü değil (F2-S10 zaten öyle diyor); yeni bir mimari
+üzerinde **ölçmekle** yükümlü, çünkü §3'ün barı "milyonlarca geliştirici" ve
+onların ezici çoğunluğu x86_64'te.
+
+---
+
+### D5 · SAPMA DEĞERLENDİRMESİ — mini-faz zinciri: KAPANIYOR. Beşincisi doğmayacak.
+
+Bu, hakemin sormadığı ama sorulması istenen şey, ve cevabı ölçüme dayanıyor.
+
+**ÖLÇÜM 1 — zincir kendi kendini besliyor, 4/4.** F1c'yi F1a'nın hakemi
+doğurdu, F1d'yi F1c'nin hakemleri, F1e'yi F1d'nin hakemi, ve şimdi D1-D4'ü
+F1e'nin hakemi. **Dört fazın dördü de bir önceki fazın hakem bulgusundan
+doğdu.** Bu bir tesadüf dizisi değil, bir sabit nokta: her dürüstlük fazı yeni
+yüzey (ekran + düzyazı + kilit) üretiyor, yeni yüzey yeni bulgu üretiyor.
+Beşincisini açarsam altıncısını da açacağım ve bunu bugün biliyorum.
+
+**ÖLÇÜM 2 — §5 karşılığı.** Dört mini-fazın §5 hasılatı:
+F1a → ADIM 2 yarım. F1c → **ADIM 2 tam** (3 satır / 0 soru / yolun sonunda
+gerçek gate `exit 2`). F1d → yeni adım YOK (ADIM 2/4'ün altındaki yalan
+kalktı). F1e → yeni adım YOK (ADIM 7'nin çıkış kapısı gerçek oldu).
+**Sekiz adımın altısı (1, 3, 4, 5, 6, 8) bu koşuda bir kez bile açılmadı.**
+§7 açık: *"Adımı gerçek yapmayan faz, faz değildir."* Zincir bu cümlenin
+kenarında yürüyor.
+
+**AMA — zincir yanlış iş yapmadı, ve bunu da ölçüm söylüyor.** F1d ve F1e'nin
+kapattığı şey süs değildi: `rabadon on` "ON" diyip gate'i `exit 0` bırakıyordu
+(§1'in tanımının tersi), ve ekranın kendi kaçış komutu iki hâlde kapıyı
+açmıyordu (§4.9). Bunlar açıkken F2'nin teslim edeceği şey — **kullanıcının
+kendi verisi hakkında doğru söyleyen bir ekran** — yalan söyleyen bir aletin
+üstünde durur. Yani zincir doğru işi yaptı; **sorun işin doğruluğu değil,
+zincirin durma kuralının olmaması.**
+
+**KARAR — durma kuralı bugün konuyor, ve zincir bugün kapanıyor:**
+
+1. **F1f YOKTUR.** D1, D1b, D3, D4'ün hiçbiri yeni bir faz doğurmaz. D1
+   (kod işi, tek dosya, tek fikstür) F2'nin **BLOKLAYAN İLK KARTIDIR**:
+   yeşil olmadan F2'nin hiçbir başka kartı BAŞLAMAZ ve F2 hakemi onu ayrıca
+   sınar. Bu §11'in "kırmızıyı sonraki faza taşımak" yasağının ihlali
+   DEĞİLDİR — kırmızı taşınmıyor, **sonraki fazın içinde, her şeyden önce
+   kapanıyor**, ve bağımsız bir hakem hükmüne bağlanıyor. Emsali bu dosyada
+   var: B3'te `2b` ölçüm/yasak F2'ye, onarım F3'e bölündü.
+   Alternatif (beşinci mini-faz) tek işçilik bir işi bir şef + bir hakem
+   döngüsüne çevirir; bu, §0'ın oyalama tarifidir.
+2. **SIRADAKİ FAZ F2'DİR ve §5'in ADIM 3'ünü gerçek yapmak ZORUNDADIR.**
+   F2 kapanışında "yeni adım gerçek olmadı" yazan bir SAPMA satırı (§8.9)
+   **kabul edilmez**: F2'nin tanımı gereği ADIM 3 (ve 8) onun işidir.
+   Yalnız dürüstlük onaran üçüncü bir ardışık faz, ürün ilerlemesini yiyor
+   demektir.
+3. **TETİK — bu kararın kendisi sınanabilir olsun.** F2'nin hakemi de
+   fazın ürününden ÖNCE kapatılması gereken bir kod kusuru bulursa, bu
+   **arka arkaya beşinci** olur ve artık bir faz sorunu değil bir **koşu
+   yapısı** sorunudur. O noktada cevapçının yetkisi biter (§10: ürün
+   konumu operatörün kalemidir) ve soru `UYANDIGINDA.md`'ye **O5** olarak
+   düşer. Varsayılanı şimdiden yazılı (aşağıda).
+
+---
+
+## F2'NİN NİHAİ KAPSAM SINIRI — F2 şefine verilecek metin (BU SÜRÜM GEÇERLİ)
+
+Bir önceki F2 bloğunun yerine bu geçer. Değişenler: **S12-S15 eklendi**,
+**kart sırası bağlayıcı oldu**, **ADIM 3 kapı şartı oldu**.
+**Gevşetilen madde YOKTUR.**
+
+**Önkoşul:** F1e hakem hükmü **GEÇTİ** (`KAPI.md`, 2026-08-26). F1d GEÇTİ'dir
+ve durur. Yeni önkoşul yok.
+
+**Yüzey:** `rabadon usage --signals` **BAYRAĞI**. Yeni ürün verb'ü YASAK
+(§4.10, §11). `rabadon scan` YOKTUR ve yazılmaz. `native/cli_test.sh`'in
+beş-verb tavanı kırmızı düşemez; `PRODUCT` listesi DEĞİŞTİRİLEMEZ.
+(S14'ün `rabadon-gate --silencers` bayrağı bu tavanın DIŞINDADIR; ölçüldü:
+`cli_test.sh:248` yalnız CLI ana yardım ekranını sayıyor.)
+
+**Kabul, tam liste — hiçbiri gevşetilemez:**
+- Yazılı kabul aynen durur (§7/F2): her sayının yanında onu üreten oturum
+  yolu; elle etiketleme; sinyal başına yanlış pozitif oranı; %5 üstü canlıya
+  çıkmaz; üç zeminde ölçüm; en kötü zemin ölçüt.
+- **S1** `n=0` sinyal "ÖLÇÜLMEDİ" basar, sıfırın SEBEBİ ölçülür, canlıya çıkmaz.
+- **S2** sinyal başına `n` + etiketlenen örnek; `n<10` ise oran değil ham sayı.
+- **S3** disclosure önkoşulu — YEŞİL (`make disclosure` exit 0).
+- **S4** okunan korpus ekranda ilan edilir + **KAYIP** ilan edilir
+  (`count` toplamı eksi diskteki kayıt, dolu ring başına satır).
+- **S5** export kapısı önce onarılır: `native/audit.cpp` `path`/`raw`
+  JSON-kaçışlanır, ham korpusun **608/608** satırı `json.loads` ile ayrışır,
+  `moves_test.sh`'in sessiz `except: continue` yutucusu **sayar ve raporlar**.
+- **S6** dağıtım cümlesi "ÖLÇÜLMEDİ" satırlarını ve kısa korpusu saklamaz;
+  hakem bu satırları EKRANDA görmeden GEÇTİ diyemez.
+- **S7** kanıt üç katmanlı; ekran "yakaladı / kurtardı / kazandırdı" demez.
+- **S8** kabul sayısı **dondurulmuş yedekten** alınır
+  (`~/.rabadon-korpus-snapshot-20260826/`), canlı ring'den değil.
+- **S9 (+d, +e)** F2 hot-path'e hiçbir şey eklemez ve `2b` yükselmez; hiçbir
+  yüzey `2b` kırmızıyken "sub-ms" demez **ve prob sayısını tek başına anmaz**;
+  prob medyanı ile GERÇEK ikilinin uçtan uca medyanı **yan yana**, boş tabanın
+  adıyla; §8.5 satırı verbatim.
+- **S10** F2'nin KENDİ eklediği her süit temiz referans konteynerde
+  `--network none` ile YEŞİL koşar; devralınan kırmızıyı onarmak zorunda
+  değil, **yenisini üretemez**.
+- **S11** F2 ancak kâtibin commit'inden SONRA `docs_truth_test.sh` +
+  `install_docs_test.sh` + `version_test.sh` fazın NİHAİ ikilisine karşı
+  yeşil koştuktan sonra kapanır; koşum komutuyla tutanakta.
+
+- **S12 (YENİ, D1) · BLOKLAYAN İLK KART — F2'nin başka hiçbir kartı bu yeşil
+  olmadan BAŞLAMAZ.** `no-exit-code-after-pipe` ailesi (boru adı geçen her
+  kural) **tırnaklanmış bir kelimenin içindeki boruyu boru hattı saymaz.**
+  Kabul, hepsi tek fikstür setinde ve **sıra bağlayıcı — her "hâlâ reddedilir"
+  hücresi, ikizinden ÖNCE koşar** (`heredoc_prose_test.sh`'in kendi yasası):
+  a) **ONARIMDAN ÖNCE kırmızı düşer.** Yukarıdaki beş tırnaklı şekil
+     (`printf` çift/tek tırnak, `echo ... >> dosya`, `python3 -c`,
+     **`git commit -m`**) faz öncesi ikilide BLOCK olarak yeniden üretilir ve
+     loglanır (§8.2).
+  b) **Onarımdan sonra beşi de ALLOW.**
+  c) **Kural GEVŞEMEZ:** çıplak `make test | grep -c ok ; echo exit=$?` ve
+     `heredoc_prose_test.sh`'in mevcut yedi pozitifinin **hepsi** BLOCK kalır.
+     `native/heredoc_prose_test.sh`'in tek bir iddiası silinemez,
+     zayıflatılamaz, atlanamaz (CLAUDE.md 1); sayı yalnız artabilir.
+  d) **`bash -c "<gerçek boru hattı>"` hücresi fikstüre KONUR ve ölçülür.**
+     Bu hücrenin doğru cevabı BLOCK'tur (gerçekten koşuyor). İşçi bu hücreyi
+     (b)'yi bozmadan tutturamıyorsa **kuralı gevşetmez**: sonucu ölçer,
+     `UYANDIGINDA.md`'ye ve oturum günlüğüne **CHALLENGE** yazar, ve
+     hücreyi bilinen boşluk olarak ADIYLA ilan eder. Sessiz geçmek yasak.
+  e) `.rabadon/guard.json`'daki regexler, eşikler ve `disabled[]`
+     **DEĞİŞTİRİLEMEZ.** Onarım `native/rules.h`/`cmdtext.h` tarafındadır.
+
+- **S13 (YENİ, D1b) · YANLIŞ POZİTİF SAYACI ELLE SAYILMAZ.** §4.3'ün oranı
+  ve §4.5'in "ledger'dan türetilir" cümlesi tek bir komutla karşılanır:
+  a) **PAYDA:** koşunun kapsamındaki her ret, kural adıyla, defterden:
+     `STOP  reason=BLOCKED` + `WOULD_BLOCK`. Bugünkü ölçüm (`sid` 286fd71d):
+     **15 ret** — `no-exit-code-after-pipe` 7, `red-suite-test-write` 4,
+     `no-blind-inplace-source-rewrite` 3, `no-gnu-timeout-on-macos` 1.
+  b) **PAY:** `WRONG_REFUSAL`, ve tek yazma yolu sevk edilen
+     **`rabadon wrong <kural> "<niye>"`** verbidir. Bir daha hiçbir yanlış
+     pozitif düzyazıya yazılıp deftere yazılmadan geçmez.
+  c) **Bu 15 retin HEPSİ tek tek hükme bağlanır** (doğru / yanlış), ve
+     yanlış olanların her biri (b) ile deftere düşer. Hükümsüz bırakılan ret
+     sayısı **sıfır** olur ya da adıyla ilan edilir.
+  d) **Yayımlanan her yanlış pozitif sayısı bundan böyle PAY/PAYDA olarak,
+     kural adıyla yazılır.** Paydasız yüzde yazmak §4.5 ihlalidir;
+     `n<10` olan kuralda oran değil ham sayı (S2 ile aynı yasa).
+  e) **Ölçülen boşluk ilan edilir:** `WRONG_REFUSAL` satırında `sess`/`sid`/
+     `call` yok, `STOP`'ta var — yani pay/payda **kural** üzerinden
+     birleşiyor, **tek tek retle birleşmiyor**. Bunu onarmak F2'nin ödevi
+     DEĞİLDİR (kapsam dışı), ama tutanakta adıyla yazılır.
+  f) Bu koşuda bugüne kadar yayımlanan "**4 olay / 2 sınıf**" ve "**yakalama
+     4**" sayıları **silinmez**; "elle sayıldı, defterle uyuşmuyor, payda 15"
+     etiketiyle dururlar ve yeni sayılarla **kıyaslanmazlar** (B5'in sayaç
+     emekliliğiyle aynı yöntem).
+
+- **S14 (YENİ, D3) · KİLİDİN KARDİNALİTESİ FİKSTÜRDEN DEĞİL İKİLİDEN GELİR.**
+  `native/docs_truth_test.sh`'in `SITUATIONS` listesi bugün altı adı
+  **yazıyor**; kilit bu yüzden yedinci bir susturucuyu göremez.
+  a) İkili kendi susturucu kaynak kümesini **kendisi ilan eder**
+     (`compute_state`'in tek tablosundan; ürün CLI yardım ekranına satır
+     eklenmez, `cli_test.sh` `PRODUCT` listesine dokunulmaz).
+  b) Süit, `SITUATIONS` kümesinin ikilinin ilan ettiği kümeye **EŞİT**
+     olmasını şart koşar; eşit değilse **BLOCKED**.
+  c) **Boş yeşil kontrolü (§8.2):** kaynağa yedinci bir susturucu geçici
+     olarak eklenir, süitin KIRMIZI düştüğü loglanır, geri alınır.
+     Bu madde 1 ve 2'nin tek gerçek kanıtıdır.
+  d) `docs_truth_test.sh`'in mevcut 40 iddiasının hiçbiri silinemez.
+
+- **S15 (YENİ, D4) · REFERANS ORTAM: ÖLÇÜM ZORUNLU, YEŞİL ZORUNLU DEĞİL,
+  SUSMAK YASAK.** (F1e-D'nin formülü, yeni eksene uygulanıyor.)
+  a) `native/refenv/run.sh` **bir kez `linux/amd64` üstünde** koşar
+     (`--image <amd64 etiketli imaj>`, `--network none`). Ölçüldü ve
+     kanıtlandı ki emülasyon bu makinede çalışıyor ve para sıfır; eksik olan
+     tek şey bir kerelik ücretsiz `docker pull --platform linux/amd64`.
+  b) **Bir kez `--user` ile non-root** koşar; konteyner kırmızılarından
+     `rule_census` düzyazı eşleşmesinin ortam artefaktı olduğu iddiası
+     böylece sınanır.
+  c) **Ne çıkarsa yazılır** (CLAUDE.md 8). Emülasyon `SUITE_TIMEOUT`'a
+     takılırsa, imaj bulunamazsa ya da koşum tamamlanamazsa: sonuç
+     **"ÖLÇÜLEMEDİ + sebep + komut"** olarak yazılır ve F2 bu yüzden
+     KALMAZ. Yasak olan **susmak** ve **"muhtemelen yeşildir" demek**.
+  d) `run.sh`'in ham çıktısı `reports/` altına **commit'lenir**. Ölçüldü:
+     bugün `reports/refenv/` diskte YOK ve git'te izli hiçbir çıktı dosyası
+     yok — sayılar yalnız `RAPOR/f1e-c-konteyner.md` düzyazısında duruyor.
+  e) **102 yeşil hakkında bugüne kadar yazılan hiçbir cümle "linux'ta yeşil"
+     ya da "temiz makinede yeşil" diye genellenemez**; geçerli etiketi
+     `node:22-bookworm · linux/arm64 · root · --network none`'dur.
+
+**ADIM KAPISI (§8.6, F2 için bağlayıcı):** F2 §5'in **ADIM 3'ünü gerçek
+yapar** (ve ADIM 8'i besler). "Yeni adım gerçek olmadı" yazan bir SAPMA
+satırıyla F2 KAPANMAZ. Üçü yazılı olacak: kullanıcı kaç adımda o ekrana
+varıyor, ekranda ne yazıyor (verbatim), nasıl kaçıyor.
+
+**Kapsam DIŞI (açılmaz):** yeni ürün verb'ü, npm yayını, `2b`'nin ONARIMI
+(F3-S1), konteynerdeki `sandbox_test.sh` kırmızısının onarımı (F1e-D/d,
+CHALLENGE, O4), `WRONG_REFUSAL`'a `sid` eklemek (S13/e, yalnız ilan edilir),
+`rabadon wrong`'un yetim izin dosyaları, `suite` alanının neden ölü olduğu,
+`TEST_EVIDENCE_MISSING` kartı, `installCursorHooks` yedeksiz üstüne yazma,
+`pages` iş akışı, site ürün anlatısı (F7).
+
+**BÜTÇE (§11, tavan aşılmıyor):** en fazla **6 işçi**, işçi başına **60 dk**.
+Kart dağılımı, paralel salınanlar aynı dosyaya dokunmayacak biçimde:
+
+| kart | iş | dokunduğu dosyalar |
+|---|---|---|
+| **0 (BLOKLAYAN)** | S12 + S13 | `native/rules.h`(+`cmdtext.h`), `native/heredoc_prose_test.sh`, sayaç betiği |
+| 1 | S5 export onarımı | `native/audit.cpp`, `native/moves_test.sh` |
+| 2 | `usage --signals` ekranı (S1,S4,S6,S7) | `native/usage.h`, `native/rabadon-cli.sh` |
+| 3 | etiketleme + ölçüm (S2,S8, üç zemin) | **salt-okunur** + `reports/` |
+| 4 | S14 kardinalite | `native/gate.cpp`, `native/docs_truth_test.sh` |
+| 5 | S15 referans ortam | `native/refenv/run.sh`, `reports/` |
+
+**Kart 0 yeşil olmadan 1-5 BAŞLAMAZ.** Sebep ölçüm: kart 1, 2, 4 ve 5'in
+işçileri belge ve rapor yazacak, ve D1'in açığı tam olarak **belge yazmayı**
+kesiyor — bugün beni kesti. Kartlar 1-5 paralel salınabilir.
+**Para: sıfır. Ağ: yalnız bir kerelik imaj indirme (S15/a), ölçüm
+`--network none`. Model çağrısı: yok.**
+
+**DURMA (§13/2):** kart 0 ya da kart 1 iki kez üst üste aynı kırmızıyı
+verirse üçüncü denenmez, `UYANDIGINDA.md`'ye yazılır. F2 hakemi KALDI derse
+F1b açılmaz (F1b-S1).
+
+---
+
+## SIRA (bu kararla güncellendi)
+
+**F1e (GEÇTİ) → F2 → F1b → F1n → F3 → F4 → F5 → F6 → F7 → F8 → F9.**
+
+**Mini-faz zinciri kapandı: F1f yoktur** (D5). D1/D1b/D3/D4 F2'nin kabul
+maddeleridir (S12-S15), D1 bloklayan ilk karttır.
+
+---
+
+## BU OTURUMDA GÖRÜLEN, SORULMAMIŞ, DOKUNULMAMIŞ (§5.5 dökümü)
+
+- **`rabadon wrong` yetim izin dosyası bırakıyor.** `gate.cpp:2717` her kural
+  için `~/.rabadon/wrong-<kural>` yazıyor, ama onu **yalnız**
+  `red-suite-test-write` tüketiyor (`gate.cpp:4815`). Diskte şu an
+  `wrong-no-exit-code-after-pipe` (benim, bu gece) ve `wrong-red-base`
+  (daha eski). Kasten silmedim — kanıt. Kart açılmadı.
+- **`red-base` kuralı için de bir `WRONG_REFUSAL` var** (08-26, `pipe`
+  `damummyphus:cli`): *"F2 hakemi: kirmizilar OLCULEN BULGU..."*. Bu satır
+  BAŞKA bir projenin koşusundan geliyor (`damummyphus:cli`), rabadon
+  koşusundan değil — yani defterdeki `WRONG_REFUSAL`'lar kapsam
+  filtrelenmeden sayılırsa yanlış sayı çıkar. S13/a bu yüzden kapsamı
+  `sid`/`pipe` ile daraltıyor.
+- **Deftere göre 08-26'da 5 `WRONG_REFUSAL` var ama 4'ü komşu projelerin.**
+  rabadon koşusunun kendi oturumunda bu gece öncesi **0**.
+- **`~/.rabadon/spool/2026-08-26.jsonl`: `SIGNAL` 511, `CHECK_FAIL` 165,
+  `WOULD_BLOCK` 69, `TEST_EVIDENCE_MISSING` 61, `REPAIR_FAIL` 10,
+  `PARSE_DEGRADED` 1, `PARSE_LIMIT` 1.** `PARSE_DEGRADED`/`PARSE_LIMIT`
+  doğrudan D1'in ailesi (ayrıştırıcı okuyamadığı satırı ESKİ yolla, ham
+  metin olarak yargılıyor — `rules.h` `rule_refuses`, `p.degraded` kolu).
+  Yani D1'in onarımı bozuk ayrıştırmada **etkisiz kalır ve kalmalıdır**
+  (redde doğru yön). Ölçmedim, kart açılmadı.
+- **`reports/refenv/` diskte yok ve git'te izli değil.** F1e-D/a "tam
+  çıktısı `reports/` altına düşer" diyordu; betik commit'li, ham çıktı
+  değil. Sayılar `RAPOR/f1e-c-konteyner.md` düzyazısında duruyor. S15/d
+  bunu kapsıyor.
+- **Faz öncesi ikiliyi `/tmp/d2-pre` altında ayrı bir KLONA kurdum**
+  (`git clone --no-hardlinks`, worktree DEĞİL — F0 "yeni worktree açılmaz"
+  der). `make all` orada exit 0. Klon ve `/tmp/d1probe.sh`, `/tmp/d2probe.sh`
+  betikleri `/tmp` altında duruyor, repoya girmediler.
+- **DOĞRULANMADI:** `bash -c "<gerçek boru hattı>"` hücresinin doğru
+  ayrılabilirliğini ölçmedim (S12/d onu ölçtürüyor); amd64 emülasyonunda
+  `make all`/`make test`in gerçekten tamamlandığını ölçmedim, **yalnız
+  emülasyonun çalıştığını** ölçtüm (`uname -m` → `x86_64`, `--network none`);
+  non-root konteyner koşumunu hiç denemedim; `2b`'yi bu oturumda hiç
+  koşturmadım (yayımlanan 1994,5 µs / tavanın 1,99 katı sayısını
+  F1e tutanağından alıyorum, kendim yeniden ölçmedim); `npm i -g rabadon`
+  yolunu ölçmedim (yayımlanmamış); gerçek Cursor uygulamasını başlatmadım;
+  15 retin hangilerinin DOĞRU hangilerinin YANLIŞ olduğunu tek tek hükme
+  bağlamadım — bu S13/c'nin işidir ve kasten bana ait değil.
