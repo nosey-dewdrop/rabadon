@@ -41,6 +41,14 @@ cevap gelmezse varsayılan yürür ve tutanağa yazılır (§10 "kuyruk bekletme
   götürmediğini kırmızı düşebilen bir testle sabitliyor. Gerekmiyor, sorulmuş olsun diye burada.
 
 ## SAPMA SATIRLARI (gece)
+- **F1d bitti** — "durum ekranı yalan söylemez". YENİ adım gerçek olmadı; var olan
+  ADIM 2 ve 4'ün altındaki YALAN kalktı. Gösteren sayı: `native/status_truth_test.sh`
+  **17 ok / 77 fail → 94 ok / 0 fail** (16 hücre × 3 iddia, her iddia gerçek gate'in
+  çıkış koduyla karşılaştırılıyor). `.rabadon/off` dururken artık ekran susturucuyu
+  adıyla + yoluyla + tek kaldırma komutuyla basıyor; o komut koşulunca gate `exit 2`
+  veriyor. B2 de kapandı: etiketsiz sürümde `npm i -g rabadon` artık belgede duramaz
+  (çevrimdışı kilit, yayın gününde kendiliğinden serbest bırakıyor). **Saptık mı: hayır** —
+  ölçü sertleşti, `bin/rabadon.mjs` donuk kaldı, yeni verb yok, sayaç 4180 → **4292**.
 - F1 → **F1a** (uykuda koşar) + **F1n** (seni bekler). Ölçü gevşemedi, sertleşti:
   yayımlanmamış paket temiz makinede kurulup çalıştığını CI'ın dört hücresinde
   kanıtlayacak. Ayrıntı: `reports/kosu/SAPMA-KARARLARI.md`.
