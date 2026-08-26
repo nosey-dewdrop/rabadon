@@ -113,6 +113,16 @@ struct Seg {
 
 struct Parsed {
   vector<Seg> segs;
+  // THE WHOLE LINE, MINUS WHAT IS NOT A COMMAND. The segments below can never
+  // contain a `|`, `;` or `&&` — they are what those characters split — so a
+  // deny rule whose pattern spells a pipe has to be shown the line as one
+  // piece. This is that piece, and it is the PREPROCESSED line: comments and
+  // heredoc BODIES have already been lifted out of it, exactly as they are
+  // lifted out of every segment surface. Handing the RAW line instead is how
+  // `cat >> notes.md <<'MARKER'` came to be refused for a pipe that existed
+  // only in the prose being written down. When the line cannot be parsed this
+  // is the raw line, unchanged: a degraded line is judged the old way.
+  string line;
   // where the read of ONE command line stops. Not an error and not a refusal:
   // a place the parser can name but cannot see into, written down so that
   // "we accept this" is a claim with evidence under it instead of a silence.
@@ -2070,6 +2080,7 @@ inline Parsed parse(const string& cmd) {
   const string pre = preprocess(cmd, &ok, &why, &bodies);
   p.degraded = !ok;
   p.why = why;
+  p.line = pre;
   emit(pre, 0, 0, p, 0, vector<Binding>(), &bodies, &bcur);
   return p;
 }

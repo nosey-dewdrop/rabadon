@@ -298,9 +298,27 @@ inline std::vector<string> match_texts(const string& cmd, bool* degraded = nullp
   return texts_of(p, cmd);
 }
 
+// THE WHOLE-LINE SURFACE, and why it is not the raw line. A heredoc body is
+// prose; the segment surfaces have never contained one, and this extra surface
+// was the one place that still did. Measured on 26 August: the gate refused
+//
+//   cat >> reports/kosu/SAPMA-KARARLARI.md <<'MARKER'
+//   ... make test | grep -c ok / echo exit=$? ...
+//   MARKER
+//
+// under `no-exit-code-after-pipe` — the pipe was in the paragraph being written
+// ABOUT the rule, not in anything the shell would run. rbtext::Parsed::line is
+// the preprocessed line: same bytes, minus the comments and heredoc bodies,
+// pipes and separators intact. A degraded parse leaves it as the raw line, so a
+// line nobody can read is still judged the old way and still refused.
+inline const string& whole_line(const rbtext::Parsed& p, const string& cmd) {
+  return p.line.empty() ? cmd : p.line;
+}
+
 inline bool rx_test_cmd(const string& pattern, const string& cmd) {
-  std::vector<string> texts = match_texts(cmd);
-  if (pattern_names_a_pipe(pattern)) texts.push_back(cmd);
+  const rbtext::Parsed p = rbtext::parse(cmd);
+  std::vector<string> texts = texts_of(p, cmd);
+  if (pattern_names_a_pipe(pattern)) texts.push_back(whole_line(p, cmd));
   return rx_test_any(pattern, texts);
 }
 
@@ -363,8 +381,12 @@ inline bool rule_refuses(const string& pattern, const rbtext::Parsed& p, const s
   // a pattern that spells a pipe is asking about the whole line, and no segment
   // can ever contain one. see pattern_names_a_pipe for why this is offered only
   // to the rules that ask for it.
+  // ...and it is offered the line with the comments and heredoc BODIES already
+  // lifted out. See whole_line: the body of a heredoc is the document being
+  // written, and a rule that reads it is refusing prose. (Measured wrong
+  // refusal, native/heredoc_prose_test.sh.)
   if (pattern_names_a_pipe(pattern)) {
-    const std::vector<string> whole(1, cmd);
+    const std::vector<string> whole(1, whole_line(p, cmd));
     if (rx_test_any(pattern, whole)) return true;
   }
   const bool pathRule = pattern_names_a_path(pattern);
