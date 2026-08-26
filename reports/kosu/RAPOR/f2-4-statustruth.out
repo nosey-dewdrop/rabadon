@@ -1,0 +1,173 @@
+status truth: what the CLI claims vs what the real gate does
+
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=no] status — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=no] status/lamp — status says WATCH and the lamp says "watch"
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=no] after `rabadon on` — claim ON, gate exit 2 / 399 bytes (matches ENFORCE)
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=no] after `rabadon off` — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=yes] after `rabadon on` — claim ON, gate exit 2 / 399 bytes (matches ENFORCE)
+  ok   - [mode=watch projoff=no RABADON_OFF=no silent=yes] after `rabadon off` — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=no] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=no] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=no] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=no] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=no] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=yes] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=yes] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=no RABADON_OFF=yes silent=yes] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=no] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=no] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=no] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=no] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=no] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=yes] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=yes] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=no silent=yes] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=no] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=no] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=no] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=no] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=no] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=no] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=watch projoff=yes RABADON_OFF=yes silent=yes] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=no] status — claim ON, gate exit 2 / 399 bytes (matches ENFORCE)
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=no] status/lamp — status says ON and the lamp says "on"
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=no] after `rabadon on` — claim ON, gate exit 2 / 399 bytes (matches ENFORCE)
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=no] after `rabadon off` — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=yes] after `rabadon on` — claim ON, gate exit 2 / 399 bytes (matches ENFORCE)
+  ok   - [mode=enforce projoff=no RABADON_OFF=no silent=yes] after `rabadon off` — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=no] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=no] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=no] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=no] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=no] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=yes] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=yes] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=no RABADON_OFF=yes silent=yes] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=no] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=no] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=no] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=no] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=no] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=yes] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=yes] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=no silent=yes] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=no] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=no] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=no] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=no] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=no] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=no] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] status/4.8 env — the screen names RABADON_OFF, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] status/4.8 project — the screen names .rabadon/off, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] status/4.8 silent — the screen names silent, where it is, and the one command that lifts it
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] after `rabadon on` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [mode=enforce projoff=yes RABADON_OFF=yes silent=yes] after `rabadon off` — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+
+escape doors: the command the screen prints must actually lift the silence
+  ok   - [RABADON_MODE=unset projmode=none machmode=watch] status — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [RABADON_MODE=unset projmode=none machmode=watch] status/lamp — status says WATCH and the lamp says "watch"
+  ok   - [RABADON_MODE=unset projmode=none machmode=enforce] status — claim ON, gate exit 2 / 399 bytes (matches ENFORCE)
+  ok   - [RABADON_MODE=unset projmode=none machmode=enforce] status/lamp — status says ON and the lamp says "on"
+  ok   - [RABADON_MODE=unset projmode=none machmode=silent] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=unset projmode=none machmode=silent] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=unset projmode=none machmode=silent] 4.8 machine layer — the screen names mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=unset projmode=none machmode=silent] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=unset projmode=watch machmode=watch] status — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [RABADON_MODE=unset projmode=watch machmode=watch] status/lamp — status says WATCH and the lamp says "watch"
+  ok   - [RABADON_MODE=unset projmode=watch machmode=enforce] status — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [RABADON_MODE=unset projmode=watch machmode=enforce] status/lamp — status says WATCH and the lamp says "watch"
+  ok   - [RABADON_MODE=unset projmode=watch machmode=silent] status — claim WATCH, gate exit 0 / 296 bytes (matches WATCH)
+  ok   - [RABADON_MODE=unset projmode=watch machmode=silent] status/lamp — status says WATCH and the lamp says "watch"
+  ok   - [RABADON_MODE=unset projmode=silent machmode=watch] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=unset projmode=silent machmode=watch] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=unset projmode=silent machmode=watch] 4.8 project layer — the screen names .rabadon/mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=unset projmode=silent machmode=watch] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=unset projmode=silent machmode=enforce] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=unset projmode=silent machmode=enforce] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=unset projmode=silent machmode=enforce] 4.8 project layer — the screen names .rabadon/mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=unset projmode=silent machmode=enforce] escape — the printed command(s) really lifted the silence (gate now exit 2 / 399 bytes)
+  ok   - [RABADON_MODE=unset projmode=silent machmode=silent] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=unset projmode=silent machmode=silent] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=unset projmode=silent machmode=silent] 4.8 project layer — the screen names .rabadon/mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=unset projmode=silent machmode=silent] 4.8 machine layer — the screen names mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=unset projmode=silent machmode=silent] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=none machmode=watch] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=none machmode=watch] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=none machmode=watch] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=none machmode=watch] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=none machmode=enforce] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=none machmode=enforce] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=none machmode=enforce] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=none machmode=enforce] escape — the printed command(s) really lifted the silence (gate now exit 2 / 399 bytes)
+  ok   - [RABADON_MODE=silent projmode=none machmode=silent] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=none machmode=silent] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=none machmode=silent] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=none machmode=silent] 4.8 machine layer — the screen names mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=none machmode=silent] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=watch machmode=watch] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=watch machmode=watch] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=watch machmode=watch] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=watch machmode=watch] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=watch machmode=enforce] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=watch machmode=enforce] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=watch machmode=enforce] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=watch machmode=enforce] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=watch machmode=silent] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=watch machmode=silent] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=watch machmode=silent] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=watch machmode=silent] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=silent machmode=watch] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=silent machmode=watch] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=silent machmode=watch] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=watch] 4.8 project layer — the screen names .rabadon/mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=watch] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - [RABADON_MODE=silent projmode=silent machmode=enforce] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=silent machmode=enforce] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=silent machmode=enforce] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=enforce] 4.8 project layer — the screen names .rabadon/mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=enforce] escape — the printed command(s) really lifted the silence (gate now exit 2 / 399 bytes)
+  ok   - [RABADON_MODE=silent projmode=silent machmode=silent] status — claim SILENT, gate exit 0 / 0 bytes (matches SILENT)
+  ok   - [RABADON_MODE=silent projmode=silent machmode=silent] status/lamp — status says SILENT and the lamp says "off"
+  ok   - [RABADON_MODE=silent projmode=silent machmode=silent] 4.8 env layer — the screen names RABADON_MODE=silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=silent] 4.8 project layer — the screen names .rabadon/mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=silent] 4.8 machine layer — the screen names mode = silent, where it is, and the one command that lifts it
+  ok   - [RABADON_MODE=silent projmode=silent machmode=silent] escape — the printed command(s) really lifted the silence (gate now exit 0 / 296 bytes)
+
+  ok   - positive control: at least one cell got a REAL refusal (gate exit 2), so the instrument works
+
+routing pin: no shipped path sends on|off|status|toggle to bin/rabadon.mjs
+  ok   - package.json bin.rabadon points at native/rabadon-cli.sh, not bin/rabadon.mjs
+  ok   - the on|off|status arm goes straight to the gate binary, no rabadon.mjs in it
+  ok   - the toggle arm goes straight to the gate binary, no rabadon.mjs in it
+  ok   - package.json scripts has no on/off/status/toggle entry calling rabadon.mjs
+
+  ok   - no file under the real ~/.rabadon was written by this suite
+
+status truth: 162 ok / 0 fail
+EXIT=0

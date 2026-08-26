@@ -1,0 +1,3 @@
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-gate native/gate.cpp
+c++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-gated native/gated.cpp
+BUILD=0
