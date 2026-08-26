@@ -29,6 +29,7 @@ rabadon init              # authors guard rules from your law files (CLAUDE.md /
                           # or writes a safe baseline; merges hooks into your existing
                           # .claude/settings.json (backed up, never clobbered)
 rabadon drill             # see a real refusal in 30 seconds, without waiting for an incident
+rabadon on                # arm it — init leaves you in watch mode, this is the line that makes refusals real
 claude                    # work normally — the session is supervised
 rabadon usage             # the ledger: what was caught, backed by timestamped events
 ```

@@ -57,6 +57,7 @@ rabadon doctor — /usr/local/lib/node_modules/rabadon
 ```
 cd ~/code/my-project
 rabadon init
+rabadon on          # init leaves the project in watch mode; this arms the brake (step 4)
 ```
 
 `init` authors a guard (`.rabadon/guard.json`), lints it, and merges the gate
