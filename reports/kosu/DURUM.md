@@ -1,50 +1,56 @@
-# DURUM — kosu3 (25.08, dal `kosu3`, kosu2 6f5d301'den ayrildi)
-Koşunun kısa ve KANITLI durumu. Her satır bir dosyadan okundu. Uzun anlatı yok.
-Bu dosya her tur kapanışında yapan tarafından tazelenir (v3/B2-1).
+# DURUM — koşu 5, F0 sonrası (2026-08-26)
 
-## KAPALI
-R0–R6 ACCEPTED · T1/T2 kimlik işi kapalı · döngü smoke 19/19 PASS
-(`reports/kosu/SMOKE.md`). v3'ün üç yeni farkı (isci.sh · girdi<30KB · KOSMADI)
-HENÜZ KANITLANMADI — ilk turun işi bu (B6).
+Koşunun kısa ve KANITLI durumu. Her satır bir ölçümden okundu.
+Ayrıntı ve komutlar: `reports/kosu/ENVANTER.md`.
+Koşu 3'ün DURUM'u `reports/kosu/arsiv/DURUM-kosu3.md`'de, iptal notuyla duruyor.
 
-## R7 — 23 yeşil / 3 kırmızı + 1 gizli kırmızı, NOT ACCEPTED
-Kanıt: `reports/R7/ab_run.jsonl` 8 kayıt, A:4 / B:4 görev.
-GOAL 5 ve GOAL 8 tam yeşil (moves 21/0, signals 39/0, R2 19/0).
-Sayılar: düzeltme A %75 / B %75 · token A 35620 / B 33221 · insan 0/0 · YP 0/0.
+## KÖK VE DAL
+- **Tek kök: `/Users/damummyphus/damla_projects_2026/rabadon`. Tek dal: `main`.**
+- Bu koşuda çalışılacak dizin budur. Worktree açılmaz, yeni dal açılmaz.
+- `main` = eski `kosu4` ucu `ad26ff9` (ileri sarma, `git merge --ff-only kosu4`, 111 commit).
+- `kosu2` / `kosu3` / `kosu4` worktree'leri kaldırıldı; **dallar silinmedi**,
+  `origin`'de duruyorlar.
 
-- **2b latans — KIRMIZI (etiket: bu makinede).** Tavan 1000 µs. 8 gözlem,
-  min **1218,3 µs** (`reports/R7/olc_2b.tur22.out`). Tek geçerli çıkarım
-  `temiz ≤ 1218,3 µs`; bu, 1000'i DIŞLAMAZ. Bu worktree'de kırmızı PRENSİP
-  OLARAK kanıtlanamaz (her gözlem üst sınır) → temiz referans ortam gerekir.
-- **6e / 7b — KIRMIZI, tek kök:** `MIN_HISTORY=3` yüzünden tek oturumluk koşuda
-  `estimated_saved` üretilmiyor. `MIN_HISTORY` OYNANMAYACAK (operatör bağlaması,
-  deneme 26). Yeşile dönüş: çok oturumlu koşu VEYA fixture VEYA GOAL'in yeniden
-  ifadesi — üçü de KARAR.
-- **5b — ÖN-KAYIT SAPMASI, AÇIK (accept.sh göremiyor).** `reports/R7/ON-KAYIT.md`
-  koşudan önce donmuş: **N = 6 görev × 2 kol**. jsonl'de duran: **4 × 2**.
-  Eksik: `joke2k__faker.8b401a7d`, `pylint-dev__astroid.b114f6b5`. `accept.sh`
-  5b kol başına **≥2** arıyor (satır ~410) — hedefi değil gevşemiş vekilini
-  denetliyor. DÜZELTME: 5b, ON-KAYIT'taki N'i okuyacak. SONUÇ: 7a hükmü n=4'te
-  veriliyor; A ve B düzeltme oranı ÖZDEŞ, fark yalnız token'da (%6,7) —
-  gürültü içinde kalan fark yayınlanmaz (Yasa 7).
+## KOŞU BELGESİ
+Kökte tek koşu belgesi: **`KOSU-RABADON-5.md`**.
+`KOSU-RABADON.md`, `-2`, `-3`, `-4` → `docs/archive/`, her birinin başında tek satır
+iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 
-## ÖLÇÜM HİJYENİ — A2'nin iki kusuru tur 22'de KAPANDI
-- `olc_2b.sh` hükmü düzeltildi: "min gözlem temiz değerin ÜST sınırıdır",
-  eski "KESİN KIRMIZI" etiketi GEÇERSİZ ilan edildi (`6097bb9`).
-- `pgrep -c` (BSD'de YOK) kaldırıldı, `pgrep -f <ad> | wc -l` kondu (`10ec3f5`).
-  İlk gerçek sayı: 8 gözlemin tamamı **2 canlı `ctest`** varken alınmış.
-  Kirliliğin büyüklüğü ÖLÇÜLMEDİ.
+## ÖLÇÜLEN GERÇEK (belgeye değil buna bak)
+- **Sinyal:** kodda 8 sinyal adı; **4'ü enjekte ediyor** (`oscillation`, `root_migration`,
+  `green_redefined`(b), `semantic_repeat`), 4'ü yalnız ledger'a yazıyor
+  (`repeat`, `scope_drift`, `green_redefined`(a) ve (c)). Çağrılmayan sinyal yok.
+- **Ajan yüzeyi:** ledger kanıtı yalnız **Claude Code**'da (6 INJECT, 1 INJECT_HELD,
+  2224 SIGNAL, 368 COUNTER; 22–26 Ağu; `~/.rabadon/spool/`). Kanıtın çoğu **başka bir
+  repodan** (`stitchu`) ve **23 Ağu tarihli bir ikiliden** geliyor. Cursor: 0 satır.
+- **Enjeksiyonun (b) "ajan okudu" ve (c) "zarar vermedi" katmanları için HİÇ kanıt yok.**
+- **Test:** `make test` 3438/0, `npm test` 64/0 → **3502 yeşil / 0 kırmızı**.
+- **Kabul:** `reports/R7/accept.sh` → **23 yeşil / 3 kırmızı**, adlar **`2b`, `6e`, `7b`**.
+- **CLI:** ana help 5 verb, `dev` 30, dispatcher 44. (Belgedeki "25 verb" hiçbir ölçümle eşleşmiyor.)
+- **npm:** `rabadon` E404. `package.json` 0.2.3. `v0.2.3` etiketi yok.
+- **Landing:** eski ürünü satıyor — başlık "guardrails and a verifiable record",
+  kurulum `git clone && make`, komutlar `watch/on/usage/repair/audit`.
+  "compound error" ve "injection" sayfada **0 kez** geçiyor.
+- **Kapı bugün:** `~/.claude/settings.json` kök klonun `native/rabadon-gate` ikilisini
+  çağırıyor, mod **watch (observe)**, deny değil. Öyle bırakıldı.
 
-## R8 — yayın, BLOKLU
-`package.json` 0.2.3 · npm 404 · tag yok. BLOK: `make disclosure` fail-closed,
-41 liste dışı isim (`reports/R8/DISCLOSURE.md`). YAYIN kararı OPERATÖR'de.
-Karar gerektirmeyen işler açık: 17/18 binary uyuşmazlığı, tag, plugin paketi,
-10k additionalContext kesme testi.
+## KIRMIZI AD KÜMESİ (§8.3 için dondurulmuş)
+F0 ÖNCESİ: `{ 2b, 6e, 7b }` (R7 kabul). Test süitlerinde kırmızı ad yok.
+F0 SONRASI: `reports/kosu/RAPOR/f0-tutanak.md` — büyümedi.
 
-## M0–M4 — hiç başlamadı. POSITIONING M3'e, SAVUNMA+landing M4'e bağlı.
-## İZLE (kırmızı değil): 2c %3,35 → %6,50 (tavan %10; R1.3 bandı %3,5–4,9 aşıldı).
+## DEVİR SAYILARI
+| sayı | değer |
+|---|---|
+| kapanan faz | F0 |
+| §5'te gerçek olan adım | yok (F0'ın ADIM satırı yok, belgede yazılı tek istisna) |
+| kesilen kart | 4 (envanter, tek kök tek dal, tek koşu belgesi, ortam) |
+| salınan işçi | 5 |
+| kırmızı ad kümesi | 3 → 3 (büyümedi) |
+| ortam ön kontrol | 8/8 YEŞİL (`scripts/onkontrol.sh`) |
+| durma koşulu tetiklendi mi | hayır |
 
 ## SIRA
-BEKLEYEN OPERATÖR KARARI (2b nasıl kapanacak · 6e/7b fixture mı) → 5b ön-kayıt
-sapması → 2b'nin kalan yolu → 6e/7b → R8'in karar gerektirmeyen işleri → R8 →
-M3 → M4. Kısmi kabulle sonraki tur başlamaz.
+**F1 — kurulabilen ürün.** Önkoşul: yok, F0 kapandı.
+F1'in npm yayını **UYKUDA KOŞMAZ** (§13): operatör kararı, `UYANDIGINDA.md`'ye düşer.
+F1 şefi bu dosyayı ve `ENVANTER.md`'yi okur; `KOSU-RABADON-5.md` §6'nın sayılarına
+DEĞİL, `ENVANTER.md`'nin ölçümlerine güvenir.
