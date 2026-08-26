@@ -111,6 +111,9 @@ usage: rabadon <command> [args]
   init [dir]          write the hooks into a project and author its guard.json
   on | off            turn enforcement on or off for this project
   usage [--days N]    what was refused, in which project, by which rule
+                      --signals reads your recorded move rings instead of the
+                      ledger: what the five silent detectors wrote, and which
+                      session file each count came out of
   repair              attempt a bounded, re-checked fix for a failing check
   doctor              check the install: binaries, hooks, sandbox backend
 

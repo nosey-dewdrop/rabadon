@@ -1,0 +1,38 @@
+rabadon usage --signals — what rabadon RECORDED in your own sessions
+local, nothing leaves this machine · these signals are silent: none of them
+refused anything, and none of them reached a decision
+
+corpus: /Users/damummyphus/.rabadon-korpus-snapshot-20260826/sessions
+  34 session file(s) · 527 move(s) on disk · 2026-08-22 21:22 → 2026-08-26 06:48
+  LOSS: 127 recorded move(s) are gone — the ring keeps the newest 200 per
+        session, the header counted 654. Every number below is over the 527
+        that survived, not over the 654 that happened.
+        -127  sessions/286fd71d-2e67-43-57b7234bb75e.moves.bin  (327 counted, 200 kept)
+
+detectors replayed over every surviving move, in order:
+  repeat            NOT MEASURED (n=0)
+            reason: no move signature repeats 3+ times with 2+ of them returning an error. The
+            longest run of one identical move in this corpus is 3 (0 of them carried an error). It
+            stays out of every live decision until it has samples.
+  oscillation       NOT MEASURED (n=0)
+            reason: no single file was rewritten back and forth. It needs 6 alternating edits to ONE
+            path; the most-edited file in this corpus has 5 edit(s). It stays out of every live
+            decision until it has samples.
+  root_migration    NOT MEASURED (n=0)
+            reason: no one error signature survived 3 different moves. The widest an error spread
+            here is 1 distinct move(s). It stays out of every live decision until it has samples.
+  scope_drift       n=17  ·  0 of 17 labelled by a human — raw counts only
+            5 directories touched
+            sessions/286fd71d-2e67-43-57b7234bb75e.moves.bin  seq 159, 160, 161, 162, +13
+  green_redefined   NOT MEASURED (n=0)
+            reason: the suite was never seen red while a test or harness file was edited, and no
+            test file lost assertions. Edits to a file that decides green in this corpus: 1. It
+            stays out of every live decision until it has samples.
+
+summary: 1 of 5 detectors wrote anything at all here; 4 are NOT MEASURED and are named above with
+the corpus fact behind each zero. 527 move(s) is a short corpus and 127 more were lost before this
+screen could read them, and none of the samples carry a human label — so nothing here is a rate,
+and nothing here is evidence that a detector is right.
+
+the corpus grows as you work, and these zeros are the first thing that should move.
+next: run `rabadon usage --signals` again after your next session

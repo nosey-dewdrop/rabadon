@@ -45,6 +45,8 @@
 #include "drill.h"
 #include "prices.h"
 #include "counter.h"
+#include "moves.h"
+#include "signals.h"
 
 using std::string;
 using std::u16string;
@@ -566,6 +568,11 @@ static const char* kHelp =
   "  --project NAME  only this project. A name that is not in the window is an\n"
   "                  error (exit 1), not an empty report — the message lists\n"
   "                  the project names that ARE in the window.\n"
+  "  --signals       a different store and a different question: replay the five\n"
+  "                  R2 detectors over this machine's recorded move rings and\n"
+  "                  print what they wrote, with the loss the ring caused, the\n"
+  "                  session file behind every count, and NOT MEASURED (with the\n"
+  "                  reason) for any detector that never fired. Reads no spool.\n"
   "  --full          every row, not just the top of the table.\n"
   "  --explain       re-derive the session-close counter step by step, citing the\n"
   "                  ledger lines every subtotal came from.\n"
@@ -579,18 +586,328 @@ static const char* kHelp =
   "example:\n"
   "  rabadon-stats --days 30 --project rabadon --json\n";
 
+// ===========================================================================
+// `rabadon usage --signals` — the R2 move record, read back and counted.
+//
+// WHAT THIS SCREEN CLAIMS, AND THE TWO THINGS IT REFUSES TO CLAIM
+// It claims exactly one layer: rabadon WROTE this, in your own sessions, and
+// here is the file each number came out of. It does not claim that anything was
+// refused because of it — the R2 signals are silent by construction (signals.h)
+// and nothing here ever reached a permission decision. It also prints no
+// counterfactual: what an agent would have done in a world where these signals
+// spoke is not a measurement, it is a story, and a guard tool that tells that
+// story about itself has already lost the argument it exists to win.
+//
+// WHY THE LOSS IS THE FIRST THING ON THE SCREEN
+// The record is a ring of CAP moves per session behind a header that counts
+// every move ever appended (moves.h). When a session runs longer than the ring,
+// the oldest moves are overwritten: they happened, they were recorded, and they
+// are gone. Every count below is therefore over the SURVIVORS. A screen that
+// prints the survivors as if they were the record is a smaller number wearing a
+// complete number's clothes, which is the exact defect this product refuses in
+// other people's test suites. So the loss is disclosed with its size, per ring.
+//
+// WHY n=0 IS "NOT MEASURED" AND NOT A RESULT
+// A detector that never fired on this corpus has not been shown to be quiet; it
+// has been shown to be untested here. Those two readings differ by everything,
+// and only one of them is honest at n=0. So a zero renders as NOT MEASURED with
+// the corpus fact that explains it — how close the corpus came to the threshold
+// the detector needs — and it is named as staying out of any live decision.
+//
+// COST: this is an early-exit arm reached before the spool is opened. Nothing
+// in the hook path, the gate or the default `usage` screen runs a byte of it.
+namespace rbscreen {
+
+struct SigRow {
+  string name;
+  long long n = 0;                                   // firings over the corpus
+  string why;                                        // the detector's own clause
+  std::vector<std::pair<string, std::vector<long long>>> where;  // file -> seqs
+  string reason;                                     // set only when n == 0
+};
+
+struct Ring {
+  string file;
+  long long counted = 0;      // header: every move ever appended to this session
+  long long kept = 0;         // records still on disk
+  std::vector<rbmoves::Move> mv;
+};
+
+// One ring off disk. A file that is not a ring is reported as unreadable and
+// never silently skipped: "I could not read this" is a designed path.
+static bool read_ring(const string& path, Ring& r) {
+  FILE* f = fopen(path.c_str(), "rb");
+  if (!f) return false;
+  rbmoves::Hdr h{};
+  if (fread(&h, 1, sizeof h, f) != sizeof h || memcmp(h.magic, "RBMV1", 5) != 0) { fclose(f); return false; }
+  r.counted = h.count;
+  if (r.counted < 0) { fclose(f); return false; }
+  const long long keep = r.counted < (long long)rbmoves::CAP ? r.counted : (long long)rbmoves::CAP;
+  std::vector<rbmoves::Rec> ring(rbmoves::CAP);
+  if (fseek(f, (long)rbmoves::HDR_BYTES, SEEK_SET) != 0) { fclose(f); return false; }
+  if (fread(ring.data(), 1, rbmoves::CAP * sizeof(rbmoves::Rec), f) == 0 && keep > 0) { fclose(f); return false; }
+  fclose(f);
+  const long long first = r.counted - keep;
+  for (long long k = 0; k < keep; k++) {
+    rbmoves::Move m;
+    rbmoves::from_rec(ring[(size_t)((first + k) % (long long)rbmoves::CAP)], m);
+    r.mv.push_back(std::move(m));
+  }
+  r.kept = keep;
+  return true;
+}
+
+// A reason is a sentence, not a column, and it has to survive being read in a
+// terminal and pasted into a screenshot. Wrapped at the real width, never cut.
+static string wrap(const string& text, const string& indent, size_t W) {
+  const size_t cols = (W > indent.size() + 20) ? W - indent.size() : 40;
+  string out = indent;
+  size_t col = 0, i = 0;
+  while (i < text.size()) {
+    size_t j = text.find(' ', i);
+    if (j == string::npos) j = text.size();
+    const string word = text.substr(i, j - i);
+    if (col && col + 1 + word.size() > cols) { out += "\n" + indent; col = 0; }
+    else if (col) { out += ' '; col++; }
+    out += word;
+    col += word.size();
+    i = j + 1;
+  }
+  return out + "\n";
+}
+
+static SigRow* row_for(std::vector<SigRow>& v, const string& name) {
+  for (SigRow& s : v) if (s.name == name) return &s;
+  return nullptr;
+}
+
+static void note(SigRow& s, const string& file, long long seq) {
+  for (auto& kv : s.where) if (kv.first == file) { kv.second.push_back(seq); return; }
+  s.where.push_back({ file, { seq } });
+}
+
+// "file  seq 2, 3" — the §7 rule: no number without the session it came from.
+static string where_line(const SigRow& s) {
+  string out;
+  size_t shown = 0;
+  for (const auto& kv : s.where) {
+    if (shown == 2) { out += "  (+" + std::to_string(s.where.size() - shown) + " more session file(s))"; break; }
+    if (shown) out += "\n            ";
+    out += "sessions/" + kv.first + "  seq ";
+    for (size_t i = 0; i < kv.second.size() && i < 4; i++) {
+      if (i) out += ", ";
+      out += std::to_string(kv.second[i]);
+    }
+    if (kv.second.size() > 4) out += ", +" + std::to_string(kv.second.size() - 4);
+    shown++;
+  }
+  return out;
+}
+
+int render(const string& base, bool full) {
+  const string sdir = base + "/sessions";
+  std::vector<string> names;
+  if (DIR* d = opendir(sdir.c_str())) {
+    while (struct dirent* e = readdir(d)) {
+      const string n = e->d_name;
+      if (n.size() > 10 && n.compare(n.size() - 10, 10, ".moves.bin") == 0) names.push_back(n);
+    }
+    closedir(d);
+  }
+  std::sort(names.begin(), names.end());
+
+  string out;
+  out += "rabadon usage --signals — what rabadon RECORDED in your own sessions\n";
+  out += "local, nothing leaves this machine · these signals are silent: none of them\n";
+  out += "refused anything, and none of them reached a decision\n\n";
+
+  if (names.empty()) {
+    out += "corpus: " + sdir + "\n";
+    out += "  NOT MEASURED — there is no move ring on this machine (0 files matching\n";
+    out += "  *.moves.bin). reason: moves are recorded by the hooks, inside a project\n";
+    out += "  where `rabadon init` has been run. Without a ring there is nothing to\n";
+    out += "  replay the detectors over, and a zero here would be about this machine's\n";
+    out += "  setup, not about your sessions.\n\n";
+    out += "next: run `rabadon init` in the project you are working in\n";
+    fwrite(out.data(), 1, out.size(), stdout);
+    return 0;
+  }
+
+  std::vector<Ring> rings;
+  std::vector<string> unreadable;
+  for (const string& n : names) {
+    Ring r; r.file = n;
+    if (read_ring(sdir + "/" + n, r)) rings.push_back(std::move(r));
+    else unreadable.push_back(n);
+  }
+
+  long long onDisk = 0, counted = 0, lost = 0;
+  long long tsMin = 0, tsMax = 0;
+  for (const Ring& r : rings) {
+    onDisk += r.kept; counted += r.counted; lost += r.counted - r.kept;
+    for (const rbmoves::Move& m : r.mv) {
+      if (m.ts <= 0) continue;
+      if (tsMin == 0 || m.ts < tsMin) tsMin = m.ts;
+      if (m.ts > tsMax) tsMax = m.ts;
+    }
+  }
+
+  // ---- replay: every detector, at every move, exactly as the hook would ----
+  std::vector<SigRow> rows;
+  for (const char* n : { "repeat", "oscillation", "root_migration", "scope_drift", "green_redefined" })
+    { SigRow s; s.name = n; rows.push_back(std::move(s)); }
+
+  // how close the corpus came to each detector's threshold — the material a
+  // NOT MEASURED row owes the reader.
+  long long repMax = 0, repMaxFailed = 0, oscMax = 0, rootMax = 0, driftMax = 0, greenEdits = 0;
+
+  for (const Ring& r : rings) {
+    std::vector<rbmoves::Move> pre;
+    for (size_t i = 0; i < r.mv.size(); i++) {
+      pre.push_back(r.mv[i]);
+      for (const rbsig::Hit& h : rbsig::detect(pre)) {
+        SigRow* s = row_for(rows, h.name);
+        if (!s) continue;
+        s->n++;
+        if (s->why.empty()) s->why = h.why;
+        note(*s, r.file, r.mv[i].seq);
+      }
+    }
+    // eligibility, measured the same way the detectors read the record
+    std::vector<std::pair<string, long long>> pathEdits;
+    std::set<string> dirs;
+    for (size_t i = 0; i < r.mv.size(); i++) {
+      const rbmoves::Move& m = r.mv[i];
+      long long seen = 0, failed = 0;
+      const size_t from = i + 1 > (size_t)rbsig::REPEAT_WINDOW ? i + 1 - (size_t)rbsig::REPEAT_WINDOW : 0;
+      for (size_t k = from; k <= i; k++)
+        if (r.mv[k].sig == m.sig) { seen++; if (r.mv[k].claimed_rc == 1) failed++; }
+      if (seen > repMax) { repMax = seen; repMaxFailed = failed; }
+      if (rbsig::is_edit(m) && !m.path.empty()) {
+        dirs.insert(rbsig::dir_of(m.path));
+        bool hit = false;
+        for (auto& kv : pathEdits) if (kv.first == m.path) { kv.second++; hit = true; break; }
+        if (!hit) pathEdits.push_back({ m.path, 1 });
+        if (rbsig::decides_green(m.path)) greenEdits++;
+      }
+      if (!m.err_sig.empty()) {
+        std::set<string> sigs;
+        for (size_t k = 0; k <= i; k++) if (r.mv[k].err_sig == m.err_sig) sigs.insert(r.mv[k].sig);
+        if ((long long)sigs.size() > rootMax) rootMax = (long long)sigs.size();
+      }
+    }
+    for (auto& kv : pathEdits) if (kv.second > oscMax) oscMax = kv.second;
+    if ((long long)dirs.size() > driftMax) driftMax = (long long)dirs.size();
+  }
+
+  row_for(rows, "repeat")->reason =
+      "no move signature repeats " + std::to_string(rbsig::REPEAT_MIN) + "+ times with 2+ of them"
+      " returning an error. The longest run of one identical move in this corpus is " +
+      std::to_string(repMax) + " (" + std::to_string(repMaxFailed) + " of them carried an error).";
+  row_for(rows, "oscillation")->reason =
+      "no single file was rewritten back and forth. It needs " + std::to_string(rbsig::OSC_CYCLES * 2) +
+      " alternating edits to ONE path; the most-edited file in this corpus has " +
+      std::to_string(oscMax) + " edit(s).";
+  row_for(rows, "root_migration")->reason =
+      "no one error signature survived " + std::to_string(rbsig::ROOT_MIN_PATHS) +
+      " different moves. The widest an error spread here is " + std::to_string(rootMax) + " distinct move(s).";
+  row_for(rows, "scope_drift")->reason =
+      "no session edited " + std::to_string(rbsig::DRIFT_DIRS) + " directories. The widest session here"
+      " touched " + std::to_string(driftMax) + ".";
+  row_for(rows, "green_redefined")->reason =
+      "the suite was never seen red while a test or harness file was edited, and no"
+      " test file lost assertions. Edits to a file that decides green in this corpus: " +
+      std::to_string(greenEdits) + ".";
+
+  // ---- corpus block: what was read, and what was lost before it was read ----
+  out += "corpus: " + sdir + "\n";
+  out += "  " + commas((long long)rings.size()) + " session file(s) · " + commas(onDisk) + " move(s) on disk";
+  if (tsMin > 0) out += " · " + local_stamp((double)tsMin) + " → " + local_stamp((double)tsMax);
+  out += "\n";
+  if (lost > 0) {
+    out += "  LOSS: " + commas(lost) + " recorded move(s) are gone — the ring keeps the newest "
+         + std::to_string(rbmoves::CAP) + " per\n";
+    out += "        session, the header counted " + commas(counted) + ". Every number below is over the "
+         + commas(onDisk) + "\n        that survived, not over the " + commas(counted) + " that happened.\n";
+    size_t shown = 0;
+    for (const Ring& r : rings) {
+      const long long d = r.counted - r.kept;
+      if (d <= 0) continue;
+      if (!full && shown == 4) {
+        long long more = 0;
+        for (const Ring& q : rings) if (q.counted - q.kept > 0) more++;
+        out += "        (+" + commas(more - (long long)shown) + " more ring(s); add --full to name them all)\n";
+        break;
+      }
+      out += "        -" + commas(d) + "  sessions/" + r.file + "  (" + commas(r.counted)
+           + " counted, " + commas(r.kept) + " kept)\n";
+      shown++;
+    }
+  } else {
+    out += "  LOSS: 0 — no ring on this machine has overflowed its " + std::to_string(rbmoves::CAP)
+         + " slots yet.\n";
+  }
+  if (!unreadable.empty()) {
+    out += "  UNREADABLE: " + commas((long long)unreadable.size()) + " file(s) in this directory are not"
+           " move rings and were not read:\n";
+    for (size_t i = 0; i < unreadable.size() && i < 3; i++) out += "        sessions/" + unreadable[i] + "\n";
+  }
+  out += "\n";
+
+  long long fired = 0, unmeasured = 0;
+  for (const SigRow& s : rows) { if (s.n > 0) fired++; else unmeasured++; }
+  const size_t W = term_width();
+
+  out += "detectors replayed over every surviving move, in order:\n";
+  for (const SigRow& s : rows) {
+    string head = "  " + s.name;
+    while (head.size() < 20) head += ' ';
+    if (s.n == 0) {
+      out += head + "NOT MEASURED (n=0)\n";
+      out += wrap("reason: " + s.reason + " It stays out of every live decision until it has samples.",
+                  "            ", W);
+    } else {
+      out += head + "n=" + std::to_string(s.n) + "  ·  0 of " + std::to_string(s.n)
+           + " labelled by a human — raw counts only\n";
+      if (!s.why.empty()) out += "            " + s.why + "\n";
+      out += "            " + where_line(s) + "\n";
+    }
+  }
+  out += "\n";
+
+  string sum = "summary: " + std::to_string(fired) + " of " + std::to_string(rows.size())
+             + " detectors wrote anything at all here; " + std::to_string(unmeasured)
+             + " are NOT MEASURED and are named above with the corpus fact behind each zero. "
+             + commas(onDisk) + " move(s) is a short corpus";
+  if (lost > 0) sum += " and " + commas(lost) + " more were lost before this screen could read them";
+  sum += ", and none of the samples carry a human label — so nothing here is a rate, and"
+         " nothing here is evidence that a detector is right.";
+  out += wrap(sum, "", W);
+  out += "\n";
+
+  // The last line looks forward, at ONE command. A screen about a record ends
+  // with the next session, not with a verdict on the last one.
+  out += "the corpus grows as you work, and these zeros are the first thing that should move.\n";
+  out += "next: run `rabadon usage --signals` again after your next session\n";
+  fwrite(out.data(), 1, out.size(), stdout);
+  return 0;
+}
+
+} // namespace rbscreen
+
 int main(int argc, char** argv) {
   // `rabadon-stats --help` used to be ignored and print the real usage table.
   rb_help(argc, argv, kHelp);
 
   double days = 7;
-  bool full = false, json = false, md = false, explain = false;
+  bool full = false, json = false, md = false, explain = false, signals = false;
   // "was --project given" is its own bit, not the emptiness of the value. When
   // the empty string was the sentinel, `--project "$P"` with an unset P asked
   // for one project and got the WHOLE machine's usage at exit 0, under a
   // heading the operator reads as that one project's — the same hazard the
   // unknown-flag guard below was written for, through a different door.
   bool want_project = false;
+  bool days_given = false;
   string only_project;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--days") == 0 && i + 1 < argc) {
@@ -609,7 +926,9 @@ int main(int argc, char** argv) {
         return 2;
       }
       i++;
+      days_given = true;
     } else if (strcmp(argv[i], "--full") == 0) full = true;
+    else if (strcmp(argv[i], "--signals") == 0) signals = true;
     else if (strcmp(argv[i], "--explain") == 0) explain = true;
     else if (strcmp(argv[i], "--json") == 0) json = true;
     else if (strcmp(argv[i], "--md") == 0) md = true;
@@ -634,6 +953,28 @@ int main(int argc, char** argv) {
   string base = rdir;
   while (base.size() > 1 && base.back() == '/') base.pop_back();
   string spool = base + "/spool";
+
+  // --signals is its own arm and it exits before the spool is opened. It reads a
+  // different store (the binary move rings) and answers a different question, so
+  // combining it with a renderer flag would mean honouring one and dropping the
+  // other — the silent-ignore hazard this file already refuses for --projekt.
+  // Refused where it is read, so no renderer ever sees a half-honoured request.
+  if (signals) {
+    const char* clash = json ? "--json" : md ? "--md" : explain ? "--explain" : want_project ? "--project" : nullptr;
+    if (clash) {
+      fprintf(stderr, "rabadon-stats: --signals cannot be combined with %s — the signal screen reads the"
+                      " move rings in %s/sessions, not the spool, and has no %s renderer yet;"
+                      " run them separately\n", clash, base.c_str(), clash);
+      return 2;
+    }
+    if (days_given) {
+      fprintf(stderr, "rabadon-stats: --signals cannot be combined with --days — the move ring is a"
+                      " fixed-size ring per session, not a time window, so a day count would name a"
+                      " filter that is not applied. The screen prints the date range it actually read.\n");
+      return 2;
+    }
+    return rbscreen::render(base, full);
+  }
 
   const double cutoff = now_ms() - days * 86400000.0;
 

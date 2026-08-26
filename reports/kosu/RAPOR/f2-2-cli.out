@@ -1,0 +1,317 @@
+cli: the stranger's first sixty seconds
+  ok   - `rabadon --help` exits 0
+  ok   - `rabadon --help` does not say 'unknown command'
+  ok   - `rabadon --help` shows a runnable example
+  ok   - `rabadon -h` exits 0
+  ok   - `rabadon -h` does not say 'unknown command'
+  ok   - `rabadon -h` shows a runnable example
+  ok   - `rabadon help` exits 0
+  ok   - `rabadon help` does not say 'unknown command'
+  ok   - `rabadon help` shows a runnable example
+  ok   - the verb probe found 19 shipped binaries to account for
+  ok   - every `nbin` call in rabadon-cli.sh was traced back to a verb (19 binaries)
+  ok   - the help screen was captured (1434 bytes) to check verbs against
+  ok   - `rabadon dev --help` was captured (2743 bytes) — the second half of the discoverability check has something to read
+  ok   - `rabadon audit` reaches rabadon-audit
+  ok   - the help screen lists `audit` for rabadon-audit
+  ok   - `rabadon audit --help` lands on rabadon-audit
+  ok   - `rabadon audit --help` exits 0, no 'unknown command'
+  ok   - `rabadon budget` reaches rabadon-budget
+  ok   - the help screen lists `budget` for rabadon-budget
+  ok   - `rabadon budget --help` lands on rabadon-budget
+  ok   - `rabadon budget --help` exits 0, no 'unknown command'
+  ok   - `rabadon claims` reaches rabadon-claims
+  ok   - the help screen lists `claims` for rabadon-claims
+  ok   - `rabadon claims --help` lands on rabadon-claims
+  ok   - `rabadon claims --help` exits 0, no 'unknown command'
+  ok   - `rabadon do` reaches rabadon-do
+  ok   - the help screen lists `do` for rabadon-do
+  ok   - `rabadon do --help` lands on rabadon-do
+  ok   - `rabadon do --help` exits 0, no 'unknown command'
+  ok   - `rabadon drift` reaches rabadon-drift
+  ok   - the help screen lists `drift` for rabadon-drift
+  ok   - `rabadon drift --help` lands on rabadon-drift
+  ok   - `rabadon drift --help` exits 0, no 'unknown command'
+  ok   - `rabadon export` reaches rabadon-export
+  ok   - the help screen lists `export` for rabadon-export
+  ok   - `rabadon export --help` lands on rabadon-export
+  ok   - `rabadon export --help` exits 0, no 'unknown command'
+  ok   - `rabadon toggle` reaches rabadon-gate
+  ok   - the help screen lists `toggle` for rabadon-gate
+  ok   - `rabadon toggle --help` lands on rabadon-gate
+  ok   - `rabadon toggle --help` exits 0, no 'unknown command'
+  ok   - `rabadon gated` reaches rabadon-gated
+  ok   - the help screen lists `gated` for rabadon-gated
+  ok   - `rabadon gated --help` lands on rabadon-gated
+  ok   - `rabadon gated --help` exits 0, no 'unknown command'
+  ok   - `rabadon lens` reaches rabadon-lens
+  ok   - the help screen lists `lens` for rabadon-lens
+  ok   - `rabadon lens --help` lands on rabadon-lens
+  ok   - `rabadon lens --help` exits 0, no 'unknown command'
+  ok   - `rabadon net` reaches rabadon-net
+  ok   - the help screen lists `net` for rabadon-net
+  ok   - `rabadon net --help` lands on rabadon-net
+  ok   - `rabadon net --help` exits 0, no 'unknown command'
+  ok   - `rabadon loop` reaches rabadon-pipeline
+  ok   - the help screen lists `loop` for rabadon-pipeline
+  ok   - `rabadon loop --help` lands on rabadon-pipeline
+  ok   - `rabadon loop --help` exits 0, no 'unknown command'
+  ok   - `rabadon repair` reaches rabadon-repair
+  ok   - the help screen lists `repair` for rabadon-repair
+  ok   - `rabadon repair --help` lands on rabadon-repair
+  ok   - `rabadon repair --help` exits 0, no 'unknown command'
+  ok   - `rabadon run` reaches rabadon-run
+  ok   - the help screen lists `run` for rabadon-run
+  ok   - `rabadon run --help` lands on rabadon-run
+  ok   - `rabadon run --help` exits 0, no 'unknown command'
+  ok   - `rabadon exec` reaches rabadon-sandbox
+  ok   - the help screen lists `exec` for rabadon-sandbox
+  ok   - `rabadon sandbox --help` lands on rabadon-sandbox
+  ok   - `rabadon sandbox --help` exits 0, no 'unknown command'
+  ok   - `rabadon serve` reaches rabadon-serve
+  ok   - the help screen lists `serve` for rabadon-serve
+  ok   - `rabadon serve --help` lands on rabadon-serve
+  ok   - `rabadon serve --help` exits 0, no 'unknown command'
+  ok   - `rabadon stats` reaches rabadon-stats
+  ok   - the help screen lists `stats` for rabadon-stats
+  ok   - `rabadon stats --help` lands on rabadon-stats
+  ok   - `rabadon stats --help` exits 0, no 'unknown command'
+  ok   - `rabadon trace` reaches rabadon-trace
+  ok   - the help screen lists `trace` for rabadon-trace
+  ok   - `rabadon trace --help` lands on rabadon-trace
+  ok   - `rabadon trace --help` exits 0, no 'unknown command'
+  ok   - `rabadon truth` reaches rabadon-truth
+  ok   - the help screen lists `truth` for rabadon-truth
+  ok   - `rabadon truth --help` lands on rabadon-truth
+  ok   - `rabadon truth --help` exits 0, no 'unknown command'
+  ok   - `rabadon verify` reaches rabadon-verify
+  ok   - the help screen lists `verify` for rabadon-verify
+  ok   - `rabadon verify --help` lands on rabadon-verify
+  ok   - `rabadon verify --help` exits 0, no 'unknown command'
+  ok   - the main help screen was captured (1434 bytes) to count entries on
+  ok   - the main help screen lists exactly 5 product commands
+  ok   - the product commands are exactly {init, on|off, usage, repair, doctor}
+  ok   - `version` and `dev` are listed separately, in that order, and are not counted as product commands
+  ok   - the whole screen carries 7 command lines, nothing else
+  ok   - a bare `rabadon` exits 0
+  ok   - a bare `rabadon` did NOT change the enforce flag (watch -> watch)
+  ok   - a bare `rabadon` prints the current mode
+  ok   - it names the file the mode was read from
+  ok   - a bare `rabadon` did NOT change the enforce flag (on -> on)
+  ok   - it reports ON while ON
+  ok   - `rabadon off` still turns it off
+  ok   - `rabadon toggle` still flips it (the verb was kept, only the DEFAULT changed)
+  ok   - `rabadon toggle` flips it back
+  ok   - trace.cpp contains no Turkish characters
+  ok   - no Turkish interface words remain in trace.cpp
+  ok   - trace renders the synthetic run (1283 bytes of output to scan)
+  ok   - the RENDERED trace contains no Turkish characters
+  ok   - the rendered trace speaks English (says 'caught')
+  ok   - `rabadon-trace` with no argument renders the whole day file (both runs present)
+  ok   - `rabadon-trace alpha-r1` renders the run named on the command line
+  ok   - `rabadon-trace alpha-r1` does NOT also print the other runs in the file
+  ok   - `rabadon-trace no-such-run-anywhere` does not fall back to the default spool
+  ok   - the newest day file does not contain the older run — the window claim is not free
+  ok   - `rabadon-trace old-r1` finds a run written to an earlier day file
+  ok   - `rabadon-trace --run old-r1` finds a run written to an earlier day file
+  ok   - `--days 1` does not reach a two-day-old file — the window is a bound, not decoration
+  ok   - `rabadon-trace no-such-run-anywhere` exits 1
+  ok   - `rabadon-trace no-such-run-anywhere` names the run it could not find
+  ok   - `rabadon-trace no-such-run-anywhere` writes nothing to stdout
+  ok   - `rabadon-trace --run no-such-run-anywhere` exits 1
+  ok   - `rabadon-trace --run no-such-run-anywhere` names the run it could not find
+  ok   - `rabadon-trace --run no-such-run-anywhere` writes nothing to stdout
+  ok   - a run that IS in the window still exits 0 with a report on stdout
+  ok   - `rabadon-trace /no/such/file.jsonl` exits 1 with an empty stdout
+  ok   - `rabadon-trace <dir> alpha-r1` reads that ledger and renders that run
+  ok   - a third positional is refused (exit 2) and named back
+  ok   - the help probe found 19 native binaries to interrogate
+  ok   - `rabadon-audit --help` exits 0
+  ok   - `rabadon-audit --help` names itself
+  ok   - `rabadon-audit --help` stays under 10KB (667 bytes)
+  ok   - `rabadon-audit -h` exits 0
+  ok   - `rabadon-audit -h` names itself
+  ok   - `rabadon-audit -h` stays under 10KB (667 bytes)
+  ok   - `rabadon-audit --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-audit --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-audit --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-budget --help` exits 0
+  ok   - `rabadon-budget --help` names itself
+  ok   - `rabadon-budget --help` stays under 10KB (783 bytes)
+  ok   - `rabadon-budget -h` exits 0
+  ok   - `rabadon-budget -h` names itself
+  ok   - `rabadon-budget -h` stays under 10KB (783 bytes)
+  ok   - `rabadon-budget --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-budget --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-budget --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-claims --help` exits 0
+  ok   - `rabadon-claims --help` names itself
+  ok   - `rabadon-claims --help` stays under 10KB (889 bytes)
+  ok   - `rabadon-claims -h` exits 0
+  ok   - `rabadon-claims -h` names itself
+  ok   - `rabadon-claims -h` stays under 10KB (889 bytes)
+  ok   - `rabadon-claims --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-claims --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-claims --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-do --help` exits 0
+  ok   - `rabadon-do --help` names itself
+  ok   - `rabadon-do --help` stays under 10KB (693 bytes)
+  ok   - `rabadon-do -h` exits 0
+  ok   - `rabadon-do -h` names itself
+  ok   - `rabadon-do -h` stays under 10KB (693 bytes)
+  ok   - `rabadon-do --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-do --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-do --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-drift --help` exits 0
+  ok   - `rabadon-drift --help` names itself
+  ok   - `rabadon-drift --help` stays under 10KB (762 bytes)
+  ok   - `rabadon-drift -h` exits 0
+  ok   - `rabadon-drift -h` names itself
+  ok   - `rabadon-drift -h` stays under 10KB (762 bytes)
+  ok   - `rabadon-drift --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-drift --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-drift --rabadon-no-such-flag` fails OPEN, exit 0 — correct, a hook's non-zero exit means BLOCK
+  ok   - `rabadon-export --help` exits 0
+  ok   - `rabadon-export --help` names itself
+  ok   - `rabadon-export --help` stays under 10KB (1734 bytes)
+  ok   - `rabadon-export -h` exits 0
+  ok   - `rabadon-export -h` names itself
+  ok   - `rabadon-export -h` stays under 10KB (1734 bytes)
+  ok   - `rabadon-export --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-export --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-export --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-gate --help` exits 0
+  ok   - `rabadon-gate --help` names itself
+  ok   - `rabadon-gate --help` stays under 10KB (1200 bytes)
+  ok   - `rabadon-gate -h` exits 0
+  ok   - `rabadon-gate -h` names itself
+  ok   - `rabadon-gate -h` stays under 10KB (1200 bytes)
+  ok   - `rabadon-gate --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-gate --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-gate --rabadon-no-such-flag` fails OPEN, exit 0 — correct, a hook's non-zero exit means BLOCK
+  ok   - `rabadon-gated --help` exits 0
+  ok   - `rabadon-gated --help` names itself
+  ok   - `rabadon-gated --help` stays under 10KB (1181 bytes)
+  ok   - `rabadon-gated -h` exits 0
+  ok   - `rabadon-gated -h` names itself
+  ok   - `rabadon-gated -h` stays under 10KB (1181 bytes)
+  ok   - `rabadon-gated --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-gated --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-gated --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-lens --help` exits 0
+  ok   - `rabadon-lens --help` names itself
+  ok   - `rabadon-lens --help` stays under 10KB (563 bytes)
+  ok   - `rabadon-lens -h` exits 0
+  ok   - `rabadon-lens -h` names itself
+  ok   - `rabadon-lens -h` stays under 10KB (563 bytes)
+  ok   - `rabadon-lens --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-lens --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-lens --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-net --help` exits 0
+  ok   - `rabadon-net --help` names itself
+  ok   - `rabadon-net --help` stays under 10KB (654 bytes)
+  ok   - `rabadon-net -h` exits 0
+  ok   - `rabadon-net -h` names itself
+  ok   - `rabadon-net -h` stays under 10KB (654 bytes)
+  ok   - `rabadon-net --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-net --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-net --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-pipeline --help` exits 0
+  ok   - `rabadon-pipeline --help` names itself
+  ok   - `rabadon-pipeline --help` stays under 10KB (948 bytes)
+  ok   - `rabadon-pipeline -h` exits 0
+  ok   - `rabadon-pipeline -h` names itself
+  ok   - `rabadon-pipeline -h` stays under 10KB (948 bytes)
+  ok   - `rabadon-pipeline --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-pipeline --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-pipeline --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-repair --help` exits 0
+  ok   - `rabadon-repair --help` names itself
+  ok   - `rabadon-repair --help` stays under 10KB (1418 bytes)
+  ok   - `rabadon-repair -h` exits 0
+  ok   - `rabadon-repair -h` names itself
+  ok   - `rabadon-repair -h` stays under 10KB (1418 bytes)
+  ok   - `rabadon-repair --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-repair --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-repair --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-run --help` exits 0
+  ok   - `rabadon-run --help` names itself
+  ok   - `rabadon-run --help` stays under 10KB (1234 bytes)
+  ok   - `rabadon-run -h` exits 0
+  ok   - `rabadon-run -h` names itself
+  ok   - `rabadon-run -h` stays under 10KB (1234 bytes)
+  ok   - `rabadon-run --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-run --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-run --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-sandbox --help` exits 0
+  ok   - `rabadon-sandbox --help` names itself
+  ok   - `rabadon-sandbox --help` stays under 10KB (847 bytes)
+  ok   - `rabadon-sandbox -h` exits 0
+  ok   - `rabadon-sandbox -h` names itself
+  ok   - `rabadon-sandbox -h` stays under 10KB (847 bytes)
+  ok   - `rabadon-sandbox --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-sandbox --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-sandbox --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-serve --help` exits 0
+  ok   - `rabadon-serve --help` names itself
+  ok   - `rabadon-serve --help` stays under 10KB (785 bytes)
+  ok   - `rabadon-serve -h` exits 0
+  ok   - `rabadon-serve -h` names itself
+  ok   - `rabadon-serve -h` stays under 10KB (785 bytes)
+  ok   - `rabadon-serve --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-serve --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-serve --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-stats --help` exits 0
+  ok   - `rabadon-stats --help` names itself
+  ok   - `rabadon-stats --help` stays under 10KB (1418 bytes)
+  ok   - `rabadon-stats -h` exits 0
+  ok   - `rabadon-stats -h` names itself
+  ok   - `rabadon-stats -h` stays under 10KB (1418 bytes)
+  ok   - `rabadon-stats --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-stats --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-stats --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-trace --help` exits 0
+  ok   - `rabadon-trace --help` names itself
+  ok   - `rabadon-trace --help` stays under 10KB (1165 bytes)
+  ok   - `rabadon-trace -h` exits 0
+  ok   - `rabadon-trace -h` names itself
+  ok   - `rabadon-trace -h` stays under 10KB (1165 bytes)
+  ok   - `rabadon-trace --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-trace --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-trace --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-truth --help` exits 0
+  ok   - `rabadon-truth --help` names itself
+  ok   - `rabadon-truth --help` stays under 10KB (774 bytes)
+  ok   - `rabadon-truth -h` exits 0
+  ok   - `rabadon-truth -h` names itself
+  ok   - `rabadon-truth -h` stays under 10KB (774 bytes)
+  ok   - `rabadon-truth --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-truth --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-truth --rabadon-no-such-flag` exits 2
+  ok   - `rabadon-verify --help` exits 0
+  ok   - `rabadon-verify --help` names itself
+  ok   - `rabadon-verify --help` stays under 10KB (942 bytes)
+  ok   - `rabadon-verify -h` exits 0
+  ok   - `rabadon-verify -h` names itself
+  ok   - `rabadon-verify -h` stays under 10KB (942 bytes)
+  ok   - `rabadon-verify --rabadon-no-such-flag` names the offending word back
+  ok   - `rabadon-verify --rabadon-no-such-flag` printed no report on stdout
+  ok   - `rabadon-verify --rabadon-no-such-flag` exits 2
+  ok   - the dispatcher's case list parsed to 37 advertisable verbs to check against
+  ok   - an unrecognised verb exits 1
+  ok   - the message quotes the word it did not understand
+  ok   - the message offers a command list (37 verbs parsed out of it)
+  ok   - the message names the whole `seeing what happened` half: usage lens report trace audit replay drill export
+  ok   - the message advertises none of the undocumented verbs: guard fleet spin pack statusline
+  ok   - the message's verb set equals the dispatcher's case list (37 verbs)
+  ok   - `rabadon help` lists 44 verbs to check the message against
+  ok   - every verb the message offers is named in `rabadon help`, docs/ or README.md
+  ok   - `rabadon usag` suggests `usage`: did you mean: usage?
+  ok   - the correction is a near match, not the whole list
+  ok   - `rabadon '*'` is echoed back verbatim
+  ok   - `rabadon '*'` treats it as data, not a pattern
+  ok   - `rabadon 'ex$(id)'` is echoed back verbatim
+  ok   - `rabadon 'ex$(id)'` treats it as data, not code
+  ok   - bin/rabadon.mjs implements 15 verbs that must still route
+  ok   - every verb bin/rabadon.mjs implements still has an arm: do doctor exec fleet guard init off on pack spin stats statusline ui usage watch
+cli: 315 passed, 0 failed

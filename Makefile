@@ -85,7 +85,7 @@ native/rabadon-lens: native/lens.cpp native/usage.h native/cli_help.h
 native/rabadon-budget: native/budget.cpp native/cli_help.h native/version.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-stats: native/stats.cpp native/cli_help.h native/drill.h native/counter.h native/prices.h
+native/rabadon-stats: native/stats.cpp native/cli_help.h native/drill.h native/counter.h native/prices.h native/moves.h native/signals.h native/classify.h native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-drift: native/drift.cpp native/cli_help.h native/version.h
