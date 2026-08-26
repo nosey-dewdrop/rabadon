@@ -1,0 +1,105 @@
+=== f1d-C empty-green round (§8.2) — proof the B2 lock measures something ===
+date: 2026-08-26 08:04:14 +0300   HEAD: 01a0951
+
+--- 0. ground truth, offline (git tag --list + package.json; no network) ---
+$ git tag --list
+v0.2.0
+v0.2.1
+v0.2.2
+$ grep -m1 version package.json
+  "version": "0.2.3",
+$ git tag --list | grep -c ^v0.2.3$   # 0 = this card created no tag
+0
+
+--- 1. GREEN with the docs as fixed (HEAD) ---
+$ bash native/install_docs_test.sh
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+38 ok / 0 fail
+EXIT=0
+
+--- 2. the dead command PUT BACK BY HAND into docs/quickstart.md section 1 ---
+(a scripted in-place rewrite was attempted first and rabadon itself refused it:
+ rule no-blind-inplace-source-rewrite, exit 2 — so the line was re-added by hand)
+$ git diff --stat docs/quickstart.md
+ docs/quickstart.md | 4 ++++
+ 1 file changed, 4 insertions(+)
+$ sed -n 22,32p docs/quickstart.md
+  without it.
+
+## 1. Install
+
+Not on npm yet — install from source. This is the same path README.md
+documents, and it is the only one that works today.
+
+```
+npm i -g rabadon
+```
+
+
+--- 3. the lock must go RED — verbatim, new section only ---
+$ bash native/install_docs_test.sh
+install docs: no dead npm install command while the version is untagged
+  ok   - package.json version read: 0.2.3
+  ok   - tag v0.2.3 absent — `npm i -g rabadon` is E404 today, so it must not be typeable in any shipped doc
+  ok   - scanned set is non-vacuous (15 files: README, site pages, docs/*.md minus archives and captured evidence)
+  ok   - README.md: no typeable `npm i -g rabadon`
+  ok   - site/index.html: no typeable `npm i -g rabadon`
+  ok   - site/index.tmpl.html: no typeable `npm i -g rabadon`
+  ok   - docs/COUNTER.md: no typeable `npm i -g rabadon`
+  ok   - docs/DANISMAN-PROMPT.md: no typeable `npm i -g rabadon`
+  ok   - docs/POSITIONING.md: no typeable `npm i -g rabadon`
+  ok   - docs/agent-contract.md: no typeable `npm i -g rabadon`
+  ok   - docs/butce.md: no typeable `npm i -g rabadon`
+  ok   - docs/commands.md: no typeable `npm i -g rabadon`
+  ok   - docs/faq.md: no typeable `npm i -g rabadon`
+  ok   - docs/guard.md: no typeable `npm i -g rabadon`
+  ok   - docs/how-it-works.md: no typeable `npm i -g rabadon`
+  FAIL - docs/quickstart.md: BLOCKED — a dead `npm i -g rabadon` is presented as a command to type:
+           line 30:copy-paste block
+         why: package.json says 0.2.3 and there is no v0.2.3 tag, so that
+         version was never released and the registry answers E404. A reader
+         following this page verbatim fails on the install command itself.
+         next: replace it with the from-source install README.md documents, and
+         keep the npm path as prose marked not-yet-published (or tag and publish
+         v0.2.3, after which this check releases the line on its own)
+  ok   - docs/threat-model.md: no typeable `npm i -g rabadon`
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+37 ok / 1 fail
+EXIT=1
+(the original install-block section of the same run is untouched: 13 of its lines still ok)
+
+--- 4. revert the hand edit; green again ---
+$ git checkout -- docs/quickstart.md
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+38 ok / 0 fail
+EXIT=0
+
+--- 5. the lock RELEASES ITSELF when the tag exists (real run, offline) ---
+$ (temp repo, package.json 0.2.3, tag v0.2.3 present) bash native/install_docs_test.sh
+install docs: no dead npm install command while the version is untagged
+  ok   - package.json version read: 0.2.3
+  ok   - tag v0.2.3 exists — `npm i -g rabadon` is a live command, install docs unrestricted
+2 ok / 4 fail
+  -> the scan is skipped and the line becomes legal, with no edit to the test.
+
+--- 6. verdict ---
+green 38 ok / 0 fail (exit 0) -> dead command restored -> RED 37 ok / 1 fail (exit 1) -> reverted -> green again (exit 0).
+The lock measures something. The 20 pre-existing install-block checks never moved.
+$ git status --porcelain   # only this card\047s report files
+?? reports/kosu/RAPOR/f1d-3-bosyesil.out
+
+--- note on step 5 ---
+The temp repo holds only package.json + the test script, so the FOUR fails in
+its "2 ok / 4 fail" are the OTHER section (README.md / site/*.html are not
+there to have an install block). The line that mattered is the second ok:
+  tag v0.2.3 exists -> npm i -g rabadon is a live command, install docs unrestricted
+i.e. with the tag present the scan is skipped entirely. No network was used at
+any point in this file: git tag --list and file reads only.
+
+--- final state ---
+$ git status --porcelain
+?? reports/kosu/RAPOR/f1d-3-bosyesil.out
+$ git log --oneline -3
+01a0951 docs: document the three silencers, and stop printing an npm install that 404s
+3172895 b2: lock shipped docs against a dead `npm i -g rabadon` while the version is untagged
+91052b5 test: lock the status claim against the real gate exit code, red today
