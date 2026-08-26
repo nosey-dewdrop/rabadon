@@ -114,6 +114,21 @@ test: all
 # false green this product sells a cure for, printed by its own dashboard.
 	./native/status_truth_test.sh
 	./native/install_docs_test.sh
+# install_docs_test.sh locks the documented INSTALL block and status_truth_test.sh
+# locks the SCREEN. neither asked whether the PAGE tells the truth. on 2026-08-26
+# the screen named all six silencers with a command that really lifts each, and
+# docs/commands.md still carried the pre-F1d description of the same feature:
+# three rows instead of six, and `rm ~/.rabadon/silent` as the lift for a
+# silencer that command leaves in place (the product's own `rabadon-gate
+# --silent` writes `silent` into the mode file too, and the mode outlives the
+# file). docs/faq.md and docs/uninstall.md repeated the same wrong command. this
+# suite EXECUTES the table: every row is set up for real, confirmed silent
+# through the real gate, then the row's own removal command is run VERBATIM and
+# the same event is asked again -- and the row count comes from the page, so
+# adding a row adds a test. it also holds every behaviour sentence inside a
+# marked block of those three docs to a row in docs/claims.tsv with a check it
+# runs. offline, git + shell only, every cell its own mktemp HOME/RABADON_DIR.
+	./native/docs_truth_test.sh
 # install_docs_test.sh asks whether the documented way IN works. this one asks
 # about the way OUT, on both surfaces the install screen names: `rabadon init`
 # has to say which mode it left you in (watch, which refuses nothing) and the

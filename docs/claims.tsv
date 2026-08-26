@@ -1,0 +1,45 @@
+# docs/claims.tsv — the behaviour-claim registry.
+#
+# Every line inside a <!-- rabadon:claims-begin --> block in docs/commands.md,
+# docs/faq.md or docs/uninstall.md that matches the claim grammar
+# (does NOT | will report | reports the | never | always | is not) must have a
+# row here, and every row here must still be such a line. native/docs_truth_test.sh
+# enforces both directions and RUNS the check named in column 4 against the real
+# native/rabadon-gate, comparing its output to column 5.
+#
+# Why: on 2026-08-26 all three of those pages described a gate that had not
+# existed since F1d — three silencers instead of six, and `rm ~/.rabadon/silent`
+# as the lift for a silencer that command does not lift. The suite was green
+# because nothing held prose to the binary. This file is that hold.
+#
+# Columns, tab separated:
+#   1 file    the doc the line lives in
+#   2 key     cksum of the trimmed line (POSIX cksum, so no python/node needed).
+#             Rewording or rewrapping the line changes the key on purpose: the
+#             sentence has to be re-measured, not silently inherited.
+#   3 text    the line, verbatim, so a reviewer sees what was measured
+#   4 check   a check name native/docs_truth_test.sh can execute. An unknown
+#             name answers UNKNOWN-CHECK and can match no expectation.
+#   5 expect  what that check printed on 2026-08-26, on the shipped binary
+#
+# A row whose line QUOTES a sentence that was measured FALSE is registered the
+# same way: the check is the measurement that refutes it, and column 5 is that
+# measurement's answer. The machine proves the measurement still holds and that
+# no claim line escaped this file; a human still reads the sentence.
+#
+# file	key	text	check	expect
+docs/commands.md	430912127	Was: "`rabadon off` does NOT remove any of these." Measured false, one row at a	off-removes-machine-silent-file	removed
+docs/commands.md	3509263132	- `rabadon off` is not a way out of `RABADON_OFF=1` — row one survives it.	off-leaves-env-off-silent	silent
+docs/commands.md	2726597602	- `rabadon off` is not a way out of `<project>/.rabadon/off` — row two survives.	off-leaves-project-off-silent	silent
+docs/commands.md	1515264114	- `rabadon off` is not a way out of `<project>/.rabadon/mode` — row five too.	off-leaves-project-mode-silent	silent
+docs/commands.md	2891484147	- `rabadon off` is not a way out of `RABADON_MODE=silent` — nor row six.	off-leaves-env-mode-silent	silent
+docs/commands.md	1778811931	Was: "with a silencer present, `rabadon on` will report ENFORCE."	on-claim-under-silencer	SILENT
+docs/commands.md	1375349123	Measured false: under a silencer `rabadon on` will report SILENT.	on-claim-under-silencer	SILENT
+docs/commands.md	3907903842	Was: "`rabadon status` reports the mode, not the silencer."	status-discloses-silencer	named+located+next
+docs/commands.md	3086677682	Measured false: `rabadon status` reports the silencer as well — by name, by	status-discloses-silencer	named+located+next
+docs/commands.md	3499644692	The sentence that was right and stays: `rabadon off` is not silence. After it	off-is-watch-not-silence	live
+docs/commands.md	2748892572	The table above always lists every silencer the binary can report; today that	silencer-count	6
+docs/faq.md	2555036853	measured false with `bash native/docs_truth_test.sh`: the screen reports the	status-discloses-silencer	named+located+next
+docs/faq.md	2287810221	`rabadon off` is not a way out of `RABADON_OFF=1`, `<project>/.rabadon/off`,	off-leaves-env-off-silent	silent
+docs/uninstall.md	3812176264	deleting that file alone is not enough, because `rabadon-gate --silent` writes	rm-silent-file-alone-leaves-it-silent	silent
+docs/uninstall.md	2538984922	Measured false the same day: `rabadon status` reports the silencer by name, by	status-discloses-silencer	named+located+next
