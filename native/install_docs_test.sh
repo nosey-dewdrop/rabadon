@@ -137,5 +137,141 @@ check_block "site/index.html"    "$(html_block site/index.html     'git clone')"
 # the next build silently deletes the line this suite just proved.
 check_block "site/index.tmpl.html" "$(html_block site/index.tmpl.html 'git clone')"
 
+# ==========================================================================
+# B2 — a documented install command that cannot work is worse than no doc
+# ==========================================================================
+# The invariant:
+#
+#   While the version in package.json has no `v<version>` tag in
+#   `git tag --list`, no shipped doc may present `npm i -g rabadon` (or
+#   `npm install -g rabadon`) as a command the reader is meant to TYPE.
+#
+# Why a tag is the test: a version that was never tagged was never released,
+# so the registry does not have it and `npm i -g rabadon` answers E404. A
+# reader who follows the docs to the letter then dies on the FIRST command of
+# the FIRST page — the worst possible place to lose someone, and the tool's
+# own promise ("say what you can't do, never go quiet") broken by its docs.
+#
+# This lock RELEASES ITSELF. It is not a ban on the npm path; it is a ban on
+# printing it before it exists. The moment a release tags `v<version>`, the
+# check below finds the tag, prints a pass, and every line it was guarding
+# becomes legal with no edit to this file.
+#
+# TYPEABLE, precisely, because a fuzzy rule is a rule that gets argued with:
+#   1. inside a ```-fence (md) or a <div class="term"> (html) — that is the
+#      copy-paste surface, and NOTHING excuses a dead command there; or
+#   2. in prose, unless the same line or the line directly above it carries
+#      an availability marker (`not on npm yet`, `E404`, `once published`, ...).
+#      Prose that names the future path and says plainly that it is not live
+#      is documentation. Prose that names it with no such warning is an
+#      instruction, and it is a lie today.
+#
+# OUT OF SCOPE, on purpose: CHANGELOG.md and site/patch-notes.html. Those are
+# HISTORICAL RECORD. A sentence written on the day it was written does not
+# become false because the world moved; editing it to match today's tag state
+# is quiet history-forgery, which is a worse failure than the one this check
+# prevents. Archive trees (`*/archive/*`, `*/arsiv/*`) and captured evidence
+# (`docs/kanit/*`) are excluded for exactly the same reason: they are records
+# of a past state, not instructions for a present reader.
+#
+# OFFLINE BY CONSTRUCTION: `git tag --list` and file reads. No `npm view`, no
+# network, so this runs identically in a clean container with only git+shell.
+
+echo
+echo "install docs: no dead npm install command while the version is untagged"
+
+INSTALL_RE='npm[ \t]+(i|install)[ \t]+(-g|--global)[ \t]+rabadon'
+# "this command does not work yet" said in a way a machine can see.
+MARKER_RE='not on npm yet|not yet on npm|not published|not yet published|once published|when published|E404|unpublished'
+
+VERSION=$(grep -m1 '"version"' package.json | sed -e 's/.*"version"[ \t]*:[ \t]*"//' -e 's/".*//')
+if [ -z "$VERSION" ]; then
+  fail "BLOCKED — could not read \"version\" out of package.json.
+         why: this check compares the shipped version against the git tags, and
+         with no version there is nothing to compare, so it would pass on
+         nothing — the empty green this suite exists to refuse.
+         next: ./native/install_docs_test.sh  (after checking package.json)"
+else
+  pass "package.json version read: $VERSION"
+
+  if ! TAGS=$(git tag --list 2>/dev/null); then
+    fail "BLOCKED — \`git tag --list\` failed; cannot tell if v$VERSION was released.
+         why: the release state is the whole premise of this check. Not being
+         able to check is not the same as being fine, and this suite never
+         reports a green it did not measure.
+         next: run ./native/install_docs_test.sh from inside a git clone of the repo"
+  elif printf '%s\n' "$TAGS" | grep -qx "v$VERSION"; then
+    # The self-release path. Nothing to guard: the command works.
+    pass "tag v$VERSION exists — \`npm i -g rabadon\` is a live command, install docs unrestricted"
+  else
+    pass "tag v$VERSION absent — \`npm i -g rabadon\` is E404 today, so it must not be typeable in any shipped doc"
+
+    # ---- the scanned set -------------------------------------------------
+    SCAN=$(
+      printf '%s\n' README.md site/index.html site/index.tmpl.html
+      find docs -name '*.md' \
+        -not -path '*/archive/*' -not -path '*/arsiv/*' -not -path 'docs/kanit/*' \
+        | sort
+    )
+    NF=$(printf '%s\n' "$SCAN" | grep -c . )
+
+    # vacuity guard: a scan over nothing is not a green.
+    if [ "$NF" -lt 5 ]; then
+      fail "BLOCKED — only $NF file(s) in the scanned set, expected >= 5.
+         why: this check is only worth its green if it actually read the
+         shipped docs. A collapsed file list would pass on an empty scan.
+         next: ./native/install_docs_test.sh  (run from the repo root; check the find expression)"
+    else
+      pass "scanned set is non-vacuous ($NF files: README, site pages, docs/*.md minus archives and captured evidence)"
+
+      for F in $SCAN; do
+        if [ ! -f "$F" ]; then
+          fail "$F: BLOCKED — file in the scanned set does not exist.
+         why: a doc this check is supposed to guard has been moved or deleted,
+         so the guard is silently covering less than it says it does.
+         next: restore $F, or remove it from the scanned set in native/install_docs_test.sh"
+          continue
+        fi
+
+        # HITS: "<line-no>:<kind>" for every typeable occurrence.
+        HITS=$(awk -v re="$INSTALL_RE" -v mk="$MARKER_RE" -v html="$F" '
+          BEGIN { isHtml = (html ~ /\.html$/) }
+          {
+            line = $0
+            # ---- fence / term-div state, computed BEFORE testing the line ----
+            if (isHtml) {
+              if (line ~ /class="term"/) inb = 1
+            } else {
+              if (line ~ /^[ \t]*```/) { inb = !inb; prev = line; next }
+            }
+
+            if (line ~ re) {
+              if (inb) print NR ":copy-paste block"
+              else if (line ~ mk || prev ~ mk) { }   # prose, honestly labelled
+              else print NR ":unlabelled prose"
+            }
+
+            if (isHtml && line ~ /<\/div>/) inb = 0
+            prev = line
+          }
+        ' "$F")
+
+        if [ -n "$HITS" ]; then
+          fail "$F: BLOCKED — a dead \`npm i -g rabadon\` is presented as a command to type:
+$(printf '%s\n' "$HITS" | sed 's/^/           line /')
+         why: package.json says $VERSION and there is no v$VERSION tag, so that
+         version was never released and the registry answers E404. A reader
+         following this page verbatim fails on the install command itself.
+         next: replace it with the from-source install README.md documents, and
+         keep the npm path as prose marked not-yet-published (or tag and publish
+         v$VERSION, after which this check releases the line on its own)"
+        else
+          pass "$F: no typeable \`npm i -g rabadon\`"
+        fi
+      done
+    fi
+  fi
+fi
+
 echo "$ok ok / $bad fail"
 [ "$bad" -eq 0 ] || exit 1
