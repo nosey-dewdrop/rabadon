@@ -1,0 +1,55 @@
+/Users/damummyphus/damla_projects_2026/rabadon/reports/kosu/RAPOR/f2-3-olcum.py:144: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+  fmt = lambda t: dt.datetime.utcfromtimestamp(t / 1000).strftime('%Y-%m-%d %H:%M UTC')
+== CORPUS
+sessions (*.moves.bin) : 34
+records on disk        : 527
+header count total     : 654
+LOST to the ring cap   : 127
+date range             : 2026-08-22 18:22 UTC -> 2026-08-26 03:48 UTC
+unparsable export lines: 0
+
+== PER-SIGNAL n (firings, one per move that completed the pattern)
+repeat                       n = 0
+oscillation                  n = 0
+root_migration               n = 0
+scope_drift                  n = 17
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=159  seqs=[159]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=160  seqs=[160]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=161  seqs=[161]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=162  seqs=[162]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=163  seqs=[163]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=170  seqs=[170]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=171  seqs=[171]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=198  seqs=[198]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=206  seqs=[206]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=207  seqs=[207]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=208  seqs=[208]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=209  seqs=[209]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=210  seqs=[210]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=211  seqs=[211]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=271  seqs=[271]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=318  seqs=[318]
+    286fd71d-2e67-43-57b7234bb75e.moves.bin  newest_seq=319  seqs=[319]
+green_redefined/a-superset   n = 0
+green_redefined/b-superset   n = 0
+green_redefined/c-superset   n = 0
+
+== SESSIONS THAT PRODUCED FIRINGS (for hand-labelling)
+scope_drift {'286fd71d-2e67-43-57b7234bb75e.moves.bin': 17}
+
+== TERRAIN, MEASURED (commands run 2026-08-26)
+--- /Users/damummyphus/damla_projects_2026/rabadon
+  find $p -name package.json -not -path '*/node_modules/*' | wc -l      = 5
+  find $p -mindepth 2 -maxdepth 4 -name .git | wc -l                    = 0
+  find $p -path '*/node_modules/*' -name package.json -maxdepth 6 |wc -l= 0
+  lockfiles (package-lock/yarn/pnpm, excl node_modules)                  = 0
+--- /Users/damummyphus/damla_projects_2026/stitchu
+  find $p -name package.json -not -path '*/node_modules/*' | wc -l      = 2
+  find $p -mindepth 2 -maxdepth 4 -name .git | wc -l                    = 2
+  find $p -path '*/node_modules/*' -name package.json -maxdepth 6 |wc -l= 2
+  lockfiles (package-lock/yarn/pnpm, excl node_modules)                  = 2
+--- /Users/damummyphus
+  find $p -name package.json -not -path '*/node_modules/*' | wc -l      = 407
+  find $p -mindepth 2 -maxdepth 4 -name .git | wc -l                    = 69
+  find $p -path '*/node_modules/*' -name package.json -maxdepth 6 |wc -l= 3895
+  lockfiles (package-lock/yarn/pnpm, excl node_modules)                  = 90
