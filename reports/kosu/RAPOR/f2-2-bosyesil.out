@@ -1,0 +1,41 @@
+ok 1 - the synthetic ring is exactly HDR_BYTES + CAP*REC_BYTES = 68096 bytes
+--- screen (exit 2) ---
+rabadon-stats: unknown option "--signals" — run `rabadon-stats --help`
+--- end screen ---
+FAIL - BLOCKED: `usage --signals` exited 2. WHY: the screen is the surface; a non-zero exit means the user sees nothing. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the screen never says LOSS. WHY: 50 of this fixture's 250 recorded moves are gone and the screen printed the survivors as if they were the record. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the loss figure 50 is not on the screen. WHY: naming a loss without its size is not disclosure. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: lossy-session.moves.bin is not on the screen. WHY: a loss the user cannot locate is not actionable. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the on-disk move count is missing. WHY: every n below is a fraction of this number and it has to be visible. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the session-file count is missing from the corpus block. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: no date range on the screen. WHY: 'how much' without 'over what span' is not a measurement. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: no NOT MEASURED on a screen where repeat and oscillation fired zero times. WHY: rendering a zero as a result is the reward hack this tool refuses. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: `repeat` fired 0 times on this corpus and its block is not 'NOT MEASURED + reason'. WHY: a silent zero reads as 'clean', which is a claim nobody measured. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: `oscillation` fired 0 times on this corpus and its block is not 'NOT MEASURED + reason'. WHY: a silent zero reads as 'clean', which is a claim nobody measured. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the screen turned unmeasured signals into an all-clear. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: no 'n=' on the screen. WHY: a finding without its sample size cannot be judged. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the screen never states the labelled count. WHY: an unlabelled signal has no precision, and the screen must say so rather than imply one. NEXT: /tmp/f22-old-stats --signals
+ok 2 - S2: no percentage is printed on a corpus this small with zero labels
+FAIL - BLOCKED: green_redefined did not report a firing, though the fixture edits a test file while the suite is red and then removes assertions. WHY: a screen that misses the one thing on disk is worse than no screen. NEXT: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-audit --export /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbsigscr.SAy7yN/rb/sessions/green-session.moves.bin
+FAIL - BLOCKED: green_redefined's count has no session path beside it. WHY: a number the user cannot trace to a session is an accusation, not a record. NEXT: /tmp/f22-old-stats --signals
+ok 3 - §4.6/S7/S9: the screen never says "would have"
+ok 4 - §4.6/S7/S9: the screen never says "would-have"
+ok 5 - §4.6/S7/S9: the screen never says "saved"
+ok 6 - §4.6/S7/S9: the screen never says "prevented"
+ok 7 - §4.6/S7/S9: the screen never says "averted"
+ok 8 - §4.6/S7/S9: the screen never says "rescued"
+ok 9 - §4.6/S7/S9: the screen never says "avoided"
+ok 10 - §4.6/S7/S9: the screen never says "sub-ms"
+ok 11 - §4.6/S7/S9: the screen never says "we caught"
+FAIL - BLOCKED: the last line is [rabadon-stats: unknown option "--signals" — run `rabadon-stats --help`]. WHY: this screen ends by telling the user the single next thing to run. NEXT: /tmp/f22-old-stats --signals | tail -1
+ok 12 - §7: the closing line names exactly ONE command
+FAIL - BLOCKED: there is no summary line, or it omits how many signals were NOT MEASURED. WHY: a summary that averages the unmeasured rows away is how a small corpus gets sold as a result. NEXT: /tmp/f22-old-stats --signals
+FAIL - BLOCKED: the summary does not admit the corpus's size. NEXT: /tmp/f22-old-stats --signals
+ok 13 - UX: the whole thing is 1 lines — one screen
+ok 14 - S9: plain `usage` is a separate branch — no signal block leaks into it
+ok 15 - --signals combined with a renderer flag is refused, not silently ignored
+FAIL - BLOCKED: an empty corpus produced exit 2 and [rabadon-stats: unknown option "--signals" — run `rabadon-stats --help`]. WHY: 'I can't check this' is a designed path; printing zeros for a corpus that does not exist is not. NEXT: RABADON_DIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbsigscr.SAy7yN/empty /tmp/f22-old-stats --signals
+ok 16 - Promise 1: the empty-corpus screen still names the next command
+
+16 passed, 19 failed
+EMPTYGREEN_EXIT=1

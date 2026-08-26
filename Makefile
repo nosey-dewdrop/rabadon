@@ -184,6 +184,19 @@ test: all
 # gate never saw a fixture the negative is red, not green, which is the vacuity
 # bug moves_test.sh and reports/R2/accept.sh each shipped once.
 	./native/signals_test.sh
+# signals_test.sh proves the DETECTORS fire on a fixture. this one proves the
+# SCREEN the user reads when those detectors are replayed over their own move
+# rings -- `rabadon usage --signals`. Different claim, so a different file:
+# reports/R7/accept.sh pins signals_test.sh to an exact count, and an assertion
+# added there for a rendering question would move a number that stands for the
+# detectors. What it holds is what a value screen is allowed to say: the corpus
+# is declared with its LOSS (the ring keeps 200 per session, the header counts
+# every move ever appended, and the difference is moves that existed and are
+# gone), a signal with n=0 renders as NOT MEASURED plus its reason instead of as
+# a clean run, no counterfactual word appears anywhere, every count carries the
+# session file it came from, and the last line names exactly one next command.
+# Hermetic: its own mktemp HOME/RABADON_DIR and byte-written synthetic rings.
+	./native/signals_screen_test.sh
 # baseline_test.sh asks the push law about the three spellings it knows: --force,
 # -f, and a leading + on a refspec. this one asks about the spelling that
 # contains none of them and is the strongest of all: `git push --mirror origin`
