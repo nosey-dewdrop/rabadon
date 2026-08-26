@@ -79,7 +79,19 @@ if ! docker info >/dev/null 2>&1; then
   docker info >/dev/null 2>&1 || docker info 2>&1 | sed 's/^/refenv:   /' >&2 || true
   exit 69
 fi
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+# Docker Desktop's containerd image store does not always answer `image inspect`
+# for the short reference even when `docker images` lists it; the fully
+# qualified docker.io/library/ name resolves. Try both before declaring absence,
+# or this script reports "not present" about an image that is right there.
+IMAGE_REF="$IMAGE"
+if ! docker image inspect "$IMAGE_REF" >/dev/null 2>&1; then
+  case "$IMAGE" in
+    */*) : ;;
+    *)   docker image inspect "docker.io/library/$IMAGE" >/dev/null 2>&1 \
+           && IMAGE_REF="docker.io/library/$IMAGE" ;;
+  esac
+fi
+if ! docker image inspect "$IMAGE_REF" >/dev/null 2>&1; then
   echo "refenv: COULD NOT MEASURE — image '$IMAGE' is not present locally." >&2
   echo "refenv: the measurement runs with --network none on purpose, so it will" >&2
   echo "refenv: not fetch it for you. Run this once, then re-run this script:" >&2
@@ -187,14 +199,14 @@ chmod +x "$WORK/inside.sh"
 RESULTS="$WORK/results"
 mkdir -p "$RESULTS"
 
-DIGEST=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE" 2>/dev/null || true)
+DIGEST=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE_REF" 2>/dev/null || true)
 [ -n "$DIGEST" ] || DIGEST="(no RepoDigest — image is local-only)"
-IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$IMAGE")
-HOST_ARCH=$(docker image inspect --format '{{.Architecture}}' "$IMAGE")
+IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$IMAGE_REF")
+HOST_ARCH=$(docker image inspect --format '{{.Architecture}}' "$IMAGE_REF")
 
-RUN_LINE="docker run --rm --network none -v $TREE:/w -v $RESULTS:/out -w /w -e SUITE_TIMEOUT=$SUITE_TIMEOUT -v $WORK/inside.sh:/inside.sh:ro $IMAGE bash /inside.sh"
+RUN_LINE="docker run --rm --network none -v $TREE:/w -v $RESULTS:/out -w /w -e SUITE_TIMEOUT=$SUITE_TIMEOUT -v $WORK/inside.sh:/inside.sh:ro $IMAGE_REF bash /inside.sh"
 
-echo "refenv: image   $IMAGE"
+echo "refenv: image   $IMAGE_REF"
 echo "refenv: digest  $DIGEST"
 echo "refenv: id      $IMAGE_ID"
 echo "refenv: arch    $HOST_ARCH"
@@ -209,7 +221,7 @@ docker run --rm --network none \
   -v "$WORK/inside.sh:/inside.sh:ro" \
   -e "SUITE_TIMEOUT=$SUITE_TIMEOUT" \
   -w /w \
-  "$IMAGE" bash /inside.sh
+  "$IMAGE_REF" bash /inside.sh
 DOCKER_RC=$?
 set -e
 
@@ -220,7 +232,7 @@ set -e
   echo "HEAD:         $HEAD_SHA"
   echo "host-dirty:   $DIRTY file(s) uncommitted in the source tree at measure time"
   echo "              (the container measured the COMMITTED tree; a clone, not the working copy)"
-  echo "image:        $IMAGE"
+  echo "image:        $IMAGE_REF"
   echo "image-digest: $DIGEST"
   echo "image-id:     $IMAGE_ID"
   echo "image-arch:   $HOST_ARCH"
