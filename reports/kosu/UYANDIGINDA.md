@@ -18,6 +18,9 @@ cevap gelmezse varsayılan yürür ve tutanağa yazılır (§10 "kuyruk bekletme
   `NPM_TOKEN`. Geri alınamaz + sahiplik → uykuda koşmaz (§13). F1 ikiye bölündü;
   yayın dışı her şey F1a'da bu gece koşuyor, `npm view rabadon version` maddesi
   gevşetilmeden F1n'e taşındı. **VARSAYILAN: sen ONAY verene kadar yayın yok.**
+  Yeni: "kurulum 2 satır" iddiası artık F1n'in kabul maddesi (F1n-S1) — kaynaktan
+  dürüst asgari 3 satır, 2'ye ancak yayın indiriyor. Yani yayın gecikirse README
+  kalıcı olarak 3 satır satar. **VARSAYILAN değişmedi: onaysız yayın yok.**
 - **O2 · 41 proje adı kamuya çıkacak mı? — VARSAYILAN YÜRÜDÜ, iş bitti, karar hâlâ senin.**
   Hepsi SAKLANDI: artefaktlarda `(withheld)` olarak yeniden üretildiler, `make disclosure`
   artık **exit 0** ve CI iki platformda yeşil. `site/published-projects.txt`'e **tek isim
