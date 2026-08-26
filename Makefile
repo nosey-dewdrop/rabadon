@@ -104,6 +104,7 @@ bench: native/rabadon-gate native/gate_bench
 test: all
 	./native/version_test.sh
 	./native/cli_test.sh
+	./native/install_docs_test.sh
 	./native/audit_test.sh
 # audit_test.sh proves the chain INSIDE one day file. this one proves there IS
 # one day file. the chained spool is named by a date and the repo held two
