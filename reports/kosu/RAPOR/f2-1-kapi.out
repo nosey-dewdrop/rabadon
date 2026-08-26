@@ -1,0 +1,31 @@
+=== f2-1 GATE — run in the real repo, HEAD=74e02fd, 2026-08-26T09:09:14Z ===
+
+--- make all ---
+BUILD=0  (c++ -std=c++17 -O2 -Wall -Wextra, no warnings on audit.cpp)
+
+--- ./native/moves_test.sh ---
+  ok   - the reader swallowed 0 export lines — every claim above ran on the whole record
+moves: 22 passed, 0 failed
+EXIT=0
+
+--- make test ---
+EXIT=0
+grep -cE '^[[:space:]]*ok'        = 3748   (floor 3745, +3, did not fall)
+PASS (N checks) summed             = 633    (floor 633, held)
+the single 'FAIL' string in make test output is line 4272 of the log:
+  regression_demo.sh QUOTING what rabadon reports about a fixture's red suite;
+  that suite's own verdict on the next line is 'regression: 4 passed, 0 failed'.
+
+--- npm test ---
+tests 64 / pass 64 / fail 0
+
+--- bash reports/R7/accept.sh ---
+EXIT=1 — 22 green, 4 red
+FAIL  2b the gate's median is 1827.7 us with the daemon up, ceiling is 1000 us
+FAIL  6e counter validation impossible: no 'estimated_saved' total on arm B, or no per-arm total_cost_usd
+FAIL  7b falsification 2 is UNCHECKABLE — no deviation could be computed
+FAIL  8a native/moves_test.sh is not 21 passed / 0 failed: moves: 22 passed, 0 failed
+
+red set BEFORE this card: {2b, 6e, 7b}
+red set AFTER  this card: {2b, 6e, 7b, 8a}   <-- GREW BY 8a. see CHALLENGE in f2-1-kart.md.
+2b is the load-dependent one the card told me not to repair (measured 1827.7 us here, ceiling 1000).
