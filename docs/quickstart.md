@@ -32,8 +32,8 @@ npm install && npm link   # builds the native core with clang++/g++, puts `rabad
 ```
 
 **About the npm path.** The package is built and the release workflow is wired,
-but nothing has been published: `package.json` says `0.2.3` and there is no
-`v0.2.3` tag, so the global install command is not on npm yet and the registry
+but nothing has been published: there is no release tag for the version in
+`package.json`, so the global install command is not on npm yet and the registry
 answers E404 (measured 2026-08-26). This page will not print a command that
 cannot run, so it is described here instead of given as a block to copy.
 Once published, a global npm install will be the one-liner, it will pull a
