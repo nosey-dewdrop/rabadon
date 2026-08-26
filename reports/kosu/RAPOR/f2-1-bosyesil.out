@@ -1,0 +1,36 @@
+=== f2-1 (e) CAN THIS COUNTER ACTUALLY FALL RED? ===
+probe: one temporary fixture move whose command contains double quotes,
+       a tab and a newline, run against the UNFIXED exporter (audit.cpp @ 49fd73d).
+probe source (inserted before CLAIM 8, reverted after the run):
+  pre_bash s-poison 'echo "he said \"hi\"" && printf "a	b
+"'
+
+--- ./native/moves_test.sh ---
+moves: the session writes down what it did, and nothing else changes
+  ok   - the same command written with different whitespace has one signature
+  ok   - two different commands have two signatures
+  ok   - two runs of one command through different scratch dirs share a signature
+  ok   - two different ports are two different commands
+  ok   - an Edit is recorded as an Edit
+  ok   - the path is recorded relative to the project root
+  ok   - PostToolUse completes the move PreToolUse opened, it does not add a second one
+  ok   - the completed move carries a claimed_rc (it is a claim, and it is named one)
+  ok   - a failing test run is recorded as a red suite
+  ok   - a passing test run is recorded as a green suite
+  ok   - a command that is not a test run leaves the suite unknown, it does not guess green
+  ok   - one error reached through two paths and two line numbers has one err_sig
+  ok   - output with no error in it carries no err_sig
+  ok   - after 215 moves the record holds exactly 200
+  ok   - seq kept counting past the cap (newest seq 214 after 215 moves)
+  ok   - the oldest move was evicted, not the newest (oldest surviving seq 15)
+  ok   - raw text is carried for 50 moves, at or under the cap of 50
+moves: recording changes nothing the caller can see
+  ok   - the fixture is in enforce mode: the force-push is refused (exit 2)
+  ok   - exit code is identical with the record on and off: 'echo hello' -> 0
+  ok   - exit code is identical with the record on and off: 'git push --force origin main' -> 2
+  ok   - RABADON_MOVES=0 writes no moves, and the default writes one
+moves: the reader read every line the exporter printed
+  FAIL - the reader swallowed 1 export line(s)/file(s) it could not parse — every claim above ran on a partial record
+         swallowed: export-line s-poison-b6a76a5771fd.moves.bin: Expecting ',' delimiter: line 1 column 91 (char 90) | {"seq":0,"ts":1787734157007,"tool":"Bash","path":"","sig":"ee08517145af8d6e","raw":"echo "he said \"hi\"" && printf "a\tb\n"","claimed_rc":-1,"err_sig":"","suit
+moves: 21 passed, and at least one failed
+EXIT=1

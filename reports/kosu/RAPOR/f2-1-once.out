@@ -1,0 +1,32 @@
+binary: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-audit
+corpus: /Users/damummyphus/.rabadon-korpus-snapshot-20260826/sessions (34 *.moves.bin files)
+total exported lines: 608
+lines that FAIL json.loads: 281
+lines that parse: 327/608
+  bad    3  0ae58b7f-892a-4b-8397cc00515e.moves.bin
+  bad   25  286fd71d-2e67-43-57b7234bb75e.moves.bin
+  bad   10  333d18e5-43bd-4f-3a636375f4c4.moves.bin
+  bad    1  421bcb22-bba9-42-9f0781061a8d.moves.bin
+  bad    1  450e7c33-f172-48-6b60a4f01b22.moves.bin
+  bad    2  49be3ac9-a2d1-4c-10fcc9e028c7.moves.bin
+  bad    9  59e6c9e4-8428-47-2a32d4b657ce.moves.bin
+  bad    1  5eb4e312-fc00-48-b3170536deb0.moves.bin
+  bad   46  61e6bbe9-da01-40-e5fd5c11a28a.moves.bin
+  bad    3  6e702d85-8a28-4d-27ce3845b85d.moves.bin
+  bad    2  75853312-dffc-4c-3ff5fc15e6e0.moves.bin
+  bad    4  7e079e05-9e6c-44-de1027cd4c0a.moves.bin
+  bad    2  8867168b-fffb-41-36859e165ba5.moves.bin
+  bad    2  8e263345-d3ec-42-a5a10747fac8.moves.bin
+  bad    6  8fc726f6-9bf4-4b-814ec6b5a69c.moves.bin
+  bad    7  9e3cace1-db3d-4f-ff997246b70b.moves.bin
+  bad    2  a144bb2f-e8db-49-47c674834f4e.moves.bin
+  bad   10  b3d65e63-af6f-4f-b851c5837fef.moves.bin
+  bad    2  b6ac9ea0-e00f-4f-6aff9173b00b.moves.bin
+  bad    3  cd8323a1-d503-4b-ae6e8100c35f.moves.bin
+  bad    3  ce6eced1-f972-42-3d86047e2e32.moves.bin
+  bad    3  ce929992-cab6-43-1eecd58d06f3.moves.bin
+  bad   20  db0ca780-771f-4b-993a0c56c896.moves.bin
+  bad    1  ea7f1bff-075f-45-69b7e8392a3b.moves.bin
+  bad   53  ecd5cf53-b95a-42-fe9f5eac243b.moves.bin
+  bad   14  f018eb1a-a57f-45-555f3c036697.moves.bin
+  bad   46  ff7d04c1-b5df-48-52e64754226f.moves.bin

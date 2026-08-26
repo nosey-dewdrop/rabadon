@@ -54,6 +54,17 @@ command -v python3 >/dev/null 2>&1 || { printf 'moves: python3 is required to re
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/rbmoves.XXXXXX")"
 trap 'rm -rf "$ROOT"' EXIT
 
+# THE READER USED TO SWALLOW. Every `except Exception` in moves_py() below is a
+# place where a line the exporter printed can vanish without anyone hearing it:
+# an unparsable export line was dropped with `pass`, and every claim in this file
+# then ran on whatever happened to survive. A record read through a hole is not a
+# record, and a suite that cannot see the hole is a false green — which is the one
+# thing this repo refuses. So the handlers still keep the run alive, but each one
+# now writes what it dropped, by name, into this log; the final claim reads it and
+# a non-zero count fails the suite out loud.
+SWALLOW_LOG="$ROOT/swallow.log"
+export RB_SWALLOW_LOG="$SWALLOW_LOG"
+
 export HOME="$ROOT/home"
 export RABADON_DIR="$ROOT/home/.rabadon"
 export RABADON_NOTIFY=0
@@ -100,6 +111,8 @@ moves_py() { # moves_py <session-id> <python-expr over `m` (the moves list)>
 import json, os, sys
 rabdir, proj, sid, expr = sys.argv[1:5]
 moves = []
+# every line/file this reader could not use, named. NOT silently dropped.
+swallowed = []
 for base in (os.path.join(proj, ".rabadon", "sessions"),
              os.path.join(rabdir, "sessions")):
     if not os.path.isdir(base):
@@ -110,7 +123,8 @@ for base in (os.path.join(proj, ".rabadon", "sessions"),
         try:
             with open(os.path.join(base, fn)) as fh:
                 d = json.load(fh)
-        except Exception:
+        except Exception as e:
+            swallowed.append("session-json %s: %s" % (fn, e))
             continue
         mv = d.get("moves")
         if isinstance(mv, list) and mv:
@@ -130,8 +144,14 @@ for base in (os.path.join(proj, ".rabadon", "sessions"),
                  os.path.join(rabdir, "sessions")):
         for fn in glob.glob(os.path.join(base, "*.moves.bin")):
             try:
-                out = subprocess.run([exp, "--export", fn], capture_output=True, text=True).stdout
-            except Exception:
+                p = subprocess.run([exp, "--export", fn], capture_output=True, text=True)
+                out = p.stdout
+                if p.returncode != 0:
+                    swallowed.append("export-exit %s: rc=%d %s"
+                                     % (os.path.basename(fn), p.returncode,
+                                        p.stderr.strip()[:120]))
+            except Exception as e:
+                swallowed.append("export-run %s: %s" % (os.path.basename(fn), e))
                 continue
             for line in out.splitlines():
                 line = line.strip()
@@ -139,8 +159,14 @@ for base in (os.path.join(proj, ".rabadon", "sessions"),
                     continue
                 try:
                     moves.append(json.loads(line))
-                except Exception:
-                    pass
+                except Exception as e:
+                    swallowed.append("export-line %s: %s | %s"
+                                     % (os.path.basename(fn), e, line[:160]))
+log = os.environ.get("RB_SWALLOW_LOG", "")
+if log and swallowed:
+    with open(log, "a") as fh:
+        for s in swallowed:
+            fh.write(s.replace("\n", "\\n") + "\n")
 moves.sort(key=lambda x: x.get("seq", 0))
 m = moves
 try:
@@ -403,6 +429,32 @@ if [ "$ON_LEN" = "1" ] && [ "$OFF_LEN" = "0" ]; then
   pass "RABADON_MOVES=0 writes no moves, and the default writes one"
 else
   fail "kill switch is not proven: default wrote $ON_LEN move(s) (expected 1), RABADON_MOVES=0 wrote $OFF_LEN (expected 0)"
+fi
+
+# ---------------------------------------------------------------------------
+# CLAIM 8 — the reader swallowed nothing on the way in.
+#
+# Every claim above is a statement about lines that made it through moves_py().
+# If the exporter printed a line the reader could not parse, the old handlers
+# dropped it with `pass` and the claim above still passed — on less evidence than
+# it thought it had. This is that hole, counted. Zero is the only passing number,
+# and anything else is printed by name so the next reader knows exactly which
+# line and which file went missing.
+
+echo "moves: the reader read every line the exporter printed"
+
+SWN=0
+if [ -s "$SWALLOW_LOG" ]; then
+  SWN="$(wc -l < "$SWALLOW_LOG" | tr -d ' ')"
+fi
+if [ "$SWN" = "0" ]; then
+  pass "the reader swallowed 0 export lines — every claim above ran on the whole record"
+else
+  fail "the reader swallowed $SWN export line(s)/file(s) it could not parse — every claim above ran on a partial record"
+  sed -n '1,20p' "$SWALLOW_LOG" | while IFS= read -r l; do
+    printf '         swallowed: %s\n' "$l"
+  done
+  if [ "$SWN" -gt 20 ]; then printf '         ... and %d more\n' "$((SWN - 20))"; fi
 fi
 
 # ---------------------------------------------------------------------------
