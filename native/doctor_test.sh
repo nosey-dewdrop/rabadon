@@ -198,5 +198,176 @@ has "$OUT" "absent: rabadon-export" && pass "postinstall names the binary that i
 has "$OUT" "already built" && fail "postinstall called a $((NALL-1))-of-$NALL tree already built" \
   || pass "postinstall does not call a $((NALL-1))-of-$NALL tree already built"
 
+# ---- 9-12. the four ways an INSTALL is broken while every binary is present ----
+#
+# Sections 1-8 all ask one question: is the core there. A tree can pass every one
+# of them and still be an install that does not work, and those failures are the
+# ones that arrive silently — nothing is absent, so nothing is reported. Four
+# known classes, each produced on purpose below:
+#   9   the node running the hooks is under package.json engines.node
+#   10  a binary is on disk but not executable (chmod, or an OS that refuses it)
+#   11  more than one `rabadon` on PATH, or the one on PATH is a foreign install
+#   12  a hook left by a PREVIOUS install, pointing into another install's tree
+#
+# Each one must print three things (KOSU-RABADON-5 4.8): WHAT happened, WHY it
+# matters, and the ONE command a human runs. A WARN with no "why:" and no "run:"
+# is a line that makes a stranger open an issue, so it counts as red here.
+#
+# Every case has a POSITIVE control beside it. Without one, "doctor warns" is
+# satisfied by a doctor that warns always, which is the same false verdict in
+# the other direction.
+
+# the block under a WARN line, checked for all three parts. The WARN is located
+# by a keyword, never by line number, and the continuation lines are the ones
+# indented under it.
+three() { # three <output> <keyword>  -> yes | no | none
+  printf '%s' "$1" | KW="$2" python3 -c '
+import os, sys
+kw = os.environ["KW"]
+lines = sys.stdin.read().split("\n")
+for i, l in enumerate(lines):
+    if l.startswith("  WARN") and kw in l:
+        blk = []
+        for m in lines[i+1:]:
+            if not m.startswith("       "): break
+            blk.append(m)
+        why = any("why:" in b for b in blk)
+        run = any("run:" in b for b in blk)
+        print("yes" if (why and run) else "no")
+        sys.exit(0)
+print("none")'
+}
+# doctor with an explicit PATH, for the cases that are ABOUT PATH
+docp() { # docp <tree> <path>
+  HOME="$1/home" RABADON_DIR="$1/home/.rabadon" RABADON_NOTIFY=0 PATH="$2" \
+    "$1/native/rabadon-cli.sh" doctor 2>&1
+}
+# this machine's PATH with every directory that holds a `rabadon` taken out, so
+# the developer's own global install cannot decide the outcome of a PATH case.
+CLEANPATH=$(printf '%s' "$PATH" | tr ':' '\n' | while read -r d; do
+  [ -n "$d" ] || continue
+  [ -x "$d/rabadon" ] && continue
+  printf '%s:' "$d"
+done); CLEANPATH=${CLEANPATH%:}
+command -v node >/dev/null 2>&1 && PATH="$CLEANPATH" command -v node >/dev/null 2>&1 \
+  || { echo "  info node is not reachable without the rabadon PATH entries — PATH cases skipped"; CLEANPATH=""; }
+
+# ---- 9. node under engines.node ----
+# the floor is READ from package.json, so raising the field is the fixture and
+# no version number is typed into the check. The hooks run under whatever node
+# the user has; below the floor they die mid-session, and a dead hook is an
+# unguarded session that still looks installed.
+NODEV="$TMP/nodever"; mk "$NODEV" $ALL
+node -e 'const f=process.argv[1],p=JSON.parse(require("fs").readFileSync(f,"utf8"));p.engines.node=">=99";require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")' "$NODEV/package.json"
+OUT=$(doc "$NODEV"); NODE_RC=$?
+has "$OUT" "engines.node" && printf '%s' "$OUT" | grep -q "^  WARN.*engines.node" \
+  && pass "node under engines.node: doctor says so" \
+  || { fail "node under engines.node: doctor never mentions it"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$(three "$OUT" "engines.node")" = "yes" ] \
+  && pass "node under engines.node: what + why: + run: all present" \
+  || { fail "node under engines.node: the WARN is missing why: or run: ($(three "$OUT" "engines.node"))"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$NODE_RC" -ne 0 ] && pass "node under engines.node: doctor exits non-zero ($NODE_RC)" \
+  || fail "node under engines.node: doctor exited 0 — hooks that cannot run were certified"
+OUT=$(doc "$FULL")
+[ "$(three "$OUT" "engines.node")" = "none" ] \
+  && pass "control: a node that satisfies engines.node raises no version WARN" \
+  || { fail "control: doctor warns about node on a tree whose engines.node this node satisfies"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+
+# ---- 10. present, but not executable ----
+# `npm i` under a hostile umask, a tarball unpacked without the mode bits, an
+# OS that quarantines a downloaded binary: the file is THERE, so every check in
+# sections 1-8 passes, and the command fails the first time somebody runs it.
+PERMT="$TMP/perm"; mk "$PERMT" $ALL
+VICTIM=$(printf '%s\n' $ALL | grep -v '^gate$' | head -1)
+chmod 644 "$PERMT/native/rabadon-$VICTIM"
+OUT=$(doc "$PERMT"); PERM_RC=$?
+has "$OUT" "not executable" && pass "a non-executable binary is reported (not silently 'present')" \
+  || { fail "a non-executable binary was counted as a working one"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+has "$OUT" "rabadon-$VICTIM" && pass "the non-executable binary is named (rabadon-$VICTIM)" \
+  || { fail "doctor does not name which binary cannot run"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$(three "$OUT" "not executable")" = "yes" ] \
+  && pass "not executable: what + why: + run: all present" \
+  || { fail "not executable: the WARN is missing why: or run: ($(three "$OUT" "not executable"))"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$PERM_RC" -ne 0 ] && pass "not executable: doctor exits non-zero ($PERM_RC)" \
+  || fail "not executable: doctor exited 0 on a binary that cannot be run"
+OUT=$(doc "$FULL")
+[ "$(three "$OUT" "not executable")" = "none" ] \
+  && pass "control: a fully executable tree raises no permission WARN" \
+  || { fail "control: doctor claims a binary is not executable on a healthy tree"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+
+# ---- 11. PATH conflict ----
+# two installs on PATH (a git clone plus an old `npm i -g`) means the `rabadon`
+# the user types is not the one they just built, and doctor is describing a tree
+# nobody is running. Both shapes are produced: two of them, and one that is
+# simply somewhere else.
+if [ -n "$CLEANPATH" ]; then
+  PT="$TMP/path"; mk "$PT" $ALL
+  mkdir -p "$TMP/binA" "$TMP/binB" "$TMP/binMine"
+  printf '#!/bin/sh\nexit 0\n' >"$TMP/binA/rabadon"; chmod +x "$TMP/binA/rabadon"
+  printf '#!/bin/sh\nexit 0\n' >"$TMP/binB/rabadon"; chmod +x "$TMP/binB/rabadon"
+  ln -sf "$PT/native/rabadon-cli.sh" "$TMP/binMine/rabadon"
+
+  OUT=$(docp "$PT" "$TMP/binA:$TMP/binB:$CLEANPATH"); P2_RC=$?
+  has "$OUT" "on your PATH" && pass "two rabadon commands on PATH: doctor says so" \
+    || { fail "two rabadon commands on PATH went unreported"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+  [ "$(three "$OUT" "on your PATH")" = "yes" ] \
+    && pass "PATH conflict: what + why: + run: all present" \
+    || { fail "PATH conflict: the WARN is missing why: or run: ($(three "$OUT" "on your PATH"))"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+  [ "$P2_RC" -ne 0 ] && pass "PATH conflict: doctor exits non-zero ($P2_RC)" \
+    || fail "PATH conflict: doctor exited 0 — it described a tree the user does not run"
+
+  OUT=$(docp "$PT" "$TMP/binA:$CLEANPATH")
+  has "$OUT" "on your PATH" && pass "a single FOREIGN rabadon on PATH is reported too" \
+    || { fail "the rabadon on PATH belongs to another install and doctor said nothing"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+
+  OUT=$(docp "$PT" "$TMP/binMine:$CLEANPATH")
+  [ "$(three "$OUT" "on your PATH")" = "none" ] \
+    && pass "control: PATH pointing at THIS install raises no PATH WARN" \
+    || { fail "control: doctor warns about a PATH that resolves to this very install"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+else
+  echo "  info PATH cases skipped (node unreachable on the cleaned PATH)"
+fi
+
+# ---- 12. the leftover of a previous install ----
+# hooks are absolute paths written into settings.json once. Move the install,
+# reinstall it elsewhere, and the old paths keep working — pointing at the OLD
+# binary, with the OLD rules and the OLD version. Nothing is missing, so the
+# existing "dead path" check stays silent: the file is right there.
+OLD="$TMP/oldinstall"; mk "$OLD" gate drift
+STALE="$TMP/stale"; mk "$STALE" $ALL
+cat >"$STALE/home/.claude/settings.json" <<JSON
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "$OLD/native/rabadon-gate" } ] }
+    ]
+  }
+}
+JSON
+OUT=$(doc "$STALE"); STALE_RC=$?
+has "$OUT" "different rabadon install" && pass "a hook from a previous install is reported" \
+  || { fail "a hook pointing into ANOTHER install was called healthy"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+has "$OUT" "$OLD/native/rabadon-gate" && pass "the stale hook's actual path is printed" \
+  || { fail "doctor does not print which path is stale"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$(three "$OUT" "different rabadon install")" = "yes" ] \
+  && pass "stale install: what + why: + run: all present" \
+  || { fail "stale install: the WARN is missing why: or run: ($(three "$OUT" "different rabadon install"))"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+[ "$STALE_RC" -ne 0 ] && pass "stale install: doctor exits non-zero ($STALE_RC)" \
+  || fail "stale install: doctor exited 0 with the session wired to another tree"
+FRESH="$TMP/fresh"; mk "$FRESH" $ALL
+cat >"$FRESH/home/.claude/settings.json" <<JSON
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "$FRESH/native/rabadon-gate" } ] }
+    ]
+  }
+}
+JSON
+OUT=$(doc "$FRESH")
+[ "$(three "$OUT" "different rabadon install")" = "none" ] \
+  && pass "control: hooks pointing at THIS install raise no stale WARN" \
+  || { fail "control: doctor calls its own hooks a foreign install"; printf '%s\n' "$OUT" | sed 's/^/    | /'; }
+
 echo "doctor: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

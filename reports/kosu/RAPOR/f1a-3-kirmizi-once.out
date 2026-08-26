@@ -1,0 +1,139 @@
+$ ./native/doctor_test.sh   # step 2: tests written, hooks/manage.mjs NOT yet touched
+
+doctor: what an install looks like when it is only half there
+  ok   - the probe found 19 built binaries to install into fake trees
+  ok   - a complete tree: doctor says native core built (19/19 binaries)
+  ok   - a complete tree: nothing reported absent
+  ok   - the healthy run's problem count is readable (0)
+  ok   - ten binaries absent: doctor exits non-zero (1)
+  ok   - ten binaries absent: doctor does not say "all green"
+  ok   - every absent binary is named in the output (all ten)
+  ok   - the half tree reports more problems than the full one (1 > 0)
+  ok   - 18 of 19 built: doctor exits non-zero (1)
+  ok   - 18 of 19 built: the one absent binary is named
+  ok   - a seventeenth name in `all:` becomes a subject without editing manage.mjs
+  ok   - the absent seventeenth makes doctor exit non-zero (1)
+  ok   - a binary rule missing from `all:` is still a subject
+  ok   - the absent eighteenth makes doctor exit non-zero (1)
+  ok   - no Makefile: doctor does not say "all green"
+  ok   - no Makefile: doctor exits non-zero (1)
+  ok   - prebuilt install: doctor finds all 19 in @rabadon/darwin-arm64
+  ok   - postinstall on a complete tree exits 0
+  ok   - postinstall on a complete tree: already built (19/19)
+  ok   - postinstall on a complete tree: nothing reported absent
+  ok   - postinstall still exits 0 with a binary missing (npm must not brick)
+  ok   - postinstall names the count it actually got (18 of 19)
+  ok   - postinstall names the binary that is not there
+  ok   - postinstall does not call a 18-of-19 tree already built
+  FAIL - node under engines.node: doctor never mentions it
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/nodever
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - node under engines.node: the WARN is missing why: or run: (none)
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/nodever
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - node under engines.node: doctor exited 0 — hooks that cannot run were certified
+  ok   - control: a node that satisfies engines.node raises no version WARN
+  FAIL - a non-executable binary was counted as a working one
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/perm
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - doctor does not name which binary cannot run
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/perm
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - not executable: the WARN is missing why: or run: (none)
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/perm
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - not executable: doctor exited 0 on a binary that cannot be run
+  ok   - control: a fully executable tree raises no permission WARN
+  FAIL - two rabadon commands on PATH went unreported
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/path
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - PATH conflict: the WARN is missing why: or run: (none)
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/path
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  FAIL - PATH conflict: doctor exited 0 — it described a tree the user does not run
+  FAIL - the rabadon on PATH belongs to another install and doctor said nothing
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/path
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    | 
+    |   all green.
+  ok   - control: PATH pointing at THIS install raises no PATH WARN
+  FAIL - a hook pointing into ANOTHER install was called healthy
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/stale
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    |   ok   global hooks healthy (1 rabadon command(s), all present)
+    | 
+    |   all green.
+  FAIL - doctor does not print which path is stale
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/stale
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    |   ok   global hooks healthy (1 rabadon command(s), all present)
+    | 
+    |   all green.
+  FAIL - stale install: the WARN is missing why: or run: (none)
+    | rabadon doctor — /private/tmp/rabadon-doctor-test.Mf3TKk/stale
+    | 
+    |   ok   native core built (19/19 binaries)
+    |   ok   version 0.2.3 (binary matches package.json)
+    |   ok   kernel sandbox: available — macOS Seatbelt (sandbox-exec)
+    |   ok   claude CLI present (guard authoring + repair proposer available)
+    |   ok   global hooks healthy (1 rabadon command(s), all present)
+    | 
+    |   all green.
+  FAIL - stale install: doctor exited 0 with the session wired to another tree
+  ok   - control: hooks pointing at THIS install raise no stale WARN
+doctor: 28 passed, 15 failed
+exit=1
