@@ -337,6 +337,15 @@ test: all
 # found on 2 August measuring discovery on two foreign JS repos.
 	./native/truth_level_order_test.sh
 	./native/cmdtext_test.sh
+# cmdtext_test.sh proves a heredoc BODY is not a command on the per-segment
+# surfaces. this one asks the same question of the ONE surface rules.h adds on
+# top of them: a rule whose pattern spells a pipe is handed the whole line,
+# because no segment can ever contain a `|`. On 26 August that surface refused
+# `cat >> reports/kosu/SAPMA-KARARLARI.md <<'MARKER'` under
+# no-exit-code-after-pipe — the forbidden shape was in the PROSE being written
+# down about the rule, not in the command. A measured wrong refusal, with its
+# positives pinned above it so the fix cannot be "stop the rule firing".
+	./native/heredoc_prose_test.sh
 # cmdtext_test.sh asks what a shell will RUN. this one asks what GIT will run,
 # which is not the same question: `git -c alias.x='push --force' x origin main`
 # writes the verb into a config value and then invokes it under another name.

@@ -1,0 +1,27 @@
+f1e-a — C6 measured BEFORE the repair (commit 16e0311, rules.h untouched)
+$ bash native/heredoc_prose_test.sh
+heredoc prose: a rule that spells a pipe reads commands, not documents
+
+== positives: the two rules still fire on REAL commands ==
+  ok   exit code after | tail -> BLOCK
+  ok   exit code after | grep -> BLOCK
+  ok   exit code on one line -> BLOCK
+  ok   exit code after a real cat -> BLOCK
+  ok   gnu timeout at line start -> BLOCK
+  ok   gnu timeout after && -> BLOCK
+
+== negatives: the same shapes, sitting inside a document being written ==
+  FAIL the measured C6 write: expected ALLOW, gate said BLOCK
+  FAIL heredoc prose, | tail form: expected ALLOW, gate said BLOCK
+  FAIL heredoc prose, unquoted delim: expected ALLOW, gate said BLOCK
+  ok   heredoc prose, gnu timeout -> ALLOW
+  FAIL heredoc prose, timeout after ;: expected ALLOW, gate said BLOCK
+  FAIL two heredocs, prose in both: expected ALLOW, gate said BLOCK
+
+== the exception stays an exception: real pipes still reach the rule ==
+  ok   heredoc AND a real violation -> BLOCK
+
+  ok   canary intact (judging is not running)
+
+FAILED
+exit=1
