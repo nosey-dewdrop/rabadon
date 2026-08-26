@@ -540,10 +540,10 @@ fi
 
 ############################################################################
 head_ "GOAL 8 — nothing already standing fell over"
-if OUT="$(./native/moves_test.sh 2>&1)" && printf '%s' "$OUT" | grep -q 'moves: 21 passed, 0 failed'; then
-  pass "8a native/moves_test.sh 21/0"
+if OUT="$(./native/moves_test.sh 2>&1)" && printf '%s' "$OUT" | grep -q 'moves: 22 passed, 0 failed'; then
+  pass "8a native/moves_test.sh 22/0"
 else
-  fail "8a native/moves_test.sh is not 21 passed / 0 failed: $(printf '%s' "$OUT" | tail -1)"
+  fail "8a native/moves_test.sh is not 22 passed / 0 failed: $(printf '%s' "$OUT" | tail -1)"
 fi
 if OUT="$(./native/signals_test.sh 2>&1)" && printf '%s' "$OUT" | grep -q 'signals: 39 passed, 0 failed'; then
   pass "8b native/signals_test.sh 39/0"
