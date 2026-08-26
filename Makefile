@@ -104,6 +104,15 @@ bench: native/rabadon-gate native/gate_bench
 test: all
 	./native/version_test.sh
 	./native/cli_test.sh
+# cli_test.sh asks whether the dispatcher's screens are well-formed. this one
+# asks whether they are TRUE: every claim `rabadon status`, `on` and `off` make
+# is held against the exit code the real binary returns for a real PreToolUse
+# event in the same instant, across all 16 combinations of mode x the three
+# muters. it shipped red (17 ok / 77 fail): a project holding `.rabadon/off`
+# printed "ON — the arbiter acts" while the gate returned 0 before any rule ran,
+# and the lamp read a third switch again. a status screen that can lie is the
+# false green this product sells a cure for, printed by its own dashboard.
+	./native/status_truth_test.sh
 	./native/install_docs_test.sh
 # install_docs_test.sh asks whether the documented way IN works. this one asks
 # about the way OUT, on both surfaces the install screen names: `rabadon init`
