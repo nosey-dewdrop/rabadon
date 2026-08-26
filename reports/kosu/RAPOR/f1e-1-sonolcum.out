@@ -1,0 +1,42 @@
+=== CELL 1: RABADON_MODE=silent (environment layer) ===
+  $ rabadon status
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: RABADON_MODE=silent (environment variable)
+        next: unset RABADON_MODE
+      read from: RABADON_MODE (environment variable)
+    GATE EXIT=0  BYTES=0
+  $ rabadon off      <- the command the screen itself printed
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: RABADON_MODE=silent (environment variable)
+        next: unset RABADON_MODE
+      the mode underneath is now `watch`, but nothing is evaluated at all while the silencer above is in place.
+  after running it, the SAME event through the SAME binary:
+    GATE EXIT=0  BYTES=0
+
+=== CELL 2: <proj>/.rabadon/mode = silent (project layer) ===
+  $ rabadon status
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: .rabadon/mode = silent (/tmp/f1e-c5.bnhtVw/proj/.rabadon/mode)
+        next: rm /tmp/f1e-c5.bnhtVw/proj/.rabadon/mode
+      read from: /tmp/f1e-c5.bnhtVw/proj/.rabadon/mode (present)
+    GATE EXIT=0  BYTES=0
+  $ rabadon off      <- the command the screen itself printed
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: .rabadon/mode = silent (/tmp/f1e-c5.bnhtVw/proj/.rabadon/mode)
+        next: rm /tmp/f1e-c5.bnhtVw/proj/.rabadon/mode
+      the mode underneath is now `watch`, but nothing is evaluated at all while the silencer above is in place.
+  after running it, the SAME event through the SAME binary:
+    GATE EXIT=0  BYTES=0
+
+=== CELL 3: <RABADON_DIR>/mode = silent (machine layer, control) ===
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: mode = silent (/tmp/f1e-c5.uRTcbJ/rdir/mode)
+        next: rabadon off
+      read from: /tmp/f1e-c5.uRTcbJ/rdir/mode (present)
+    GATE EXIT=0  BYTES=0
+    rabadon: WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)
+    GATE EXIT=0  BYTES=296
+
+=== matrix coverage of the existing lock ===
+  grep -c RABADON_MODE status_truth_test.sh = 11
+  grep -c silent status_truth_test.sh = 24

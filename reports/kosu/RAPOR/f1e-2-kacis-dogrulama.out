@@ -1,0 +1,15 @@
+[RABADON_MODE=silent] screen says next: unset RABADON_MODE
+[RABADON_MODE=silent] BEFORE: gate exit=0 bytes=0
+[RABADON_MODE=silent] AFTER : gate exit=0 bytes=296
+[RABADON_MODE=silent] RESULT: door opened -> GREEN
+
+[<proj>/.rabadon/mode=silent] screen says next: rm /tmp/f1e-esc.WIkd6q/proj/.rabadon/mode
+[<proj>/.rabadon/mode=silent] BEFORE: gate exit=0 bytes=0
+[<proj>/.rabadon/mode=silent] AFTER : gate exit=0 bytes=296
+[<proj>/.rabadon/mode=silent] RESULT: door opened -> GREEN
+
+[<RABADON_DIR>/mode=silent] screen says next: rabadon off
+[<RABADON_DIR>/mode=silent] BEFORE: gate exit=0 bytes=0
+[<RABADON_DIR>/mode=silent] AFTER : gate exit=0 bytes=296
+[<RABADON_DIR>/mode=silent] RESULT: door opened -> GREEN
+

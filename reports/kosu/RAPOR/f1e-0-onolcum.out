@@ -1,0 +1,30 @@
+=== CELL 1: RABADON_MODE=silent (environment layer) ===
+  $ rabadon status
+    rabadon: SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)
+      read from: RABADON_MODE (environment variable)
+    GATE EXIT=0  BYTES=0
+  $ rabadon off      <- the command the screen itself printed
+    rabadon: SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)
+  after running it, the SAME event through the SAME binary:
+    GATE EXIT=0  BYTES=0
+
+=== CELL 2: <proj>/.rabadon/mode = silent (project layer) ===
+  $ rabadon status
+    rabadon: SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)
+      read from: /tmp/f1e-c5.Nuc43A/proj/.rabadon/mode (present)
+    GATE EXIT=0  BYTES=0
+  $ rabadon off      <- the command the screen itself printed
+    rabadon: SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)
+  after running it, the SAME event through the SAME binary:
+    GATE EXIT=0  BYTES=0
+
+=== CELL 3: <RABADON_DIR>/mode = silent (machine layer, control) ===
+    rabadon: SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)
+      read from: /tmp/f1e-c5.W7J1FV/rdir/mode (present)
+    GATE EXIT=0  BYTES=0
+    rabadon: WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)
+    GATE EXIT=0  BYTES=296
+
+=== matrix coverage of the existing lock ===
+  grep -c RABADON_MODE status_truth_test.sh = 0
+  grep -c silent status_truth_test.sh = 7

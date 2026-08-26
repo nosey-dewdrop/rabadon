@@ -1,0 +1,42 @@
+### RABADON_OFF=1
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: RABADON_OFF=1 (environment variable)
+        next: unset RABADON_OFF
+      read from: <RABADON_DIR>/mode (not consulted — a silencer above answers first)
+    -> real gate: exit=0 bytes=0  (SILENT iff exit=0 and bytes=0)
+
+### <project>/.rabadon/off
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: .rabadon/off (<project>/.rabadon/off)
+        next: rm <project>/.rabadon/off
+      read from: <RABADON_DIR>/mode (not consulted — a silencer above answers first)
+    -> real gate: exit=0 bytes=0  (SILENT iff exit=0 and bytes=0)
+
+### $RABADON_DIR/silent  (entered via the product`s own `rabadon-gate --silent`)
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: silent (<RABADON_DIR>/silent)
+        next: rabadon off
+      read from: <RABADON_DIR>/mode (present)
+    -> real gate: exit=0 bytes=0  (SILENT iff exit=0 and bytes=0)
+
+### $RABADON_DIR/mode = silent
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: mode = silent (<RABADON_DIR>/mode)
+        next: rabadon off
+      read from: <RABADON_DIR>/mode (present)
+    -> real gate: exit=0 bytes=0  (SILENT iff exit=0 and bytes=0)
+
+### <project>/.rabadon/mode = silent
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: .rabadon/mode = silent (<project>/.rabadon/mode)
+        next: rm <project>/.rabadon/mode
+      read from: <project>/.rabadon/mode (present)
+    -> real gate: exit=0 bytes=0  (SILENT iff exit=0 and bytes=0)
+
+### RABADON_MODE=silent
+    rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+      silenced by: RABADON_MODE=silent (environment variable)
+        next: unset RABADON_MODE
+      read from: RABADON_MODE (environment variable)
+    -> real gate: exit=0 bytes=0  (SILENT iff exit=0 and bytes=0)
+
