@@ -189,6 +189,145 @@ static bool sealed_rule(const string& id) {
 // the program that uses it.
 static string rabadon_home() { return rbpath::rabadon_dir(); }
 
+// ---------- ONE READING OF THE STATE, FOR EVERY SURFACE ----------
+// There used to be three readings of "is rabadon supervising this project": the
+// hot path (env muter, project muter, machine muter, then the layered mode),
+// `--status` (the machine mode file and nothing else), and `--statusline` (the
+// LEGACY `enabled` flag and nothing else). Three readings of one fact is three
+// answers, and the product shipped all three at once: a machine whose mode file
+// said `enforce` printed "ON — the arbiter acts" on the status screen while the
+// lamp in the status bar said `watch`, and a project holding `.rabadon/off`
+// printed ON while the gate returned 0 before evaluating a single rule.
+//
+// So the state is computed HERE, once, and every surface — the hot path
+// included — reads this struct. A surface that computes its own answer is the
+// bug this function exists to make impossible.
+struct Muter { string name, where, next; };
+struct GateState {
+  std::vector<Muter> muters;  // every silencer IN FORCE, narrowest first
+  bool muted = false;         // any muter at all: the gate returns 0, no rules run
+  string mode;                // the effective mode: enforce | watch | silent
+  string layer;               // what the winning layer literally said ("" = none)
+  string modeFrom;            // env | project | project(legacy on) | machine | ...
+  string modePath;            // the file (or env var) the mode was read from
+  bool blind = false;         // the switch could not be READ -> enforce, loudly
+  bool homeFlagPresent = false;
+  string badModeEnv;          // RABADON_MODE said something unreadable
+};
+
+// dir is the PROJECT directory — the cwd of the event on the hot path, the
+// cwd of the shell on the CLI, workspace.current_dir for the lamp.
+static GateState compute_state(const string& dir) {
+  GateState s;
+  const string rhome = rabadon_home();
+
+  // 1. THE MUTERS. Any one of them and the gate returns 0 before any rule runs,
+  // so all of them are collected: telling the operator about one while a second
+  // is still in force sends them to unset a variable that changes nothing.
+  const char* offEnv = getenv("RABADON_OFF");
+  if (offEnv && string(offEnv) == "1")
+    s.muters.push_back(Muter{"RABADON_OFF=1", "environment variable", "unset RABADON_OFF"});
+  if (file_exists(dir + "/.rabadon/off"))
+    s.muters.push_back(Muter{".rabadon/off", dir + "/.rabadon/off", "rm " + dir + "/.rabadon/off"});
+  if (file_exists(rhome + "/silent"))
+    s.muters.push_back(Muter{"silent", rhome + "/silent", "rabadon off"});
+  s.muted = !s.muters.empty();
+
+  // 2. THE LAYERED MODE, narrowest to widest. First layer that speaks wins.
+  if (const char* me = getenv("RABADON_MODE")) {
+    if (*me) {
+      const string v = me;
+      if (v == "enforce" || v == "watch" || v == "silent") {
+        s.layer = v; s.modeFrom = "env"; s.modePath = "RABADON_MODE";
+      } else {
+        s.layer = "enforce"; s.modeFrom = "env(unreadable)";
+        s.modePath = "RABADON_MODE"; s.badModeEnv = v;
+      }
+    }
+  }
+  if (s.layer.empty()) {
+    const string pm = read_mode_file(dir + "/.rabadon/mode");
+    if (!pm.empty()) { s.layer = pm; s.modeFrom = "project"; s.modePath = dir + "/.rabadon/mode"; }
+    else if (file_exists(dir + "/.rabadon/on")) {
+      s.layer = "enforce"; s.modeFrom = "project(legacy on)"; s.modePath = dir + "/.rabadon/on";
+    }
+  }
+  if (s.layer.empty()) {
+    const string mm = read_mode_file(rhome + "/mode");
+    if (!mm.empty()) { s.layer = mm; s.modeFrom = "machine"; s.modePath = rhome + "/mode"; }
+  }
+
+  const FlagState homeFlag = flag_state(rhome + "/enabled");
+  s.homeFlagPresent = (homeFlag == FLAG_PRESENT);
+  s.blind = !rabadon_home_known() || homeFlag == FLAG_UNKNOWN;
+
+  if (s.layer == "silent") {
+    s.mode = "silent";
+  } else if (!s.layer.empty()) {
+    // An unreadable switch enforces; a switch that merely says watch watches.
+    s.mode = (s.layer == "enforce" || s.blind) ? "enforce" : "watch";
+  } else {
+    s.mode = (homeFlag == FLAG_PRESENT || file_exists(dir + "/.rabadon/on") || s.blind)
+               ? "enforce" : "watch";
+    if (homeFlag == FLAG_PRESENT) { s.modeFrom = "machine(legacy enabled)"; s.modePath = rhome + "/enabled"; }
+    else if (s.blind)             { s.modeFrom = "blind"; s.modePath = rhome; }
+    else                          { s.modeFrom = "default"; s.modePath = ""; }
+  }
+  return s;
+}
+
+// The project the user is standing in, for the surfaces that have no event to
+// read it from. $PWD is preferred over getcwd() when they are the same
+// directory: getcwd() resolves symlinks, so on a mac `cd /tmp/x` would print
+// /private/tmp/x and the "run this to lift it" command would name a path the
+// user has never typed.
+static string current_project_dir() {
+  const char* p = getenv("PWD");
+  if (p && p[0] == '/') {
+    struct stat a, b;
+    if (stat(p, &a) == 0 && stat(".", &b) == 0 && a.st_dev == b.st_dev && a.st_ino == b.st_ino)
+      return string(p);
+  }
+  char buf[4096];
+  if (getcwd(buf, sizeof buf)) return string(buf);
+  return ".";
+}
+
+// THE SCREEN (KOSU-RABADON-5 4.8: what is in force, why, and the ONE command
+// that changes it). `showSource` adds the "read from:" line, which only the
+// asking verb (`status`) prints — a line naming the file is noise on a verb
+// that just changed it.
+static void print_state(const GateState& s, bool showSource, const char* didLine) {
+  if (s.muted) {
+    printf("rabadon: SILENT — silenced; the gate returns 0 before any rule runs\n");
+    for (size_t i = 0; i < s.muters.size(); i++) {
+      printf("  silenced by: %s (%s)\n", s.muters[i].name.c_str(), s.muters[i].where.c_str());
+      printf("    next: %s\n", s.muters[i].next.c_str());
+    }
+    if (didLine) printf("  %s\n", didLine);
+  } else {
+    printf("rabadon: %s\n",
+           s.mode == "silent"
+             ? "SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)"
+             : s.mode == "enforce"
+                 ? "ON — the arbiter acts: refuses, repairs, proves"
+                 : "WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)");
+  }
+  // Name the file the state was read from. A user who cannot see WHERE the mode
+  // lives cannot tell an unset switch from a broken install, and this exact
+  // confusion cost a benchmark that spent weeks timing a gate in the wrong mode
+  // because RABADON_DIR had moved the flag out from under it.
+  if (showSource) {
+    const string src = s.modePath.empty() ? (rabadon_home() + "/mode") : s.modePath;
+    const char* what =
+      s.muted                      ? "not consulted — a silencer above answers first"
+      : s.modePath.empty()         ? "absent — no file means WATCH"
+      : s.modeFrom == "env" || s.modeFrom == "env(unreadable)" ? "environment variable"
+                                   : "present";
+    printf("  read from: %s (%s)\n", src.c_str(), what);
+  }
+}
+
 static long long now_ms() {
   struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
   return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
@@ -2413,23 +2552,25 @@ int main(int argc, char** argv) {
   }
 
   // --statusline — the glanceable lamp for the Claude Code status bar. It reads
-  // the SAME source of truth as the gate (~/.rabadon/enabled), so the bar can
-  // never lie about state: lit lilac ● when supervising, dark gray ○ + "off" when
-  // dormant. Read-only, one stat, fast. (The old JS statusline read a different
-  // off-switch and stayed lit even when the gate was dormant — that mismatch is
-  // exactly why the lamp couldn't be trusted.)
+  // the SAME source of truth as the gate (compute_state, muters included), so
+  // the bar can never lie about state: lit lilac ● when supervising, dark gray ○
+  // + "off" when dormant. Read-only, fast. (The old JS statusline read a
+  // different off-switch and stayed lit even when the gate was dormant — that
+  // mismatch is exactly why the lamp couldn't be trusted.)
   if (argc > 1 && string(argv[1]) == "--statusline") {
     string in; { char b[8192]; size_t n; while ((n = fread(b, 1, sizeof b, stdin)) > 0) in.append(b, n); }
     string dir = get_str(in, "current_dir"); if (dir.empty()) dir = get_str(in, "cwd");
     if (dir.empty()) { const char* p = getenv("PWD"); dir = p ? p : "."; }
     string model = get_str(in, "display_name");
     size_t sl = dir.rfind('/'); string project = (sl == string::npos) ? dir : dir.substr(sl + 1);
-    const string rhome = rabadon_home();
-    const char* off = getenv("RABADON_OFF");
-    bool hardOff = (off && string(off) == "1") || file_exists(dir + "/.rabadon/off")
-                   || file_exists(rhome + "/silent");
-    bool on = !hardOff && (file_exists(rhome + "/enabled") || file_exists(dir + "/.rabadon/on"));
-    bool watching = !hardOff && !on;
+    // The lamp reads the SAME state the gate computes — not its own guess. It
+    // used to look only at the legacy `enabled` flag, so a machine whose mode
+    // file said `enforce` showed a `watch` lamp beside a status screen saying
+    // ON, and neither surface was marked as the authority.
+    const GateState st = compute_state(dir);
+    const bool hardOff = st.muted || st.mode == "silent";
+    const bool on = !hardOff && st.mode == "enforce";
+    const bool watching = !hardOff && !on;
     const string GRAY = "\033[38;5;245m", R = "\033[0m";
 
     // The ON lamp BREATHES. Claude Code spawns this process fresh for every
@@ -2595,19 +2736,30 @@ int main(int argc, char** argv) {
           if (mf) mf << now << "\n";
         }
       }
-      printf("rabadon: %s\n",
-             silent ? "SILENT — dormant everywhere, records nothing (`rabadon off` to watch again)"
-                    : on ? "ON — the arbiter acts: refuses, repairs, proves"
-                         : "WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)");
-      // Name the file the state was read from. A user who cannot see WHERE the
-      // mode lives cannot tell an unset switch from a broken install, and this
-      // exact confusion cost a benchmark that spent weeks timing a gate in the
-      // wrong mode because RABADON_DIR had moved the flag out from under it.
-      if (a1 == "--status")
-        printf("  read from: %s (%s)\n",
-               cur.empty() ? (silent ? mute.c_str() : flag.c_str()) : modeFile.c_str(),
-               silent ? "present"
-                      : on ? "present" : "absent — no file means WATCH");
+      // THE SCREEN IS COMPUTED AFTER THE MUTATION, from the same function the
+      // gate's hot path reads. Before this it was printed from `on`/`silent`
+      // above — two booleans that knew about the machine mode file and nothing
+      // else — so `rabadon status` said "ON — the arbiter acts" in a project
+      // holding `.rabadon/off`, where the gate returns 0 before evaluating one
+      // rule. The screen is the one place a user checks whether they are
+      // supervised; it may not be the place that is wrong.
+      const GateState st = compute_state(current_project_dir());
+      // `rabadon on` still writes ENFORCE while a muter is up — the mode is a
+      // real setting and refusing to record it would lose the user's intent —
+      // but it may NOT print "ON — the arbiter acts" on top of a gate that
+      // refuses nothing. It says what it wrote, under the silencer that outranks
+      // it. The mode words stay lowercase here on purpose: this line describes
+      // what is written on disk, not the state in force.
+      const char* did = nullptr;
+      if (st.muted && a1 == "--on")
+        did = "the mode underneath is now `enforce`, but nothing will be refused "
+              "while the silencer above is in place.";
+      else if (st.muted && a1 == "--off")
+        did = "the mode underneath is now `watch`, but nothing is evaluated at all "
+              "while the silencer above is in place.";
+      else if (st.muted && a1 == "--silent")
+        did = "the mode underneath is now `silent`.";
+      print_state(st, a1 == "--status", did);
       return 0;
     }
   }
@@ -2655,10 +2807,12 @@ int main(int argc, char** argv) {
   //         write access to their codebase on day one; this is how the door
   //         opens. It is a free tier by construction, never the product.
   // ENFORCE the arbiter acts: refuse, stop, repair.
-  const char* offEnv = getenv("RABADON_OFF");
   const string rhome = rabadon_home();
-  if ((offEnv && string(offEnv) == "1") || file_exists(cwd + "/.rabadon/off")
-      || file_exists(rhome + "/silent")) return 0;
+  // ONE reading, shared with `status`, `on`/`off`/`toggle`/`silent` and the
+  // lamp. See compute_state: the surfaces used to each read their own subset of
+  // these files and therefore each answered a different question.
+  const GateState S = compute_state(cwd);
+  if (S.muted) return 0;
 
   // ---------- the mode is LAYERED: env -> project -> machine ----------------
   // First layer that speaks wins and nothing below it is consulted. The order
@@ -2672,34 +2826,13 @@ int main(int argc, char** argv) {
   // An override is for the layer it was set at: reading RABADON_MODE must never
   // write the machine file. A layer that edits the layer beneath it is worse
   // than no layer at all, because it destroys the state it was standing on.
-  string layer, layerFrom;
-  if (const char* me = getenv("RABADON_MODE")) {
-    if (*me) {
-      const string v = me;
-      if (v == "enforce" || v == "watch" || v == "silent") { layer = v; layerFrom = "env"; }
-      else {
-        // A switch nobody can read enforces and says so. Falling back to watch
-        // here would mean a typo silently disarms the guard — the same law
-        // gate.cpp already applies to an unreadable home ("blind").
-        layer = "enforce"; layerFrom = "env(unreadable)";
-        fprintf(stderr, "rabadon: RABADON_MODE=%s is not enforce|watch|silent — enforcing rather than allowing\n", me);
-      }
-    }
-  }
-  if (layer.empty()) {
-    const string pm = read_mode_file(cwd + "/.rabadon/mode");
-    if (!pm.empty()) { layer = pm; layerFrom = "project"; }
-    // `<cwd>/.rabadon/on` is the legacy spelling of the SAME layer — a switch
-    // set on this tree — so it belongs here, above the machine, not underneath
-    // it. Putting it below meant a machine-wide `watch` outranked a project
-    // that had explicitly asked to be guarded.
-    else if (file_exists(cwd + "/.rabadon/on")) { layer = "enforce"; layerFrom = "project(legacy on)"; }
-  }
-  if (layer.empty()) {
-    const string mm = read_mode_file(rhome + "/mode");
-    if (!mm.empty()) { layer = mm; layerFrom = "machine"; }
-  }
-  if (layer == "silent") return 0;
+  // A switch nobody can read enforces and says so. Falling back to watch here
+  // would mean a typo silently disarms the guard — the same law gate.cpp
+  // already applies to an unreadable home ("blind").
+  if (!S.badModeEnv.empty())
+    fprintf(stderr, "rabadon: RABADON_MODE=%s is not enforce|watch|silent — enforcing rather than allowing\n",
+            S.badModeEnv.c_str());
+  if (S.mode == "silent") return 0;
   // WATCH is a decision the user made by not turning the gate on. It is not a
   // place to land when the switch cannot be read at all, because the whole
   // promise is that nothing dangerous passes silently. An unreadable switch
@@ -2710,17 +2843,8 @@ int main(int argc, char** argv) {
   // guard would still be there, still logging, and no longer refusing anything.
   // So the legacy flag keeps enforcing until the machine writes a mode of its
   // own, and the same holds for the per-project `.rabadon/on`.
-  const FlagState homeFlag = flag_state(rhome + "/enabled");
-  const bool blind = !rabadon_home_known() || homeFlag == FLAG_UNKNOWN;
-  if (!layer.empty()) {
-    g_mode = (layer == "enforce") ? MODE_ENFORCE : MODE_WATCH;
-    if (blind && layer != "enforce") g_mode = MODE_ENFORCE;
-  } else {
-    g_mode = (homeFlag == FLAG_PRESENT || file_exists(cwd + "/.rabadon/on") || blind)
-               ? MODE_ENFORCE : MODE_WATCH;
-  }
-  (void)layerFrom;
-  if (blind && homeFlag != FLAG_PRESENT)
+  g_mode = (S.mode == "enforce") ? MODE_ENFORCE : MODE_WATCH;
+  if (S.blind && !S.homeFlagPresent)
     fprintf(stderr, "rabadon: cannot read its own switch at %s — enforcing rather than allowing\n",
             rhome.c_str());
   // The mode this run resolved to, against the mode this machine last recorded.
