@@ -1,0 +1,4 @@
+# f2-0 hot path: same minute, both binaries built from source, ./native/gate_bench.sh
+BEFORE f03320f  judge one command   median 228.7us   p95 357.3us   mean 213.8us
+AFTER  f2-0      judge one command   median 231.8us   p95 360.1us   mean 217.1us
+delta +3.1us median (+1.4%), inside this machine's run-to-run noise

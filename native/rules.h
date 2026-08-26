@@ -311,14 +311,37 @@ inline std::vector<string> match_texts(const string& cmd, bool* degraded = nullp
 // the preprocessed line: same bytes, minus the comments and heredoc bodies,
 // pipes and separators intact. A degraded parse leaves it as the raw line, so a
 // line nobody can read is still judged the old way and still refused.
-inline const string& whole_line(const rbtext::Parsed& p, const string& cmd) {
-  return p.line.empty() ? cmd : p.line;
+//
+// AND IT IS NOT ONE SURFACE, because a heredoc body was not the only prose on a
+// command line. Measured at f03320f, all five refused under the same rule and
+// not one of them hands a pipe to a shell:
+//
+//   printf 'C6: make test | grep -c ok ; echo exit=$? hides it\n' >> notes.md
+//   printf "never: make test | tail -5 ; echo exit=$?\n" >> notes.md
+//   echo   "never: make test | grep -c ok ; echo exit=$?"  >> notes.md
+//   python3 -c "print('make test | tail -5 ; echo exit=$?')"
+//   git commit -m "fix: make test | grep -c ok ; echo exit=$? hid a red suite"
+//
+// The pipe is inside a quoted WORD in each of them. rbtext::Parsed::lines is
+// that line with data neutralized exactly as every segment surface already
+// neutralizes it — quote marks off, inside-whitespace to \x01 — PLUS one entry
+// for every string this line hands to a shell or a substitution to run, so
+// `bash -c "<a real pipeline>"` is still refused, through the second entry.
+// Neutralizing without that second half would have been rule deletion wearing
+// a bug fix's clothes. native/heredoc_prose_test.sh holds both directions.
+inline std::vector<string> whole_lines(const rbtext::Parsed& p, const string& cmd) {
+  // a line nobody could parse is judged the old way: as typed, quotes and all.
+  if (p.degraded || p.lines.empty()) return std::vector<string>(1, cmd);
+  return p.lines;
 }
 
 inline bool rx_test_cmd(const string& pattern, const string& cmd) {
   const rbtext::Parsed p = rbtext::parse(cmd);
   std::vector<string> texts = texts_of(p, cmd);
-  if (pattern_names_a_pipe(pattern)) texts.push_back(whole_line(p, cmd));
+  if (pattern_names_a_pipe(pattern)) {
+    const std::vector<string> whole = whole_lines(p, cmd);
+    texts.insert(texts.end(), whole.begin(), whole.end());
+  }
   return rx_test_any(pattern, texts);
 }
 
@@ -382,12 +405,11 @@ inline bool rule_refuses(const string& pattern, const rbtext::Parsed& p, const s
   // can ever contain one. see pattern_names_a_pipe for why this is offered only
   // to the rules that ask for it.
   // ...and it is offered the line with the comments and heredoc BODIES already
-  // lifted out. See whole_line: the body of a heredoc is the document being
+  // lifted out. See whole_lines: the body of a heredoc is the document being
   // written, and a rule that reads it is refusing prose. (Measured wrong
   // refusal, native/heredoc_prose_test.sh.)
   if (pattern_names_a_pipe(pattern)) {
-    const std::vector<string> whole(1, whole_line(p, cmd));
-    if (rx_test_any(pattern, whole)) return true;
+    if (rx_test_any(pattern, whole_lines(p, cmd))) return true;
   }
   const bool pathRule = pattern_names_a_path(pattern);
   const std::vector<string> cwds = rbpath::segment_cwds(p, cwd);

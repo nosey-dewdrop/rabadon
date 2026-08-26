@@ -123,6 +123,30 @@ struct Parsed {
   // only in the prose being written down. When the line cannot be parsed this
   // is the raw line, unchanged: a degraded line is judged the old way.
   string line;
+  // THE SAME LINE, WITH DATA NEUTRALIZED — and one entry per string this line
+  // hands to a shell or a substitution to RUN.
+  //
+  // `line` above answers "what is left after the heredoc bodies come out", and
+  // that was only half of the prose problem. The other half is a quoted WORD:
+  //
+  //   printf 'C6: make test | grep -c ok ; echo exit=$? hides the red\n' >> notes.md
+  //   git commit -m "fix: make test | grep -c ok ; echo exit=$? hid a red suite"
+  //   python3 -c "print('make test | tail -5 ; echo exit=$?')"
+  //
+  // All three were refused by the shipped gate under `no-exit-code-after-pipe`
+  // (measured at f03320f; native/heredoc_prose_test.sh logs each one). No shell
+  // runs a pipe in any of them — the `|` is a character inside an argument.
+  // Every per-segment surface already neutralizes such a word the way scan()
+  // does: the quote marks come off and whitespace that came from INSIDE the
+  // quotes becomes \x01, so `\s` and `\b` read it the way a shell would. The
+  // whole-line surface was the one place still reading the word as typed.
+  //
+  // Neutralizing and stopping there would BE the bypass, because a quoted string
+  // is a program when a shell is handed it. So lines[0] is the neutralized line
+  // and every entry after it is a string that really runs: a `bash -c` / `eval`
+  // script, a `$( )` or a backtick body. `bash -c "make test | grep -c ok ; echo
+  // exit=$?"` is refused through that second entry, not through the first.
+  vector<string> lines;
   // where the read of ONE command line stops. Not an error and not a refusal:
   // a place the parser can name but cannot see into, written down so that
   // "we accept this" is a claim with evidence under it instead of a silence.
@@ -880,6 +904,70 @@ inline void scan(const string& s, vector<Seg>& out) {
     else cur.surface = cur.surface.substr(a, cur.surface.find_last_not_of(" \t\r\n") - a + 1);
     if (!cur.surface.empty() || !cur.words.empty() || !cur.nested.empty()) out.push_back(cur);
   }
+}
+
+// ---------- the whole line, read the way scan() reads a segment --------------
+// scan() above already answers "which of these bytes are data" — it strips the
+// quote characters and rewrites whitespace that came from inside the quotes to
+// \x01 — but it answers it while CUTTING the line into segments, so its answer
+// is never available for the line as one piece. A deny rule whose pattern spells
+// a pipe needs exactly that piece (rules.h: no segment can contain a `|`), and
+// for want of this function it was handed the line as typed, prose and all.
+//
+// This is scan()'s quoting walk with the cutting taken out. Same three rules,
+// deliberately not re-derived: quote marks off, inside-whitespace to DATA_WS,
+// a `$( )` or backtick inside double quotes lifted OUT (its whitespace is not
+// data — it is a command, and Parsed::lines carries it separately). Everything
+// outside quotes is copied byte for byte, so an unquoted `| grep` reaches the
+// rule exactly as it did before this function existed.
+inline string line_surface(const string& s) {
+  string out;
+  const size_t n = s.size();
+  for (size_t i = 0; i < n; i++) {
+    const char c = s[i];
+    if (c == '\\' && i + 1 < n) {
+      const char d = s[++i];
+      if (d == '\n') continue;                                  // line continuation
+      if (d == ' ' || d == '\t') { out += DATA_WS; continue; }  // an escaped space is data
+      out += '\\'; out += d;
+      continue;
+    }
+    if (c == '\'') {
+      size_t j = s.find('\'', i + 1);
+      if (j == string::npos) j = n;
+      for (size_t k = i + 1; k < j; k++) out += ws(s[k]) ? DATA_WS : s[k];
+      i = j;
+      continue;
+    }
+    if (c == '"') {
+      size_t k = i + 1;
+      while (k < n && s[k] != '"') {
+        if (s[k] == '\\' && k + 1 < n) {
+          const char e = s[k + 1];
+          if (e == '\n') { k += 2; continue; }
+          if (e == '$' || e == '`' || e == '"' || e == '\\') out += e;
+          else { out += '\\'; out += e; }
+          k += 2; continue;
+        }
+        if (s[k] == '$' && k + 1 < n && s[k + 1] == '(') {
+          const size_t e = match_paren(s, k + 1);
+          if (e == string::npos) { out += s[k]; k++; continue; }
+          k = e + 1; continue;                                  // it runs: carried in lines[]
+        }
+        if (s[k] == '`') {
+          const size_t e = s.find('`', k + 1);
+          if (e == string::npos) { out += s[k]; k++; continue; }
+          k = e + 1; continue;
+        }
+        out += ws(s[k]) ? DATA_WS : s[k];
+        k++;
+      }
+      i = (k < n) ? k : n;
+      continue;
+    }
+    out += c;
+  }
+  return out;
 }
 
 // ---------- pass 3: a string a SHELL is about to run is a command ----------
@@ -2037,10 +2125,19 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
     out.segs.push_back(sg);
     // a child is emitted right after its parent so the caller can walk the list
     // in order and still know that a `cd` in a subshell did not move the caller
-    for (size_t k = 0; k < nested.size(); k++)
+    // A substitution body and a shell's -c string are whole COMMAND LINES of
+    // their own: they can contain a `|`, and no segment ever can, so each one is
+    // recorded as its own whole-line surface beside being emitted as segments.
+    // This is the half that keeps Parsed::lines from being a way to turn a rule
+    // off — `bash -c "<pipeline>"` is refused here.
+    for (size_t k = 0; k < nested.size(); k++) {
+      out.lines.push_back(line_surface(nested[k]));
       emit(nested[k], out.groups++, group, out, depth + 1, env, bodies, bcur);
-    for (size_t k = 0; k < scripts.size(); k++)
+    }
+    for (size_t k = 0; k < scripts.size(); k++) {
+      out.lines.push_back(line_surface(scripts[k]));
       emit(scripts[k], out.groups++, group, out, depth + 1, env, bodies, bcur);
+    }
     if (progKnown && !prog.empty())
       emit(prog, out.groups++, group, out, depth + 1, env);
     if (!blind.empty())
@@ -2081,6 +2178,8 @@ inline Parsed parse(const string& cmd) {
   p.degraded = !ok;
   p.why = why;
   p.line = pre;
+  // first, and before emit() appends the lines that RUN inside this one
+  p.lines.push_back(line_surface(pre));
   emit(pre, 0, 0, p, 0, vector<Binding>(), &bodies, &bcur);
   return p;
 }
