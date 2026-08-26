@@ -32,12 +32,20 @@
 #   <proj>/.rabadon/off  -> the absolute path,       next: rm <path>
 #   <RABADON_DIR>/silent -> the absolute path,       next: rabadon off
 # A muted guard whose screen does not name the muter leaves the operator
-# clicking a switch that is already overridden.
+# clicking a switch that is already overridden. The same law binds the mode
+# LAYERS when they say `silent`:
+#   RABADON_MODE=silent      -> "environment variable", next: unset RABADON_MODE
+#   <proj>/.rabadon/mode     -> the absolute path,      next: rm <path>
+#   <RABADON_DIR>/mode       -> the absolute path,      next: rabadon off
 #
-# THE MATRIX. 16 cells: mode {watch,enforce} x <proj>/.rabadon/off {y,n} x
+# FOURTH (KOSU-RABADON-5 4.9). The command the screen prints must WORK. Section
+# D pulls it off the screen, runs it verbatim, and re-asks the real gate.
+#
+# THE MATRIX. Section A/B: 16 cells: mode {watch,enforce} x <proj>/.rabadon/off {y,n} x
 # RABADON_OFF {1,unset} x <RABADON_DIR>/silent {y,n}. Each cell is asked three
 # ways: `status`, then `on`, then `off` — every one of them a claim, every one
 # of them checked against the gate that ran AFTER it.
+# Section D: 18 more cells over the three MODE layers, described there.
 #
 # VACUITY GUARD (KOSU-RABADON-5 8.2). Every assertion here is satisfiable by a
 # gate that is simply broken and returns 0 to everything. So section P requires
