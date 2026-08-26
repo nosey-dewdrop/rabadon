@@ -121,9 +121,16 @@ SAW_ENFORCE=0
 # A brand new project + RABADON_DIR + HOME per probe. Fresh every time because
 # `rabadon on`/`off` MUTATE the mode file and unlink the silent marker: reusing
 # a cell would measure the previous probe.
+#
+# The directory comes from mktemp, not from a counter. Some probes below run
+# inside a command substitution, so a counter incremented in that subshell is
+# lost to the parent and the NEXT probe would re-use the same path — inheriting
+# the previous probe's `.rabadon/off` and measuring it instead. That is exactly
+# the compound error this product is about, and it happened here first.
 new_cell() {
   CELLN=$((CELLN+1))
-  PROJ="$TMP/c$CELLN/proj"; RD="$TMP/c$CELLN/rabadon"; HOMEDIR="$TMP/c$CELLN/home"
+  CELLDIR=$(mktemp -d "$TMP/cell.XXXXXX") || return 1
+  PROJ="$CELLDIR/proj"; RD="$CELLDIR/rabadon"; HOMEDIR="$CELLDIR/home"
   mkdir -p "$PROJ" "$RD" "$HOMEDIR" || return 1
   git init -q "$PROJ" >/dev/null 2>&1 || return 1
   # the base is ENFORCE, so "the silence lifted" is visible as a real refusal
