@@ -1,4 +1,4 @@
-# DURUM — koşu 5, F0 sonrası (2026-08-26)
+# DURUM — koşu 5, F1a sonrası (2026-08-26)
 
 Koşunun kısa ve KANITLI durumu. Her satır bir ölçümden okundu.
 Ayrıntı ve komutlar: `reports/kosu/ENVANTER.md`.
@@ -34,23 +34,50 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 - **Kapı bugün:** `~/.claude/settings.json` kök klonun `native/rabadon-gate` ikilisini
   çağırıyor, mod **watch (observe)**, deny değil. Öyle bırakıldı.
 
+## F1a'NIN DEĞİŞTİRDİĞİ ÖLÇÜMLER (yukarıdaki satırlar F0 ölçümüdür, bunlar günceldir)
+- **Test:** `make test` **3462**/0, `npm test` **64**/0 → **3526 yeşil / 0 kırmızı**.
+  (F0'da 3502'ydi; hiçbir test silinmedi, +24 eklendi.)
+- **Disclosure:** `make disclosure` **exit 0**. `53 found / 12 allowed / 41 off-list`
+  → `12 / 12 / 0`. Yol: liste dışı her ad `(withheld)`. `site/published-projects.txt`
+  BYTE BYTE AYNI — operatör onayı olmadan tek isim eklenmedi.
+- **CI:** `gh run view 32924786346` → altı job, **altısı yeşil**: 2 OS × 2 Node = 4 hücre
+  (`ubuntu-latest`/`macos-15` × `node20`/`node22`) + `disclosure` 2 platform.
+  Matris artık elle koşulmuyor. `pages build and deployment` hâlâ kırmızı — ölü yayın
+  yolu, F1a öncesinde de kırmızıydı, kart açılmadı.
+- **`doctor`:** dört sessiz kurulum ölümü artık adıyla yakalanıyor (Node sürümü, ikili
+  izni, PATH çakışması, eski kurulum kalıntısı). `doctor_test.sh` 24 → **43** ok.
+- **Yüzey:** ana help 5 ürün verb'ü, artık **kırmızı düşebilir** (`cli_test.sh` 310 → 315).
+  `dev`in 30 verb'ü duruyor, hiçbiri silinmedi.
+- **Kurulum adım sayısı, ÖLÇÜLDÜ:** **N = 5 birleşik satır / 7 komut**, ~35,8 s.
+  "iki komut" iddiası yanlış, fark +3/+5.
+- **ÖLÇÜMÜN AÇTIĞI DELİK:** `rabadon on` hiçbir kurulum belgesinde yok ama zorunlu.
+  README'yi harfiyen izleyen kullanıcı WATCH modda kalır ve guard hiçbir şeyi reddetmez.
+- **Cursor:** hâlâ 0 ledger satırı. Ek olarak `removeCursorHooks` YOK — Cursor
+  kullanıcısının çıkış yolu yok (§4.9 ihlali, kart açılmadı, tutanakta yazılı).
+
 ## KIRMIZI AD KÜMESİ (§8.3 için dondurulmuş)
 F0 ÖNCESİ: `{ 2b, 6e, 7b }` (R7 kabul). Test süitlerinde kırmızı ad yok.
 F0 SONRASI: `reports/kosu/RAPOR/f0-tutanak.md` — büyümedi.
+**F1a SONRASI: `{ 2b, 6e, 7b }` — BÜYÜMEDİ.** `bash reports/R7/accept.sh` → 23 yeşil /
+3 kırmızı, aynı üç ad. (`2b` bu makinede 1244,2 µs, tavan 1000 µs.)
+CI tarafında kırmızı **küçüldü**: `disclosure` iki platformda kırmızıdan yeşile döndü.
 
 ## DEVİR SAYILARI
-| sayı | değer |
-|---|---|
-| kapanan faz | F0 |
-| §5'te gerçek olan adım | yok (F0'ın ADIM satırı yok, belgede yazılı tek istisna) |
-| kesilen kart | 4 (envanter, tek kök tek dal, tek koşu belgesi, ortam) |
-| salınan işçi | 5 |
-| kırmızı ad kümesi | 3 → 3 (büyümedi) |
-| ortam ön kontrol | 8/8 YEŞİL (`scripts/onkontrol.sh`) |
-| durma koşulu tetiklendi mi | hayır |
+| sayı | değer (F0) | değer (F1a) |
+|---|---|---|
+| kapanan faz | F0 | F1a (hakem hükmü bekliyor) |
+| §5'te gerçek olan adım | yok (belgedeki tek istisna) | **ADIM 2 "kurar" — YARIM**: soru sorulmuyor doğru, "iki komut" yanlış (5/7) |
+| kesilen kart | 4 | 5 |
+| salınan işçi | 5 | 5 (tavan 5) |
+| kırmızı ad kümesi | 3 → 3 | 3 → 3 (büyümedi) |
+| test sayısı | 3502 | 3526 (düşmedi) |
+| durma koşulu tetiklendi mi | hayır | hayır |
 
 ## SIRA
-**F1 — kurulabilen ürün.** Önkoşul: yok, F0 kapandı.
-F1'in npm yayını **UYKUDA KOŞMAZ** (§13): operatör kararı, `UYANDIGINDA.md`'ye düşer.
-F1 şefi bu dosyayı ve `ENVANTER.md`'yi okur; `KOSU-RABADON-5.md` §6'nın sayılarına
-DEĞİL, `ENVANTER.md`'nin ölçümlerine güvenir.
+**F1 ikiye bölündü** (`SAPMA-KARARLARI.md`): **F1a bitti**, **F1n** operatörü bekliyor.
+Yeni sıra: F1a → **F2** → F1b → F1n → F3.
+**SIRADAKİ FAZ: F2 (`rabadon scan`).** Önkoşulu F2-S3'tü — "F1a'nın disclosure kartı
+kapanmadan açılmaz" — ve o kart kapandı, `make disclosure` exit 0.
+F1n (npm yayını) **UYKUDA KOŞMAZ** (§13): operatör kararı, `UYANDIGINDA.md`'de.
+Sonraki şef bu dosyayı ve `ENVANTER.md`'yi okur; `KOSU-RABADON-5.md` §6'nın sayılarına
+DEĞİL, ölçümlere güvenir. F1a'nın ölçümleri ENVANTER'in F0 sayılarını GÜNCELLER.
