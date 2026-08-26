@@ -1,0 +1,16 @@
+=== §8.2 BOŞ YEŞİL KONTROLÜ — ayrı worktree, faz öncesi artefakt 1ea32c4 ===
+$ git worktree add --detach /tmp/f1d-pre 1ea32c4 && cp native/{status_truth,install_docs}_test.sh /tmp/f1d-pre/native/ && make all
+
+--- FAZ ÖNCESİ (1ea32c4) ---
+$ bash native/status_truth_test.sh  -> EXIT=1
+status truth: 17 ok / 77 fail
+$ bash native/install_docs_test.sh  -> EXIT=1
+35 ok / 3 fail
+
+  FAIL - BLOCKED: [mode=watch projoff=no RABADON_OFF=no silent=yes] status — the screen claims WATCH but the real gate answered exit 0 with 0 bytes for `git push --force origin main`; why: WATCH means the gate is WATCH, and WATCH has signature exit 0 / nonzero
+  FAIL - BLOCKED: [mode=watch projoff=no RABADON_OFF=no silent=yes] status/lamp — `status` says WATCH but `--statusline` says "off" for the same project at the same instant; why: the screen and the status bar read different switches, so two surfaces of one pro
+  FAIL - BLOCKED: [mode=watch projoff=no RABADON_OFF=no silent=yes] status/4.8 silent — the screen is missing: name("silent") where("/tmp/rabadon-statustruth.JMceJz/c4/rabadon/silent") next("rabadon off"); why: supervision is overridden by silent and the scree
+
+  FAIL - docs/commands.md: BLOCKED — a dead `npm i -g rabadon` is presented as a command to type:
+  FAIL - docs/faq.md: BLOCKED — a dead `npm i -g rabadon` is presented as a command to type:
+  FAIL - docs/quickstart.md: BLOCKED — a dead `npm i -g rabadon` is presented as a command to type:

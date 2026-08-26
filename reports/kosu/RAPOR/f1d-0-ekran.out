@@ -1,0 +1,34 @@
+=== ŞEFİN KENDİ KUM HAVUZU — F1d SONRASI, sevk edilen yüzey ===
+proje=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.0cSHgf7Oun  RABADON_DIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.ZzQjFLC5wy/.rabadon  .rabadon/off VAR
+
+$ native/rabadon-cli.sh on
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: .rabadon/off (/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.0cSHgf7Oun/.rabadon/off)
+    next: rm /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.0cSHgf7Oun/.rabadon/off
+  the mode underneath is now `enforce`, but nothing will be refused while the silencer above is in place.
+
+$ native/rabadon-cli.sh status
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: .rabadon/off (/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.0cSHgf7Oun/.rabadon/off)
+    next: rm /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.0cSHgf7Oun/.rabadon/off
+  read from: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.ZzQjFLC5wy/.rabadon/mode (not consulted — a silencer above answers first)
+
+$ printf '<PreToolUse: git push --force origin main>' | native/rabadon-gate
+EXIT=0   stdout=       0 bayt   stderr=       0 bayt
+
+$ printf '{"workspace":...}' | native/rabadon-gate --statusline
+^[[38;5;245mtmp.0cSHgf7Oun^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- ekranın verdiği TEK komut koşuldu: rm <proje>/.rabadon/off ---
+
+$ native/rabadon-cli.sh status
+rabadon: ON — the arbiter acts: refuses, repairs, proves
+  read from: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.ZzQjFLC5wy/.rabadon/mode (present)
+
+$ aynı olay | native/rabadon-gate
+EXIT=2   stderr ilk satır: rabadon BLOCKED this action.
+
+$ --statusline
+^[[38;5;245mtmp.0cSHgf7Oun^[[0m  ^[[38;5;141m* rabadon^[[0m
+
+HÜKÜM: iddia=ON <-> gate EXIT=2 <-> lamba yanıyor. Üç yüzey tek hüküm.

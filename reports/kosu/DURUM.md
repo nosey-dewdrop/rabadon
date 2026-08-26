@@ -1,4 +1,4 @@
-# DURUM — koşu 5, F1c sonrası (2026-08-26)
+# DURUM — koşu 5, F1d sonrası (2026-08-26)
 
 Koşunun kısa ve KANITLI durumu. Her satır bir ölçümden okundu.
 Ayrıntı ve komutlar: `reports/kosu/ENVANTER.md`.
@@ -98,6 +98,62 @@ Tam tutanak: `reports/kosu/RAPOR/f1c-tutanak.md`. Faz aralığı `3df7af3..HEAD`
   `native/cli_test.sh:271,282,299` tavanı açıkça tutuyor; F1a hakemi altıncı verb'ü
   enjekte edip 315/0 → 312/3 kırmızısını görmüştü. **Yüzey tavanı KİLİTLİDİR.**
 
+## F1d'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER (BUNLAR EN GÜNCEL SATIRLARDIR)
+Tam tutanak: `reports/kosu/RAPOR/f1d-tutanak.md`. Faz aralığı `1ea32c4..HEAD`.
+
+- **"AÇTIM" DİYEN VE AÇMAYAN YÜZEY KAPANDI.** Faz öncesi ölçüm (şefin kendi kum
+  havuzu, sevk edilen yol): `.rabadon/off` dururken `rabadon on` ve `status`
+  **"ON — the arbiter acts"** basıyordu, aynı olay gerçek gate'te **EXIT=0 / 0 BAYT**,
+  ve aynı ikilinin `--statusline`'ı **"rabadon off"** diyordu. Şimdi ekran
+  susturucuyu **adıyla + tam yoluyla + onu kaldıran TEK komutla** basıyor (§4.8),
+  ve o komut koşulunca `status` ON diyor, gate **EXIT=2** veriyor, lamba yanıyor.
+  Verbatim: `reports/kosu/RAPOR/f1d-0-ekran.out`.
+- **TEK KAYNAK.** `native/gate.cpp`'de tek `compute_state(dir)`: üç susturucu
+  (`RABADON_OFF=1`, `<proje>/.rabadon/off`, `<RABADON_DIR>/silent`) + katmanlı mod
+  (`RABADON_MODE` → proje `mode` → proje `on` → makine `mode` → `enabled`) + `blind`.
+  **Sıcak yol ikinci kopya tutmuyor**, aynı fonksiyonu çağırıyor; `--statusline` da.
+- **KIRMIZI DÜŞEBİLEN KİLİT:** `native/status_truth_test.sh` (yeni) — 16 hücre
+  (`mode` × `.rabadon/off` × `RABADON_OFF` × `silent`) × 3 iddia (`status`/`on`/`off`),
+  her iddia **gerçek `native/rabadon-gate` ikilisinin çıkış kodu + çıktı bayt
+  sayısıyla** karşılaştırılıyor. "ON" + `EXIT=0` KIRMIZIDIR. Ayrıca `status` ile
+  `--statusline` her hücrede aynı hükmü vermek zorunda. **17 ok / 77 fail → 94 ok / 0 fail.**
+- **ÖLÇÜM HAKEMİN BULDUĞUNDAN DAHA KÖTÜ ÇIKTI:** `--statusline` `<RABADON_DIR>/mode`
+  dosyasını **hiç okumuyordu** — susturucu OLMAYAN düz `mode=enforce` hücresinde bile
+  "watch" diyordu. Üçüncü bir okuma vardı; o da kapandı.
+- **`bin/rabadon.mjs` EDİTLENMEDİ** (donmuş anti-path, O3, varsayılan donuk).
+  `git diff --name-only 1ea32c4..HEAD` çıktısında `bin/` YOK. Yerine kilit:
+  "sevk edilen hiçbir yol `on|off|status|toggle`'ı oraya götürmez" — bugün **4/4 yeşil**,
+  yarın biri geri bağlarsa kırmızı düşer.
+- **`.rabadon/off` BELGELENDİ** (kâtip, yalnız `docs/`): `docs/commands.md`,
+  `docs/faq.md`, `docs/uninstall.md`. Ve ÖLÇÜLEREK yazıldı ki **`rabadon off` bu
+  dosyayı KALDIRMAZ** — yalnız modu watch'a çeker, susturucu yerinde kalır.
+- **B2 KAPANDI:** `native/install_docs_test.sh` **20 ok → 38 ok** (hiçbir eski ok
+  düşmedi). Değişmez: *`package.json` sürümünün `v<sürüm>` etiketi `git tag --list`'te
+  YOKKEN sevk edilen hiçbir belge `npm i -g rabadon`'u yazılabilir komut olarak
+  taşıyamaz.* **Çevrimdışı** (ağ isteği YOK, temiz konteynerde koşar) ve **F1n gününde
+  kendiliğinden serbest bırakır** — `v0.2.3` etiketli geçici repoda gerçek koşuyla
+  kanıtlandı. `docs/quickstart.md` §1 artık kaynaktan-kurma yolunu satıyor; eski npm
+  cümlesi SİLİNMEDİ, "henüz npm'de değil / E404 / ölçüm 2026-08-26" gerekçesiyle
+  prose olarak duruyor. `git tag --list | grep -c '^v0.2.3$'` → **0**, etiket atılmadı.
+- **BOŞ YEŞİL (§8.2), AYRI WORKTREE:** `git worktree add --detach /tmp/f1d-pre 1ea32c4`
+  + `make all` → iki yeni kilit de faz öncesi kodda KIRMIZI:
+  `status_truth_test.sh` **17/77 exit 1**, `install_docs_test.sh` **35/3 exit 1**.
+  HEAD'de ikisi de yeşil. Verbatim: `reports/kosu/RAPOR/f1d-bosyesil-worktree.out`.
+  Worktree kaldırıldı.
+- **Test:** `make test` exit **0**, native **3616** iddia + **612** kontrol = **4228**,
+  `npm test` **64/0** → **TOPLAM 4292 yeşil / 0 kırmızı** (F1c tabanı 4180, **+112**).
+  Silinen/zayıflatılan/atlanan test YOK; eşik/tolerans/fixture/ön-kayıt HİÇ değişmedi.
+- **Yüzey:** `native/rabadon-cli.sh` `1ea32c4` ile **BAYT BAYT AYNI** — yeni verb yok,
+  ana ekran hâlâ 5 ürün verb'ü, varsayılan hâlâ WATCH.
+- **KENDİ ÜRÜNÜMÜZ KENDİ ÜSTÜMÜZDE İKİ GERÇEK YAKALAMA YAPTI** (kart açılmadı, F1b'ye
+  aday): şefin `... | grep ...; echo "EXIT=$?"` komutu `no-exit-code-after-pipe` ile,
+  işçi C'nin ve şefin `sed -i` ile yerinde yeniden yazma denemesi
+  `no-blind-inplace-source-rewrite` ile reddedildi. İkisi de doğru red.
+- **Devralınan `version_test.sh` de bir gerçek yakalama yaptı:** kâtip commit'i
+  `docs/quickstart.md`'ye `0.2.3`/`v0.2.3` sürümlerini düz metne yazmıştı, DRIFT olarak
+  yakalandı, `make test` kırmızı düştü. **Test değiştirilmedi**, cümle yeniden yazıldı
+  (`cf34caf`). `version_test.sh` 12/1 → **13/0**.
+
 ## TEST SAYACI — TEK GEÇERLİ SAYAÇ (cevapçı hükmü, 2026-08-26, §10)
 
 Bu dosyada iki farklı sayaç uzlaştırılmadan yan yana duruyordu. Cevapçı iki
@@ -135,6 +191,20 @@ ve **ikisi de eksik sayıyordu**. Tam gerekçe:
 | `npm test` | **64 pass / 0 fail**, exit 0 |
 | **TOPLAM** | **4180 yeşil / 0 kırmızı** |
 
+**F1d SONRASI TABAN (2026-08-26, şef kendi koşturdu, AYNI ÜÇ KOMUT):**
+
+| ölçü | F1c sonrası | **F1d sonrası** |
+|---|---|---|
+| `make test` exit | 0 | **0** |
+| native iddia (GENİŞ) | 3504 | **3616** |
+| native `PASS (N checks)` | 612 | **612** |
+| native toplam | 4116 | **4228** |
+| `npm test` | 64/0 | **64/0** |
+| **TOPLAM** | 4180 | **4292 yeşil / 0 kırmızı** (+112) |
+
+`make test` çıktısındaki tek `FAIL` dizesi `regression_demo.sh`'in FİKSTÜRÜDÜR
+(satır 4112); o süit `regression: 4 passed, 0 failed` diyor, exit 0.
+
 Eski sayılar (3502 / 3526 / 3554) **silinmedi**, yukarıda emekli etiketiyle
 duruyorlar ve yeni sayılarla KIYASLANMAZLAR. Değişen ölçüm YÖNTEMİ, ölçüt
 değil; ve yön sertleşmedir — yeni sayaç eskisinin görmediği 612 kontrolü ve
@@ -158,33 +228,35 @@ kapatılmış gibi yazılmadı.
 Sürüklenme yok; **yedisi de tavanın üstünde — kalıcı bir §1 hedef ihlali,
 gürültü değil.** Sahibi atandı: ölçüm+yasak **F2-S9**, onarım **F3-S1**
 (`SAPMA-KARARLARI.md` · B3).
+**F1d SONRASI, ŞEF KENDİ KOŞTURDU:** `bash reports/R7/accept.sh` → exit 1,
+**23 yeşil / 3 kırmızı**, adlar **`{2b, 6e, 7b}`** — **BÜYÜMEDİ**.
+`2b` bu koşuda **1293,2 µs**; dokuz ölçümün serisi 1299,4 → 1244,2 → 1261,0 →
+1310,8 → 1248,8 → 1229,9 → 1184,7 → 1270,3 → **1293,2** µs. Tavan 1000 µs
+oynatılmadı; bant içinde, regresyon yok. Test süitlerinde kırmızı ad YOK.
 
 ## DEVİR SAYILARI
-| sayı | değer (F0) | değer (F1a) | değer (F1c) |
-|---|---|---|---|
-| kapanan faz | F0 | F1a | **F1c** |
-| §5'te gerçek olan adım | yok (belgedeki tek istisna) | **ADIM 2 "kurar" — YARIM**: soru sorulmuyor doğru, "iki komut" yanlış (5/7) | **ADIM 2 "kurar" — GERÇEK**: 3 satır / 0 soru / 34,1 s ve yolun sonunda `exit 2` |
-| kesilen kart | 4 | 5 | 4 (kart 0 dahil) |
-| salınan işçi | 5 | 5 (tavan 5) | **2** (tavan 2) |
-| kırmızı ad kümesi | 3 → 3 | 3 → 3 (büyümedi) | 3 → 3 (büyümedi) |
-| test sayısı (EMEKLİ sayaçlar, kıyaslanmaz) | 3502 (geniş) | 3526 (geniş) | 3554 (dar) |
-| **test sayısı, TEK GEÇERLİ SAYAÇ** (yukarıdaki bölüm) | ölçülmedi | ölçülmedi | **4180** = native (3504 iddia + 612 kontrol) + node 64 |
-| durma koşulu tetiklendi mi | hayır | hayır | hayır |
+| sayı | değer (F0) | değer (F1a) | değer (F1c) | **değer (F1d)** |
+|---|---|---|---|---|
+| kapanan faz | F0 | F1a | F1c | **F1d** |
+| §5'te gerçek olan adım | yok (belgedeki tek istisna) | **ADIM 2 "kurar" — YARIM**: soru sorulmuyor doğru, "iki komut" yanlış (5/7) | **ADIM 2 "kurar" — GERÇEK**: 3 satır / 0 soru / 34,1 s ve yolun sonunda `exit 2` | **YENİ adım YOK — ADIM 2 ve 4'ün altındaki YALAN kalktı**: ekran ne diyorsa gate onu yapıyor, susturucudan çalışır frene **1 komut** |
+| kesilen kart | 4 | 5 | 4 (kart 0 dahil) | **3** (A/B/C) |
+| salınan işçi | 5 | 5 (tavan 5) | 2 (tavan 2) | **3** (tavan 3) |
+| kırmızı ad kümesi | 3 → 3 | 3 → 3 (büyümedi) | 3 → 3 (büyümedi) | **3 → 3 (büyümedi)** |
+| test sayısı (EMEKLİ sayaçlar, kıyaslanmaz) | 3502 (geniş) | 3526 (geniş) | 3554 (dar) | — |
+| **test sayısı, TEK GEÇERLİ SAYAÇ** (yukarıdaki bölüm) | ölçülmedi | ölçülmedi | **4180** = native (3504 iddia + 612 kontrol) + node 64 | **4292** = native (3616 + 612) + node 64 |
+| durma koşulu tetiklendi mi | hayır | hayır | hayır | **hayır** |
 
 ## SIRA
 **F1 üçe bölündü** (`SAPMA-KARARLARI.md`): **F1a bitti**, **F1c bitti**,
 **F1n** operatörü bekliyor.
 **CEVAPÇI KARARI (2026-08-26, F1c hakem hükümleri sonrası):** araya **F1d**
 girdi. Yeni sıra: F1a → F1c → **F1d** → **F2** → F1b → F1n → F3.
-**SIRADAKİ FAZ: F1d — "durum ekranı yalan söylemez".**
-Gerekçe ÖLÇÜM (`SAPMA-KARARLARI.md` · B1): `.rabadon/off` dururken
-**sevk edilen** `rabadon on` ve `rabadon status` "ON — the arbiter acts" basıyor,
-aynı olay gerçek gate'te **EXIT=0 ve 0 BAYT** (hiç konuşmuyor), ve aynı ikilinin
-`--statusline` ağzı aynı anda **"rabadon off"** diyor. Fren "bastım" diyor, disk boş.
-Bunu kırmızıya düşürebilen tek bir test YOK (§8.2). Yerel, geri alınabilir,
-para yakmaz → bu gece kapanır; §11 kırmızıyı sonraki faza taşımayı yasaklıyor.
-F1d ayrıca `docs/quickstart.md` §1'in ölü `npm i -g rabadon` yolunu kapatır (B2).
-**F2 (`rabadon usage --signals`) F1d hakem hükmü GEÇTİ demeden AÇILMAZ.**
+**F1d BİTTİ (şef hükmü; hakem hükmü ayrıdır ve orkestratörün işidir, §9).**
+B1'in yalanı da B2'nin ölü kurulum yolu da kapandı — ikisi de kırmızı düşebilen
+birer testle kilitli ve iki kilit de faz öncesi artefakt üstünde AYRI WORKTREE'de
+kırmızı düştü. Ayrıntı yukarıda "F1d'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER".
+**SIRADAKİ FAZ: F2 (`rabadon usage --signals`).**
+**F2 F1d hakem hükmü GEÇTİ demeden AÇILMAZ.**
 F2'nin önkoşulu F2-S3'tü — "F1a'nın disclosure kartı kapanmadan açılmaz" — ve
 o kart kapandı, `make disclosure` exit 0.
 F1c, F2'nin önüne konmuştu çünkü §11 "kırmızıyı sonraki faza taşımak" yasağı
