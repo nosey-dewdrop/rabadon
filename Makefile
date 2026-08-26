@@ -105,6 +105,14 @@ test: all
 	./native/version_test.sh
 	./native/cli_test.sh
 	./native/install_docs_test.sh
+# install_docs_test.sh asks whether the documented way IN works. this one asks
+# about the way OUT, on both surfaces the install screen names: `rabadon init`
+# has to say which mode it left you in (watch, which refuses nothing) and the
+# one command that changes it, and `rabadon remove` has to take the CURSOR hooks
+# back out too — measured before this suite, a full init + remove round left all
+# five rabadon entries in .cursor/hooks.json, so a Cursor user had no exit at
+# all. Every case runs under mktemp with its own HOME and RABADON_DIR.
+	./native/exit_path_test.sh
 	./native/audit_test.sh
 # audit_test.sh proves the chain INSIDE one day file. this one proves there IS
 # one day file. the chained spool is named by a date and the repo held two
