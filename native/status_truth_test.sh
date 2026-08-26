@@ -95,18 +95,28 @@ setup_cell() {
   if [ "$2" = yes ]; then mkdir -p "$PROJ/.rabadon" && : > "$PROJ/.rabadon/off" || return 1; fi
   if [ "$4" = yes ]; then : > "$RD/silent" || return 1; fi
   CELL_ENVOFF="$3"
+  CELL_ENVMODE=unset
   [ -f "$RD/mode" ] || return 1
   return 0
 }
 
-# run the CLI inside the cell. RABADON_OFF is only EXPORTED when the cell says
-# so — an empty string is not the same as unset and the gate reads == "1".
+# THE CELL'S ENVIRONMENT, in one place. RABADON_OFF and RABADON_MODE are only
+# EXPORTED when the cell says so — an empty string is not the same as unset (the
+# gate reads RABADON_OFF == "1", and an empty RABADON_MODE must not count as a
+# layer that spoke). Built once here so `status`, the gate and the lamp are all
+# asked in the SAME environment; three copies of this prefix is three chances
+# for one surface to be asked a different question than the other two.
+cellenv() {
+  CELLENV=(HOME="$HOMEDIR" RABADON_DIR="$RD" RABADON_NOTIFY=0)
+  if [ "$CELL_ENVOFF" = yes ]; then CELLENV+=(RABADON_OFF=1); fi
+  if [ "${CELL_ENVMODE:-unset}" != unset ]; then CELLENV+=(RABADON_MODE="$CELL_ENVMODE"); fi
+  return 0
+}
+
+# run the CLI inside the cell.
 cli() {
-  if [ "$CELL_ENVOFF" = yes ]; then
-    ( cd "$PROJ" && HOME="$HOMEDIR" RABADON_DIR="$RD" RABADON_OFF=1 RABADON_NOTIFY=0 bash "$CLI" "$@" 2>&1 )
-  else
-    ( cd "$PROJ" && HOME="$HOMEDIR" RABADON_DIR="$RD" RABADON_NOTIFY=0 bash "$CLI" "$@" 2>&1 )
-  fi
+  cellenv
+  ( cd "$PROJ" && env "${CELLENV[@]}" bash "$CLI" "$@" 2>&1 )
 }
 
 # one real PreToolUse event, through the real binary, in the cell's cwd.
@@ -114,22 +124,16 @@ cli() {
 EVENT_CMD='git push --force origin main'
 gate_probe() {
   ev=$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$PROJ" "$EVENT_CMD")
-  if [ "$CELL_ENVOFF" = yes ]; then
-    GOUT=$(printf '%s' "$ev" | ( cd "$PROJ" && HOME="$HOMEDIR" RABADON_DIR="$RD" RABADON_OFF=1 RABADON_NOTIFY=0 "$GATE" 2>&1 )); GRC=$?
-  else
-    GOUT=$(printf '%s' "$ev" | ( cd "$PROJ" && HOME="$HOMEDIR" RABADON_DIR="$RD" RABADON_NOTIFY=0 "$GATE" 2>&1 )); GRC=$?
-  fi
+  cellenv
+  GOUT=$(printf '%s' "$ev" | ( cd "$PROJ" && env "${CELLENV[@]}" "$GATE" 2>&1 )); GRC=$?
   GBYTES=$(printf '%s' "$GOUT" | wc -c | tr -d ' ')
   [ "$GRC" -eq 2 ] && SAW_ENFORCE=1
 }
 
 # the lamp, for the same instant. Sets SLV to on|watch|off|?? .
 statusline_probe() {
-  if [ "$CELL_ENVOFF" = yes ]; then
-    SL=$(printf '{"workspace":{"current_dir":"%s"}}' "$PROJ" | ( cd "$PROJ" && HOME="$HOMEDIR" RABADON_DIR="$RD" RABADON_OFF=1 "$GATE" --statusline 2>&1 ))
-  else
-    SL=$(printf '{"workspace":{"current_dir":"%s"}}' "$PROJ" | ( cd "$PROJ" && HOME="$HOMEDIR" RABADON_DIR="$RD" "$GATE" --statusline 2>&1 ))
-  fi
+  cellenv
+  SL=$(printf '{"workspace":{"current_dir":"%s"}}' "$PROJ" | ( cd "$PROJ" && env "${CELLENV[@]}" "$GATE" --statusline 2>&1 ))
   SLPLAIN=$(printf '%s' "$SL" | sed "s/${ESC}\[[0-9;]*m//g")
   case "$SLPLAIN" in
     *"rabadon off"*)   SLV=off ;;
@@ -254,6 +258,137 @@ for MODE in watch enforce; do
       fail "BLOCKED: [$TAG] sandbox for \`off\` could not be built; run: mktemp -d && git init -q"
     fi
    done
+  done
+ done
+done
+
+echo
+
+# ---- D. the mode layers: every SILENT must print a door that OPENS --------
+# A. above only ever silences with the three MUTER files. rabadon has a fourth
+# way to go dormant and it is the one users actually meet: a mode LAYER that
+# says `silent` — RABADON_MODE=silent, <proj>/.rabadon/mode, <RABADON_DIR>/mode.
+# Measured on the shipped binary (reports/kosu/RAPOR/f1e-0-onolcum.out): with
+# RABADON_MODE=silent the screen printed "`rabadon off` to watch again", the
+# user ran exactly that, and the same event through the same binary was STILL
+# exit 0 / 0 bytes. The screen printed an escape door that does not open.
+#
+# So this section does not read the screen for plausibility. It PARSES the
+# command out of the screen, RUNS it verbatim, and asks the real gate again.
+# The commands are never typed here from the docs — a suite that hardcodes the
+# escape command cannot notice the screen printing a different, wrong one.
+#
+# 18 cells: RABADON_MODE {unset,silent} x <proj>/.rabadon/mode {none,watch,silent}
+# x <RABADON_DIR>/mode {watch,enforce,silent}. `silent` is crossed at all three
+# layers, and the layers below the winner are crossed with non-silent values so
+# a screen that lists a SHADOWED layer as a silencer is caught too.
+echo "escape doors: the command the screen prints must actually lift the silence"
+
+# setup_mode_cell ENVMODE PROJMODE MACHMODE
+setup_mode_cell() {
+  CELLN=$((CELLN+1))
+  PROJ="$TMP/d$CELLN/proj"; RD="$TMP/d$CELLN/rabadon"; HOMEDIR="$TMP/d$CELLN/home"
+  mkdir -p "$PROJ" "$RD" "$HOMEDIR" || return 1
+  git init -q "$PROJ" >/dev/null 2>&1 || return 1
+  printf '%s\n' "$3" > "$RD/mode" || return 1
+  if [ "$2" != none ]; then
+    mkdir -p "$PROJ/.rabadon" || return 1
+    printf '%s\n' "$2" > "$PROJ/.rabadon/mode" || return 1
+  fi
+  CELL_ENVOFF=no
+  CELL_ENVMODE="$1"
+  [ -f "$RD/mode" ] || return 1
+  return 0
+}
+
+# every `next:` line the screen printed, in the order it printed them.
+next_cmds() { printf '%s\n' "$1" | sed -n 's/^[[:space:]]*next:[[:space:]]*//p'; }
+
+# THE INTERPRETER. It runs the printed command verbatim and knows exactly three
+# shapes. A shape it does not know is a FAIL, never a silent skip: "the suite
+# could not run the command the product told the user to run" is the same defect
+# as the command not working.
+ESC_BAD=""
+run_next() {
+  case "$1" in
+    "unset RABADON_MODE") CELL_ENVMODE=unset ;;
+    "unset RABADON_OFF")  CELL_ENVOFF=no ;;
+    "rabadon off")        cli off >/dev/null 2>&1 ;;
+    "rm /"*)              rm -f "${1#rm }" || ESC_BAD="$ESC_BAD rm-failed[$1]" ;;
+    *)                    ESC_BAD="$ESC_BAD unrecognised[$1]" ;;
+  esac
+}
+
+# run every door the screen printed, then ask the gate whether it opened.
+# EVERY door, not the first: a screen naming one silencer while a second is
+# still in force sends the operator to a switch that changes nothing.
+check_escape() {
+  _s="$1"; _label="$2"
+  ESC_BAD=""; _n=0
+  _cmds=$(next_cmds "$_s")
+  while IFS= read -r _c; do
+    [ -z "$_c" ] && continue
+    _n=$((_n+1)); run_next "$_c"
+  done <<< "$_cmds"
+  if [ "$_n" -eq 0 ]; then
+    fail "BLOCKED: $_label — the screen said SILENT and printed no \`next:\` command at all; why: 4.9 says every state has an exit and the operator is now dormant with nothing to run; run: (cd $PROJ && RABADON_DIR=$RD bash native/rabadon-cli.sh status)"
+    return
+  fi
+  if [ -n "$ESC_BAD" ]; then
+    fail "BLOCKED: $_label — the screen printed an escape command this suite cannot execute:$ESC_BAD; why: the only commands rabadon may hand a dormant operator are \`unset RABADON_MODE\`, \`unset RABADON_OFF\`, \`rm <absolute path>\` and \`rabadon off\`, and anything else is a sentence the user cannot run; run: (cd $PROJ && RABADON_DIR=$RD bash native/rabadon-cli.sh status)"
+    return
+  fi
+  gate_probe
+  if [ "$GRC" -eq 0 ] && [ "$GBYTES" -eq 0 ]; then
+    fail "BLOCKED: $_label — after running every command the screen itself printed ($(printf '%s' "$_cmds" | tr '\n' ';')), the SAME event through the SAME binary is still exit 0 with 0 bytes, which is the SILENT signature; why: the screen printed an escape door that does not open, so the user follows the instruction, sees no change, and is unguarded while believing they fixed it; run: printf '{\"hook_event_name\":\"PreToolUse\",\"cwd\":\"$PROJ\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$EVENT_CMD\"}}' | RABADON_DIR=$RD $GATE; echo \$?"
+  else
+    pass "$_label — the printed command(s) really lifted the silence (gate now exit $GRC / $GBYTES bytes)"
+  fi
+}
+
+for EM in unset silent; do
+ for PM in none watch silent; do
+  for MM in watch enforce silent; do
+   TAG="RABADON_MODE=$EM projmode=$PM machmode=$MM"
+   if ! setup_mode_cell "$EM" "$PM" "$MM"; then
+     fail "BLOCKED: [$TAG] the sandbox could not be built; why: a cell that never got set up would let every assertion under it pass on nothing; run: mktemp -d && git init -q"
+     continue
+   fi
+
+   # the layers that SPOKE, narrowest first, and the leading run of them that
+   # says `silent`. Only that leading run is in force: a `silent` sitting under
+   # a layer that says `watch` silences nothing and must not be listed.
+   SPK=""
+   [ "$EM" != unset ] && SPK="$SPK env:$EM"
+   [ "$PM" != none ]  && SPK="$SPK proj:$PM"
+   SPK="$SPK mach:$MM"
+   EFF=""; SILENCERS=""
+   for it in $SPK; do
+     v=${it#*:}
+     [ -z "$EFF" ] && EFF="$v"
+     if [ "$v" = silent ]; then SILENCERS="$SILENCERS ${it%%:*}"; else break; fi
+   done
+
+   SCREEN=$(cli status); SRC=$?
+   CLAIM=$(claim_of "$SCREEN")
+   gate_probe
+   statusline_probe
+   if [ "$SRC" -ne 0 ]; then
+     fail "BLOCKED: [$TAG] \`rabadon status\` exited $SRC; why: the one command a user runs to learn whether they are supervised failed, so there is no claim to compare and the answer is unknown rather than off; run: (cd $PROJ && RABADON_DIR=$RD bash native/rabadon-cli.sh status)"
+   fi
+   check_signature "$CLAIM" "[$TAG] status"
+   check_statusline "$CLAIM" "[$TAG] status/lamp"
+
+   if [ "$EFF" = silent ]; then
+     for L in $SILENCERS; do
+       case "$L" in
+         env)  check_disclosure "$SCREEN" "RABADON_MODE=silent" "environment variable" "unset RABADON_MODE" "[$TAG] 4.8 env layer" ;;
+         proj) check_disclosure "$SCREEN" ".rabadon/mode = silent" "$PROJ/.rabadon/mode" "rm $PROJ/.rabadon/mode" "[$TAG] 4.8 project layer" ;;
+         mach) check_disclosure "$SCREEN" "mode = silent" "$RD/mode" "rabadon off" "[$TAG] 4.8 machine layer" ;;
+       esac
+     done
+     check_escape "$SCREEN" "[$TAG] escape"
+   fi
   done
  done
 done
