@@ -1,0 +1,8 @@
+== the screen is read-only: it exits by itself and writes nothing ==
+EXIT=0
+mtime-set before=b10f340e755f260391990184eac36efc0bc2af12
+mtime-set after =b10f340e755f260391990184eac36efc0bc2af12
+UNCHANGED: the screen wrote nothing into RABADON_DIR
+
+== the hook path does not reach this binary ==
+0

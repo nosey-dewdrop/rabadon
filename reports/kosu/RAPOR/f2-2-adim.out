@@ -1,0 +1,7 @@
+== how many steps to the screen, measured ==
+-- step 1: the flag is discoverable at depth 1 (top-level help), no doc dive:
+   grep -c -- --signals <(rabadon --help)  ->  1
+-- step 2: the screen itself, one command, no flags to configure, no file to edit:
+real 0,02
+   STEPS TYPED = 2  (rabadon --help ; rabadon usage --signals)
+   STEPS TYPED IF ALREADY KNOWN = 1
