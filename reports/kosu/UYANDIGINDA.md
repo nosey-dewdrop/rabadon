@@ -40,7 +40,47 @@ cevap gelmezse varsayılan yürür ve tutanağa yazılır (§10 "kuyruk bekletme
   (`rabadon status|on|off`) doğru yapıyor ve sevk edilen hiçbir yolun `on`'u o dosyaya
   götürmediğini kırmızı düşebilen bir testle sabitliyor. Gerekmiyor, sorulmuş olsun diye burada.
 
+- **O4 · `native/sandbox_test.sh:121` KIRMIZI BIRAKILDI, insan hükmü bekliyor.**
+  Ürün `NO **usable** kernel backend` basıyor, test `"no kernel backend"` arıyor;
+  dizgeyi `a74e7d8` (31 Tem) değiştirdi ve testi güncellemedi. Dal macOS'ta ölü,
+  o yüzden dört haftadır görünmüyordu; temiz konteyner ilk koşuşta yakaladı.
+  **Testi yeşil için değiştirmek YASAK** (CLAUDE.md 1) — bu, bu ürünün var olma
+  sebebinin tersidir. **VARSAYILAN: KIRMIZI KALIR.** Düzeltilecekse KENDİ
+  commit'inde, koddan ayrı, gerekçesiyle. Önerilen yol (uygulanmadı):
+  `--check`'in başarısızlık yolu insan düzyazısının YANINDA kararlı bir makine
+  jetonu bassın ve test jetonu denetlesin — İngilizce grepleyen bir test, metin
+  her iyileştiğinde yeniden kırılır. Tam CHALLENGE: `RAPOR/f1e-c-konteyner.md` §4.
+
 ## SAPMA SATIRLARI (gece)
+- **F1e bitti** — "belge de yalan söylemez, ve kaçış kapısı gerçekten açılır".
+  YENİ adım gerçek olmadı; **ADIM 7'nin ÇIKIŞ KAPISI** gerçek oldu ve ADIM 2/4'ün
+  belgesindeki yalan kalktı. Ekran artık altı susturucunun altısını da adıyla,
+  yeriyle ve **gerçekten açan** tek komutuyla basıyor; şef komutu ekrandan çekip
+  verbatim koşturdu, altısında da gate aynı olayda konuşmaya başladı (faz öncesi
+  6'da 4). Gösteren sayılar: `status_truth_test.sh` **130/32 → 162/0** (faz öncesi
+  ikilide, ayrı worktree'de kırmızı), yeni `docs_truth_test.sh` **14/27 → 40/0**,
+  susturucu tablosu **3 → 6 satır**, ve tablonun her satırı artık **okunmuyor,
+  YÜRÜTÜLÜYOR**. `no-exit-code-after-pipe` yanlış pozitifi onarıldı ve kural
+  **gevşetilmedi** (gerçek `cmd | grep x ; echo $?` hâlâ reddediliyor).
+  Sayaç 4292 → **4428**, kırmızı ad kümesi `{2b,6e,7b}` büyümedi.
+  **Saptık mı: hayır** — ölçü sertleşti.
+- **KONTEYNERDEKİ "54" (gerçekte 46) ÖLÇÜLMEMİŞ SÜİT → 0.** `native/refenv/run.sh`
+  commit'lendi ve fazın NİHAİ HEAD'inde koştu (`--network none`):
+  **105 süit, 102 yeşil, 3 kırmızı, HİÇ KOŞMAYAN 0.** F1e'nin kendi süitleri
+  konteynerde çevrimdışı YEŞİL. Üç kırmızının adı ve kök sebebi yazıldı; biri
+  gerçek sapma (O4), ikisi ortam (`gh` yok; `root` altında düzyazı eşleşmesi,
+  sızıntı yok). **Bonus:** `npm_install_test.sh` konteynerde **ağsız ve
+  derleyicisiz** yeşil (12/12) — F1n'in yolu ilk kez ölçüldü.
+- **`2b` İÇİN İKİ SAYI, ve ikincisi kötü.** Aynı gün, aynı makine, N=300:
+  süreç-içi prob **1229,0 µs**; GERÇEK sevk edilen ikili uçtan uca **3381,3 µs**
+  ham, boş taban düşülünce **1994,5 µs** = tavanın **1,99 katı**. Cevapçının
+  ölçümüyle aynı yere düşüyor. Tavan 1000 µs **oynatılmadı**. Bu bir negatiftir
+  ve olumluya çevrilmedi.
+- **Yanlış pozitif sayısı bu koşuda 1 değil, 4 olay / 2 sınıf.** İkisi onarıldı.
+  **AÇIK sınıf:** `red-suite-test-write` süit GERÇEKTE yeşilken iki meşru Write'ı
+  reddetti — `lastTestPass` yalnız çıktısı GÖRÜNEN test komutundan güncelleniyor,
+  `make test > dosya` yeşil kapatıp işareti temizlemiyor. Kart açılmadı, kural
+  değiştirilmedi, olay yazıldı. C6'nın kardeşi; F1b'ye aday.
 - **F1d GEÇTİ (hakem). Cevapçı araya son bir mini-faz koydu: F1e.** Sıra:
   F1d → **F1e** → F2 → F1b → F1n → F3. Sebep dört ÖLÇÜM, hepsi bu gece
   koşturuldu: (1) `docs/commands.md:90-95`'in üç cümlesi de yanlış — `rabadon off`
