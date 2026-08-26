@@ -1,0 +1,81 @@
+rabadon refusal rate — denominator from the ledger, not from a transcript
+measured at : 2026-08-26T08:43:46Z  (epoch 1787733826s)
+frozen at   : last scoped ledger ts = 1787731772907  (first = 1787709371172)
+scope       : sid prefix 286fd71d
+ledger      : /Users/damummyphus/.rabadon/spool  (32 day files, 252014 lines, 40 in scope)
+LIVE        : this ledger is append-only and this run is still writing to it.
+              Re-running this script later legitimately returns a BIGGER
+              denominator. Every number below belongs to the frozen ts above.
+
+== A. denominator, definition 1: ev=STOP and reason=BLOCKED ==
+   (this is the definition behind the '15 refusals' published in SAPMA-KARARLARI)
+      8 no-exit-code-after-pipe
+      4 red-suite-test-write
+      3 no-blind-inplace-source-rewrite
+      1 no-gnu-timeout-on-macos
+   TOTAL 16
+
+== B. denominator, definition 2: STOP+BLOCKED plus ev=WOULD_BLOCK ==
+   (this is the definition S13/a asks for; watch-mode refusals count too)
+     23 no-exit-code-after-pipe
+      4 red-suite-test-write
+      4 no-gnu-timeout-on-macos
+      4 no-blind-inplace-source-rewrite
+      1 promise-off-target
+      1 no-shell-write-to-frozen-file
+      1 no-rm-rf-outside
+      1 baseline-truncating-redirect
+      1 baseline-supervision-tamper
+   TOTAL 40   ( STOP 16 + WOULD_BLOCK 24 )
+
+== C. numerator: ev=WRONG_REFUSAL, by rule ==
+   NOT SCOPED, and this is a measured hole, not a shortcut: a WRONG_REFUSAL
+   line carries no sess, no sid and no call — only rule, why, ts. So a
+   numerator cannot be joined to the individual refusal it belongs to, and
+   cannot be filtered to this run at all. The join happens on the RULE NAME
+   only. Fixing the record shape is out of this card's scope; the gap is
+   named here so no reader mistakes the join for a tight one.
+      4 red-suite-test-write
+      2 no-exit-code-after-pipe
+      1 test-run
+      1 stale-net-verdict
+      1 red-base
+      1 promise-off-target
+      1 no-scripted-inplace-test-rewrite
+      1 no-gnu-timeout-on-macos
+      1 no-blind-inplace-source-rewrite
+      1 baseline-truncating-redirect
+   TOTAL 14  (whole machine, every project, every day in the spool)
+
+== D. rate, per rule ==
+   n < 10 prints RAW COUNTS and no ratio. A percentage over a handful of
+   events is a number with no error bar, and printing one without its
+   denominator is forbidden in this project.
+   rule                               wrong/STOP     wrong/STOP+WB  rate
+   baseline-supervision-tamper        0/0            0/1            n<10 — raw counts only
+   baseline-truncating-redirect       1/0            1/1            n<10 — raw counts only
+   no-blind-inplace-source-rewrite    1/3            1/4            n<10 — raw counts only
+   no-exit-code-after-pipe            2/8            2/23           8.7% of 23
+   no-gnu-timeout-on-macos            1/1            1/4            n<10 — raw counts only
+   no-rm-rf-outside                   0/0            0/1            n<10 — raw counts only
+   no-scripted-inplace-test-rewrite   1/0            1/0            wrong declared OUT OF SCOPE (no refusal by this rule in scope)
+   no-shell-write-to-frozen-file      0/0            0/1            n<10 — raw counts only
+   promise-off-target                 1/0            1/1            n<10 — raw counts only
+   red-base                           1/0            1/0            wrong declared OUT OF SCOPE (no refusal by this rule in scope)
+   red-suite-test-write               4/4            4/4            n<10 — raw counts only
+   stale-net-verdict                  1/0            1/0            wrong declared OUT OF SCOPE (no refusal by this rule in scope)
+   test-run                           1/0            1/0            wrong declared OUT OF SCOPE (no refusal by this rule in scope)
+
+   OVERALL: 14 wrong / 16 STOP / 40 STOP+WOULD_BLOCK
+            (the OVERALL numerator is machine-wide, see C: it is an upper
+             bound on this run's wrong refusals, not this run's count)
+
+== E. what this script does NOT measure ==
+   - a refusal nobody declared wrong is counted as CORRECT here. Silence is
+     not evidence; native/refusal_rate.sh cannot tell a right refusal from
+     an unreported wrong one.
+   - WRONG_REFUSAL cannot be scoped to a run (C), so wrong/denominator mixes
+     one machine's numerator with one run's denominator.
+   - the hand-counted numbers published for this run ('4 events / 2 classes',
+     'catch 4') are a DIFFERENT method on a DIFFERENT population. They stand
+     as written and are not compared with anything above.

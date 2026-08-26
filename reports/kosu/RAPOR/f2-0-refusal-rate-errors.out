@@ -1,0 +1,8 @@
+=== error path: no scope argument ===
+usage: bash native/refusal_rate.sh <sid-prefix> [spool-dir]
+  the sid prefix is not optional: one spool file holds every project on
+  this machine, and an unscoped count is a wrong number, not a rough one.
+EXIT=2
+=== error path: ledger that does not exist ===
+I can't check this: no ledger directory at /tmp/no-such-spool
+EXIT=1

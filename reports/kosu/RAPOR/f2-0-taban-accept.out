@@ -1,0 +1,52 @@
+
+== GOAL 1 — the daemon and the thin client exist at all
+PASS  1a rabadon-gated exists and is executable
+PASS  1b native/gated.cpp binds and listens on a unix socket (a daemon, not a one-shot)
+PASS  1c a thin client path referencing the daemon socket exists (native/gated_client.h)
+
+== GOAL 2 — with the daemon up, the gate's median is under 1 ms (in-process)
+PASS  2a the daemon started and its socket is listening
+reports/R7/accept.sh: line 224: 55562 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+      in-process median with the daemon up: 1218.5 us over 300 samples
+      ceiling = 1000 us (KOSU-RABADON R7); instrument = R1.3 in-process probe
+FAIL  2b the gate's median is 1218.5 us with the daemon up, ceiling is 1000 us
+      50-event session: 1223.4 us   400-event session: 1265.3 us   divergence 3.43%
+      R1.3 closed this at 3.5-4.9% WITH process spawn in the denominator
+reports/R7/accept.sh: line 247: 55601 Terminated: 15          env HOME="$DH" RABADON_DIR="$DH/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" >> "$W/gated.log" 2>&1
+PASS  2c the residual length dependence is re-measured (3.43%) and written to reports/R7/LENGTH.md
+
+== GOAL 3 — with the daemon down, behaviour is byte-identical to today
+PASS  3-[echo hello world] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  3-[rm -rf /] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  3-[git commit --no-verify -m x] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+
+== GOAL 4 — the harness is named, exactly, with its commit
+PASS  4a reports/R7/ exists
+PASS  4b the harness is named by full repo: SWE-bench/SWE-smith
+PASS  4c the harness commit hash is pinned (40 hex)
+PASS  4d the Cursor preparation is recorded: .git cleaned, egress closed, labelled best-effort
+
+== GOAL 5 — the raw run lands here, and can be re-run
+PASS  5a raw JSONL is under reports/R7/ and is not empty (ab_run.jsonl)
+      records: 8   distinct tasks — arm A: 4, arm B: 4
+PASS  5b both arms are present per-task in the raw records (A:4 tasks, B:4 tasks)
+PASS  5c bench/reproduce.sh re-runs the two-armed run
+
+== GOAL 6 — the five numbers, each of them, from the raw data
+PASS  6a real fix rate from a HELD-OUT test: A 75.0000% / B 75.0000% (4.0000+4.0000 judged)
+PASS  6b tokens spent: A 35620.0000 / B 33221.0000
+PASS  6c human interventions: A 0.0000 / B 0.0000
+PASS  6d false positive rate: A 0.0000% / B 0.0000%
+FAIL  6e counter validation impossible: no 'estimated_saved' total on arm B, or no per-arm total_cost_usd
+
+== GOAL 7 — the falsification conditions are checkable, and checked
+PASS  7a falsification 1 evaluated: arm B improves on fix rate or net tokens — the injection thesis stands
+FAIL  7b falsification 2 is UNCHECKABLE — no deviation could be computed
+
+== GOAL 8 — nothing already standing fell over
+PASS  8a native/moves_test.sh 21/0
+PASS  8b native/signals_test.sh 39/0
+PASS  8c reports/R2/accept.sh 19 green, 0 red
+
+== R7 acceptance: 23 green, 3 red
+R7 NOT ACCEPTED
