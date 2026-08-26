@@ -25,6 +25,8 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
   repodan** (`stitchu`) ve **23 Ağu tarihli bir ikiliden** geliyor. Cursor: 0 satır.
 - **Enjeksiyonun (b) "ajan okudu" ve (c) "zarar vermedi" katmanları için HİÇ kanıt yok.**
 - **Test:** `make test` 3438/0, `npm test` 64/0 → **3502 yeşil / 0 kırmızı**.
+  *(EMEKLİ SAYAÇ — aşağıdaki "TEST SAYACI" bölümüne bak; bu sayı `PASS (N checks)`
+  basan 9 süidin 612 kontrolünü saymıyor ve yeni sayıyla KIYASLANAMAZ.)*
 - **Kabul:** `reports/R7/accept.sh` → **23 yeşil / 3 kırmızı**, adlar **`2b`, `6e`, `7b`**.
 - **CLI:** ana help 5 verb, `dev` 30, dispatcher 44. (Belgedeki "25 verb" hiçbir ölçümle eşleşmiyor.)
 - **npm:** `rabadon` E404. `package.json` 0.2.3. `v0.2.3` etiketi yok.
@@ -37,6 +39,7 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 ## F1a'NIN DEĞİŞTİRDİĞİ ÖLÇÜMLER (yukarıdaki satırlar F0 ölçümüdür, bunlar günceldir)
 - **Test:** `make test` **3462**/0, `npm test` **64**/0 → **3526 yeşil / 0 kırmızı**.
   (F0'da 3502'ydi; hiçbir test silinmedi, +24 eklendi.)
+  *(EMEKLİ SAYAÇ, GENİŞ regex `^\s*ok\b`. Aşağıdaki "TEST SAYACI"na bak.)*
 - **Disclosure:** `make disclosure` **exit 0**. `53 found / 12 allowed / 41 off-list`
   → `12 / 12 / 0`. Yol: liste dışı her ad `(withheld)`. `site/published-projects.txt`
   BYTE BYTE AYNI — operatör onayı olmadan tek isim eklenmedi.
@@ -82,6 +85,8 @@ Tam tutanak: `reports/kosu/RAPOR/f1c-tutanak.md`. Faz aralığı `3df7af3..HEAD`
   dosyasını siliyor. `native/exit_path_test.sh` (22/0) pinliyor. **Yeni verb eklenmedi.**
 - **Test:** `make test` **3490**/0 (F1a'da 3448, +42), 56 süit, exit 0. `npm test` 64/0.
   `make disclosure` exit 0. Mevcut hiçbir test/fixture/eşik değişmedi, hiçbir dosya silinmedi.
+  *(EMEKLİ SAYAÇ, DAR regex `^  ok`. Aşağıdaki "TEST SAYACI"na bak — bu regex
+  bir süidin 14 gerçek iddiasını sessizce düşürüyordu.)*
 - **Cursor hâlâ 0 ledger satırı** ve **ledger'da ajanı ayırt eden alan HÂLÂ YOK** —
   yani Cursor ateşlese bile atfedilemezdi. `docs/agent-contract.md` bunu artık tabloda yazıyor.
 - **AÇILMAMIŞ ve AÇILMASI GEREKEN KART:** `installCursorHooks` okunamayan bir
@@ -92,6 +97,48 @@ Tam tutanak: `reports/kosu/RAPOR/f1c-tutanak.md`. Faz aralığı `3df7af3..HEAD`
 - **DÜZELTME:** işçi 2'nin "`cli_test.sh` beş-yüzey yasasını tutmuyor" notu YANLIŞTIR.
   `native/cli_test.sh:271,282,299` tavanı açıkça tutuyor; F1a hakemi altıncı verb'ü
   enjekte edip 315/0 → 312/3 kırmızısını görmüştü. **Yüzey tavanı KİLİTLİDİR.**
+
+## TEST SAYACI — TEK GEÇERLİ SAYAÇ (cevapçı hükmü, 2026-08-26, §10)
+
+Bu dosyada iki farklı sayaç uzlaştırılmadan yan yana duruyordu. Cevapçı iki
+komutu da KENDİ koşturdu (§10) ve teşhis, hakemin sandığından farklı çıktı:
+ortada "make'in süit özetleri" diye bir sayaç YOK; **iki farklı regex** vardı,
+ve **ikisi de eksik sayıyordu**. Tam gerekçe:
+`reports/kosu/SAPMA-KARARLARI.md` · B5.
+
+- **DAR** `grep -c '^  ok'` → bugün **3490**. **EMEKLİ.** Sebep: `ok`'u sütun
+  0'dan basan bir süidin **14 gerçek iddiasını sessizce düşürüyor**
+  (`make test` çıktısı satır 3951-3965). Süit düşürebilen sayaç §8.2'dir.
+- **GENİŞ** `grep -cE '^[[:space:]]*ok\b'` → bugün **3504**.
+- **Her iki regexin de görmediği:** `PASS (N checks)` basan 9 süidin
+  **612 kontrolü**, ve hiç sayı basmayan **3** süit.
+- DURUM.md'nin F1a satırı GENİŞ (3462+64=3526), F1c satırı DAR (3490+64=3554)
+  sayaçla yazılmıştı. İki birim yan yana konunca büyüme +28 gibi okunuyor;
+  **tek sayaçla gerçek büyüme +42'dir** (3462→3504 ve 3448→3490).
+
+**BUNDAN SONRA HER FAZ ŞU ÜÇLÜYÜ BASAR, TEK KOMUTTAN:**
+
+    make test ; echo "EXIT=$?"                              # 0 OLMALI
+    grep -cE '^[[:space:]]*ok\b'          <çıktı>           # native iddia
+    grep -oE 'PASS \([0-9]+ checks?\)'    <çıktı> | grep -oE '[0-9]+' | paste -sd+ - | bc
+    npm test                                                # 'ℹ pass' / 'ℹ fail'
+
+**BUGÜNKÜ TABAN (2026-08-26, F1c sonrası, cevapçı koşturdu):**
+
+| ölçü | değer |
+|---|---|
+| `make test` exit | **0** |
+| native iddia satırı (GENİŞ) | **3504** |
+| native `PASS (N checks)` toplamı | **612** |
+| native toplam | **4116** |
+| sayı basmayan native süit | **3** (bilinen boşluk, adı ölçülmedi) |
+| `npm test` | **64 pass / 0 fail**, exit 0 |
+| **TOPLAM** | **4180 yeşil / 0 kırmızı** |
+
+Eski sayılar (3502 / 3526 / 3554) **silinmedi**, yukarıda emekli etiketiyle
+duruyorlar ve yeni sayılarla KIYASLANMAZLAR. Değişen ölçüm YÖNTEMİ, ölçüt
+değil; ve yön sertleşmedir — yeni sayaç eskisinin görmediği 612 kontrolü ve
+düşürdüğü 14 iddiayı görür.
 
 ## KIRMIZI AD KÜMESİ (§8.3 için dondurulmuş)
 F0 ÖNCESİ: `{ 2b, 6e, 7b }` (R7 kabul). Test süitlerinde kırmızı ad yok.
@@ -104,7 +151,13 @@ CI tarafında kırmızı **küçüldü**: `disclosure` iki platformda kırmızı
 makine gürültüsü — **tavan oynatılmadı**.) Test süitlerinde kırmızı ad yok.
 **F1c KAPANIŞINDA, ŞEF KENDİ KOŞTURDU:** aynı komut, aynı küme, `2b` **1310,8 µs**.
 Üç ölçüm: 1244,2 → 1261,0 → 1310,8 µs. Tavan 1000 µs sabit; `2b` kapatılmadı ve
-kapatılmış gibi yazılmadı. **`2b` yukarı sürükleniyor — F2/F3 bunu bilerek okusun.**
+kapatılmış gibi yazılmadı.
+**CEVAPÇI ÖLÇÜMÜ (2026-08-26):** aynı komut → exit 1, 23/3, `2b` **1184,7 µs**
+(300 örnek medyanı, daemon açık). Yedi ölçümün serisi:
+1299,4 → 1244,2 → 1261,0 → 1310,8 → 1248,8 → 1229,9 → **1184,7** µs.
+Sürüklenme yok; **yedisi de tavanın üstünde — kalıcı bir §1 hedef ihlali,
+gürültü değil.** Sahibi atandı: ölçüm+yasak **F2-S9**, onarım **F3-S1**
+(`SAPMA-KARARLARI.md` · B3).
 
 ## DEVİR SAYILARI
 | sayı | değer (F0) | değer (F1a) | değer (F1c) |
@@ -114,22 +167,39 @@ kapatılmış gibi yazılmadı. **`2b` yukarı sürükleniyor — F2/F3 bunu bil
 | kesilen kart | 4 | 5 | 4 (kart 0 dahil) |
 | salınan işçi | 5 | 5 (tavan 5) | **2** (tavan 2) |
 | kırmızı ad kümesi | 3 → 3 | 3 → 3 (büyümedi) | 3 → 3 (büyümedi) |
-| test sayısı | 3502 | 3526 (düşmedi) | **3554** (`make test` 3490 + `npm test` 64) |
+| test sayısı (EMEKLİ sayaçlar, kıyaslanmaz) | 3502 (geniş) | 3526 (geniş) | 3554 (dar) |
+| **test sayısı, TEK GEÇERLİ SAYAÇ** (yukarıdaki bölüm) | ölçülmedi | ölçülmedi | **4180** = native (3504 iddia + 612 kontrol) + node 64 |
 | durma koşulu tetiklendi mi | hayır | hayır | hayır |
 
 ## SIRA
 **F1 üçe bölündü** (`SAPMA-KARARLARI.md`): **F1a bitti**, **F1c bitti**,
 **F1n** operatörü bekliyor.
-Yeni sıra: F1a → **F1c** → **F2** → F1b → F1n → F3.
-**SIRADAKİ FAZ: F2 (`rabadon scan`).** Önkoşulu F2-S3'tü — "F1a'nın disclosure kartı
-kapanmadan açılmaz" — ve o kart kapandı, `make disclosure` exit 0.
+**CEVAPÇI KARARI (2026-08-26, F1c hakem hükümleri sonrası):** araya **F1d**
+girdi. Yeni sıra: F1a → F1c → **F1d** → **F2** → F1b → F1n → F3.
+**SIRADAKİ FAZ: F1d — "durum ekranı yalan söylemez".**
+Gerekçe ÖLÇÜM (`SAPMA-KARARLARI.md` · B1): `.rabadon/off` dururken
+**sevk edilen** `rabadon on` ve `rabadon status` "ON — the arbiter acts" basıyor,
+aynı olay gerçek gate'te **EXIT=0 ve 0 BAYT** (hiç konuşmuyor), ve aynı ikilinin
+`--statusline` ağzı aynı anda **"rabadon off"** diyor. Fren "bastım" diyor, disk boş.
+Bunu kırmızıya düşürebilen tek bir test YOK (§8.2). Yerel, geri alınabilir,
+para yakmaz → bu gece kapanır; §11 kırmızıyı sonraki faza taşımayı yasaklıyor.
+F1d ayrıca `docs/quickstart.md` §1'in ölü `npm i -g rabadon` yolunu kapatır (B2).
+**F2 (`rabadon usage --signals`) F1d hakem hükmü GEÇTİ demeden AÇILMAZ.**
+F2'nin önkoşulu F2-S3'tü — "F1a'nın disclosure kartı kapanmadan açılmaz" — ve
+o kart kapandı, `make disclosure` exit 0.
 F1c, F2'nin önüne konmuştu çünkü §11 "kırmızıyı sonraki faza taşımak" yasağı
 KIRMIZI-A'yı bu gece kapatılabilir buluyordu; kapandı, F2 artık kırmızı zeminin
 üstüne basmıyor.
-**F2'YE UYARI, ÖLÇÜLÜ:** replay korpusu 527 kayıt / 34 oturum / 4-5 gündür
-(7 gün DEĞİL), salt-okunur yedeği `~/.rabadon-korpus-snapshot-20260826/` altındadır,
-ve **her koşu ring'in en eski ucunu yiyor** — F2 kendi ölçümünü canlı korpustan
-değil, gerekiyorsa yedekten almalı ve hangisini kullandığını yazmalıdır.
+**F2'YE UYARI, ÖLÇÜLÜ VE GÜNCELLENDİ:** replay korpusu 527 kayıt / 34 oturum /
+4-5 gündür (7 gün DEĞİL). **Cevapçının kendi sayımı (2026-08-26): canlı korpusta
+başlık `count` toplamı 933, diskte 527 → 406 hamle (%43,5) KAYIP.** Yedek anında
+kayıp 127'ydi; dolu ring (`286fd71d…`) o günden bu yana `count` 327 → **606**,
+yani **279 hamle daha üzerine yazıldı** ve dolu ring bu koşuyu koşan oturumun
+kendisi. Salt-okunur yedek: `~/.rabadon-korpus-snapshot-20260826/` (654 `count`
+/ 527 diskte / 127 kayıp).
+**F2 kabul sayısını CANLI korpustan ALMAZ (F2-S8)** — canlı sayı yarın yeniden
+üretilemez, hakem sınayamaz (§9, §4.5). Ölçüm dondurulmuş yedekte koşar ve
+hangisinin okunduğu tutanağa yazılır. Ekran kaybı da ilan eder (F2-S4).
 F1n (npm yayını) **UYKUDA KOŞMAZ** (§13): operatör kararı, `UYANDIGINDA.md`'de.
 Sonraki şef bu dosyayı ve `ENVANTER.md`'yi okur; `KOSU-RABADON-5.md` §6'nın sayılarına
 DEĞİL, ölçümlere güvenir. F1a'nın ölçümleri ENVANTER'in F0 sayılarını GÜNCELLER.
