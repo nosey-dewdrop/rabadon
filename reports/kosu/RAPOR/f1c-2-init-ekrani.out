@@ -1,0 +1,112 @@
+# verbatim: the `rabadon init` screen and the cursor round trip
+#
+# captured 2026-08-26 04:02 UTC from /Users/damummyphus/damla_projects_2026/rabadon (branch main, commit 0ba61db)
+# fake HOME:        /tmp/rabadon-f1c2-screen.spey3V/home
+# fake RABADON_DIR: /tmp/rabadon-f1c2-screen.spey3V/home/.rabadon
+# project:          /tmp/rabadon-f1c2-screen.spey3V/proj  (empty, made by mktemp -d)
+# the real $HOME, ~/.claude, ~/.cursor and ~/.rabadon are NOT touched by this capture.
+#
+# command:
+#   cd /tmp/rabadon-f1c2-screen.spey3V/proj \
+#     && HOME=/tmp/rabadon-f1c2-screen.spey3V/home RABADON_DIR=/tmp/rabadon-f1c2-screen.spey3V/home/.rabadon RABADON_NOTIFY=0 \
+#        node /Users/damummyphus/damla_projects_2026/rabadon/hooks/manage.mjs init --no-llm
+#
+# --no-llm is the offline path: it writes the baseline guard instead of calling
+# a model. The closing block below is printed after that branch rejoins, so it is
+# byte-identical on the authored path.
+
+===== stdout+stderr, uncut =====
+rabadon init: wrote a baseline guard (/private/tmp/rabadon-f1c2-screen.spey3V/proj/.rabadon/guard.json).
+
+rabadon init — done.
+
+  wired in:
+    /private/tmp/rabadon-f1c2-screen.spey3V/proj/.rabadon/guard.json   — the law, REVIEW it (deny rules + protected paths)
+    /private/tmp/rabadon-f1c2-screen.spey3V/proj/.claude/settings.json   — gate hooks merged
+    /tmp/rabadon-f1c2-screen.spey3V/home/.rabadon/config.json   — repair.mode = "ask"  (ask | auto-propose | off)
+    /private/tmp/rabadon-f1c2-screen.spey3V/proj/.cursor/hooks.json   — the same gate, for Cursor
+
+  see it work in 30 seconds:
+    rabadon drill        one tagged test event through the real gate
+    rabadon usage        the ledger — drills excluded by design
+
+  from here:
+    claude               work normally in /private/tmp/rabadon-f1c2-screen.spey3V/proj — the session is supervised
+    rabadon on|off       enforce, or pause to watch-only
+    rabadon remove       take it all back out (add --global here if you used it)
+
+  disable exactly one rule with  "disabled": ["<rule-id>"]  in .rabadon/guard.json.
+
+  the repair arm (the one place rabadon may call a model), set once, in config.json:
+    "ask"           default. one line when the same error survives a third different
+                    move after two hints; it runs on `rabadon repair --approve`.
+    "auto-propose"  for unattended runs. runs without asking and NEVER touches your
+                    tree — the patch waits at .rabadon/repair-<ts>.patch until you
+                    type `rabadon repair --apply`.
+    "off"           the arm is not there. the signals still reach the ledger.
+
+  right now: WATCH — every action is recorded and nothing is refused.
+             watch is the default: the rules prove themselves on your own
+             work first, and enforcing is your call, not ours.
+  next:      rabadon on       start refusing (rabadon off returns to watch)
+===== exit code: 0 =====
+
+===== .cursor/hooks.json BEFORE remove (written by the init above) =====
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate"
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate"
+      }
+    ],
+    "stop": [
+      {
+        "command": "/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate"
+      }
+    ]
+  }
+}
+
+===== rabadon remove, stdout+stderr, uncut =====
+rabadon remove: stripped 7 rabadon hook(s) from /private/tmp/rabadon-f1c2-screen.spey3V/proj/.claude/settings.json
+    - SessionStart: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - UserPromptSubmit: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - Stop: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - Stop: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-drift
+    - PreToolUse: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - PostToolUse: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - statusLine: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate --statusline
+  (original backed up: settings.json.bak-rabadon)
+rabadon remove: stripped 5 rabadon hook(s) from /private/tmp/rabadon-f1c2-screen.spey3V/proj/.cursor/hooks.json — the file held nothing else, so it is gone
+    - beforeShellExecution: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - beforeMCPExecution: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - afterFileEdit: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - beforeSubmitPrompt: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    - stop: /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+
+  the ledger at ~/.rabadon/spool is yours and was left in place.
+  fully uninstall the CLI with:  npm rm -g rabadon
+===== exit code: 0 =====
+
+===== .cursor/hooks.json AFTER remove =====
+(the file does not exist: it held nothing but the skeleton rabadon wrote, so remove deleted it)
+
+===== ls -a /tmp/rabadon-f1c2-screen.spey3V/proj/.cursor =====
+ls: /tmp/rabadon-f1c2-screen.spey3V/proj/.cursor: No such file or directory
+(the .cursor directory is gone too — it was empty)
