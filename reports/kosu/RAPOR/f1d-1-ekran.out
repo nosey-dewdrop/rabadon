@@ -1,0 +1,226 @@
+f1d-A — the status surface, verbatim, after the fix.
+Produced by the same probes native/status_truth_test.sh uses: a real mktemp git
+project + a real mktemp RABADON_DIR per case, `rabadon status|on|off` through
+native/rabadon-cli.sh, then ONE real PreToolUse event (`git push --force origin
+main`) through native/rabadon-gate in the same instant, then `--statusline`.
+The statusline is shown through `cat -v`, so ^[ is the real ESC byte.
+
+The claim to read this against:
+  ON     -> gate exit 2, non-empty output
+  WATCH  -> gate exit 0, non-empty output
+  SILENT -> gate exit 0, ZERO bytes
+
+==============================================================
+CASE: MUTER 1 of 3 — RABADON_OFF=1 in the environment   (machine mode=enforce)
+  project = /tmp/f1d-ekran.3gD09j/c1/proj
+  home    = /tmp/f1d-ekran.3gD09j/c1/rd
+==============================================================
+--- $ rabadon status
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: RABADON_OFF=1 (environment variable)
+    next: unset RABADON_OFF
+  read from: /tmp/f1d-ekran.3gD09j/c1/rd/mode (not consulted — a silencer above answers first)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon on
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: RABADON_OFF=1 (environment variable)
+    next: unset RABADON_OFF
+  the mode underneath is now `enforce`, but nothing will be refused while the silencer above is in place.
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon off
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: RABADON_OFF=1 (environment variable)
+    next: unset RABADON_OFF
+  the mode underneath is now `watch`, but nothing is evaluated at all while the silencer above is in place.
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+==============================================================
+CASE: MUTER 2 of 3 — <project>/.rabadon/off   (machine mode=enforce)
+  project = /tmp/f1d-ekran.3gD09j/c2/proj
+  home    = /tmp/f1d-ekran.3gD09j/c2/rd
+==============================================================
+--- $ rabadon status
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: .rabadon/off (/tmp/f1d-ekran.3gD09j/c2/proj/.rabadon/off)
+    next: rm /tmp/f1d-ekran.3gD09j/c2/proj/.rabadon/off
+  read from: /tmp/f1d-ekran.3gD09j/c2/rd/mode (not consulted — a silencer above answers first)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon on
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: .rabadon/off (/tmp/f1d-ekran.3gD09j/c2/proj/.rabadon/off)
+    next: rm /tmp/f1d-ekran.3gD09j/c2/proj/.rabadon/off
+  the mode underneath is now `enforce`, but nothing will be refused while the silencer above is in place.
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon off
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: .rabadon/off (/tmp/f1d-ekran.3gD09j/c2/proj/.rabadon/off)
+    next: rm /tmp/f1d-ekran.3gD09j/c2/proj/.rabadon/off
+  the mode underneath is now `watch`, but nothing is evaluated at all while the silencer above is in place.
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+==============================================================
+CASE: MUTER 3 of 3 — <RABADON_DIR>/silent   (machine mode=enforce)
+  project = /tmp/f1d-ekran.3gD09j/c3/proj
+  home    = /tmp/f1d-ekran.3gD09j/c3/rd
+==============================================================
+--- $ rabadon status
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: silent (/tmp/f1d-ekran.3gD09j/c3/rd/silent)
+    next: rabadon off
+  read from: /tmp/f1d-ekran.3gD09j/c3/rd/mode (not consulted — a silencer above answers first)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon on
+rabadon: ON — the arbiter acts: refuses, repairs, proves
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=2  bytes=399
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon^[[0m
+
+--- $ rabadon off
+rabadon: WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=296
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon watch^[[0m
+
+==============================================================
+CASE: ALL THREE MUTERS AT ONCE   (machine mode=enforce)
+  project = /tmp/f1d-ekran.3gD09j/c4/proj
+  home    = /tmp/f1d-ekran.3gD09j/c4/rd
+==============================================================
+--- $ rabadon status
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: RABADON_OFF=1 (environment variable)
+    next: unset RABADON_OFF
+  silenced by: .rabadon/off (/tmp/f1d-ekran.3gD09j/c4/proj/.rabadon/off)
+    next: rm /tmp/f1d-ekran.3gD09j/c4/proj/.rabadon/off
+  silenced by: silent (/tmp/f1d-ekran.3gD09j/c4/rd/silent)
+    next: rabadon off
+  read from: /tmp/f1d-ekran.3gD09j/c4/rd/mode (not consulted — a silencer above answers first)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon on
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: RABADON_OFF=1 (environment variable)
+    next: unset RABADON_OFF
+  silenced by: .rabadon/off (/tmp/f1d-ekran.3gD09j/c4/proj/.rabadon/off)
+    next: rm /tmp/f1d-ekran.3gD09j/c4/proj/.rabadon/off
+  the mode underneath is now `enforce`, but nothing will be refused while the silencer above is in place.
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+--- $ rabadon off
+rabadon: SILENT — silenced; the gate returns 0 before any rule runs
+  silenced by: RABADON_OFF=1 (environment variable)
+    next: unset RABADON_OFF
+  silenced by: .rabadon/off (/tmp/f1d-ekran.3gD09j/c4/proj/.rabadon/off)
+    next: rm /tmp/f1d-ekran.3gD09j/c4/proj/.rabadon/off
+  the mode underneath is now `watch`, but nothing is evaluated at all while the silencer above is in place.
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=0
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;245m* rabadon off^[[0m
+
+==============================================================
+CASE: NO MUTER — machine mode=enforce   (machine mode=enforce)
+  project = /tmp/f1d-ekran.3gD09j/c5/proj
+  home    = /tmp/f1d-ekran.3gD09j/c5/rd
+==============================================================
+--- $ rabadon status
+rabadon: ON — the arbiter acts: refuses, repairs, proves
+  read from: /tmp/f1d-ekran.3gD09j/c5/rd/mode (present)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=2  bytes=399
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon^[[0m
+
+--- $ rabadon on
+rabadon: ON — the arbiter acts: refuses, repairs, proves
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=2  bytes=399
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon^[[0m
+
+--- $ rabadon off
+rabadon: WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=296
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon watch^[[0m
+
+==============================================================
+CASE: NO MUTER — machine mode=watch   (machine mode=watch)
+  project = /tmp/f1d-ekran.3gD09j/c6/proj
+  home    = /tmp/f1d-ekran.3gD09j/c6/rd
+==============================================================
+--- $ rabadon status
+rabadon: WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)
+  read from: /tmp/f1d-ekran.3gD09j/c6/rd/mode (present)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=296
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon watch^[[0m
+
+--- $ rabadon on
+rabadon: ON — the arbiter acts: refuses, repairs, proves
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=2  bytes=399
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;104m* rabadon^[[0m
+
+--- $ rabadon off
+rabadon: WATCH — recording what it WOULD have caught, touching nothing (`rabadon on` to act)
+    (exit 0)
+--- the REAL gate, same instant, same inputs:
+    gate exit=0  bytes=296
+--- $ rabadon-gate --statusline
+^[[38;5;245mOpus · proj^[[0m  ^[[38;5;97m* rabadon watch^[[0m
+
