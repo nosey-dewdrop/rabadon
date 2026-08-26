@@ -1,0 +1,27 @@
+# rabadon reference environment measurement
+date-utc:     2026-08-26T07:35:57Z
+repo:         /Users/damummyphus/damla_projects_2026/rabadon
+HEAD:         6385da17b4aa3875c845df4e62ff9b5614821148
+host-dirty:   0 file(s) uncommitted in the source tree at measure time
+              (the container measured the COMMITTED tree; a clone, not the working copy)
+image:        docker.io/library/node:22-bookworm
+image-digest: node@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+image-id:     sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+image-arch:   arm64
+docker:       29.2.0
+docker exit:  0
+command:
+  docker run --rm --network none -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.2Zk6eJ/tree:/w -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.2Zk6eJ/results:/out -w /w -e SUITE_TIMEOUT=1200 -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.2Zk6eJ/inside.sh:/inside.sh:ro docker.io/library/node:22-bookworm bash /inside.sh
+
+# container environment
+uname:        Linux cce6a459cdb8 6.12.67-linuxkit #1 SMP Sun Jan 25 02:26:28 UTC 2026 aarch64 GNU/Linux
+arch:         aarch64
+os-release:   Debian GNU/Linux 12 (bookworm)
+c++:          /usr/bin/c++
+c++ version:  c++ (Debian 12.2.0-14+deb12u1) 12.2.0
+git:          git version 2.39.5
+node:         v22.23.2
+python3:      Python 3.11.2
+bwrap:        ABSENT
+unshare:      /usr/bin/unshare
+network:      no DNS (as intended with --network none)

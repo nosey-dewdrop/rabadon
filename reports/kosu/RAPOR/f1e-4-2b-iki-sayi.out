@@ -1,0 +1,7 @@
+sanity: the event under test really is refused -> gate exit 2 (must be 2)
+N                                     = 300
+REAL native/rabadon-gate, end to end  = 3381.3 us   (p10 3147.7 / p90 3919.0)
+empty baseline /usr/bin/true, same    = 1386.8 us   (p10 1335.3 / p90 1475.1)
+cost ATTRIBUTABLE to rabadon          = 1994.5 us
+ceiling (R7 2b)                       = 1000.0 us
+attributable / ceiling                = 1.99x
