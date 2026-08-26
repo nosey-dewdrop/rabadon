@@ -1,0 +1,64 @@
+### make all
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-net native/net.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-truth native/truth.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -pthread -o native/rabadon-serve native/serve.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-gate native/gate.cpp
+native/gate.cpp: In function 'std::string run_claude(const std::string&, int, const std::string&, size_t)':
+native/gate.cpp:561:7: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  561 |       if (w <= 0) break; off += (size_t)w;
+      |       ^~
+native/gate.cpp:561:26: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  561 |       if (w <= 0) break; off += (size_t)w;
+      |                          ^~~
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-gated native/gated.cpp
+In file included from native/gated.cpp:30:
+native/gate.cpp: In function 'std::string run_claude(const std::string&, int, const std::string&, size_t)':
+native/gate.cpp:561:7: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  561 |       if (w <= 0) break; off += (size_t)w;
+      |       ^~
+native/gate.cpp:561:26: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  561 |       if (w <= 0) break; off += (size_t)w;
+      |                          ^~~
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-drift native/drift.cpp
+native/drift.cpp:240:23: warning: 'std::vector<std::__cxx11::basic_string<char> > generated_patterns(const std::string&, const Promise&)' defined but not used [-Wunused-function]
+  240 | static vector<string> generated_patterns(const string& dir, const Promise& pr) {
+      |                       ^~~~~~~~~~~~~~~~~~
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-verify native/verify.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-pipeline native/pipeline.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-do native/do.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-stats native/stats.cpp
+In file included from native/stats.cpp:47:
+native/counter.h:70:20: warning: 'rbcount::R_NO_CHAINS' defined but not used [-Wunused-variable]
+   70 | static const char* R_NO_CHAINS     = "no-chains";
+      |                    ^~~~~~~~~~~
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-budget native/budget.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-lens native/lens.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-trace native/trace.cpp
+native/trace.cpp: In function 'std::string failing_test(const std::string&)':
+native/trace.cpp:286:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  286 |     if(t.size()>58) t=t.substr(0,58)+"…"; return t; }
+      |     ^~
+native/trace.cpp:286:43: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  286 |     if(t.size()>58) t=t.substr(0,58)+"…"; return t; }
+      |                                           ^~~~~~
+native/trace.cpp: In function 'void render_run(const Run&, const Pal&, std::string&)':
+native/trace.cpp:670:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  670 |     if(n.repaired)repaired++; if(n.rejected)rejected++;
+      |     ^~
+native/trace.cpp:670:31: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  670 |     if(n.repaired)repaired++; if(n.rejected)rejected++;
+      |                               ^~
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-audit native/audit.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-claims native/claims.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-repair native/repair.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-sandbox native/sandbox.cpp
+native/sandbox.cpp:144:15: warning: 'std::string seatbelt_profile(const std::string&, const std::vector<std::__cxx11::basic_string<char> >&, bool)' defined but not used [-Wunused-function]
+  144 | static string seatbelt_profile(const string& dir, const vector<string>& prefixes, bool denyNet) {
+      |               ^~~~~~~~~~~~~~~~
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-run native/run.cpp
+g++ -std=c++17 -O2 -Wall -Wextra -o native/rabadon-export native/export.cpp
+native/export.cpp:91:1: warning: multi-line comment [-Wcomment]
+   91 | //   POST it:  rabadon export --otlp | curl -s localhost:4318/v1/traces \
+      | ^
+g++ -std=c++17 -O2 -Wall -Wextra -o native/gate_bench native/gate_bench.cpp
+### make all exit: 0

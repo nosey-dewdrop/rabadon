@@ -1,0 +1,9 @@
+refenv: image   node:22-bookworm
+refenv: digest  node@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+refenv: id      sha256:87a4f951f28b85d189df365d24c479d3bdb70be77c1ff5c9029db2ef67e251ac
+refenv: arch    amd64
+refenv: LABEL   node:22-bookworm · linux/amd64 · image-default(root) · --network none
+refenv: HEAD    c8a2ad61fd71ab1250fa724d563fef054fca7fea
+refenv: running (this takes a while; --network none)
+refenv: docker run --rm --name rabadon-refenv-42347 --network none --platform linux/amd64  -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.agCGXq/tree:/w -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.agCGXq/results:/out -w /w -e SUITE_TIMEOUT=1200 -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.agCGXq/inside.sh:/inside.sh:ro node:22-bookworm bash /inside.sh
+RUN1 SCRIPT EXIT: 0
