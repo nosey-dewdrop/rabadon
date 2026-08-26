@@ -281,6 +281,70 @@ export function installCursorHooks(dir, { gateCmd = GATE_BIN } = {}) {
 }
 
 /**
+ * The exact inverse of installCursorHooks: take rabadon out of
+ * <dir>/.cursor/hooks.json and leave everything else exactly as it was.
+ *
+ * `rabadon remove` stripped .claude/settings.json only, so after the command the
+ * install screen advertises as "take it all back out", Cursor kept calling
+ * rabadon-gate on all five events. A Cursor user's only documented exit did not
+ * exit — which is worse than having no Cursor support at all, because the
+ * removal REPORTED success.
+ *
+ * Ownership is read the same way installCursorHooks writes it (the command names
+ * rabadon-gate), never by position, so an entry the operator wrote by hand is
+ * not ours and is never touched. Two things it deliberately does NOT do: it does
+ * not restore the .bak-rabadon (the operator may have edited the file since), and
+ * it does not delete a hooks.json that still holds somebody else's hooks. It DOES
+ * delete a file that has nothing left in it but the skeleton rabadon invented,
+ * because leaving that behind means uninstalling rabadon leaves a rabadon
+ * artifact in the repo.
+ *
+ * An unreadable or unwritable .cursor never fails a removal: installCursorHooks
+ * is equally forgiving on the way in, and a hooks.json that cannot be parsed is
+ * one rabadon must not rewrite.
+ * @returns {{ hooksPath: string, changed: boolean, removed: string[], deleted: boolean }}
+ */
+export function removeCursorHooks(dir) {
+  const hooksPath = path.join(dir, '.cursor', 'hooks.json');
+  const nothing = { hooksPath, changed: false, removed: [], deleted: false };
+  let cfg;
+  try { cfg = JSON.parse(fs.readFileSync(hooksPath, 'utf8')); }
+  catch { return nothing; }               // absent, or not JSON — not ours to rewrite
+  if (!cfg || typeof cfg !== 'object') return nothing;
+
+  const mine = (c) => typeof c === 'string' && /rabadon-gate/.test(c);
+  const removed = [];
+  const hooks = (cfg.hooks && typeof cfg.hooks === 'object') ? cfg.hooks : {};
+  for (const ev of Object.keys(hooks)) {
+    if (!Array.isArray(hooks[ev])) continue;
+    const kept = hooks[ev].filter((h) => {
+      const ours = h && mine(h.command);
+      if (ours) removed.push(`${ev}: ${h.command}`);
+      return !ours;
+    });
+    if (kept.length === hooks[ev].length) continue;
+    if (kept.length === 0) delete hooks[ev];
+    else hooks[ev] = kept;
+  }
+  if (removed.length === 0) return nothing;
+
+  // nothing of anybody else's left AND no keys beyond the skeleton this file
+  // writes -> the file is rabadon's own litter, so it goes with rabadon.
+  const skeletonOnly = Object.keys(hooks).length === 0
+    && Object.keys(cfg).every((k) => k === 'version' || k === 'hooks');
+  try {
+    if (skeletonOnly) {
+      fs.rmSync(hooksPath, { force: true });
+      try { fs.rmdirSync(path.dirname(hooksPath)); } catch { /* not empty: someone else's */ }
+      return { hooksPath, changed: true, removed, deleted: true };
+    }
+    cfg.hooks = hooks;
+    fs.writeFileSync(hooksPath, JSON.stringify(cfg, null, 2) + '\n');
+  } catch { return nothing; }             // read-only tree: report nothing removed
+  return { hooksPath, changed: true, removed, deleted: false };
+}
+
+/**
  * Strip every rabadon-owned hook and statusLine from <dir>/.claude/settings.json.
  * Pass os.homedir() as dir to target the user-global settings.
  * @returns {{ settingsPath: string, changed: boolean, removed: string[] }}
@@ -299,4 +363,4 @@ export function removeHooks(dir) {
   return { settingsPath, changed: true, removed };
 }
 
-export default { installHooks, removeHooks, GATE_BIN, DRIFT_BIN, NATIVE_DIR, GATE_PATH, BIN_PATH, RABADON_CMD_RE };
+export default { installHooks, installCursorHooks, removeHooks, removeCursorHooks, GATE_BIN, DRIFT_BIN, NATIVE_DIR, GATE_PATH, BIN_PATH, RABADON_CMD_RE };

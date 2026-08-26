@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installHooks, installCursorHooks, removeHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, NATIVE_DIRS, RABADON_CMD_RE } from './install.mjs';
+import { installHooks, installCursorHooks, removeHooks, removeCursorHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, NATIVE_DIRS, RABADON_CMD_RE } from './install.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, '..');
@@ -187,6 +187,22 @@ async function cmdInit(args) {
   console.log('                    tree — the patch waits at .rabadon/repair-<ts>.patch until you');
   console.log('                    type `rabadon repair --apply`.');
   console.log('    "off"           the arm is not there. the signals still reach the ledger.');
+  // THE LAST THING ON THE SCREEN, and the three questions every rabadon message
+  // answers: what state you are in, why it is that state, and the ONE command
+  // that comes next. Everything above named the two commands that CHANGE the
+  // mode and never said which mode this install is standing in — so somebody who
+  // follows the README to the letter ends up with a guard that refuses nothing
+  // and a screen that says "done". A guard whose own installer prints a green it
+  // has not earned is the failure this product exists to refuse.
+  //
+  // `rabadon on` is not run here on purpose: the default stays watch, and the
+  // operator turns enforcement on themselves, once they have seen what it would
+  // have refused.
+  console.log('');
+  console.log('  right now: WATCH — every action is recorded and nothing is refused.');
+  console.log('             watch is the default: the rules prove themselves on your own');
+  console.log('             work first, and enforcing is your call, not ours.');
+  console.log('  next:      rabadon on       start refusing (rabadon off returns to watch)');
   process.exit(0);
 }
 
@@ -208,6 +224,18 @@ function cmdRemove(args) {
     console.log(`  (original backed up: ${path.basename(r.settingsPath)}.bak-rabadon)`);
   } else {
     console.log(`rabadon remove: no rabadon hooks found in ${r.settingsPath} — nothing to strip.`);
+  }
+
+  // the OTHER file init wrote. Stripping .claude only meant a Cursor user ran
+  // the command the install screen calls "take it all back out" and stayed
+  // wired on all five events — with a success message on their screen. Same
+  // shape of line as the .claude half: which file, and what came out of it.
+  const cr = removeCursorHooks(dir);
+  if (cr.changed) {
+    console.log(`rabadon remove: stripped ${cr.removed.length} rabadon hook(s) from ${cr.hooksPath}${cr.deleted ? ' — the file held nothing else, so it is gone' : ''}`);
+    for (const x of cr.removed) console.log(`    - ${x}`);
+  } else if (fs.existsSync(cr.hooksPath)) {
+    console.log(`rabadon remove: no rabadon hooks found in ${cr.hooksPath} — nothing to strip.`);
   }
 
   if (purge) {
