@@ -530,6 +530,12 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 **ETİKET DÜZELTMESİ, F1b AÇILMADAN ÖNCE:** `F2-oncesi` etiketi `c7b229c`'yi gösteriyor ama o commit fazın **İÇİNDE** (kart-2 kanıt commit'i); gerçek faz tabanı **`f03320f`**'tür. `git diff F2-oncesi..HEAD` fazın 83 dosyasından yalnız 16'sını gösteriyor — **hakeme incelemesi verilen `9cba3cd` dahil 67 dosya etiketin dışında kalıyordu**. Bu denetim `f03320f..HEAD` üstünde yapıldı. Etiket taşınmalı, ve `F1b-oncesi` `main`'in bugünkü ucuna (`0f7904b`) konmalı.
 
+**ETİKET DÜZELTİLDİ (2026-08-27, şef):** `F2-oncesi` c7b229c → **f03320f** (hakemin ölçtüğü gerçek faz tabanı); `F2-yesil` = 1d89331; `F1b-oncesi` = 1d89331.
+
+**HAZIR, tek komut bekliyor (§3.4 geri dönüşsüz dış adım):** `git push --tags` rabadon'un kendi `no-release-tag-push` kuralıyla reddedildi — `.github/workflows/release.yml` tag push'u yayın sayıyor. Etiketler YEREL. Koşu beklemedi.
+
+**SIRADAKİ FAZ: F1b** — açıldı (şef, 2026-08-27).
+
 **KUM HAVUZU KURALI, ÖLÇÜLDÜ:** hakem kum havuzu **`/tmp`'de AÇILMAZ**. `/tmp/hakem-f2`'de koşan `make test` **EXIT=2** verdi (`fd_dup_test.sh` 7/4) — regresyon değil, `fd_dup_test.sh:36-42`'nin kendi başlığının uyardığı artefakt: `/tmp` bir makine temp köküdür ve kapsam yasası orayı muaf tutar, yani süit kuralı değil muafiyeti ölçer. Temp kökü dışında aynı HEAD **EXIT=0**. Sonraki hakem kum havuzunu temp kökü dışına açar.
 
 **F1 üçe bölündü** (`SAPMA-KARARLARI.md`): **F1a bitti**, **F1c bitti**,
