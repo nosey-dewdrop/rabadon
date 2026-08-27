@@ -241,6 +241,30 @@ chk "$(grep -qE '`[^`]+`' "$TMP/none.out" && echo y || echo n)" \
   "Promise 1: the empty-corpus screen still names the next command" \
   "BLOCKED: the empty-corpus screen leaves the user with nothing to run. NEXT: RABADON_DIR=$EMPTY $STATS --signals"
 
+# ---- the shipped surface is a DOCUMENTED surface --------------------------
+# CLAUDE.md: "a commit that changes what rabadon does updates README/docs in the
+# same commit. Stale docs are lies with good formatting." `--signals` shipped in
+# 28340e2 with a CLI hint line and nothing in docs/. These three assertions hold
+# docs/commands.md to what the binary above was just measured printing: the flag
+# itself, the word its loss block is printed under, and the rendering a
+# zero-sample detector gets. All three strings are asserted on the SCREEN
+# earlier in this file, so the page is tied to the binary, not to a copy of the
+# page.
+DOC="$ROOT/docs/commands.md"
+UHEAD="$(grep -n '^## `rabadon usage' "$DOC" 2>/dev/null | head -1)"
+
+chk "$([ -f "$DOC" ] && printf '%s' "$UHEAD" | grep -q -- '--signals' && echo y || echo n)" \
+  "docs: the \`rabadon usage\` heading in docs/commands.md lists --signals" \
+  "BLOCKED: docs/commands.md's usage heading does not carry --signals [$UHEAD]. WHY: a flag only the CLI hint mentions cannot be found by a reader of the reference page, and that page then describes a binary that no longer ships. NEXT: grep -n '^## .rabadon usage' $DOC"
+
+chk "$(grep -q -- '--signals' "$DOC" && grep -qi 'LOSS' "$DOC" && echo y || echo n)" \
+  "docs: the page names the LOSS the screen prints" \
+  "BLOCKED: docs/commands.md names --signals without naming the loss. WHY: the ring keeps the newest 200 moves per session, the screen exists to say so, and a page that omits it sells the survivors as the whole record. NEXT: grep -ni loss $DOC"
+
+chk "$(grep -q 'NOT MEASURED' "$DOC" && echo y || echo n)" \
+  "docs: the page names NOT MEASURED as what a zero-sample detector renders as" \
+  "BLOCKED: docs/commands.md never says NOT MEASURED. WHY: the screen prints it for four of the five detectors on the frozen corpus, and a reader who was never told what it means reads it as a failure. NEXT: grep -n 'NOT MEASURED' $DOC"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
