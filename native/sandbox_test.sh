@@ -118,7 +118,15 @@ rm -rf "$LAWDIR" "$LAWHOME" "$BASEDIR"
 
 if ! "$SB" --check >/dev/null 2>&1; then
   skip "no kernel sandbox backend on this platform — enforcement tests skipped (--check is honest about it)"
-  "$SB" --check 2>&1 | grep -qi "no kernel backend" && pass "--check reports the absence honestly" || fail "--check message"
+  # HARDENED, not loosened (F1b). The shipped line is
+  #   sandbox.cpp:365  "rabadon sandbox: NO usable kernel backend — %s"
+  # and this assertion used to look for "no kernel backend", case-insensitively.
+  # a74e7d8 (2026-07-31) changed the product string and left the test behind, so
+  # this arm has been red for 27 days on every machine WITHOUT a kernel backend
+  # (the clean container; macOS never reaches it, Seatbelt is always present).
+  # The expectation now names the string the product actually ships, verbatim
+  # and case-sensitively: strictly FEWER strings satisfy it than before.
+  "$SB" --check 2>&1 | grep -q "rabadon sandbox: NO usable kernel backend" && pass "--check reports the absence honestly" || fail "--check message"
   echo "sandbox: $ok passed, $bad failed"; exit "$bad"
 fi
 pass "a kernel sandbox backend is available (--check exit 0)"
