@@ -160,7 +160,7 @@ rabadon lens ~/.claude/projects/-Users-me-src-api
 
 ---
 
-## `rabadon usage [--days N] [--project P] [--full] [--json]`   [stable]
+## `rabadon usage [--days N] [--project P] [--full] [--json] [--signals]`   [stable]
 
 Alias: `rabadon stats`. The ledger. Refusals grouped by rule id with each rule's
 reason, plus headline totals. Drills and self-tests are excluded from every
@@ -183,6 +183,51 @@ rabadon usage --days 30
 rabadon usage --project my-project --full
 rabadon usage --json
 ```
+
+### `--signals` — a different source, not a different rendering
+
+`--signals` reads the per-session move rings under `$RABADON_DIR/sessions`
+instead of the refusal ledger, and replays the five R2 detectors (`repeat`,
+`oscillation`, `root_migration`, `scope_drift`, `green_redefined`) over every
+surviving move. Those detectors are silent: on 2026-08-26 none of them refused
+anything and none of them reached a decision, and the screen says so in its
+second line. It is read-only — measured the same day, the file and mtime set of
+`$RABADON_DIR` hashes the same before and after the run
+(`reports/kosu/RAPOR/f2-2-readonly.out`).
+
+Three things the screen prints that a reader has to be able to place:
+
+- **LOSS.** Each ring keeps the newest 200 moves of its session while the ring
+  header counts every move ever appended. The difference is moves that were
+  recorded and are gone, and the screen prints it as a `LOSS:` block with the
+  count and the ring file behind it. Every number under it is over the moves
+  that survived, not over the moves that happened. On the frozen corpus of
+  2026-08-26 that was 527 moves on disk against a header count of 654 — 127
+  gone, all of them from one long session's overflowed ring.
+- **`NOT MEASURED (n=0)`.** A detector with no samples renders as this plus the
+  corpus fact behind its zero (how long the longest identical run was, how many
+  times the most-edited file was edited, and so on). Zero samples is not a
+  result and is not rendered as one; four of the five detectors read that way on
+  the frozen corpus.
+- **`n` with the session file behind it.** A detector that did fire prints a raw
+  count and the count of those samples a human has labelled. With no labels
+  there is no rate, and the screen prints no rate: raw counts only.
+
+Nothing on this screen is a counterfactual. It reports what rabadon wrote, not
+what would have happened without it.
+
+Exit: `0` when the screen rendered, including an empty corpus, which prints that
+it could not measure rather than printing zeros. `2` when `--signals` is combined
+with a renderer flag such as `--json`, which is refused rather than silently
+ignored — there is no JSON form of this screen.
+
+```
+rabadon usage --signals
+```
+
+Locked by `native/signals_screen_test.sh` (38 assertions), which drives the
+binary against a synthetic ring that overflows on purpose, so a screen that
+hides a loss falls red.
 
 ---
 

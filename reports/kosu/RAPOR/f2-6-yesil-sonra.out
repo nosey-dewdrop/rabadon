@@ -1,0 +1,80 @@
+ok 1 - the synthetic ring is exactly HDR_BYTES + CAP*REC_BYTES = 68096 bytes
+--- screen (exit 0) ---
+rabadon usage --signals — what rabadon RECORDED in your own sessions
+local, nothing leaves this machine · these signals are silent: none of them
+refused anything, and none of them reached a decision
+
+corpus: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbsigscr.Pt3NBx/rb/sessions
+  2 session file(s) · 203 move(s) on disk · 2026-08-24 05:36 → 2026-08-24 05:46
+  LOSS: 50 recorded move(s) are gone — the ring keeps the newest 200 per
+        session, the header counted 253. Every number below is over the 203
+        that survived, not over the 253 that happened.
+        -50  sessions/lossy-session.moves.bin  (250 counted, 200 kept)
+
+detectors replayed over every surviving move, in order:
+  repeat            NOT MEASURED (n=0)
+            reason: no move signature repeats 3+ times with 2+ of them returning an error. The
+            longest run of one identical move in this corpus is 20 (0 of them carried an error). It
+            stays out of every live decision until it has samples.
+  oscillation       NOT MEASURED (n=0)
+            reason: no single file was rewritten back and forth. It needs 6 alternating edits to ONE
+            path; the most-edited file in this corpus has 2 edit(s). It stays out of every live
+            decision until it has samples.
+  root_migration    NOT MEASURED (n=0)
+            reason: no one error signature survived 3 different moves. The widest an error spread
+            here is 0 distinct move(s). It stays out of every live decision until it has samples.
+  scope_drift       NOT MEASURED (n=0)
+            reason: no session edited 5 directories. The widest session here touched 1. It stays out
+            of every live decision until it has samples.
+  green_redefined   n=3  ·  0 of 3 labelled by a human — raw counts only
+            test or harness edited while the suite was red
+            sessions/green-session.moves.bin  seq 2, 3, 3
+
+summary: 1 of 5 detectors wrote anything at all here; 4 are NOT MEASURED and are named above with
+the corpus fact behind each zero. 203 move(s) is a short corpus and 50 more were lost before this
+screen could read them, and none of the samples carry a human label — so nothing here is a rate,
+and nothing here is evidence that a detector is right.
+
+the corpus grows as you work, and these zeros are the first thing that should move.
+next: run `rabadon usage --signals` again after your next session
+--- end screen ---
+ok 2 - `usage --signals` exits 0 on a corpus it can read
+ok 3 - S4: the screen names the LOSS out loud
+ok 4 - S4: the loss is the real number (50 = 250 counted - 200 kept)
+ok 5 - S4/§7: the ring that lost moves is named by file
+ok 6 - S4: the number of moves actually on disk is printed (200 + 3 = 203)
+ok 7 - S4: the session count is printed (2 ring files)
+ok 8 - S4: the corpus date range is printed
+ok 9 - S1: a signal with n=0 prints NOT MEASURED
+ok 10 - S1: `repeat` is NOT MEASURED and the screen says why
+ok 11 - S1: `oscillation` is NOT MEASURED and the screen says why
+ok 12 - S1: the screen does not translate zero findings into an all-clear
+ok 13 - S2: each signal carries an explicit n=
+ok 14 - S2: the screen says how many samples carry a human label
+ok 15 - S2: no percentage is printed on a corpus this small with zero labels
+ok 16 - the corpus's real firing (green_redefined) is reported with n>=1
+ok 17 - §7: the firing is printed next to the session file that produced it
+ok 18 - §4.6/S7/S9: the screen never says "would have"
+ok 19 - §4.6/S7/S9: the screen never says "would-have"
+ok 20 - §4.6/S7/S9: the screen never says "saved"
+ok 21 - §4.6/S7/S9: the screen never says "prevented"
+ok 22 - §4.6/S7/S9: the screen never says "averted"
+ok 23 - §4.6/S7/S9: the screen never says "rescued"
+ok 24 - §4.6/S7/S9: the screen never says "avoided"
+ok 25 - §4.6/S7/S9: the screen never says "sub-ms"
+ok 26 - §4.6/S7/S9: the screen never says "we caught"
+ok 27 - §7: the closing line looks at the next session, not the past
+ok 28 - §7: the closing line names exactly ONE command
+ok 29 - S6: the summary sentence itself carries the NOT MEASURED count
+ok 30 - S6: the summary states that the corpus is too short to generalise from
+ok 31 - UX: the whole thing is 37 lines — one screen
+ok 32 - S9: plain `usage` is a separate branch — no signal block leaks into it
+ok 33 - --signals combined with a renderer flag is refused, not silently ignored
+ok 34 - Promise 1: with no ring on disk the screen says it cannot measure
+ok 35 - Promise 1: the empty-corpus screen still names the next command
+ok 36 - docs: the `rabadon usage` heading in docs/commands.md lists --signals
+ok 37 - docs: the page names the LOSS the screen prints
+ok 38 - docs: the page names NOT MEASURED as what a zero-sample detector renders as
+
+38 passed, 0 failed
+EXIT=0
