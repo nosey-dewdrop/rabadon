@@ -1,0 +1,16 @@
+refenv: image   docker.io/library/node:22-bookworm
+refenv: digest  node@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+refenv: id      sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d
+refenv: arch    arm64
+refenv: LABEL   docker.io/library/node:22-bookworm · host-default(arm64) · image-default(root) · --network none
+refenv: HEAD    6a6b03a3f75d236a8d71b6ba5d717dd84eb6e01c
+refenv: running (this takes a while; --network none)
+refenv: docker run --rm --name rabadon-refenv-9171 --network none   -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.HXzUjX/tree:/w -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.HXzUjX/results:/out -w /w -e SUITE_TIMEOUT=1200 -v /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-refenv.HXzUjX/inside.sh:/inside.sh:ro docker.io/library/node:22-bookworm bash /inside.sh
+refenv: wrote /Users/damummyphus/damla_projects_2026/rabadon/reports/refenv/f2-6-arm64-root-env.out
+refenv: wrote /Users/damummyphus/damla_projects_2026/rabadon/reports/refenv/f2-6-arm64-root-build.out
+refenv: wrote /Users/damummyphus/damla_projects_2026/rabadon/reports/refenv/f2-6-arm64-root-suites.tsv
+refenv: wrote /Users/damummyphus/damla_projects_2026/rabadon/reports/refenv/f2-6-arm64-root-suites.out
+refenv: LABEL   docker.io/library/node:22-bookworm · host-default(arm64) · image-default(root) · --network none
+refenv: RED              3
+refenv: GREEN            103
+REFENV_EXIT=0

@@ -1,0 +1,3 @@
+docs_truth_test.sh EXIT=0 :: docs truth: 42 ok / 0 fail
+install_docs_test.sh EXIT=0 :: 38 ok / 0 fail
+version_test.sh EXIT=0 :: version: 13 passed, 0 failed

@@ -245,6 +245,126 @@ Tam tutanak: `reports/kosu/RAPOR/f1e-tutanak.md`. Faz aralığı `05ab1ac..HEAD`
   çıkardı ve `site_claims_test.sh` README'nin "~20k" cümlesini kırmızıya düşürdü;
   işçi sayıyı ölçüp `~23k` yazdı. Kart `README.md`'yi saymıyordu — ilan edildi.
 
+## F2'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER (BUNLAR EN GÜNCEL SATIRLARDIR)
+Tam tutanak: `reports/kosu/RAPOR/F2.md`. Faz aralığı `f03320f..HEAD`.
+Kart raporları: `RAPOR/f2-0-kart.md` … `f2-5-kart.md`.
+
+- **§5'in ADIM 3'ü GERÇEK OLDU (ilk ekran, kendi verisinden).**
+  `rabadon usage --signals` — yeni ürün verb'ü değil, `usage`'ın bayrağı.
+  **Kullanıcı 2 komutta varıyor** (`rabadon --help` → `--signals` geçen 1
+  satır, sonra tek komut), 0 ayar / 0 dosya / `real 0,02 sn`, tek ekran
+  37 satır, ekran görüntüsü alınabilir. Salt okunur: `RABADON_DIR`'ın
+  dosya+mtime hash'i ekrandan önce ve sonra AYNI. Verbatim ekran:
+  `RAPOR/f2-2-ekran-snapshot.out`, adım ölçümü `f2-2-adim.out`.
+  `cli_test.sh` beş-verb tavanı yeşil (315/0), `PRODUCT` listesi değişmedi.
+- **KABUL SAYISI DONDURULMUŞ YEDEKTEN OKUNDU (S8), canlı ring'den DEĞİL:**
+  `~/.rabadon-korpus-snapshot-20260826/` → **34 oturum / 527 hamle diskte /
+  başlık 654 / KAYIP 127**, kaybı üreten ring ekranda ADIYLA. Canlı korpus
+  yalnız bilgi olarak ayrı basıldı (`f2-2-ekran.out`: LOSS **1.417**,
+  başlık 1.944 — canlı ring bu oturumda büyüdü, kayıp %72,9).
+- **ÖLÇÜM BEKLENENDEN KÖTÜ: BEŞ DEDEKTÖRDEN DÖRDÜ HİÇ ATEŞLEMEDİ.**
+  Dondurulmuş korpusta `repeat`, `oscillation`, `root_migration`,
+  `green_redefined` **n=0 = NOT MEASURED**, her biri sıfırın SEBEBİYLE.
+  Ateşleyen tek dedektör `scope_drift` (**n=17**) ve elle etiketlemede
+  **17/17 YANLIŞ POZİTİF** (`f2-3-etiketleme.md`). **HİÇBİR SİNYAL CANLIYA
+  ÇIKMADI.** Zemin (ii) monorepo: ÖLÇÜLMEDİ, korpusta monorepo yok.
+- **S12 (BLOKLAYAN İLK KART) KAPANDI.** Tırnaklanmış bir kelimenin içindeki
+  boru artık boru hattı sayılmıyor: beş şekil (`printf` çift/tek tırnak,
+  `echo … >> dosya`, `python3 -c`, **`git commit -m`**) faz öncesi ikilide
+  BLOCK'tu (`f2-0-bosyesil.out`), şimdi ALLOW. Kural GEVŞEMEDİ: çıplak
+  `make test | grep -c ok ; echo exit=$?` ve mevcut yedi pozitif BLOCK kaldı,
+  **ve `bash -c "<gerçek boru hattı>"` hücresi de BLOCK** — tırnaklı dizge bir
+  kabuğa verildiğinde program sayılıyor. `heredoc_prose_test.sh` 14 → **21**
+  iddia. `.rabadon/guard.json` (regex, eşik, `disabled[]`) HİÇ değişmedi.
+  **S12/d için CHALLENGE gerekmedi.**
+- **S13: YANLIŞ POZİTİF SAYACI ARTIK DEFTERDEN TÜRÜYOR.**
+  `native/refusal_rate.sh <sid-öneki>` (bash + grep/sed/awk; python3/jq/node/ağ
+  YOK). **İki payda tanımı da ayrı basılıyor:** `STOP+BLOCKED` **16**,
+  `WOULD_BLOCK` **24**, toplam **40**. Yayımlanan eski "15" yalnız STOP'tu ve o
+  tanımla bugün 16. **16 retin 16'sı tek tek hükme bağlandı** (`f2-0-hukum.md`):
+  **DOĞRU 6 / YANLIŞ 6 / HÜKÜMSÜZ 4**. Hükümsüz 4'ün sebebi ölçüldü ve ilan
+  edildi: `STOP.detail` komutu **160 baytta kesiyor**. İki yeni `rabadon wrong`
+  gerçekten koşuldu. **Eski "4 olay / 2 sınıf" sayısı SİLİNMEDİ**, "elle
+  sayıldı, defterle uyuşmuyor" etiketiyle durur ve yeni sayılarla KIYASLANMAZ.
+  **İLAN EDİLEN BOŞLUK (S13/e):** `WRONG_REFUSAL` satırında `sess`/`sid`/`call`
+  YOK, `STOP`'ta VAR → pay ile payda yalnız KURAL ADI üzerinden birleşiyor.
+- **S5: İKİLİ HAMLE RING'İNDEN ÇIKAN TEK KAPI ONARILDI.** `native/audit.cpp`
+  her dizge alanını RFC 8259'a göre kaçışlıyor. Ölçüm: **281/608 satır
+  ayrışmıyordu → 527/527 ayrışıyor, 0 bayt kayıp** (`f2-1-once.out`,
+  `f2-1-sonra.out`). 608 → 527 farkı veri kaybı DEĞİL: 608 bozuk yazıcının
+  FİZİKSEL satırıydı, 527 ring başlıklarının taahhüt ettiği kayıt sayısı;
+  527 kaydın hepsi ikiliden `struct` ile açılıp bayt bayt karşılaştırıldı.
+  **`moves_test.sh`'in sessiz `except: continue` yutucusu artık SAYIYOR ve
+  ADLANDIRIYOR** (CLAIM 8; 21 → 22 iddia, kırmızı düşebilirliği ölçüldü).
+- **S14: KİLİDİN KARDİNALİTESİ ARTIK İKİLİDEN GELİYOR.** `gate.cpp` tek
+  `kSilencers` tablosu, her `Muter` oradan kuruluyor, `rabadon-gate --silencers`
+  ilan ediyor; `docs_truth_test.sh` bölüm 2b `SITUATIONS` kümesinin ikilinin
+  ilan ettiği kümeye EŞİT olmasını şart koşuyor. **Boş yeşil:** geçici yedinci
+  susturucu eklendi → **41 ok / 1 fail, EXIT=1**, satır adıyla söylendi; geri
+  alındı → **42 ok / 0 fail** (`f2-4-bosyesil.out`). 40 iddianın hiçbiri
+  silinmedi. `--silencers` `argc == 1` olan sıcak yola HİÇ girmiyor,
+  `kKnownFlags`'te ve `--help`'te LİSTELENMİYOR; yeni ürün verb'ü YOK.
+- **S15 + S10: REFERANS ORTAM ÜÇ EKSENDE ÖLÇÜLDÜ, HAM ÇIKTI COMMIT'LENDİ.**
+  `reports/refenv/` artık git'te izli (S15/d kapandı).
+  | koşum | HEAD | süit | yeşil | kırmızı | timeout / hiç koşmayan |
+  |---|---|---|---|---|---|
+  | `linux/amd64` root (emülasyon) | `c8a2ad6` | 105 | 102 | 3 | 0 / 0 |
+  | `linux/arm64` **non-root** `1000:1000` | `c8a2ad6` | 105 | 102 | 3 | 0 / 0 |
+  | `linux/arm64` root, **fazın NİHAİ HEAD'i** | **`6a6b03a`** | **106** | **103** | **3** | **0 / 0** |
+  Üçü de `--network none`. Etiket yasası: bu sayılar
+  `node:22-bookworm · <platform> · <user> · --network none` hakkındadır,
+  "linux'ta yeşil" ya da "temiz makinede yeşil" DEĞİLDİR.
+  **F2'nin kendi süiti `signals_screen_test.sh` konteynerde 38/0 YEŞİL**
+  (kart 5'in koşumları o süit doğmadan önceydi; boşluğu faz kapanışı kapattı).
+  **F2 YENİ KIRMIZI ÜRETMEDİ** — üç kırmızı devralınan üçün aynısı.
+- **NEGATİF SONUÇ: F1e'NİN BİR AÇIKLAMASI YANLIŞLANDI.** "`publish_redaction_
+  test.sh` kırmızısı root ortam artefaktıdır" iddiası ölçülünce ÇÖKTÜ: non-root
+  koşumda da KIRMIZI, ve daha kötü — uid 1000 = `node` olduğu için tek düzyazı
+  eşleşmesi **13 dosyada 107 eşleşmeye** çıktı. Sızıntı YOK; kusur kontrolün
+  tasarımında (muafiyet listesi tek sabit ad, `runner`). Onarım kapsam dışı.
+- **`docs/commands.md` ARTIK SEVK EDİLEN `--signals` YÜZEYİNİ BELGELİYOR**
+  (kâtip kartı): başlık bayrağı taşıyor, bölüm LOSS bloğunu, `NOT MEASURED`'ın
+  ne demek olduğunu, oran-yok kuralını ve `--signals --json`'ın reddini yazıyor.
+  Düzyazı `<!-- rabadon:claims-begin -->` bloğunun DIŞINDA (blok susturucu
+  tablosudur), o yüzden `docs/claims.tsv` değişmedi; bunun yerine
+  `signals_screen_test.sh`'e üç yeni iddia eklendi ve sayfayı **aynı süitin
+  gerçek ikiliden ölçtüğü ekrana** bağlıyor. Kırmızı düşebilirliği ölçüldü:
+  **35/3 EXIT=1** (`f2-6-kirmizi-once.out`) → **38/0 EXIT=0**
+  (`f2-6-yesil-sonra.out`).
+- **F1e-C KAPI ŞARTI TUTULDU:** kâtip commit'i (`6a6b03a`) fazın SON commit'i
+  değil; `docs_truth` **42/0**, `install_docs` **38/0**, `version` **13/0**
+  fazın NİHAİ ikilisine karşı yeniden koşuldu (`f2-6-f1ec-uclu.out`).
+- **S9: F2 HOT-PATH'E HİÇBİR ŞEY EKLEMEDİ.** `--signals` spool açılmadan önce
+  dönen erken-çıkışlı bir kol; `grep -c 'rabadon-stats' native/gate.cpp` → **0**.
+  Kart 0'ın iki ikiliyi aynı dakikada ölçen bench'i: **228,7 → 231,8 µs (+%1,4)**.
+  Sevk edilen hiçbir yüzeyde `sub-ms`/`sub-millisecond` YOK (ölçüldü); ve
+  `signals_screen_test.sh` o kelimeyi ekranda YASAKLIYOR.
+- **Test:** `make test` exit **0**, native **3786** iddia + **633** kontrol =
+  **4419**, `npm test` **64/0** → **TOPLAM 4483 yeşil / 0 kırmızı**
+  (F1e tabanı 4428, **+55**). Silinen/zayıflatılan/atlanan test YOK;
+  eşik/tolerans/fikstür HİÇ değişmedi. **TEK KABUL-DOSYASI DEĞİŞİKLİĞİ:**
+  `reports/R7/accept.sh` `8a` sabiti 21 → 22 (`9cba3cd`), tam eşitlik KORUNDU,
+  uygulayan işçi değil ayrı bir işçi yaptı, kendi commit'inde — **hakemin
+  onayını bekler**, aşağıya bak.
+- **Yüzey:** yeni ürün verb'ü YOK. `git diff --name-only f03320f..HEAD`
+  çıktısında `bin/` **YOK** (anti-path donuk kaldı, O3).
+
+## F2 · KIRMIZI AD KÜMESİ VE BİR KABUL-DOSYASI KARARI
+**F2 SONRASI: `{ 2b, 6e, 7b }` — BÜYÜMEDİ.** `bash reports/R7/accept.sh` →
+exit 1, **23 yeşil / 3 kırmızı**. `2b` bu koşuda **1164,0 µs** (aynı ajanın faz
+ortası okuması 1305,2 µs). On iki ölçümün serisi: 1299,4 → 1244,2 → 1261,0 →
+1310,8 → 1248,8 → 1229,9 → 1184,7 → 1270,3 → 1293,2 → 1229,0 → 1305,2 →
+**1164,0** µs. **Tavan 1000 µs oynatılmadı ve on ikisi de üstünde.**
+Test süitlerinde kırmızı ad YOK.
+
+**FAZ İÇİNDE GEÇİCİ OLARAK DÖRDE ÇIKTI:** kart 1'in yeni CLAIM 8'i
+`moves_test.sh`'i 21 → 22 iddiaya taşıdı, `reports/R7/accept.sh` `8a` sayıyı TAM
+EŞİTLİKLE pinliyordu, küme `{2b, 6e, 7b, 8a}` oldu. Kart 1 işçisi onarmayı
+**REDDETTİ** (kabul dosyası; CLAUDE.md 2) ve CHALLENGE yazdı. Ayrı bir işçi
+(kart 3) kendi commit'inde `9cba3cd` sabiti 21 → 22 yaptı ve **tam eşitliği
+korudu** (`>=` yapmadı). `8a` bugün yeşil. **BU BİR KABUL-DOSYASI
+DEĞİŞİKLİĞİDİR VE HAKEM ONAYI BEKLER.**
+
 ## §8.5 — `2b` İÇİN İKİ SAYI YAN YANA (NEGATİF SONUÇ, olduğu gibi)
 Ölçüm: `reports/kosu/RAPOR/f1e-4-2b-iki-sayi.out`, N=300, daemon açık, şef koşturdu.
 Betik önce olayın gerçekten reddedildiğini (gate exit **2**) doğruluyor — yoksa

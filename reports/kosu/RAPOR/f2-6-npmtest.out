@@ -1,0 +1,96 @@
+
+> rabadon@0.2.3 test
+> node --test core/rabadon.test.mjs core/wrap.test.mjs core/bus.test.mjs core/store.test.mjs ui/server.test.mjs hooks/install.test.mjs hooks/gate.test.mjs hooks/guard-gen.test.mjs demo/live-repair-evidence.test.mjs
+
+✔ events flow pipeline -> socket -> watcher, in order, parsed (157.469791ms)
+✔ no watcher: pipeline is unharmed and events land in the spool (52.445292ms)
+✔ an unserializable detail cannot kill the pipeline (0.596625ms)
+✔ the verifier itself can fail: a doctored copy is caught (1.383792ms)
+✔ every event the bus spools is chained, and the sidecar commits it (1.109375ms)
+✔ concurrent node writers do not break the chain (49.996583ms)
+✔ a held lock fails open to the sibling, never bare into the chained file (250.444083ms)
+✔ a lock left behind by a killed writer is stolen, not obeyed forever (0.676959ms)
+  ok   silent drop -> CHECK_FAILED
+  ok   the dropped feature is named in the trace
+  ok   no bound -> run refuses to start
+  ok   maxSteps -> RUNAWAY
+  ok   stopped exactly at the bound (2 steps ran, not 3)
+  ok   score below floor -> DRIFT
+  ok   drift caught at the step it happened, run halts
+  ok   clean run -> PASS with correct output
+  ok   broken step -> repaired -> PASS (not just stopped)
+  ok   repair ran exactly once and fixed it
+  ok   the dropped feature is back in the output
+  ok   the repair is recorded in the trace
+  ok   unfixable step -> still stops (does not loop forever)
+  ok   repair tried exactly maxRepairs=3 times then gave up
+  ok   the verdict says repair was attempted and still failed
+  ok   check with no verdict -> fail-closed
+
+16 passed, 0 failed
+✔ core/rabadon.test.mjs (40.546542ms)
+✔ readEvents: reads, sorts, respects the day window, counts bad lines (1.628333ms)
+✔ projectOf / kindOf: pipe naming law (0.150667ms)
+✔ indexRuns: a full break->repair->pass trace reconstructs exactly (0.309917ms)
+✔ indexRuns: a BLOCKED stop is a catch inside a live session, not a verdict (0.1355ms)
+✔ indexRuns: a real STOP reason becomes the verdict (0.089084ms)
+✔ aggregate: the ledger counts match the events one for one (0.216833ms)
+✔ aggregate + indexRuns: drill events are excluded from the ledger and drill runs are marked (0.141ms)
+✔ markDrills: historic fleet drills, demo pipes and scratch projects are labeled — a real catch outside the drill window survives (0.129834ms)
+✔ scanFleet: finds guarded projects, reads their state, attaches last activity (13.61375ms)
+rabadon (observe): client.responses.create is not gated by rabadon — this spend would be invisible to the session budget and its output unchecked. Route it through the wrapped completion surface, or gate it explicitly with wrapFn().
+✔ session refuses to exist without a bound (0.704667ms)
+✔ wrap refuses an unrecognized client (0.115167ms)
+✔ maxCalls gates pre-call: the call over the bound never reaches the provider (0.486917ms)
+✔ maxTokens counts REAL provider usage and gates the next call (0.118542ms)
+✔ block mode: failed check throws RabadonStop, response attached for forensics (0.185667ms)
+✔ observe mode: failed check flows onward but is ON RECORD (0.082708ms)
+✔ a check with no verdict fails closed (0.103917ms)
+✔ repair: broken response is rewritten, re-checked, then flows (0.1225ms)
+✔ repair that never satisfies the checks stops at maxRepairs and blocks (0.166417ms)
+✔ repairs spend from the same budget: a repair can be refused by the gate (0.145584ms)
+✔ OpenAI client shape is gated the same way (0.164166ms)
+✔ wrapFn gates arbitrary pipeline work (0.997292ms)
+✔ wrapped client passes through unrelated properties untouched (0.073167ms)
+✔ the Responses-API bypass is CLOSED: un-gated spend surfaces are refused, even after budget exhaustion (0.194542ms)
+✔ stream:true is refused in block mode — un-countable spend cannot pass the gate (0.082083ms)
+✔ anthropic messages.stream is refused in block mode (0.069917ms)
+✔ observe mode: an un-gated surface flows but is ON RECORD (counted + warned) (0.399083ms)
+✔ responseText: tool-only responses are payload, not "empty" (agentic traffic must not fail-close) (0.064042ms)
+✔ the committed live-repair spool replays to: caught -> repaired by a real LLM in ~11s -> re-checked -> PASS (2.836166ms)
+✔ deny rule: the violating command is BLOCKED (exit 2), rule id in the feedback, catch in the spool (109.809541ms)
+✔ deny rule: git global options (-C/-c/--git-dir) cannot slide the subcommand past the rule (100.159416ms)
+✔ an allowed command passes (exit 0) and is gated on the ledger (103.902125ms)
+✔ loop-stop: the same command with no code edit in between is refused on the 3rd run (301.91775ms)
+✔ test-tamper: while the suite is red, an edit that strips assertions from a test file is refused (100.077541ms)
+✔ push gate (no runnable suite declared): push after an untested code edit is refused (102.391459ms)
+✔ drill tagging: fleet/doctor session ids mark every event drill:true so the ledger can exclude them (103.994583ms)
+✔ twin delivery (global + project hooks): the duplicate tool_use_id is a no-op, one ledger entry only (236.469708ms)
+✔ red detector: "fail 0" in a green run is GREEN (measured count, not keyword sighting), fail 2 is red (204.441875ms)
+✔ no guard file: the gate observes but never blocks (100.071834ms)
+✔ RABADON_OFF: the escape hatch silences everything instantly (36.625167ms)
+✔ express-shaped repo: case-insensitive Readme.md + manifest + CI found (3.676667ms)
+✔ AGENTS.md and CONTRIBUTING.md rank as law, before README (1.230834ms)
+✔ one README, one CONTRIBUTING — no duplicates across extensions (0.831417ms)
+✔ nested .github/CONTRIBUTING.md is found when top-level is absent (1.10325ms)
+✔ workflows are capped at two, test-shaped first (8.709917ms)
+✔ empty dir yields empty evidence and generateGuard refuses before any LLM (0.757292ms)
+✔ fresh project: settings created with every gate hook + drift on Stop + statusline (1.791917ms)
+✔ existing settings: user hooks and permissions PRESERVED, gate appended, backup made (1.290541ms)
+✔ idempotent: a second install changes nothing and adds no duplicates (0.586916ms)
+✔ repair: entries pointing at a dead install path are rewritten in place, once each (0.852083ms)
+✔ removeHooks strips exactly ours, leaves theirs, and is idempotent (0.8755ms)
+✔ removeHooks on a project rabadon never touched changes nothing (0.219916ms)
+✔ unreadable settings throw — rabadon never overwrites what it cannot parse (0.41875ms)
+✔ global target (homedir-shaped dir): hooks written, gitignore NOT touched (0.59275ms)
+✔ drift binary path is a sibling of the gate (0.072458ms)
+✔ ui: page serves, api matches the spool, live stream pushes an appended event (60.880417ms)
+ℹ tests 64
+ℹ suites 0
+ℹ pass 64
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1573.990375
+EXIT=0
