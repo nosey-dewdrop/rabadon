@@ -516,6 +516,22 @@ bugüne kadar hiç ölçülmemişlerdi.
 | durma koşulu tetiklendi mi | hayır | hayır | hayır | **hayır** |
 
 ## SIRA
+
+### F2 HAKEM HÜKMÜ (2026-08-27)
+2026-08-27 · `F2: GEÇTİ` · Kartın sayılarını kopyalamadan hepsini kendi kum havuzumda yeniden ürettim ve tuttular: `make test` **EXIT=0**, native **3786** iddia + **633** kontrol + `npm test` **64/0** = **4483 yeşil / 0 kırmızı** (taban 4428, tam **+55**), `bash reports/R7/accept.sh` **exit 1, 23/3** ve kırmızı ad kümesi **`{2b, 6e, 7b}` büyümedi** (`2b` bende 1271,2 µs, tavan 1000 µs), F1e-C üçlüsü nihai ikiliye karşı 42/0 + 38/0 + 13/0 ve kâtip commit'i fazın sonuncusu değil; §3.8 temiz — zayıflatılan/silinen test YOK, eşikler oynatılmadı, beş kartın beşinde de ölçüt koddan ayrı ve önceki commit'te, ve mutasyon kanıtını kendim ürettim (`kSilencers`'a yedinci susturucu → `docs_truth_test.sh` 42/0'dan **41 ok / 1 fail EXIT=1**'e düştü; LOSS fikstürü 250→300 → `signals_screen_test.sh` 38/0'dan **37/1 EXIT=1**'e düştü — ekran kaybı gerçekten hesaplıyor). Tam gerekçe ve NOT VERIFIED listesi `KAPI.md`'de.
+
+**§3.4 AÇIK KALEMLER — İKİSİ DE HÜKME BAĞLANDI** (`reports/kosu/KARARLAR.md`):
+- **(a) `reports/R7/accept.sh` `8a` 21 → 22 (`9cba3cd`): ONAYLANDI.** Eski **21**, yeni **22**, karşılaştırma **tam eşitlik olarak kaldı** (`>=` yapılmadı); commit tek satırlık ve KODSUZ; sayıyı büyüten `827baa7` salt eklemedir (5 silinen satırın hepsi `except: pass` yutucusu, yerine sayan-adlandıran CLAIM 8 geldi); uygulayan işçi dokunmayı **yazılı olarak reddetti** (`f2-1-kart.md:122-126`).
+- **(b) `native/sandbox_test.sh` CHALLENGE'ı: KIRMIZI KALIR, kart AÇILDI → F1b.** Ölçüm: ürün `sandbox.cpp:365` `NO usable kernel backend` basıyor, test `sandbox_test.sh:121` `no kernel backend` arıyor — sapma tek kelime, **yanlış olan testtir**, `a74e7d8` (2026-07-31) açtı, **27 gündür kırmızı**; maliyeti 4483 yeşilin **1'i**, macOS'ta hiç koşmuyor (Seatbelt var, süit 17/0), ama **konteynerin `make test`'ini exit 2 yapan tek kalem**. Onarım testi sertleştirir, zayıflatmaz — ama faz ajanının işi değildi, F2'nin dokunmaması doğruydu.
+
+**SIRADAKİ FAZ: F1b** (sıra değişmedi: F2 → **F1b** → F1n → F3). Ölçülen sayıya bağlı iki EKLEME:
+1. **F1b'ye yeni kart, yukarıdaki (b):** `sandbox_test.sh:121` beklentisi ürünün sevk ettiği dizgeye sertleştirilir (tek satır) + **mutasyon kanıtı** (ürün dizgesini geçici bozup kırmızı düştüğünü görmek), ve kapanışta konteynerde `make test` exit'i yeniden ölçülür. Gerekçe ölçülü: bu tek iddia, temiz konteynerde `make test`'i exit 2'de tutan tek kalemdir (F1e'de de aynıydı) — R7'nin dürüst kapanışı bu yüzden bir string sapmasına takılı duruyor.
+2. **F1b'ye bağlayıcı satır, `8b` tuzağı:** `reports/R7/accept.sh` `8b` (`signals_test.sh 39/0`) `8a`'nın AYNI tam-eşitlik tuzağını taşıyor; `signals_test.sh`'e eklenecek ilk iddia kırmızı ad kümesini yine büyütür. Ölçülü: `8a` bu fazda tam olarak böyle geçici olarak dörde çıktı. Kural aynı kalır (eşitlik gevşetilmez, `>=` YAPILMAZ) ama sayı değişikliği uygulayandan AYRI bir işçinin kendi commit'inde yapılır ve hakeme gelir.
+
+**ETİKET DÜZELTMESİ, F1b AÇILMADAN ÖNCE:** `F2-oncesi` etiketi `c7b229c`'yi gösteriyor ama o commit fazın **İÇİNDE** (kart-2 kanıt commit'i); gerçek faz tabanı **`f03320f`**'tür. `git diff F2-oncesi..HEAD` fazın 83 dosyasından yalnız 16'sını gösteriyor — **hakeme incelemesi verilen `9cba3cd` dahil 67 dosya etiketin dışında kalıyordu**. Bu denetim `f03320f..HEAD` üstünde yapıldı. Etiket taşınmalı, ve `F1b-oncesi` `main`'in bugünkü ucuna (`0f7904b`) konmalı.
+
+**KUM HAVUZU KURALI, ÖLÇÜLDÜ:** hakem kum havuzu **`/tmp`'de AÇILMAZ**. `/tmp/hakem-f2`'de koşan `make test` **EXIT=2** verdi (`fd_dup_test.sh` 7/4) — regresyon değil, `fd_dup_test.sh:36-42`'nin kendi başlığının uyardığı artefakt: `/tmp` bir makine temp köküdür ve kapsam yasası orayı muaf tutar, yani süit kuralı değil muafiyeti ölçer. Temp kökü dışında aynı HEAD **EXIT=0**. Sonraki hakem kum havuzunu temp kökü dışına açar.
+
 **F1 üçe bölündü** (`SAPMA-KARARLARI.md`): **F1a bitti**, **F1c bitti**,
 **F1n** operatörü bekliyor.
 **CEVAPÇI KARARI (2026-08-26, F1c hakem hükümleri sonrası):** araya **F1d**
