@@ -152,7 +152,21 @@ sed -n 1,5p .rabadon/guard.json|sed WITHOUT an in-place flag
 diff .rabadon/guard.json /dev/null|diff
 stat .rabadon/guard.json|stat
 cp .rabadon/guard.json ./guard-copy.json|copying it OUT is a read of the law
+cd .rabadon|standing in the directory is not touching it
+cd .rabadon && cat guard.json|walking there and reading
+pushd .rabadon|the same with the shell's other spelling
+test -f .rabadon/guard.json|asking whether it is there
+cp -a .rabadon ./rabadon-backup|copying the whole directory OUT
 CMDS
+# A MEASURED FALSE POSITIVE, and it was measured by the law refusing the agent
+# that wrote it. `cd <...>/.rabadon` was refused on 2026-08-30 with
+# baseline-law-unmade, because `cd` is not on any reader list and its operand
+# names the directory. `cd` writes nothing, opens nothing and creates nothing;
+# it moves the shell. §4.3 counts this kind of refusal as the expensive kind of
+# wrong, so it is an assertion here rather than a note in a report.
+v="$(verdict "$P" "cd $P/.rabadon")"
+[ "$v" = "ALLOW" ] && pass "read stays allowed: cd, spelled absolute" \
+                   || fail "FALSE POSITIVE: cd, spelled absolute"
 
 # ---------------------------------------------------------------------------
 # ARM 4 — ordinary destructive work in the same project, unchanged. If this arm
