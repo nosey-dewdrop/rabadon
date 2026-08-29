@@ -1,0 +1,6 @@
+=== D7 symptom, measured on HEAD after the repair ===
+1788016426 native/rabadon-net
+1788017060 native/rabadon-gate
+make all exit=0
+1788019229 native/rabadon-net
+1788019234 native/rabadon-gate

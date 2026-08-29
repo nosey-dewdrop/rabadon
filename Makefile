@@ -26,14 +26,14 @@ native/gate_bench: native/gate_bench.cpp native/rules.h native/baseline.h native
 # bump answered `make` with "up to date" and shipped a binary announcing the
 # previous release. native/version_test.sh holds this rule from both ends:
 # textually, and by asking `make -q` after touching version.h.
-native/rabadon-gate: native/gate.cpp native/usage.h native/counter.h native/prices.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h native/signals.h native/semantic.h native/classify.h native/inject.h native/policy.h native/gated_client.h
+native/rabadon-gate: native/gate.cpp native/usage.h native/counter.h native/prices.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h native/signals.h native/semantic.h native/classify.h native/inject.h native/policy.h native/gated_client.h native/testout.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # R7: the persistent gate. gate.cpp is a PREREQUISITE and also the body — this
 # rule compiles native/gated.cpp, which includes gate.cpp with main() renamed,
 # so the daemon and the gate can never be two different judgements. That is why
 # gate.cpp is listed here and why touching it rebuilds both binaries.
-native/rabadon-gated: native/gated.cpp native/gated_client.h native/gate.cpp native/usage.h native/counter.h native/prices.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h native/signals.h native/semantic.h native/classify.h native/inject.h native/policy.h
+native/rabadon-gated: native/gated.cpp native/gated_client.h native/gate.cpp native/usage.h native/counter.h native/prices.h native/sha256.h native/chain.h native/jsonl.h native/baseline.h native/rules.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h native/version.h native/hookev.h native/moves.h native/signals.h native/semantic.h native/classify.h native/inject.h native/policy.h native/testout.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-claims: native/claims.cpp native/jsonl.h
@@ -70,13 +70,19 @@ native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/d
 native/rabadon-serve: native/serve.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -pthread -o $@ $<
 
-native/rabadon-run: native/run.cpp native/rules.h native/cmdtext.h native/pathres.h native/cli_help.h
+native/rabadon-run: native/run.cpp native/rules.h native/baseline.h native/cmdtext.h native/gitcfg.h native/pathres.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ native/run.cpp
 
 native/rabadon-truth: native/truth.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-net: native/net.cpp native/cli_help.h
+# D7 (2026-08-29): this rule said `net.cpp cli_help.h` while net.cpp:50-51
+# includes testout.h and pathres.h, so `touch native/pathres.h && make all`
+# left rabadon-net's mtime untouched and the next measurement read a stale
+# binary. pathres.h is where D6's $HOME repair lives and net.cpp is where the
+# rc==5 repair lives — both could have taken a green from a binary that never
+# saw them. cmdtext.h arrives transitively through rules.h.
+native/rabadon-net: native/net.cpp native/cli_help.h native/testout.h native/pathres.h native/cmdtext.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-lens: native/lens.cpp native/usage.h native/cli_help.h
