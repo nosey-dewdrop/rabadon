@@ -1,0 +1,37 @@
+== K2: `repeat` neden ates etmiyor -- iki sebep AYRI AYRI olculdu
+kaynak halkalari: snapshot=34, machine=39, project=8
+okunan oturum = 81, okunamayan halka = 0, toplam hamle = 1766
+kural: seen >= 3 (ayni TAM imza, son 20 hamle) VE failed >= 2 (claimed_rc == 1)
+
+A) YALNIZ 1. sart (tam-imza tekrari >= 3), failed yok sayildi : 2 / 81 oturum
+B) YALNIZ 2. sart (>= 2 hamle claimed_rc == 1), imza yok sayildi: 9 / 81 oturum
+C) IKISI BIRDEN = sevk edilen kuralin gercekten atesledigi        : 0 / 81 oturum
+
+hamle duzeyinde: claimed_rc==1 (basarisiz, KAPANMIS) = 144, claimed_rc==-1 (hic kapanmamis) = 290, toplam = 1766
+
+oturum basina en yuksek 'ayni imza pencerede kac kez' dagilimi:
+   seen=1   -> 75 oturum
+   seen=2   -> 4 oturum
+   seen=3   -> 1 oturum
+   seen=4   -> 1 oturum
+
+1. sarti saglayan oturumlar (ad, en yuksek seen):
+   machine:ab723faa-5ba3-49-b5f333b53a7a.moves.bin      seen=4
+   snapshot:286fd71d-2e67-43-57b7234bb75e.moves.bin     seen=3
+
+2. sarti saglayan oturumlar (ad, kapanmis basarisiz hamle sayisi):
+   project:333d18e5-43bd-4f-3a636375f4c4.moves.bin      failed=33
+   project:5fa2e187-e9fe-4b-82c2f22c0df0.moves.bin      failed=33
+   machine:286fd71d-2e67-43-57b7234bb75e.moves.bin      failed=30
+   snapshot:286fd71d-2e67-43-57b7234bb75e.moves.bin     failed=17
+   machine:ab723faa-5ba3-49-b5f333b53a7a.moves.bin      failed=17
+   machine:5fa2e187-e9fe-4b-82c2f22c0df0.moves.bin      failed=3
+   snapshot:ff7d04c1-b5df-48-52e64754226f.moves.bin     failed=2
+   machine:f8c6b0d6-1e73-47-7e69a7ddbed5.moves.bin      failed=2
+   machine:ff7d04c1-b5df-48-52e64754226f.moves.bin      failed=2
+
+D) UST SINIR: her KAPANMAMIS hamle aslinda basarisizdi varsayilirsa
+   (yani K1 onarimi gecmise donuk uygulanmis gibi)              : 0 / 81 oturum
+
+E) F4'E DEVREDILEN OLCUM (dedektor DEGISTIRILMEDI, yalniz olculdu):
+   imza 'ilk token' olsaydi -> 1. sart: 32 / 81 oturum, iki sart birden: 8 / 81
