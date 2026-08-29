@@ -159,10 +159,21 @@ Every native binary answers `--help` and `-h` with its own screen — what it do
 ## Prove it yourself
 
 ```sh
-make && make test    # the native core: 20 suites, incl. kernel-EPERM, chain-tamper,
+make && make test    # the native core, incl. kernel-EPERM, chain-tamper,
                      # and the caught→propose→re-verify repair loop, all green
 npm test             # the JS surface: install/merge, wrap, store, ui
 ```
+
+A suite here may not get smaller without saying so. An arm that cannot run on
+your machine prints `SKIP - <arm>: <n> assertion(s) did NOT run — <why>` and the
+count appears in that suite's summary line; an arm that cannot run because the
+tree is out of date is a **failure**, not a skip, and it names the one command
+that fixes it. This is a rule with a test behind it, not a convention:
+`native/silent_skip_test.sh` reads every suite in `native/` and fails on a skip
+that counts nothing or a count nothing prints. It was written because a single
+`touch native/gate.cpp` used to take `native/version_test.sh` from 13 assertions
+to 11 while it still exited 0 — a green that came from a check that did not
+happen is the one failure this project treats as worse than being wrong loudly.
 
 ## Status
 
