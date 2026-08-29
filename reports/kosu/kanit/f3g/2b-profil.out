@@ -1,0 +1,24 @@
+== run 1
+wall, one gate process (python harness)   = 3301.7 us   100.0%
+  leg 1  exec + dyld + images, PRE-MAIN   = 2312.8 us    70.0%
+  leg 2  static initialization            = 2.0 us     0.1%
+  leg 3  rabadon's OWN logic, main->exit  = 993.5 us    30.1%
+legs 1+2 (nothing rabadon's code does)    = 2314.8 us    70.1%
+== run 2
+wall, one gate process (python harness)   = 3288.6 us   100.0%
+  leg 1  exec + dyld + images, PRE-MAIN   = 2282.9 us    69.4%
+  leg 2  static initialization            = 2.0 us     0.1%
+  leg 3  rabadon's OWN logic, main->exit  = 999.0 us    30.4%
+legs 1+2 (nothing rabadon's code does)    = 2284.9 us    69.5%
+== run 3
+wall, one gate process (python harness)   = 3306.1 us   100.0%
+  leg 1  exec + dyld + images, PRE-MAIN   = 2307.4 us    69.8%
+  leg 2  static initialization            = 2.0 us     0.1%
+  leg 3  rabadon's OWN logic, main->exit  = 983.5 us    29.7%
+legs 1+2 (nothing rabadon's code does)    = 2309.4 us    69.9%
+samples                                   = 200 (asked for 200)
+wall, one gate process (python harness)   = 4225.1 us   100.0%
+  leg 1  exec + dyld + images, PRE-MAIN   = 2952.2 us    69.9%
+  leg 2  static initialization            = 2.0 us     0.0%
+  leg 3  rabadon's OWN logic, main->exit  = 1252.0 us    29.6%
+legs 1+2 (nothing rabadon's code does)    = 2954.2 us    69.9%
