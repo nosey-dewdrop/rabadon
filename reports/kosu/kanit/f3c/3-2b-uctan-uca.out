@@ -1,0 +1,38 @@
+=== card 3 · F3-S1, end to end, PAIRED against F3c-oncesi (94fa1ec), N=200 mean, 8 reps ===
+
+--- run A: card 1 as first written (three unconditional extra get_str scans per event)
+rep1 BASE=1325.4 HEAD=1674.8
+rep2 BASE=1540.1 HEAD=1693.2
+rep3 BASE=1598.3 HEAD=1622.9
+rep4 BASE=1637.3 HEAD=1061.6
+rep5 BASE=949.7 HEAD=924.4
+rep6 BASE=1034.7 HEAD=1153.3
+rep7 BASE=1038.7 HEAD=1388.5
+rep8 BASE=1312.5 HEAD=1732.7
+BASE mean 1304.6  HEAD mean 1406.4  diff +101.8  HEAD faster in 2 of 8
+
+--- run B: after gating those reads behind a key already in hand
+rep1 BASE=1157.6 HEAD=1028.6
+rep2 BASE=971.4 HEAD=1366.7
+rep3 BASE=1426.9 HEAD=1717.4
+rep4 BASE=1399.2 HEAD=1750.6
+rep5 BASE=1749.0 HEAD=1698.9
+rep6 BASE=1669.4 HEAD=1582.6
+rep7 BASE=1635.6 HEAD=971.6
+rep8 BASE=984.3 HEAD=1276.7
+BASE mean 1374.2  HEAD mean 1424.1  diff +50.0   HEAD faster in 4 of 8
+
+--- the same F3c-oncesi BINARY, measured twice on the same machine on the same
+--- day: 1304.6 and 1374.2. The instrument moves ~70 us with nothing changed,
+--- and single pairs swing +/-660 us. It cannot resolve 50 us.
+
+--- the process-launch floor, 6 reps, N=200 (is the ceiling even reachable?)
+rep1 true=1197.9 nullmain=1220.1 gate=2833.5
+rep2 true=1165.1 nullmain=1239.6 gate=2886.2
+rep3 true=1200.5 nullmain=1635.0 gate=2697.9
+rep4 true=1186.5 nullmain=1250.7 gate=2843.3
+rep5 true=1505.4 nullmain=1279.5 gate=2951.8
+rep6 true=1219.1 nullmain=1274.1 gate=3062.2
+true mean 1245.8 | empty C++ main mean 1316.5 | gate mean 2879.3
+empty C++ main attributable over /usr/bin/true = 70.7 us.
+So the launch floor is NOT the problem: the cost is rabadon's own work.

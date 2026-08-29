@@ -3045,3 +3045,1762 @@ partial-ref: what git resolves (real git, --dry-run, a bare remote made here)
   ok   - git itself: tags/main is NOT refs/heads/main (fatal: ambiguous argument 'tags/main': u)
   ok   - the dry-run probes moved nothing: remote main is where it was
   ok   - the dry-run probes deleted nothing: remote feature is still there
+  ok   - the shell runs it: the partially qualified delete
+  ok   - the shell runs it: the partially qualified force
+  ok   - the shell runs it: the partially qualified reset
+partial-ref: refused (no guard.json — the compiled floor alone)
+  ok   - refused: the branch deleted, partially qualified
+  ok   - refused: the same, on master
+  ok   - refused: the delete switch, partially qualified
+  ok   - refused: the short delete switch
+  ok   - refused: the force push, partially qualified
+  ok   - refused: the short force flag
+  ok   - refused: the force refspec marker
+  ok   - refused: the destination after a colon
+  ok   - refused: the destination after a colon, delete side
+  ok   - refused: a bundled force flag
+  ok   - refused: delete and force together
+  ok   - refused: a global option in front
+  ok   - refused: wrapped in a shell string
+  ok   - refused: behind a reserved word
+  ok   - refused: after an unrelated green step
+  ok   - refused: the hard reset onto the same ref
+  ok   - refused: the hard reset, on master
+partial-ref: refused in a project whose four rules never mention the spelling
+  ok   - refused (guarded project): the delete its deny regex cannot see (no -f in a deletion)
+  ok   - refused (guarded project): the delete switch, same blind spot
+  ok   - refused (guarded project): the short delete switch
+  ok   - refused (guarded project): the hard reset its regex reads as neither main nor origin/main
+partial-ref: allowed (the twin of every refusal above)
+  ok   - allowed: deleting your own merged branch, partially qualified
+  ok   - allowed: the delete switch on your own branch
+  ok   - allowed: the short delete switch on your own branch
+  ok   - allowed: deleting a branch merely named after main, partially qualified
+  ok   - allowed: an ordinary push to the same ref, no force
+  ok   - allowed: deleting a tag under its short spelling
+  ok   - allowed: a hard reset onto your own branch, partially qualified
+  ok   - allowed: a hard reset onto a local ref one commit back
+  ok   - allowed: the spelling as a commit message
+  ok   - allowed: deleting your own merged branch, partially qualified
+  ok   - allowed: the delete switch on your own branch
+  ok   - allowed: the short delete switch on your own branch
+  ok   - allowed: deleting a branch merely named after main, partially qualified
+  ok   - allowed: an ordinary push to the same ref, no force
+  ok   - allowed: deleting a tag under its short spelling
+  ok   - allowed: a hard reset onto your own branch, partially qualified
+  ok   - allowed: a hard reset onto a local ref one commit back
+  ok   - allowed: the spelling as a commit message
+partial-ref: allowed by the compiled floor (no guard.json)
+  ok   - allowed: force-pushing your own branch, partially qualified
+  ok   - allowed: the lease, which is the safe form
+  ok   - allowed: a branch merely named after main
+  ok   - allowed: a branch whose name ends in main
+  ok   - allowed: a tag namespace that only ENDS in main
+  ok   - allowed: a branch literally named origin/main, created not rewritten
+  ok   - allowed: the same branch, partially qualified
+  ok   - allowed: deleting that branch, whose name is not main
+  ok   - allowed: the spelling as prose in an echo
+partial-ref: what the guarded project refuses there, it refuses with its own regex
+  ok   - the project's own deny rule, not this law: the lease, caught by --force inside --force-with-lease
+  ok   - the project's own deny rule, not this law: a branch named after main, caught by the regex word boundary
+  ok   - the project's own deny rule, not this law: a tag namespace ending in main
+  ok   - the project's own deny rule, not this law: a branch literally named origin/main
+  ok   - allowed: the spelling inside a heredoc body
+partial-ref: the refusal names the right law and the right branch
+  ok   - the delete spelling carries the branch-delete law's id
+  ok   - the refusal prints the branch as 'main', not as 'heads/main'
+  ok   - the force spelling carries the force-push law's id
+  ok   - the reset spelling carries the hard-reset law's id
+partial-ref: disabled[] by id, one law at a time
+  ok   - disabled[]: the delete law is silenced by id under this spelling too
+  ok   - silencing the delete law leaves the force-push law standing
+  ok   - canary in $HOME intact: judging a push is not performing one
+  ok   - the lab remote's main never moved
+  ok   - the lab remote's feature branch is still there
+partial ref: 80 ok, 0 fail
+./native/other_repo_test.sh
+another repo: what git itself does with -C, --git-dir and $GIT_DIR
+  ok   - the shell's repo sits on feat: nothing here is about ITS head
+  ok   - git itself force-updates main next door: -C ../target
+  ok   - git itself force-updates main next door: --git-dir= --work-tree=
+  ok   - git itself force-updates main next door: --git-dir= alone (a push needs no work tree)
+  ok   - git itself force-updates main next door: --git-dir as a separate word
+  ok   - git itself force-updates main next door: GIT_DIR= in the environment
+  ok   - git itself force-updates main next door: cd, the same bug one word over
+  ok   - git itself: -C repeats and chains, each relative to the last
+  ok   - git itself: a -C moves git before --git-dir is interpreted
+  ok   - git itself: and in the other order too: the -C still applies
+  ok   - git itself: GIT_DIR is read relative to the -C'd directory as well
+  ok   - git itself: --git-dir on the line beats GIT_DIR in the environment
+  ok   - git itself: there is NO attached -C form: git rejects it
+  ok   - git itself: an empty -C is a no-op, not an error
+  ok   - git itself: -C at a directory that is not there is fatal: git opens nothing
+  ok   - git itself: discovery walks UP from where -C landed
+  ok   - a linked worktree's .git is a FILE, not a directory
+  ok   - and it holds one line: gitdir: <path to the real git dir>
+  ok   - git itself: git follows that file to find HEAD
+another repo: the shell runs these lines (fake git, fake rm)
+  ok   - the shell runs it: the -C form
+  ok   - the shell runs it: the --git-dir form
+  ok   - the shell runs it: the environment form
+  ok   - the fakes ran instead of the real git and rm: nothing was pushed or deleted
+another repo: refused when the repo GIT WILL USE is on a shared branch
+  ok   - refused: the reported -C escape
+  ok   - refused: the same, spelled absolute
+  ok   - refused: the reported --git-dir escape
+  ok   - refused: --git-dir with no work tree
+  ok   - refused: --git-dir as a separate word
+  ok   - refused: the reported $GIT_DIR escape
+  ok   - refused: a chained -C
+  ok   - refused: -C before --git-dir, the git dir relative to it
+  ok   - refused: --git-dir before -C: the same repo either way
+  ok   - refused: GIT_DIR relative to the -C'd directory
+  ok   - refused: the short force flag
+  ok   - refused: the force refspec with no branch named
+  ok   - refused: HEAD resolved in the OTHER repo
+  ok   - refused: the @ shorthand in the other repo
+  ok   - refused: --all reads the other repo's refspace
+  ok   - refused: --mirror reads the other repo's refspace
+  ok   - refused: a config refspec plus a -C
+  ok   - refused: discovery walks up from the -C'd subdirectory
+  ok   - refused: a bare repo IS the git dir
+  ok   - refused: a linked worktree's .git is a file that points at HEAD
+  ok   - refused: the same worktree named by its .git file
+  ok   - refused: the cd sibling of the same bug
+  ok   - refused: cd with an absolute path
+  ok   - refused: the escape inside sh -lc
+  ok   - refused: the escape after an ordinary command
+  ok   - refused: the escape in a brace group
+  ok   - refused: the escape behind a git alias
+  ok   - refused: the -C escape, with project deny rules present
+  ok   - refused: the --git-dir escape, with project deny rules present
+  ok   - refused: the $GIT_DIR escape, with project deny rules present
+  ok   - the refusal carries the force-push law's id
+  ok   - the message names the branch that repo is on
+  ok   - the message names the repo the branch was read in
+another repo: the work this must not cut (the shell is on main, the target is not)
+  ok   - allowed: force-pushing her own branch in the repo next door
+  ok   - allowed: the same through --git-dir
+  ok   - allowed: the same through the environment
+  ok   - allowed: --all where that refspace holds no shared branch
+  ok   - allowed: --mirror where that refspace holds no shared branch
+  ok   - allowed: HEAD resolved in a repo that is on her branch
+  ok   - allowed: the cd sibling of the same twin
+  ok   - allowed: a lease into the other repo
+  ok   - allowed: an ordinary push into the other repo
+  ok   - allowed: a push of a private branch by name
+  ok   - allowed: a read in the other repo
+  ok   - allowed: a status in the other repo
+  ok   - allowed: a fetch in the other repo
+  ok   - allowed: tags only, no branch written
+  ok   - allowed: the words in a commit message
+  ok   - allowed: the words in an echo
+  ok   - allowed: a delete inside the project
+  ok   - refused: no knob at all: the shell's own repo still decides
+  ok   - refused: the shell's own repo, HEAD spelled out
+  ok   - allowed: the shell's own repo on a scratch branch still goes
+  ok   - refused: a branch written down is still read from the line
+  ok   - refused: a -C does not excuse a branch written down
+  ok   - refused: the delete law still sees a shared branch through a -C
+  ok   - refused: the hard-reset law is untouched
+another repo: what this cannot read, said out loud
+  ok   - allowed: an unresolved $REPO in -C: no branch can be resolved
+  ok   - refused: the same line with the branch written down
+  ok   - allowed: an unresolved $REPO does not fall back to the shell's repo
+  ok   - allowed: -C at a directory that is not there (git fatals before it opens a repo)
+  ok   - allowed: --git-dir at a path that is not there
+  ok   - refused: a mirror into a repo that cannot be read is still refused
+  ok   - the canary in the home dir survived judging every command above
+  ok   - the canary in the lab survived
+  ok   - none of the judged repos has a remote: nothing could have left this machine
+  ok   - /tmp, /etc and the home dir are still on the machine
+another repo: 90 passed, 0 failed
+./native/xcrun_wrapper_test.sh
+xcrun: what the wrapper actually runs (real xcrun, fake tool by absolute path, nothing pushed or deleted)
+  ok   - xcrun hands the argv over: plain
+  ok   - xcrun hands the argv over: behind --sdk <name>
+  ok   - xcrun hands the argv over: behind -sdk <name>
+  ok   - xcrun hands the argv over: behind --toolchain <n>
+  ok   - xcrun hands the argv over: behind -toolchain <n>
+  ok   - xcrun hands the argv over: behind -v
+  ok   - xcrun hands the argv over: behind -n -k
+  ok   - xcrun hands the argv over: behind --run
+  ok   - xcrun hands the argv over: behind --
+  ok   - xcrun hands the argv over: a recursive delete
+  ok   - xcrun hands the argv over: the option value is xcrun's, not the tool's
+  ok   - the name `git` under xcrun resolves to a real git: /Applications/Xcode.app/Contents/Developer/usr/bin/git
+  ok   - xcrun ignored a fake git first on PATH: a tool NAME is resolved by xcrun, not by the shell
+  ok   - xcrun refuses `--sdk=macosx` and runs nothing behind it
+  ok   - xcrun refuses `-nk` and runs nothing behind it
+  ok   - the fakes ran instead of a real git and rm: nothing was pushed or deleted
+xcrun: refused (the escape, in every spelling that carries it)
+  ok   - refused: the plain form
+  ok   - refused: the clustered short form
+  ok   - refused: spelled by absolute path
+  ok   - refused: behind --sdk and its value
+  ok   - refused: behind -sdk, the one-dash spelling
+  ok   - refused: behind --toolchain and its value
+  ok   - refused: behind -toolchain, the one-dash spelling
+  ok   - refused: behind a valueless short option
+  ok   - refused: behind two valueless short options
+  ok   - refused: behind the long spelling of one
+  ok   - refused: behind --run
+  ok   - refused: behind the end-of-options marker
+  ok   - refused: a branch delete by empty source refspec
+  ok   - refused: a branch delete by --delete
+  ok   - refused: a mirror push
+  ok   - refused: a hard reset of the shared branch
+  ok   - refused: a recursive delete of /
+  ok   - refused: a recursive delete of a home dir
+  ok   - refused: under an assignment prefix
+  ok   - refused: under another wrapper
+  ok   - refused: under env
+  ok   - refused: under a shell string
+  ok   - refused: inside a brace group
+  ok   - refused: in the then branch
+  ok   - refused: in a loop body
+  ok   - refused: xcrun wrapping a shell that runs it
+  ok   - refused: a name that merely starts with a listed wrapper
+  ok   - refused: a two-line helper inside the repo being guarded
+  ok   - the refusal carries the force-push law's id
+  ok   - the message names the shared branch the push was going to
+  ok   - the refusal is on the ledger under the baseline id
+xcrun: still allowed (the work this must not cut)
+  ok   - allowed: the simulator control tool
+  ok   - allowed: erasing a simulator
+  ok   - allowed: a build
+  ok   - allowed: a compile behind --sdk
+  ok   - allowed: a compile behind -sdk
+  ok   - allowed: a swift build behind a toolchain
+  ok   - allowed: notarization
+  ok   - allowed: finding a tool
+  ok   - allowed: finding git
+  ok   - allowed: printing the sdk path
+  ok   - allowed: the version
+  ok   - allowed: xcrun with no tool at all
+  ok   - allowed: an ordinary push through xcrun
+  ok   - allowed: a status check through xcrun
+  ok   - allowed: a fetch through xcrun
+  ok   - allowed: the safe force through xcrun
+  ok   - allowed: a force-push to your own branch through xcrun
+  ok   - allowed: a local hard reset through xcrun
+  ok   - allowed: deleting your own merged branch through xcrun
+  ok   - allowed: a build dir delete through xcrun
+  ok   - allowed: a node_modules delete through xcrun
+  ok   - allowed: a scratch delete through xcrun behind an option
+  ok   - allowed: an ordinary push behind -sdk and its value
+  ok   - allowed: an ordinary push behind two options
+  ok   - allowed: an ordinary push after the end-of-options marker
+  ok   - allowed: the words as a commit message
+  ok   - allowed: the words as an echoed string
+  ok   - allowed: the word inside a single-quoted argument
+  ok   - allowed: a name that merely starts with xcrun, before a value-taking option
+  ok   - allowed: the same line inside a heredoc body is prose, not a program
+xcrun: the wrappers that were already there did not move
+  ok   - unchanged (2): sudo with a long option and a separate value
+  ok   - unchanged (2): sudo with a long option and an attached value
+  ok   - unchanged (2): sudo with a short option and a separate value
+  ok   - unchanged (2): env with an unset and a separate value
+  ok   - unchanged (2): timeout with its duration operand
+  ok   - unchanged (2): timeout with a signal and a duration
+  ok   - unchanged (2): xargs with a replace string
+  ok   - unchanged (2): nice with an adjustment
+  ok   - unchanged (0): sudo with a long option, ordinary work
+  ok   - unchanged (0): env with an unset, ordinary work
+  ok   - unchanged (0): timeout with its duration, ordinary work
+  ok   - the canary in the home dir survived judging every command above
+  ok   - the canary in the lab survived
+  ok   - /tmp, /etc and the home dir are still on the machine
+xcrun wrapper: 91 passed, 0 failed
+./native/npm_install_test.sh
+npm install: the published path (darwin-arm64)
+  ok   - the platform manifest names only binaries the build produces
+  ok   - npm i -g installs the package and its prebuilt platform binaries
+  ok   - the rabadon command is on the path
+  ok   - doctor finds the prebuilt binaries (was: 'native binaries missing')
+  ok   - rabadon init exits 0 on a prebuilt install (was: exit 3)
+  ok   - init wrote the project's settings.json
+  ok   - the hook command points at a binary that EXISTS and is executable
+  ok   - a force-push is REFUSED through the installed hook — the README's first promise holds
+  ok   - npm i -g succeeds with every compiler on PATH replaced by a shim that refuses
+  ok   - nothing tried to compile: the shim log is empty
+  ok   - rabadon --version on a compiler-free install prints 0.2.3: rabadon 0.2.3
+  ok   - the gate it found is a real executable shipped in the tarball: rabadon-gate
+npm install: 12 passed, 0 failed
+./native/doctor_test.sh
+doctor: what an install looks like when it is only half there
+  ok   - the probe found 19 built binaries to install into fake trees
+  ok   - a complete tree: doctor says native core built (19/19 binaries)
+  ok   - a complete tree: nothing reported absent
+  ok   - the healthy run's problem count is readable (1)
+  ok   - ten binaries absent: doctor exits non-zero (1)
+  ok   - ten binaries absent: doctor does not say "all green"
+  ok   - every absent binary is named in the output (all ten)
+  ok   - the half tree reports more problems than the full one (2 > 1)
+  ok   - 18 of 19 built: doctor exits non-zero (1)
+  ok   - 18 of 19 built: the one absent binary is named
+  ok   - a seventeenth name in `all:` becomes a subject without editing manage.mjs
+  ok   - the absent seventeenth makes doctor exit non-zero (1)
+  ok   - a binary rule missing from `all:` is still a subject
+  ok   - the absent eighteenth makes doctor exit non-zero (1)
+  ok   - no Makefile: doctor does not say "all green"
+  ok   - no Makefile: doctor exits non-zero (1)
+  ok   - prebuilt install: doctor finds all 19 in @rabadon/darwin-arm64
+  ok   - postinstall on a complete tree exits 0
+  ok   - postinstall on a complete tree: already built (19/19)
+  ok   - postinstall on a complete tree: nothing reported absent
+  ok   - postinstall still exits 0 with a binary missing (npm must not brick)
+  ok   - postinstall names the count it actually got (18 of 19)
+  ok   - postinstall names the binary that is not there
+  ok   - postinstall does not call a 18-of-19 tree already built
+  ok   - node under engines.node: doctor says so
+  ok   - node under engines.node: what + why: + run: all present
+  ok   - node under engines.node: doctor exits non-zero (1)
+  ok   - control: a node that satisfies engines.node raises no version WARN
+  ok   - a non-executable binary is reported (not silently 'present')
+  ok   - the non-executable binary is named (rabadon-audit)
+  ok   - not executable: what + why: + run: all present
+  ok   - not executable: doctor exits non-zero (1)
+  ok   - control: a fully executable tree raises no permission WARN
+  ok   - two rabadon commands on PATH: doctor says so
+  ok   - PATH conflict: what + why: + run: all present
+  ok   - PATH conflict: doctor exits non-zero (1)
+  ok   - a single FOREIGN rabadon on PATH is reported too
+  ok   - control: PATH pointing at THIS install raises no PATH WARN
+  ok   - a hook from a previous install is reported
+  ok   - the stale hook's actual path is printed
+  ok   - stale install: what + why: + run: all present
+  ok   - stale install: doctor exits non-zero (1)
+  ok   - control: hooks pointing at THIS install raise no stale WARN
+doctor: 43 passed, 0 failed
+./native/repair_session_test.sh
+repair session: caught -> proposed -> re-verified
+  ok   - green repo: nothing to repair, exit 0
+  ok   - honest fix: arbiter re-ran green, REPAIR_OK (exit 0)
+  ok   - propose-and-hold: the user's tree is UNTOUCHED
+  ok   - verified patch is held at .rabadon/repair-1788022824173.patch
+  ok   - applying the held patch turns the REAL repo green
+  ok   - REPAIR_OK on the ledger
+  ok   - test-neutering fix REJECTED by the hash lock (exit 2)
+  ok   - REPAIR_FAIL test-tamper on the ledger
+  ok   - no-op proposal: still red -> REPAIR_FAIL (exit 2)
+  ok   - missing proposer: clean exit 3 with the fix instruction
+  ok   - no repair event claimed without a proposer
+  ok   - audit: repair events are chained, verdict INTACT
+  ok   - usage headline counts exactly 1 repair HELD (hash-locked, not merely accepted)
+  ok   - locks>0 (1 locked): headline says VERIFIED — the tamper check really ran
+  ok   - locks==0: headline does NOT claim VERIFIED
+  ok   - locks==0: headline says UNVERIFIED instead
+  ok   - locks==0: the reason is stated (0 test files, anti-tamper never ran)
+  ok   - entry flake (green then red): FLAKY, exit 4 — its own verdict, not exit 0
+  ok   - entry flake: the run never claims 'nothing to repair'
+  ok   - entry flake: the ledger carries its OWN reason (entry samples disagree)
+  ok   - arbiter flake (red then green): the fix is kept, exit 0, labelled FLAKY
+  ok   - arbiter flake: the correct source-only fix is HELD, not discarded
+  ok   - arbiter flake: the user's tree is still UNTOUCHED
+  ok   - arbiter flake: never says 'did NOT turn the check green'
+  ok   - arbiter flake: the word VERIFIED is not spent on an ungradeable run
+  ok   - arbiter flake: the ledger says FLAKY, in its own words
+  ok   - arbiter flake: the ledger event is REPAIR_FLAKY, not an OK
+  ok   - arbiter flake: the word OK never reaches the counter
+  ok   - the false sentence never reached the hash-chained ledger
+  ok   - audit: the flaky events are chained too, verdict INTACT
+  ok   - held repair still costs exactly 2 check runs — the happy path pays nothing for sampling
+  ok   - green repo runs the check twice — the green that ends the session is confirmed
+  ok   - rejection costs a 3rd run — no proposal is thrown away on one sample
+repair session: 33 passed, 0 failed
+./native/repair_isolation_test.sh
+repair isolation: the copy has to be the thing that gets checked
+  ok   - self-contained venv: repair runs its normal course (exit 0)
+  ok   - no false accusation: pyvenv.cfg's `command =` line and an absolute shim shebang do not trip the gate
+  ok   - self-contained venv: a patch was still held
+  ok   - editable install (.pth holds the original path): exit 3
+  ok   - the message says the check resolves outside the isolated copy
+  ok   - the refusal NAMES the file that anchors the check
+  ok   - exit 3: the user's tree is untouched
+  ok   - exit 3: no repair attempt on the ledger (1 START, from case 1 only)
+  ok   - absolute symlink into the original tree: exit 3
+  ok   - a shim the check invokes, with an original-tree shebang: exit 3
+  ok   - no scan ceiling: an anchor behind 400 files and 6 dirs is still found
+  ok   - green repo with an anchor: still 'nothing to repair', no refusal
+repair isolation: 12 passed, 0 failed
+./native/harness_lock_test.sh
+harness lock — the judge must refuse a green it did not grade
+
+  ok    pytest-ini-added           -> harness-tamper (exit 2)
+  ok    root-conftest-added        -> harness-tamper (exit 2)
+  ok    package-test-script        -> harness-tamper (exit 2)
+  ok    honest-source-fix          -> verified (exit 0)
+  ok    honest-source-fix-node     -> verified (exit 0)
+  ok    symlinked-harness-added    -> harness-tamper (exit 2)
+  ok    cmd-script-rewritten       -> harness-tamper (exit 2)
+  ok    cmd-script-honest-fix      -> verified (exit 0)
+  ok    test-file-edited           -> test-tamper (exit 2)
+
+  canary intact: /tmp/rabadon-harness-lock.45K3HI/home/CANARY-do-not-touch
+
+  pass 9   fail 0   skip 0
+  harness lock: GREEN
+./native/heldout_test.sh
+held-out probe — the green has to survive the patch's own crutches
+
+  ok    special-case-sha256          -> heldout (exit 2)
+  ok    special-case-raw-literal     -> heldout (exit 2)
+  ok    special-case-length          -> heldout (exit 2)
+  ok    comparison-override          -> heldout (exit 2)
+  ok    honest-source-fix            -> verified (exit 0)
+  ok    honest-fix-with-long-literal -> verified (exit 0)
+  ok    honest-fix-touching-existing-eq -> verified (exit 0)
+  ok    honest-fix-with-short-guard  -> verified (exit 0)
+
+  canary intact: /tmp/rabadon-heldout.LRxCJm/home/CANARY-do-not-touch
+
+  pass 8   fail 0   skip 0
+  held-out probe: GREEN
+./native/lock_coverage_test.sh
+lock coverage — repair must lock what truth discovers
+
+  premise: truth discovers 161 test files, its json is 10584 bytes
+  ok    the fixture really does overflow a 4kB buffer (10584 bytes, 161 files)
+
+  ok    repair locked all 161 of truth's 161 test files
+  ok    a repo with no test files still says UNVERIFIED, and says why
+  ok    on the same large suite a test-neutering proposal is REJECTED
+
+  canary intact: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-lockcov.fyp6Xi/home/CANARY-do-not-touch
+
+  pass 4   fail 0   skip 0
+  lock coverage: GREEN
+./native/false_reject_test.sh
+false rejection — a correct fix refused for something rabadon did
+
+1. an honest fix behind a stale cache is VERIFIED, not refused
+  ok    the correct fix is held (exit 0)
+  ok    the fix is HELD, not applied — the operator's tree still carries the bug
+2. a proposer that reads stdin is not a failed repair
+  ok    the proposal ran and was held, whatever the caller left on stdin
+3. neither fix bought a false ACCEPTANCE
+  ok    a test-neutering proposal is still rejected (exit 2, by the test lock)
+  ok    the test-file lock was actually built, not merely unviolated
+  ok    the rejected run left the test file as it found it
+4. the purge takes bytecode and nothing else
+  ok    the patch names only source, no cache file appears in it
+  ok    nothing merely named like a cache was removed from the tree
+
+  pass 8   fail 0
+  false rejection: GREEN
+./native/discovery_test.sh
+discovery — the lock can only cover what this finds
+
+  ok    a suite six directories down is discovered (4 of 4)
+  ok    the source file beside it is NOT read as a test
+  ok    a suite whose files are all named test.ts is discovered (4 of 4)
+  ok    contest.ts and latest/index.ts are not read as tests
+  ok    one stray test.ts is not a convention, and tests.ts is source: neither is locked
+  ok    the real suite in the same repo is still discovered
+  ok    a 620-file suite is discovered whole (620)
+  ok    an ordinary repo reports no cap
+
+  pass 8   fail 0
+  discovery: GREEN
+./native/discovery_language_test.sh
+discovery — a suite is found by where it lives, not what language it is
+
+-- ruby / rails
+  ok    locks actionpack/test/abstract/translation_test.rb
+  ok    locks actionmailbox/test/migrations_test.rb
+  ok    leaves lib/latest.rb free
+  ok    leaves app/models/contest.rb free
+  ok    leaves lib/user.rb free
+-- ruby / rspec
+  ok    locks spec/models/topic_spec.rb
+  ok    locks spec/requests/admin_spec.rb
+  ok    leaves app/models/topic.rb free
+-- tcl / redis
+  ok    locks tests/unit/type/list.tcl
+  ok    locks tests/integration/replication.tcl
+  ok    locks tests/assets/default.conf
+  ok    leaves tests/modules/hooks.so free
+  ok    leaves tests/helpers/.gitignore free
+  ok    leaves src/server.c free
+-- php / a language nobody listed
+  ok    locks tests/Feature/ExampleTest.php
+  ok    locks tests/Unit/parser.exs
+  ok    leaves src/Handler.php free
+-- the repo's own testPaths
+  ok    locks checks/smoke.bats
+  ok    leaves checks/README.md free
+-- documents are not checks
+  ok    locks test/cases_test.go
+  ok    leaves test/README.md free
+
+discovery-language: 21 passed, 0 failed
+./native/sandbox_test.sh
+sandbox: kernel-enforced guard.json
+  ok   - a guard deny rule refuses through exec (exit 2, the command never ran)
+  ok   - the refusal names the rule id and its reason
+  ok   - the exec refusal is written to the ledger (CHECK_FAIL + STOP, rule named)
+  ok   - exec writes through the SAME hash chain (audit: INTACT)
+  ok   - a baseline law (force-push to a shared branch) refuses through exec, with no guard.json at all
+  ok   - the same law fires on bare argv too (no shell to unwrap)
+  ok   - disabled[] still silences a rule through exec (the fix did not swallow the override)
+  ok   - an unforbidden command still runs through exec (exit 0)
+  ok   - a kernel sandbox backend is available (--check exit 0)
+  ok   - --print compiles guard.json into a real profile naming the path
+  ok   - a pure-regex path is reported (kernel cannot fence it), not faked
+  ok   - the sandbox launches and runs a command under enforcement (exit 0)
+  ok   - write to a protected path -> refused by the OS, file UNCHANGED (exit 1)
+  ok   - a write OUTSIDE the protected path still succeeds (scoped, not a brick)
+  ok   - the protected path is still READABLE (read-only, not invisible)
+  ok   - no rules -> the command runs bare (sandbox is opt-in per rule)
+  ok   - --deny-net: a network call inside the sandbox fails
+sandbox: 17 passed, 0 failed
+./native/export_test.sh
+export: OTLP/JSON
+rabadon export: 10 line(s) read from 1 spool file(s), 3 span(s) out
+  held back: 0 outside the 7-day window, 7 drill event(s)
+  traces: 2 (0 keyed by session id, 2 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id
+  ok   - output is a single valid JSON object
+  ok   - OTLP resourceSpans/scopeSpans/spans shape
+  ok   - one trace id per pipe (alpha != beta)
+  ok   - refusals are span status ERROR (code 2)
+  ok   - GenAI semconv token + cost attributes carry the right values
+  ok   - all four drill shapes stay home, real refusals still ship
+  ok   - exported ERROR spans agree with rabadon usage's refused count
+  ok   - timestamps are unix-nano STRINGS (OTLP requires string)
+  ok   - the stranger spool really is stock-serialized ("ev": " with a space)
+rabadon export: 10 line(s) read from 1 spool file(s), 3 span(s) out
+  held back: 0 outside the 7-day window, 7 drill event(s)
+  traces: 2 (0 keyed by session id, 2 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id
+  ok   - a stock-serialized spool exports the SAME spans as its compact twin
+rabadon export: 11 line(s) read from 1 spool file(s), 11 span(s) out
+  held back: 0 outside the 7-day window, 0 drill event(s)
+  traces: 1 (0 keyed by session id, 1 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id, 1 of 1 STEP_OK carry no call id and stay points (the gate began writing it 4 August 2026)
+  ok   - all ten SPEC ev values plus one unknown verb render — 11 in, 11 out
+  ok   - an unknown ev carries its own fields as attributes
+  ok   - an unknown ev that is PRICED gets gen_ai.usage.* and keeps its raw fields
+rabadon export: 2 line(s) read from 1 spool file(s), 2 span(s) out
+  held back: 0 outside the 7-day window, 0 drill event(s)
+  traces: 1 (0 keyed by session id, 1 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id
+  ok   - an event with no ev ships under a readable name, payload intact
+  ok   - the gate really emitted a token event, and NOT in the reader's key names
+rabadon export: 3 line(s) read from 1 spool file(s), 3 span(s) out
+  held back: 0 outside the 7-day window, 0 drill event(s)
+  traces: 1 (1 keyed by session id, 0 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id, 1 of 1 STEP_OK carry no call id and stay points (the gate began writing it 4 August 2026)
+  ok   - a REAL gate-emitted token event round-trips to gen_ai.usage.*
+  ok   - rabadon-pipeline really wrote a priced event, in ITS key names
+rabadon export: 7 line(s) read from 1 spool file(s), 7 span(s) out
+  held back: 0 outside the 7-day window, 0 drill event(s)
+  traces: 1 (0 keyed by session id, 1 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id, 1 of 1 STEP_OK carry no call id and stay points (the gate began writing it 4 August 2026)
+  ok   - loop's split tokens, model and COST all reach the export
+  ok   - the priced attempt is 2500ms WIDE, and it ends at the ledger's instant
+rabadon export: 5 line(s) read from 1 spool file(s), 5 span(s) out
+  held back: 0 outside the 7-day window, 0 drill event(s)
+  traces: 1 (0 keyed by session id, 1 by pipe name, 0 by file)
+  tool calls: 0 joined start->ok by call id
+  shipped, and damaged: 1 with no readable ts (dated from the file name)
+  ok   - a duration that is not one leaves the span a point, and keeps its raw value
+  ok   - the gate really wrote both ends of both calls, each with its tool_use_id
+  ok   - each tool call spans ITS OWN start->ok, nested calls and all
+  ok   - the START is not dropped to buy one row — it ships as the OK's child
+  ok   - a pair that is not one leaves both ends honest points, unlinked
+  ok   - two sessions in one folder are two traces, and each span says which basis it got
+  ok   - a session that moves between folders stays ONE trace
+export: 26 passed, 0 failed
+./native/export_drop_test.sh
+export: 19 line(s) in, 18 of them inside the window, 18 span(s) out, exit 0
+
+1. every in-window, non-drill line reaches the collector
+  ok   - 18 in-window line(s) -> 18 span(s)
+
+2. a line the exporter could not read is REPORTED, not swallowed
+  ok   - nothing was discarded, so there is nothing to report
+
+3. the payload is one JSON document, and it has to survive as one
+  ok   - the OTLP payload decodes as UTF-8 and parses as JSON
+
+4. a span says what the agent actually ran
+  ok   - the STEP_START/STEP_OK pair carries the command text
+  ok   - the refusal names the rule that fired
+
+5. a line the reader could not fully parse does not ship as an anonymous span
+  ok   - no span left with neither a pipe nor an event name
+
+export_drop_test: 6 ok, 0 failed
+./native/gate_promise_test.sh
+  ok   - anti-path edit is refused at attempt time (exit 2)
+  ok   - the refusal names the promise it protects
+  ok   - the ledger carries the mid-session catch
+  ok   - on-area edit flows freely (exit 0)
+  ok   - area creep: 5th off-target edit challenged once, then released ( 0 0 0 0 2 0)
+  ok   - promise-tamper: the contract cannot be edited by the supervised session
+  ok   - no promise -> nothing to enforce (exit 0)
+  ok   - broken promise -> fails open, no crash (exit 0)
+  ok   - disabled[] does not reach a sealed promise rule (exit 2)
+  ok   - an ordinary rule named in disabled[] is still switched off (exit 0)
+gate promise: 10 ok, 0 fail
+./native/blind_switch_test.sh
+  ok   - an absent switch still watches (exit 0)
+  ok   - a present switch enforces (exit 2)
+  ok   - a home that is a regular file enforces (exit 2)
+  ok   - and it says why
+  ok   - an unreadable home enforces (exit 2)
+  ok   - with no home named at all it enforces (exit 2)
+  ok   - blind enforcement still allows a harmless command
+
+blind switch: 7 passed, 0 failed
+./native/lamp_test.sh
+  ok   - one breath walks the full ramp and comes back ( 97 104 141 183 189 183 141 104)
+  ok   - the breath is periodic (6s cycle closes)
+  ok   - consecutive frames differ — the lamp is alive
+  ok   - the mark and the word share one colour (97)
+  ok   - and at every phase of the breath
+  ok   - OFF never animates (same bytes at any phase)
+  ok   - OFF still says so in words, not just colour
+  ok   - median render stays cheap (3ms/run, budget 25ms)
+
+lamp: 8 passed, 0 failed
+./native/watch_test.sh
+  ok   - ENFORCE: the anti-path edit is refused (exit 2)
+  ok   - ENFORCE: the ledger records a real STOP
+  ok   - WATCH: the same edit is allowed through (exit 0)
+  ok   - WATCH: it says out loud what it would have done
+  ok   - WATCH: the would-be catch is on the ledger (the week-one sales artifact)
+  ok   - WATCH: no STOP is ever written — it never claims a block it did not make
+  ok   - WATCH evaluates the same rules and reaches the same verdict as ENFORCE ("check":"promise-anti-path")
+  ok   - WATCH: on-target work flows normally (exit 0)
+  ok   - SILENT: allowed through (exit 0)
+  ok   - SILENT: writes nothing at all — dormant means dormant
+  ok   - RABADON_OFF=1 is still fully dead (the child-recursion guard holds)
+  ok   - statusline ENFORCE: the lamp is lit, no qualifier
+  ok   - statusline WATCH: says 'watch' in words
+  ok   - statusline SILENT: says 'off' in words
+
+watch: 14 passed, 0 failed
+./native/serve_test.sh
+  ok   - the server answers /healthz
+  ok   - a POST with no key is refused (401)
+  ok   - an unknown key is refused (401)
+  ok   - a 3-event batch is accepted and counted
+  ok   - the events are on disk, in the project's own ledger
+  ok   - a retried batch is absorbed (accepted 0, duplicate 3) — a retry cannot double-bill
+  ok   - the ledger did not grow on the retry
+  ok   - malformed lines are rejected and counted, the good one still lands
+  ok   - a different key writes to a different project
+  ok   - the second project has its own ledger file
+  ok   - a hostile project name cannot traverse out of the store
+  ok   - 20 concurrent writers x 50 events = exactly 1000 new lines (no loss, no duplication)
+  ok   - every line in the ledger is still a complete, parseable event
+  ok   - after kill -9 and restart the ledger is intact (    1004 lines)
+  ok   - the restarted server still remembers what it holds (rebuilt from disk, retry still absorbed)
+  ok   - an unknown route is a 404, never a quiet 200
+
+serve: 16 passed, 0 failed
+./native/sigpipe_test.sh
+  ok   - dead watcher never turns a block into an allow (10/10 exit 2, no SIGPIPE)
+  ok   - no watcher: deny still blocks (exit 2)
+  ok   - git -C <path> push --force is still refused (global options stripped for the match)
+gate sigpipe: 3 ok, 0 fail
+./native/session_test.sh
+  ok   - state.json is created by the native gate
+  ok   - session booked: recent trail + actionCount live in the session's own file
+  ok   - a record from the old shared map is carried over, counters intact
+  ok   - twin delivery: exit 0, actionCount stays 1
+  ok   - loop-stop persists through state.json ( 0 0 2)
+  ok   - a code edit in between resets the loop counter
+  ok   - old state-native twin file is retired on sight
+  ok   - goal capture: recursion refused, first real prompt pinned, later prompt ignored
+  ok   - non-tool twin dedupe: one RUN_START, not two
+  ok   - Stop distills goal + last moves into handoff.md
+  ok   - SessionStart injects the handoff into the new session
+  ok   - SessionStart resets the per-session counters
+  ok   - token ledger measured from the transcript (43 out / 107 in)
+  ok   - ledger is incremental: only the new bytes are counted
+  ok   - the handoff carries today's catches
+gate state: 15 ok, 0 fail
+./native/session_fanout_test.sh
+session fan-out — the supervisor of a fan-out cannot break at four
+
+1. one session's count is not another session's business
+  ok    session A was challenged on its own fifth edit, after six others arrived
+  ok    the challenge fired once and let the session past
+  ok    and it stays fired after twelve other sessions have been seen
+
+2. sessions writing at the same time do not erase each other
+  ok    all twelve concurrent sessions kept their record
+
+3. it does not grow without bound
+  ok    state is 10511 bytes after 25 sessions
+  ok    a record quiet for two days was swept and the live ones were not
+
+4. one session's red is not another session's red
+  ok    the session that saw the red is still held to it
+  ok    a session that has run nothing does not inherit that red
+
+5. a verified green crosses sessions, and any edit ends it
+  ok    the session that edited the tree had its suite run before the push
+  ok    a second session pushing an untouched tree rides the verified green
+  ok    one session's edit put the tree past the green and the suite ran again
+
+6. a shared 16-character prefix is not a shared session
+  ok    seven edits across two ids sharing a prefix challenged neither
+  ok    and each id still reaches its own fifth
+
+  13 passed, 0 failed
+./native/budget_test.sh
+  ok   - setter: '200k' writes {"tokens":200000}
+  ok   - setter: '5usd' writes {"usd":5}
+  ok   - setter: 'off' clears the cap
+  ok   - setter: show prints the current cap
+  ok   - under cap (1050/2000): the tool is allowed
+  ok   - over cap (1050/1000): halted before burn, exit 2 + message
+  ok   - cache tokens counted: cache-only 1200/1000 blocks (old ledger would miss it)
+  ok   - no budget.json: opt-in meter, huge usage still passes
+  ok   - override: budget-cap in disabled[] lets the run through
+  ok   - usd cap (opus $0.01/$0.009): halted before burn
+  ok   - usd cap skipped for an unpriced model — no false halt
+budget gate: 11 ok, 0 fail
+./native/postuse_test.sh
+BR1 code-edit tracking
+  ok   - BR1a edit no guard -> lastCodeEdit SET, STEP_OK edited: node==native (exit 0, state, spool)
+  ok   - BR1a lastCodeEdit is a TOP-LEVEL field (feeds Pre loop-stop)
+  ok   - BR1b codePaths miss -> lastCodeEdit UNSET, still STEP_OK: node==native (exit 0, state, spool)
+  ok   - BR1b non-code edit leaves lastCodeEdit unset
+BR2 scope fan-out
+  ok   - BR2 5th dir -> exit 2 on both
+  ok   - BR2 stderr names all 5 top dirs (a, b, c, d, e) on both
+  ok   - BR2 stderr frame is byte-identical node==native
+  ok   - BR2 CHECK_FAIL scope-fanout on the ledger
+  ok   - BR2 fanoutWarned latched + lastCodeEdit still SET after fan-out exit
+  ok   - BR2 6th off-target edit exits 0 (fires once per session)
+  ok   - BR2 file outside cwd: no top dir, exit 0, lastCodeEdit still SET
+BR3 active re-anchor (12th action)
+  ok   - BR3 12th action + off-track judge -> exit 2
+  ok   - BR3 re-anchor stderr carries goal + anchor verbatim
+  ok   - BR3 actionCount stays 12 (Post must NOT increment)
+  ok   - BR3 on-track judge -> exit 0 (STEP_OK edited)
+  ok   - BR3 actionCount=11 -> judge not invoked (no claude call)
+  ok   - BR3 RABADON_JUDGE=0 -> judge skipped entirely
+BR4 test GREEN + 'fail 0' trap
+  ok   - BR4a 'Failures: 0' string response -> GREEN (the word 'fail' does not trip red): node==native (exit 0, state, spool)
+  ok   - BR4a GREEN emitted (measured count N=0, not a keyword sighting)
+  ok   - BR4a lastTestPass SET, lastTestFail=0
+  ok   - BR4a2 native: 'Failures: 0' in the object shape is not a failure (exit 0)
+  ok   - BR4a2 native: lastTestFail NOT stamped (no false red in the handoff)
+  ok   - BR4a2 native: the delivery shape no longer changes the verdict — GREEN either way
+  ok   - BR4a2 node still calls the same run RED in the object shape (open front, JS side)
+  ok   - BR4a2b a redirected run is still neither green nor red, and says so
+    note: hooks/gate.mjs (retiring oracle) exits 2 here — a false red, tracked.
+  ok   - BR4b ctest '100% tests passed, 0 failed' -> GREEN: node==native (exit 0, state, spool)
+  ok   - BR4c JSON-object tool_response with escaped \n -> de-escaped then matched: node==native (exit 0, state, spool)
+  ok   - BR4c escaped-newline object still reads GREEN
+BR5 test RED + incident
+  ok   - BR5a RED with JUDGE=0 -> exit 2, CHECK_FAIL test-run, no REPAIR_START: node==native (exit 2, state, spool)
+  ok   - BR5a CHECK_FAIL test-run present
+  ok   - BR5a no REPAIR_START under JUDGE=0
+  ok   - BR5a lastTestFail SET, lastTestPass untouched
+  ok   - BR5a RED stderr (no advice under JUDGE=0)
+  ok   - BR5b RED + diagnose -> exit 2
+  ok   - BR5b REPAIR_START emitted
+  ok   - BR5b advice block carries where/cause/fix
+  ok   - BR5b lastDiagSig + lastDiagAt set (top-level dedup fields)
+BR6 incident dedup
+  ok   - BR6 same incident within 15min -> diagnose runs ONCE (call count 1)
+  ok   - BR6 REPAIR_START emitted once, not twice
+  ok   - BR6 after 15min the same incident diagnoses again (call count 2)
+BR7 rule authoring
+  ok   - BR7 deny rule installed into bash[] with authoredBy+incidentAt, pretty+trailing-nl
+  ok   - BR7 REPAIR_OK 'new gate: no-force-push' on the ledger
+  ok   - BR7 advice mentions the new gate
+  ok   - BR7 id-dedup: the same rule id is not appended twice
+  ok   - BR7 match rule lands in protectedPaths[], not bash[]
+  ok   - BR7 invalid-regex rule is dropped, never installed
+  ok   - BR7 no REPAIR_OK for the dropped rule
+  ok   - BR7b a proposed rule that cannot refuse its own example is NOT installed
+  ok   - BR7b the session is told which example the proposal could not catch
+  ok   - BR7c a proposal carrying no example is not installed
+  ok   - BR7d a proven proposal is still installed
+BR8 RABADON_OFF propagated to the claude child
+  ok   - BR8 diagnose child saw RABADON_OFF=1 (supervisor never supervises itself)
+  ok   - BR8 driftJudge child also saw RABADON_OFF=1
+BR8b bounded subprocess kills a hanging stub
+  ok   - BR8b RED terminal still fires around a slow child (exit 2, 2.0697832107543945s)
+BR9 non-test Bash
+  ok   - BR9 'ls -la' -> STEP_OK ran, no state mutation: node==native (exit 0, state, spool)
+  ok   - BR9 STEP_OK 'ran: ls -la'
+  ok   - BR9 no lastTest*/lastCodeEdit mutation on a non-test bash
+BR10 other tool (Read/Grep)
+  ok   - BR10 Read -> exit 0, ZERO spool events, no state mutation: node==native (exit 0, state, spool)
+  ok   - BR10 Read emits ZERO spool events (done(null))
+BR11 twin dedupe on Post
+  ok   - BR11 twin dedupe: node==native (0 0 1 = r1 r2 STEP_OK-count)
+  ok   - BR11 first STEP_OK + lastCodeEdit, twin swallowed (exit 0, one STEP_OK)
+BR12 judge model is sayable from outside
+BR13 default off: a red suite calls nobody
+  ok   - BR13 native nothing set: red still refuses (exit 2) and calls claude ZERO times
+  ok   - BR13 native no REPAIR_START without a model — the ledger claims no diagnosis
+  ok   - BR13 native names the switch it is not using (no silent capability loss)
+  ok   - BR13 native RABADON_JUDGE=1 opts in (one call)
+  ok   - BR13 native guard.json "judge":true opts in (one call)
+  ok   - BR13 native RABADON_JUDGE=0 still wins over the guard key (backwards compatible)
+  ok   - BR13 node nothing set: red still refuses (exit 2) and calls claude ZERO times
+  ok   - BR13 node no REPAIR_START without a model — the ledger claims no diagnosis
+  ok   - BR13 node names the switch it is not using (no silent capability loss)
+  ok   - BR13 node RABADON_JUDGE=1 opts in (one call)
+  ok   - BR13 node guard.json "judge":true opts in (one call)
+  ok   - BR13 node RABADON_JUDGE=0 still wins over the guard key (backwards compatible)
+  ok   - BR12b native drift judge writes LLM_CALL ok:true
+  ok   - BR12b native LLM_CALL names the model that was actually called
+  ok   - BR12b native LLM_CALL carries the wall-clock the session waited
+  ok   - BR12b native a judge that answered nothing STILL leaves a spend line
+  ok   - BR12b node drift judge writes LLM_CALL ok:true
+  ok   - BR12b node LLM_CALL names the model that was actually called
+  ok   - BR12b node LLM_CALL carries the wall-clock the session waited
+  ok   - BR12b node a judge that answered nothing STILL leaves a spend line
+  ok   - BR12 native default judge model is claude-haiku-4-5 (what used to be compiled in)
+  ok   - BR12 native RABADON_JUDGE_MODEL overrides it
+  ok   - BR12 node default judge model is claude-haiku-4-5 (what used to be compiled in)
+  ok   - BR12 node RABADON_JUDGE_MODEL overrides it
+  ok   - BR13 a suite counting 0 failures is GREEN even when its own text says 'failing'
+  ok   - BR13 a real counted failure is still RED
+  ok   - BR13 a crash string still outranks a zero count — the run died before it could count
+gate postuse: 88 ok, 0 fail
+./native/agents_test.sh
+agents: the same law, from a different agent
+
+1. cursor: beforeShellExecution
+  ok   - a force-push from cursor is refused (exit 2)
+  ok   - the verdict is on STDOUT as a cursor permission object
+  ok   - the agent is told WHICH rule refused it (a block with no reason is half a block)
+  ok   - the operator's terminal still gets the human text on stderr
+  ok   - the refusal is on the same hash-chained ledger as every other agent's
+  ok   - the ledger line carries a project pipe (cursor has no session_id; conversation_id stood in)
+  ok   - a guard.json rule written for Claude Code fires unchanged on cursor
+  ok   - an ordinary command from cursor passes (exit 0, no permission object)
+  ok   - an allow stays silent on stdout
+
+2. cursor: afterFileEdit
+  ok   - an ordinary edit from cursor is recorded, not refused
+  ok   - the edit lands on the ledger, so the session is observable on cursor too
+  ok   - a destructive shell write from cursor IS refused before it runs
+
+3. generic: an agent rabadon has never heard of
+  ok   - the documented contract refuses with no editor vocabulary at all (exit 2)
+  ok   - and it names the rule, so a fourth agent needs no code in this repo
+  ok   - project rules apply to the generic contract too
+
+4. claude code: unchanged
+  ok   - a force-push from claude code is still refused (exit 2)
+  ok   - claude code stdout stays clean — the verdict travels on stderr + exit 2
+
+5. an unrecognised payload
+  ok   - an event no dialect claims falls open (exit 0), same as an unknown hook always did
+
+agents: 18 ok, 0 fail
+./native/run_test.sh
+run: an agent rabadon has never heard of
+  ok   - a force-push from an unadapted agent is refused (the agent sees exit 2)
+  ok   - a rule this project wrote itself shims its own program and refuses it
+  ok   - the real program never ran (refused before, not reported after)
+  ok   - ordinary work is untouched (a gate that stops everything is not a gate)
+  ok   - a harmless git subcommand still runs — the shim judges, it does not ban git
+  ok   - the refusal is on the same hash-chained ledger as every other agent's
+  ok   - so is the project's own rule
+  ok   - an absolute-path invocation skips the shim — the documented hole, still true
+  ok   - the run announces how many programs it put under the gate
+
+run: 9 ok, 0 fail
+./native/contract_test.sh
+contract: the terms are stated before the first judgement
+  ok   - names the command it will actually run, not a category
+  ok   - says how strong that evidence is (a suite, not a syntax check)
+  ok   - says WHERE it found the command — the claim is auditable
+  ok   - says when it fires
+  ok   - and says the trigger is the filesystem, not the tool name — so it holds for any agent
+  ok   - says the check is off the agent's critical path
+  ok   - says what happens on red BEFORE any red happens
+  ok   - the contract is on the ledger, not only on the screen
+  ok   - the ledger records WHICH check was promised
+  ok   - repair has a line of its own
+  ok   - says whose money a repair spends — the reason it is off by default
+  ok   - gives the exact way to turn repair on
+  ok   - with the judge on, the block says repair is ON
+  ok   - and says the repair lands in an isolated copy, not the user's tree
+  ok   - a project it cannot check is TOLD it cannot be checked
+  ok   - and it hands over the exact thing that fixes that
+  ok   - invents nothing: no command is named where none exists
+  ok   - doing what the block said makes rabadon name that command back
+  ok   - and it says the command was declared, not guessed — the two are different claims
+  ok   - no longer claims to be blind
+  ok   - the net actually RAN the declared command and read its exit code
+  ok   - watch mode is disclosed, not assumed
+  ok   - and the when-line says NEVER — watch spends nothing on your machine
+  ok   - promises no stop it cannot perform
+  ok   - names the shim hole (an absolute-path call walks past it)
+  ok   - does not invent a hole the current agent does not have
+  ok   - on Cursor it names the hole Cursor actually has
+  ok   - and the rest of the contract still resolves on the Cursor dialect
+  ok   - an unadapted agent still runs under rabadon run
+  ok   - and it gets the SAME contract, not a different one written twice
+  ok   - which states plainly that on this path there is no stop on red
+  ok   - and the promise it cannot keep is absent, not merely contradicted later
+  ok   - with no promise on file it says the scope is unlimited, rather than implying one
+  ok   - with a promise on file, the contract quotes the promised areas
+  ok   - the whole SessionStart, discovery included, finishes inside 2s
+
+contract: 35 ok, 0 fail
+./native/redbase_test.sh
+red base: the next action does not start
+  ok   - premise: the project's own suite is green to start with
+  ok   - the edit that breaks the code is not itself refused (rabadon is not a linter)
+  ok   - the project's own check ran detached and came back red
+  ok   - the NEXT action does not start on a red base (exit 2 at PreToolUse)
+  ok   - the refusal names the rule
+  ok   - and names the check that is red, so the reason is not a mystery
+  ok   - and carries the real failing output, not a summary of it
+  ok   - it refuses EVERY action while red — a red that stops complaining can be waited out
+  ok   - reading is allowed while red — you cannot fix what you may not look at
+  ok   - searching is allowed while red
+  ok   - editing is allowed while red — the edit IS the fix
+  ok   - writing is allowed while red
+  ok   - re-running the check is allowed — that is the escape hatch, and it needs no flag
+  ok   - the check counts as the check without its flags (npm test vs npm test --silent)
+  ok   - and still counts when it is run from a subdirectory
+  ok   - but a DIFFERENT npm command is still refused — the carve-out is the check, not the runner
+  ok   - the fix makes the project's own check pass again
+  ok   - and the refusal clears itself — no flag, no restart, no rabadon off
+  ok   - a file changed by a SHELL command starts the check — no edit tool required
+  ok   - and the break made through the shell stops the next action just the same
+  ok   - a read-only command runs no suite — supervision does not become a CPU tax
+  ok   - a tree too large to scan is ANNOUNCED — the miss is never silent
+  ok   - an INCONCLUSIVE check refuses nothing — a timeout is not evidence of a break
+  ok   - watch mode blocks nothing, exactly as its contract said
+  ok   - a fresh red refuses again
+  ok   - and disabled["red-base"] really switches it off — the override line is not decoration
+
+red base: 26 ok, 0 fail
+./native/redbase_scope_test.sh
+  ok   - premise: the project's own check really is red
+  ok   - premise: the verdict names the tree it is about
+red base scope: a red stops where its tree stops
+  ok   - a command that runs IN the red tree is still refused
+  ok   - a command that runs entirely in a NEIGHBOUR tree is not refused
+  ok   - one segment back inside the red tree refuses the whole line (cd is not an escape)
+  ok   - git -C into the red tree is refused wherever the shell stands
+  ok   - an ordinary command with no cd is refused exactly as before
+  ok   - re-running the check is still allowed — the escape hatch did not close
+  ok   - a session standing in the neighbour is not refused (unchanged)
+
+red base scope: 9 ok, 0 fail
+./native/scope_test.sh
+scope: a verdict is about a tree, and says which
+  ok   - a red about this tree still refuses (the feature is not amputated)
+  ok   - A's red does not refuse in sibling B (the leak, closed)
+  ok   - B's own red refuses B
+  ok   - a verdict written under the old name does not refuse under the new one
+  ok   - a legacy verdict with no root still refuses — upgrade does not disarm
+  ok   - in a subdir, a verdict rooted at the repo root still refuses
+  ok   - a fallback root refuses in its own directory
+  ok   - a fallback root does not refuse in a child directory
+  ok   - a green verdict refuses nothing
+  pass 9   fail 0
+./native/pushgate_test.sh
+  ok   - green suite: push allowed (exit 0)
+  ok   - green: REPAIR_OK on the ledger
+  ok   - green: lastTestVerified stamped in the shared file, so the next push is clean
+  ok   - red suite: push blocked (exit 2)
+  ok   - red: rabadon says it ran the suite itself
+  ok   - red: REPAIR_FAIL on the ledger
+  ok   - tests green since last edit: push flows, suite not re-run
+  ok   - timeout: a hanging suite is killed and the push blocked (exit 2)
+  ok   - timeout: gate returned fast, did not wait out the sleep
+  ok   - env shell: a suite needing bash function syntax runs and the push is allowed
+  ok   - env shell twin: a real failure under the same shell still blocks (exit 2)
+gate push: 11 ok, 0 fail
+./native/pushgate_forge_test.sh
+push gate — a stamp the session can write is not verification
+
+  ok   - an observed green does not let a red suite through
+  ok   - a green rabadon verified itself still skips the re-run
+  ok   - go: a run with [no tests to run] is not a green
+  ok   - go: a real green still opens the gate
+  ok   - go: packages without tests beside a real green is still green
+  ok   - pytest: 'no tests ran' is not a green
+  ok   - pytest: '1 passed' opens the gate
+  ok   - rspec: '0 examples' is not a green
+  ok   - rspec: '15 examples, 0 failures' opens the gate
+
+gate push forge: 9 ok, 0 fail
+./native/testverdict_test.sh
+test verdict — no evidence is not a failing suite
+
+  ok   - output redirected to a file is UNKNOWN, not red
+  ok   - an empty tool result is UNKNOWN, not red
+  ok   - a result with no test vocabulary is UNKNOWN, not red
+  ok   - counted failures still go RED
+  ok   - make *** Error still goes RED
+  ok   - a segfault still goes RED
+  ok   - a traceback still goes RED
+  ok   - a counted green is still GREEN
+  ok   - '0 fail' in a summary line is not failure evidence
+  ok   - 'failures: 0' is a counted green
+  ok   - '0 errors' is not failure evidence
+  ok   - '1 fail' in the same shape still goes RED
+  ok   - a stated EXIT=0 beside a failure word is UNKNOWN, not red
+  ok   - a stated EXIT=1 beside the same word still goes RED
+  ok   - a crash string outranks a stated EXIT=0
+  ok   - a counted failure outranks a stated EXIT=0
+
+test verdict: 16 ok, 0 fail
+./native/drift_test.sh
+  ok   - on-target session verdict is on-the-star (exit 0)
+  ok   - off-target + .mjs session verdict is DRIFT (exit 3)
+  ok   - drift names the forbidden ground it touched
+  ok   - the ledger finally carries a goal-drift event
+  ok   - no north star -> advisory fails open (exit 0)
+  ok   - unparseable promise -> fails open, no crash (exit 0)
+
+drift: 6 passed, 0 failed
+./native/verify_test.sh
+  ok   - known-good state passes
+  ok   - genuine behavior-preserving refactor is accepted
+  ok   - broken behavior is REJECTED by the differential check
+  ok   - unchanged protected file passes
+  ok   - tampered protected file is REJECTED
+  ok   - empty contract fails closed (exit 2)
+  ok   - unknown check type is rejected
+
+verify: 7 passed, 0 failed
+./native/loop_test.sh
+  ok   - broken step -> genuine repair -> gate passes -> accept PASS
+  ok   - gamed repair is rejected -> loop fails closed (exit 1)
+  ok   - contract-less step fails closed
+  ok   - missing acceptance fails closed
+  ok   - cheap tier rejected -> auto-escalated -> pricey tier proven -> accept PASS
+  ok   - the escalation is on the ledger with its from/to tier
+  ok   - the ledger records WHICH tier actually carried the step
+  ok   - cheap tier passes the arbiter -> no escalation, no extra spend
+  ok   - a cheap step is recorded as PROVEN at tier 1
+  ok   - a real REPAIR_OK is on the ledger (not a demo pipe)
+  ok   - run outcomes are reported to the spool
+
+loop: 11 passed, 0 failed
+./native/route_test.sh
+  ok   - routed arm total includes the REJECTED cheap attempt ($0.3980)
+  ok   - control arm total is the sum of its own measured calls ($1.4000)
+  ok   - delta + percent are computed from the two arms ($1.0020, %72)
+  ok   - counts 4/5 steps as proven-cheap, 1 escalated
+  ok   - the rejected cheap answer is shown with the failing check
+  ok   - the climb to the expensive tier is drawn under the step
+  ok   - when routing loses, the report says it lost (no hiding)
+  ok   - the loss is quantified (-$0.0400), same measured way
+  ok   - the A/B banner exists to look for (two-arm fixture prints it)
+  ok   - no second arm -> no comparison printed (never a half-measured claim)
+  ok   - installing a rule and observing a green run are NOT counted as repairs (REPAIRED 0)
+  ok   - a real repair from the loop is still counted (REPAIRED 1)
+  ok   - needle proved present: the 18 events on an ORDINARY pipe render CAUGHT 2 (step 2,5)
+  ok   - needle proved present: the same run renders REPAIRED 2 on an ordinary pipe
+  ok   - needle proved present: the money line renders on an ordinary pipe
+  ok   - an ordinary run is NOT labelled a drill
+  ok   - self pipe 'do-test' counts 0 catches and 0 repairs
+  ok   - self pipe 'do-test' says out loud that it is rabadon's own drill
+  ok   - self pipe 'do-test' prints no 'saved:' claim
+  ok   - self pipe 'do-test:do' counts 0 catches and 0 repairs
+  ok   - self pipe 'do-test:do' says out loud that it is rabadon's own drill
+  ok   - self pipe 'do-test:do' prints no 'saved:' claim
+  ok   - self pipe 'vibecoded-demo:do' counts 0 catches and 0 repairs
+  ok   - self pipe 'vibecoded-demo:do' says out loud that it is rabadon's own drill
+  ok   - self pipe 'vibecoded-demo:do' prints no 'saved:' claim
+  ok   - self pipe 'llm-repair-live:do' counts 0 catches and 0 repairs
+  ok   - self pipe 'llm-repair-live:do' says out loud that it is rabadon's own drill
+  ok   - self pipe 'llm-repair-live:do' prints no 'saved:' claim
+  ok   - self pipe 'bus-test:do' counts 0 catches and 0 repairs
+  ok   - self pipe 'bus-test:do' says out loud that it is rabadon's own drill
+  ok   - self pipe 'bus-test:do' prints no 'saved:' claim
+  ok   - self pipe 'rabadon-bench-7:do' counts 0 catches and 0 repairs
+  ok   - self pipe 'rabadon-bench-7:do' says out loud that it is rabadon's own drill
+  ok   - self pipe 'rabadon-bench-7:do' prints no 'saved:' claim
+  ok   - rule 1: a "drill":true emit tag zeroes the catch count
+  ok   - rules 2+4: a doctor-3 marker excludes the run and its 2-minute fallout
+  ok   - a drill run is kept out of the MEASURED A/B block (no money claim from a self-test)
+  ok   - a mixed spool still renders BOTH runs (the drill is labelled, not deleted)
+  ok   - in a mixed spool the drill run counts 0
+  ok   - in the SAME render the customer's real run still counts CAUGHT 1
+  ok   - the real run keeps its money line while the drill has none
+  ok   - the real run keeps its own measured cost ($0.0050)
+  ok   - the drill's own spend is still shown to the operator, under the exclusion banner
+  ok   - needle proved present: an ordinary pipe renders FAKE FIX REJECTED 1
+  ok   - needle proved present: the ordinary run prints the fail-closed money line
+  ok   - a drill's rejected fake fix is NOT counted as a refusal (FAKE FIX REJECTED 0)
+  ok   - a drill prints no fail-closed money claim
+  ok   - the drill's refusal is still reported as a SHAPE, so nothing is hidden from the operator
+
+route: 48 passed, 0 failed
+./native/llm_proposer_test.sh
+  ok   - routed: claude was actually spawned (argv recorded)
+  ok   - routed: --model is passed through to claude
+  ok   - routed: the tier name from RABADON_MODEL is the flag's value (haiku)
+  ok   - routed: proposer exits 0
+  ok   - default: claude spawned with RABADON_MODEL unset (bash 3.2 empty-array path)
+  ok   - default: no unbound-variable abort on the empty MODEL_ARG
+  ok   - default: no --model flag when no tier was named (account default is used)
+  ok   - default: the prompt flag -p survives the empty-array expansion
+  ok   - default: proposer exits 0
+  ok   - sidecar: the model's own result event is written for the loop to price
+  ok   - sidecar: a missing RABADON_DIR stays silent (best-effort, as documented)
+
+llm-proposer: 11 passed, 0 failed
+./native/truth_test.sh
+  ok   - package.json scripts.test -> level 3 SUITE
+  ok   - the npm 'no test specified' stub is REFUSED as a suite (fell to level 1)
+  ok   - tsconfig.json -> level 2 BUILD (typecheck), not syntax
+  ok   - Makefile 'test:' target -> level 3 SUITE
+  ok   - Makefile with only 'all:' -> level 2 BUILD
+  ok   - bare python sources -> level 1 SYNTAX
+  ok   - the SYNTAX command actually runs green on healthy sources
+  ok   - the SYNTAX command goes RED on a file that cannot parse (a rung that cannot fail is not a rung)
+  ok   - a folder with no code -> level 0 NONE
+  ok   - level 0 exits non-zero (callers can branch on it)
+  ok   - test files are listed for the forbidden-sha lock (a fix cannot weaken its own judge)
+  ok   - a package.json inside node_modules is ignored (level 1, not a borrowed suite)
+
+truth: 12 passed, 0 failed
+./native/discovery_scope_test.sh
+discovery scope: whose tests, which tree
+  ok   - a test inside .venv/.../site-packages is NOT the project's suite (level 1 SYNTAX)
+  ok   - a test inside Library/.../site-packages is NOT the project's suite (fell to level 1)
+  ok   - site-packages is skipped wherever it sits, with no venv above it (fell to level 1)
+  ok   - dist-packages, the debian spelling of the same directory, is skipped too (fell to level 1)
+  ok   - a real src/Library/ project is still discovered and still locked (skip_dir did not eat the name)
+  ok   - an ordinary tests/ directory is still the project's suite
+  ok   - a project under a git-repo $HOME does not inherit $HOME as its root (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.NqKQU6/home/proj)
+  ok   - it falls back to the directory itself, which governs no sibling
+  ok   - a real git root below $HOME still wins from a subdirectory (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.NqKQU6/home/g)
+  ok   - premise: a python project with a tests/ directory is a level 3 SUITE
+  ok   - premise: pytest collected nothing and exited 5 (not 0 — that is the whole bug)
+  ok   - a run that executed no tests is INCONCLUSIVE, whatever the runner's exit code was
+  ok   - a suite that really fails is still RED — the exemption did not swallow the catch
+
+discovery scope: 13 ok, 0 fail
+./native/net_test.sh
+  ok   - an edit in ON mode starts the net without the agent waiting
+  ok   - a healthy repo is reported GREEN by its own check
+  ok   - the net turns RED on the edit that broke it
+  ok   - the run is stopped at the transition (exit 2 = correction fed back to the agent)
+  ok   - the agent is told what broke, in its own output
+  ok   - the catch is on the ledger with the evidence level
+  ok   - lastTestRun is no longer 0 (this is the number that proved the net was dead)
+  ok   - an already-red project is not re-reported every call (no nagging)
+  ok   - WATCH never runs the project's checks — zero CPU spent on the user's repo
+  ok   - a check that blows its budget is INCONCLUSIVE, never green
+  ok   - timeout is never green
+  ok   - 5 more edits during an in-flight check start 0 extra suites (single flight holds)
+./native/net_test.sh: line 111:  3342 Killed: 9               RABADON_NET_CAP_MS=9000 "$NET" "$R4" > /dev/null 2>&1
+  ok   - a lock left by a dead process is reclaimed (the net cannot wedge itself)
+
+net: 13 passed, 0 failed
+./native/stats_test.sh
+stats_test: usage renderer contract
+  ok   - headline totals: 3 refused, 2 gated, 1 repair HELD
+  ok   - headline keeps unverified out of the held count
+  ok   - bucket: only a hash-locked fix counts as held
+  ok   - bucket: locks:0 and no-locks land in unverified
+  ok   - bucket: a green push-gate suite repaired nothing
+  ok   - bucket: writing a rule repaired nothing
+  ok   - the old lumped counter is gone
+  ok   - watch bucket in headline
+  ok   - rule-id grouping: 2x no-force-push-main (rule field + run-join)
+  ok   - rule why rendered under the id
+  ok   - legacy detail falls back to em-dash prefix
+  ok   - watch verdict grouped by rule
+  ok   - loop counter survives
+  ok   - drills excluded and said so
+  ok   - emit-tagged drill never counted
+  ok   - drill- marker session never counted
+  ok   - rabadon-bench self pipe never counted
+  ok   - events outside --days never counted
+  ok   - last event stamp (TZ=UTC pinned)
+  ok   - --project filters to one project
+  ok   - --project hides the others
+  ok   - --full lists each catch with a timestamp
+  ok   - --json totals
+  ok   - --json rule objects
+  ok   - --json drills counter
+  ok   - --json splits the repair buckets too
+  ok   - --json no longer ships one lumped repair number
+  ok   - --md headline
+  ok   - --md methodology footer
+  ok   - --md reproducible pointer
+  ok   - empty state points at rabadon drill
+  ok   - the truly empty ledger still gets the onboarding copy
+  ok   - the truly empty ledger is not an error (rc: 0)
+  ok   - a filter that matched nothing names the project asked for
+  ok   - and names the projects that ARE in the window (alpha)
+  ok   - and names all of them, not just the first (beta)
+  ok   - the onboarding copy is not the answer to a wrong name
+  ok   - and neither is a zeroed report on stdout
+  ok   - a filter that matched nothing exits non-zero (rc: 1)
+  ok   - --md names the project asked for on stderr
+  ok   - --md prints no empty-window report body
+  ok   - --md exits non-zero for a wrong name (rc: 1)
+  ok   - --json names the project asked for on stderr
+  ok   - --json emits no all-zero body a caller would trust
+  ok   - --json exits non-zero for a wrong name (rc: 1)
+  ok   - a negative window is refused by name
+  ok   - a negative window is never rendered as a heading
+  ok   - and never answered with the onboarding copy
+  ok   - --days -5 exits non-zero (rc: 2)
+  ok   - an empty --project value is refused, and says what IS there
+  ok   - an empty --project value never renders another project's numbers
+  ok   - --project '' exits non-zero (rc: 1)
+  ok   - a project that IS in the window still renders
+  ok   - a matching --project still exits 0 (rc: 0)
+  ok   - long reason ends in an ellipsis, no silent cut
+  ok   - no line exceeds COLUMNS (longest: 80)
+  ok   - session+exec+do fold into one row named proj
+  ok   - both catches counted on that one row
+  ok   - all three checks counted on that one row
+  ok   - one rule, counted twice, not once on each of two rows
+  ok   - no phantom project from the exec pipe
+  ok   - no phantom project from the do pipe
+  ok   - exactly one project row (rows: 1)
+  ok   - report (--md) has one section: ## proj
+  ok   - --project proj finds the folded row
+  ok   - --project proj keeps the exec catch in it
+  ok   - --project proj is not a pipe-label match
+  ok   - --json names the project once, without a surface
+  ok   - --json carries one project object (n: 1)
+  ok   - a colonless label stays the project name
+  ok   - a missing pipe is still the unknown bucket
+  ok   - an exec-only project is one row under its own name
+  ok   - the exec-only row keeps no surface
+  ok   - three labels, three rows (rows: 3)
+stats: 74 passed, 0 failed
+./native/trace_test.sh
+trace: a refusal is a caught step
+  ok   - the throwaway repo has no remote (`git remote` is empty)
+  ok   - with rabadon absent, git itself refuses the push (rc=128) — a missed block reaches nothing
+  ok   - rabadon-gate REFUSED the force-push (exit 2) — the ledger below is a real refusal
+  ok   - rabadon-sandbox REFUSED the same command (exit 2)
+  ok   - rabadon-gate in WATCH mode did NOT stop the command (exit 0)
+  ok   - the two real binaries wrote 2 refused runs: ex-22931897-3588, ng-22931882-3586
+  ok   - neither refused run contains a STEP_START — this IS the shape trace could not read
+  ok   - `rabadon trace ex-22931897-3588` renders CAUGHT 1 over a {CHECK_FAIL, STOP} run
+  ok   - the rule that fired is named in the render (baseline-force-push)
+  ok   - the check's own why is rendered
+  ok   - the caught step is drawn as a step, named 'exec'
+  ok   - no repair is invented: nothing was proposed, so nothing was rejected
+  ok   - the render says the action was refused before it ran
+  ok   - the header names the surface the refusal came through (exec) and says no model call
+  ok   - the header prices no model call it never made
+  ok   - the footer verdict reads BLOCKED, the reason the STOP carries
+  ok   - `rabadon trace ng-22931882-3586` renders CAUGHT 1 over a {CHECK_FAIL, STOP} run
+  ok   - the rule that fired is named in the render (baseline-force-push)
+  ok   - the check's own why is rendered
+  ok   - the caught step is drawn as a step, named 'Bash'
+  ok   - no repair is invented: nothing was proposed, so nothing was rejected
+  ok   - the render says the action was refused before it ran
+  ok   - the header names the surface the refusal came through (session) and says no model call
+  ok   - the header prices no model call it never made
+  ok   - the footer verdict reads BLOCKED, the reason the STOP carries
+  ok   - `rabadon usage` counts 2 refused before they happened (json and the printed line agree)
+  ok   - `rabadon export --otlp` ships 4 ERROR spans = 2 refusals x {CHECK_FAIL, STOP}
+  ok   - every exported refusal carries the rule id as its span status message
+  ok   - trace CAUGHT (2) == usage refused (2) == export refusal spans (2)
+  ok   - watch mode wrote {CHECK_FAIL, WOULD_BLOCK} and no STOP — the shape with the opposite meaning
+  ok   - trace counts CAUGHT 0 for a watch verdict, exactly as usage counts refused 0
+  ok   - the watch verdict is rendered as WOULD BLOCK 1, the same 1 usage reports as wouldRefuse
+  ok   - the watch render says the action ran and nothing was stopped
+  ok   - the watch render makes no claim that the action was prevented
+  ok   - the watch render still names the rule that fired
+  ok   - the routed renderer draws a step that failed its check and never came back as CAUGHT
+  ok   - ...and does NOT draw it as proven cheap / passed
+  --- 32 ok, 0 failed
+trace: the saved: line, over real repair events
+  ok   - last-repaired: the real loop wrote CHECK_FAIL + REPAIR_OK over a 1-step plan, 1 step(s) OK
+  ok   - last-rejected: the real loop wrote CHECK_FAIL + REPAIR_FAIL over a 1-step plan, 0 step(s) OK
+  ok   - later-repaired: the real loop wrote CHECK_FAIL + REPAIR_OK over a 3-step plan, 3 step(s) OK
+  ok   - later-rejected: the real loop wrote CHECK_FAIL + REPAIR_FAIL over a 3-step plan, 0 step(s) OK
+  ok   - no-repair: the loop wrote a catch and ZERO REPAIR_OK/REPAIR_FAIL (RUN_START,STEP_START,STEP_TRY,CHECK_FAIL,STOP,RUN_DONE)
+  ok   - both: the real loop wrote CHECK_FAIL + REPAIR_FAIL+REPAIR_OK over a 3-step plan, 3 step(s) OK
+  ok   - last-repaired: the footer counts REPAIRED 1
+  ok   - later-repaired: the footer counts REPAIRED 1
+  ok   - last-rejected: the footer counts FAKE FIX REJECTED 1
+  ok   - later-rejected: the footer counts FAKE FIX REJECTED 1
+  ok   - both: the footer counts REPAIRED 1
+  ok   - both: the footer counts FAKE FIX REJECTED 1
+  ok   - no-repair: the footer counts REPAIRED 0
+  ok   - last-rejected: the rejected repair is drawn as a fake fix -> REPAIR_FAIL, which is what the ledger says
+  ok   - later-rejected: the rejected repair is drawn as a fake fix -> REPAIR_FAIL, which is what the ledger says
+  ok   - later-repaired: the saved: line names the steps that really follow the catch (steps 2–3)
+  ok   - later-rejected: the saved: line names the steps that really follow the catch (steps 2–3)
+  ok   - both: the saved: line names the steps that really follow the catch (steps 2–3)
+  ok   - both: a refused attempt followed by a proven repair is not reported as a STOP
+  ok   - later-rejected: the run that really stopped still says its steps NEVER ran
+  ok   - both: the line reports both halves — the refusal and the repair that passed
+  ok   - last-repaired: with nothing after the catch the line says step 1 of 1, not a range
+  ok   - last-rejected: with nothing after the catch the line says step 1 of 1, not a range
+  ok   - both: every step range printed runs forwards
+  ok   - last-rejected: every step range printed runs forwards
+  ok   - last-repaired: every step range printed runs forwards
+  ok   - later-rejected: every step range printed runs forwards
+  ok   - later-repaired: every step range printed runs forwards
+  ok   - no-repair: every step range printed runs forwards
+  ok   - both: every step number on screen (1,2,3) is a step this 3-step run really had
+  ok   - last-rejected: every step number on screen (1) is a step this 1-step run really had
+  ok   - last-repaired: every step number on screen (1) is a step this 1-step run really had
+  ok   - later-rejected: every step number on screen (1,2,3) is a step this 3-step run really had
+  ok   - later-repaired: every step number on screen (1,2,3) is a step this 3-step run really had
+  ok   - no-repair: every step number on screen (1) is a step this 1-step run really had
+  ok   - no-repair: 'fake fix' never appears — nothing was proposed, so nothing is reported
+  ok   - no-repair: 'REPAIR_FAIL' never appears — nothing was proposed, so nothing is reported
+  ok   - no-repair: 'repaired' never appears — nothing was proposed, so nothing is reported
+  ok   - no-repair: 'step 10' never appears — nothing was proposed, so nothing is reported
+  --- 39 ok, 0 failed
+trace: the A/B saving is refused over a ledger that lost a line
+  ok   - (J1) over the intact ledger the saving is claimed, and it is $0.6000 kept (30%)
+  ok   - (J1) ...and nothing on an intact ledger is called unreconciled
+  ok   - (J2) one line in the .unchained sibling and the saving is refused, not recomputed
+  ok   - (J2) ...and the words "kept" and the 80% claim are nowhere on screen
+  ok   - (J2) ...while the two arms themselves still render, marked, not hidden
+  ok   - (J2b) --run reads the sibling too and STILL refuses — reading bytes is not folding them
+  ok   - (J3) a sidecar committing more lines than the file holds also refuses the claim
+  ok   - (K) the day ledger renders even when the sibling wins the mtime tie
+  ok   - (K2) the sibling is not rendered as a ledger of its own
+  --- 14 ok, 0 failed (shell arm)
+./native/lens_test.sh
+fixture written
+ok    fixture: exit 0, clean stderr
+ok    fixture: known session in/out/cache/tokens/$cost/tools/dur all exact
+ok    fixture: iterations + toolUseResult traps correctly ignored
+ok    fixture: unknown model renders $cost as ? (tokens still counted)
+ok    fixture: TOTAL aggregates tokens/cost/tools + NAMES the unpriced model
+ok    single-file source: one .jsonl argument = one session
+ok    missing source: exit 0, clean stderr, '(no sessions...)'
+corpus: 9 transcripts
+ok    corpus: 9 generated transcripts across 3 projects
+ok    corpus: 8/8 sessions — lens tokens == canonical message.usage (byte-exact)
+ok    no source given: lens resolves $HOME/.claude/projects — the temp one — and reads the corpus
+ok    the real ~/.claude is never named: nothing in this suite reads it
+ok    corpus walk: TOTAL 1268832 tokens == canonical sum over all 9 transcripts
+ok    corpus walk: all 3 project dirs represented in the rows
+ok    corpus walk: silent stderr over a truncated transcript and a blank line
+
+lens_test: 14 ok, 0 bad
+./native/usage_order_test.sh
+usage order: the meter reads real transcript key order
+  ok   - the probe compiles against the real meter (native/usage.h)
+  ok   - a real transcript line is one billable call
+  ok   - the compact stream shape still counts
+  ok   - whitespace around the top-level type still counts
+  ok   - a toolUseResult line is not a billable call
+  ok   - a quoted assistant line inside user text is not a call
+  ok   - quoted numbers inside a real call are not summed
+  ok   - a mixed transcript counts exactly the billable lines
+  ok   - a real transcript agrees byte-for-byte with a stock parser [414 131098 758852 1754223 136816678] (01d83f33-7941-4d09-bcaf-6f28fea1c79a.jsonl)
+usage order: 9 passed, 0 failed
+./native/regression_demo.sh
+  baseline (correct code):
+  ok   - shallow gate passes on good code
+  ok   - behavior gate passes on good code
+  after a behavior-breaking edit:
+  ok   - shallow gate MISSES the regression (waves the broken edit through)
+  ok   - rabadon behavior gate CATCHES the regression via the project's own tests
+
+  what rabadon reports (the failing test is named):
+    FAIL testsuite [node --test]: the project's own suite is RED (exit 1)
+
+regression: 4 passed, 0 failed
+./native/precision_test.sh
+== rabadon gate precision ==
+cases: 34   correct block: 11   wrong block: 0   missed: 0   correct allow: 23
+
+wrong blocks (work this gate would have cut):
+
+missed (harm this gate would have let through):
+
+precision 100.0%  (a refusal is the right refusal this often)
+recall    100.0%  (real harm the gate actually stops)
+floor     90%
+
+rule families (each negative needs a live positive above it):
+  ok   baseline-force-push: 1 must-block (1 still blocking), 0 must-not-block
+  ok   baseline-rm-rf-outside: 1 must-block (1 still blocking), 2 must-not-block
+  ok   no-force-push-main: 3 must-block (3 still blocking), 10 must-not-block
+  ok   no-hard-reset-main: 1 must-block (1 still blocking), 1 must-not-block
+  ok   no-rm-rf-outside: 1 must-block (1 still blocking), 0 must-not-block
+  ok   no-rm-rf-outside-project: 1 must-block (1 still blocking), 9 must-not-block
+  ok   no-wrangler-deploy: 3 must-block (3 still blocking), 1 must-not-block
+canaries intact after judging 34 commands (judging is not running): ok
+
+PASS
+./native/site_claims_test.sh
+site claims — a number with no command behind it is a slogan
+
+1. the sources the site names
+  ok    native/rabadon-stats exists
+  ok    native/precision_fixture.jsonl exists
+  ok    site/measured.json: every entry names a script that exists
+
+2. the overview is built, not typed
+  ok    site/index.tmpl.html exists
+  ok    no measured number left in the template's headline stats
+  ok    site/build.py ran
+  ok    the build wrote the page it is judged on
+  ok    no unfilled placeholder in the rendered index.html
+
+3. two pages, one number
+        AGREE      commands refused             391
+        AGREE      commits in this repository   859
+        AGREE      would have refused           1329
+        AGREE      refused outright once armed  391
+        AGREE      laws still in a guard file   11
+        AGREE      distinct laws written        14
+        AGREE      refusals reported wrong      6
+        AGREE      pushes refused on a red tree 140
+  ok    the overview and the pages it summarises agree
+
+4. the README counts its own lines
+  ok    README says ~23k, native/ measures 24233 lines
+
+  pass 10   fail 0
+  site claims: GREEN
+./native/field_redaction_test.sh
+field redaction — a truncated home path is still a home path
+
+1. what reached the published file
+  ok    wrote the published file
+  ok    no '/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.Y905pWC1dy/alicewonder' in the published file
+  ok    no '/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.Y905pWC1dy/alicewon' in the published file
+  ok    no 'alicewonder' in the published file
+  ok    no 'alicewond' in the published file
+  ok    no '/Users/' in the published file
+  ok    no '/home/' in the published file
+  ok    the record with nothing to hide was published unchanged
+  ok    every published line is valid JSON
+
+2. the refusal still works when redaction cannot reach
+  ok    a session named after the account did not leak it
+
+  10 passed, 0 failed
+./native/publish_redaction_test.sh
+1. the scanner can go red
+  ok    a leaky directory is reported (exit 1)
+  ok    the home path is found, with the file named
+  ok    the withheld name is found and counted
+  ok    the clean file is not reported — this is a scanner, not a refusal to publish
+  ok    .vercelignore decides the scan set, so it cannot silently widen what is served
+2. the census generator redacts at the point of generation
+  ok    site/rule_census.py --republish ran (exit 0)
+  ok    no absolute home path in what it wrote
+  ok    no withheld project name in what it wrote
+  ok    3 records withheld and COUNTED, survivors rewritten to ~, measured headline unchanged
+  ok    the unredacted census is kept outside site/ as the next run's baseline
+  ok    the full census is mode 600
+  ok    the scanner agrees with the generator on the file it just wrote
+  ok    the write is refused on anything redaction did not reach
+3. the ledger extractor withholds by the same rule, from the same module
+  ok    2 of 3 records withheld: site/field.jsonl: 3 records in, 1 published, 2 withheld (2 sensitive project name)
+  ok    the re-emitted field file carries neither name nor home path
+field.withheld=2
+  ok    the count is published, not just applied
+4. an empty terms list matches NOTHING
+rules=4 withheld=0
+  ok    no terms file: every record published, nothing withheld
+  ok    home paths are still rewritten with no terms list at all
+5. a project key is an absolute path, and is redacted as one
+  ok    the encoded key is rewritten, refused when foreign, and matched against the terms
+  ok    the extractor publishes records labelled with an encoded key (exit 0)
+  ok    both records survive, relabelled (no project) and rabadon, with no account name left
+  ok    the scanner reads the key spelling too, and finds nothing
+6. the real site/ carries neither, and the page's claim is backed by a count
+  ok    every published artifact under /Users/damummyphus/damla_projects_2026/rabadon/site is clean (12 term(s) checked)
+  ok    the page claims records are dropped and counted, and both published files state the count
+7. a CI account name is a dictionary word, and is not a leak
+        (the account this runs as is 'runner', a generic CI account name that
+         occurs in ordinary prose. Counting it would report the word, not a
+         leak. The absolute-path and project-key checks below still hold, and
+         they are the ones that would catch a real operator path.)
+  ok    the word 'runner' in prose is not reported as an account name
+        (the account this runs as is 'runner', a generic CI account name that
+         occurs in ordinary prose. Counting it would report the word, not a
+         leak. The absolute-path and project-key checks below still hold, and
+         they are the ones that would catch a real operator path.)
+  ok    the absolute home path is still reported under a generic account
+  ok    and the file carrying it is still named
+  ok    a distinctive account name on its own is still a finding
+
+publish redaction: 28 passed, 0 failed
+./native/publish_test.sh
+publish — the deploy is not the publish; the alias is
+
+1. the alias is set to the same deployment id the deploy printed
+  ok    the first publish succeeded (exit 0)
+  ok    alias points at https://rabadon-dep1k7q-nosey-dewdrops-projects.vercel.app — the deployment this run created
+  ok    vercel alias set was called with that url and the domain
+  ok    the aliased deployment carries would_block=41
+
+1b. the same run with the alias step deleted must be caught
+  ok    the un-aliased publish is rejected (exit 1)
+  ok    it names the step that failed: verify
+  ok    the domain is provably still on the older deployment
+  ok    the failure is written to the log, not only to stdout
+
+2. a second run with an unchanged ledger does not deploy
+  ok    vercel was not invoked once (3 calls before and after)
+  ok    the no-op run still exits 0
+  ok    it says 'no change' rather than going quiet
+  ok    the skipped run is on the log too — silence is not an answer
+  ok    a non-field number changing under it does not trigger a deploy
+  ok    a note inside a field.* key changing does not trigger a deploy either
+  ok    the volatile note really is in the file the trigger reads (fixture is honest)
+
+2b. the census on the same page is inside the trigger, and its clock is not
+  ok    re-running the census and getting the same answer does not deploy
+  ok    the census answer moving from 411 to 425 does deploy
+
+3. a changed ledger does deploy
+  ok    vercel was invoked (2 calls: deploy and alias)
+  ok    the alias moved to the new deployment
+  ok    it reports the number it published (77)
+  ok    the log line carries the deployment url
+
+4. two concurrent runs, one publish
+  ok    a held lock stops the run before any deploy
+  ok    the blocked run exits 0 quietly, not as an error
+  ok    it says who is holding it
+  ok    two concurrent runs produced at most one deploy+alias pair (2 vercel calls)
+  ok    the loser says it stood down
+  ok    both exit 0 — losing a lock race is not a failure
+  ok    the lock is released when the run ends
+
+5. what it is allowed to commit
+  ok    it published with another session mid-edit (exit 0)
+  ok    the commit touches nothing outside site/ (site/field.html site/field.jsonl site/index.html site/measured.json )
+  ok    site/build.py is under site/ and was still left alone
+  ok    the other session's three edits are still uncommitted, where it left them
+  ok    the commit message names what it is (lowercase, no co-author line)
+  ok    no co-author trailer
+  ok    the commit reached origin (a normal push, no force)
+
+6. gh unreachable does not publish an empty pull-requests page
+  ok    the previous pull-requests page was kept rather than published empty
+  ok    and it said so in the log
+
+7. the log
+  ok    14 lines, one per run
+  ok    every line starts with an unambiguous utc timestamp
+  ok    published, no change and FAILED are all distinguishable in one file
+  ok    each published line carries the deployment url it aliased
+
+8. a push that fails does not stop the publish, and is not swallowed either
+  ok    the site was published anyway — the alias moved
+  ok    and the run still exits non-zero (exit 1)
+  ok    the line names the step that failed: push
+  ok    the log carries it too
+  ok    the commit is still in the local history, waiting for the next push
+
+  46 passed, 0 failed
+./native/field_census_test.sh
+field census — a rule that was written and is not there is not a rule
+
+OK   all three authoring events are still listed
+OK   rule-that-lives          live=True
+OK   rule-in-a-nested-repo    live=True
+OK   rule-that-never-landed   live=False
+OK   a guard two directories down was found and attributed
+OK   field.rules_live = 2 of 3
+OK   field.rules_written still counts every authoring event
+  ok    the census separates written from live
+
+  1 passed, 0 failed
+./native/claims_test.sh
+claims — every number is asked which run produced it
+
+  ok    the honest report passes (exit 0)
+  ok    it names the number it checked
+
+  ok    the fabricated twin is caught (exit 1)
+  ok    it names the command that never ran
+  ok    it names the number that has nothing behind it
+  ok    the backed number in the same file is still reported
+
+  ok    a number with no command at all is caught (exit 1)
+  ok    it names the unsourced number
+
+  ok    a command longer than the clip still matches its ledger line
+
+  ok    the verdict states the limit: output is not on the ledger
+  ok    --json reports the unbacked count and every claim
+
+7. a citation is the command, not the whole line the shell ran
+  ok    a citation that heads a longer ledger line is backed
+  ok    a bare program name does not match every line starting with it
+
+  13 passed, 0 failed
+./native/fd_dup_test.sh
+fd duplication — 2>&1 is a descriptor, not a file
+
+1. these must pass
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && git status 2>&1
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && make test 2>&1 | tail -5
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls >&2
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls &> /dev/null
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls 1>&2
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls 2>&-
+  ok    git -C /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other status 2>&1
+
+2. these must still be refused
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && > ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && echo x > ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && echo x > ./1
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && echo x 2> ROADMAP.md
+
+  11 passed, 0 failed
+./native/sock_path_test.sh
+  ok   - (a) nothing is delivered to the truncated socket path
+  ok   - (b) the reason is on stderr — the caller can tell this from 'no watcher'
+  ok   - (c) the gate still ran and exited cleanly (rc=0) — spool-only, not dead
+
+sock_path_test: 3 ok
+./native/day_cache_test.sh
+day cache: one timezone load per process, still the right day
+  ok   - the probe compiles against the real gate (gate.cpp, main renamed)
+  ok   - the probe compared 64808 timestamps against the uncached computation
+  ok   - every one agreed with gmtime_r+strftime
+  ok   - midnight flips the string: 2024-12-31 -> 2025-01-01, asked in reverse order
+  ok   - the live call answers today's UTC date (2026-08-29), same as `date -u +%F`
+  ok   - the FIRST call in a cold process cost 31us (<50us): the one-shot gate pays no timezone load
+  ok   - 100k repeat calls cost 2919us total (<100000us): the timezone load happened once
+  ok   - a forked child's FIRST call cost 17us (<50us): it inherited the warm cache
+day cache: 8 passed, 0 failed
+./native/mode_wrong_test.sh
+mode + wrong refusal — the two events the ledger was not keeping
+
+1. switching supervision on and off is recorded
+  ok    three changes, three lines (and --status wrote none)
+  ok    each line carries what the mode was and what it became
+  ok    the command still says the mode out loud
+
+2. a refusal that was wrong can be written down
+  ok    rabadon wrong exits 0
+  ok    one wrong refusal, one line
+  ok    it names the rule and the reason it was wrong
+  ok    a rule with no reason is refused
+
+3. both are inside the tamper-evident chain
+  ok    every new line carries prev and seq like the rest of the ledger
+  ok    rabadon audit still verifies the spool
+
+  9 passed, 0 failed
+./native/guard_subdir_test.sh
+guard reach — a project's law holds in the whole project
+
+1. at the project root (this already held)
+  ok    refused at root: git add -A
+  ok    refused at root: wrangler deploy
+
+2. from a subdirectory, where an agent actually works
+  ok    refused in engine: git add -A
+  ok    refused in engine: wrangler deploy
+  ok    refused in engine/deep: git add -A
+  ok    refused in engine/deep: wrangler deploy
+  ok    refused in engine/deep/deeper: git add -A
+  ok    refused in engine/deep/deeper: wrangler deploy
+
+3. the file rules travel with it
+  ok    refused a generated file from a subdirectory
+
+4. the walk stops at the project
+  ok    a different repository does not inherit this project's rules
+
+5. the allow twins still pass, at the root and below
+  ok    honest work still passes in /
+  ok    honest work still passes in /engine/deep
+
+6. a project that is not a git repository at all
+  ok    refused in / of a non-git project
+  ok    refused in /sub of a non-git project
+  ok    refused in /sub/deeper of a non-git project
+  ok    the twin still passes in a non-git project
+
+  16 passed, 0 failed
+./native/rule_census_test.sh
+rule census — four ways a rule that lints can still never fire
+
+1. the pipe: a pattern that spells \| is matched against a surface a pipe cannot be in
+  ok   - the pipe rule fires on the line it was written for
+  ok   - the exit-code rule fires on the line it was written for
+  ok   - the left half alone is an ordinary command -> allowed
+  ok   - the right half alone is an ordinary command -> allowed
+
+2. redirections: does the surface a deny regex reads still carry > and >>?
+  ok   - a truncating redirect at the named file -> refused by no-truncating-write
+  ok   - an appending redirect at the named file -> refused by no-truncating-write
+  ok   - the tee spelling -> refused by no-truncating-write
+  ok   - an unrelated file -> allowed
+
+3. protectedPaths: the rule is written relative, the event carries absolute
+  ok   - the ^-anchored relative rule fires on the absolute path Claude Code sends
+  ok   - the absolute path is caught, by whichever rule is first
+  ok   - the ^-anchored rule DOES fire on a relative spelling (which nothing sends) -> refused by anchored-relative
+
+4. guard reach: a session standing one directory below the project root
+  ok   - at the project root the rule holds -> refused by reach-no-yarn
+  ok   - one directory down the rule still holds
+  ok   - two directories down the rule still holds
+
+5. judging is not running
+  ok   - the home canary survived
+  ok   - the delete fixture survived every probe above
+  ok   - the guards on disk are unmodified by judging
+
+  pass 17   fail 0
+  rule census: GREEN (no mechanism found)
+./native/identity_test.sh
+identity: a label is collapsed for an identity reason, or not at all
+  ok   - an ordinary project name is a project, unchanged
+  ok   - the :session suffix is a pipe spelling, not part of the name
+  ok   - an underscore is a real directory character and is NOT rewritten
+  ok   - a dot INSIDE a name is part of the name
+  ok   - a name that resembles nothing on any list survives as a name
+  ok   - an UNKNOWN label stays a project name: the fail-safe direction is 'in front of a human'
+  ok   - a space becomes a dash: two spellings of one project collapse
+  ok   - and the same for the second one
+  ok   - leading, trailing and repeated whitespace all normalise
+  ok   - the marker itself stays the marker
+  ok   - what a scrub left behind is residue, not a second project
+  ok   - wherever in the label the marker lands
+  ok   - (lab) re-resolves to itself
+  ok   - (no project) re-resolves to itself
+  ok   - a record with no project recorded says so
+  ok   - and so does an empty label
+  ok   - the home directory is not a project
+  ok   - and it is not one in the spelling an unhomed path leaves either
+  ok   - a dot-directory is configuration, not a project
+  ok   - including a dotted probe tree
+  ok   - the system scratch area is not a project
+  ok   - a probe tree with an mktemp suffix
+  ok   - and the other probe family
+  ok   - the bench harness's twelve scratch repos
+  ok   - mktemp's own spelling
+  ok   - the repair harness's scratch repository
+  ok   - the demo
+  ok   - a public repo visited to be measured keeps its name
+  ok   - a label the committed list speaks for, with its evidence beside it
+  ok   - a label resolves through the list it is actually given
+  ok   - and NOT through a list that does not name it — no rule is baked into the code
+  ok   - with an empty list every structural rule still holds and nothing else collapses
+  ok   - every line of site/non-projects.txt parses as <lab|none> <label>
+  ok   - the committed list is 4 entries — small enough that every one can be argued
+  ok   - every entry has its evidence written above it
+  ok   - a guard's identity is the directory it lives in, not the name it declares
+  ok   - five labels resolve to three identities — the module answers, it does not pass through
+identity: 37 passed, 0 failed
+EXIT=

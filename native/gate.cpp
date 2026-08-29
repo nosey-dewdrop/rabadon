@@ -1692,10 +1692,21 @@ struct State {
     // move — "an answer is owed since the very first move" is the one value
     // that would make an upgraded session emit an INJECT_ANSWER for an
     // injection that never happened. No signal owed, no answer owed.
-    s.injPendingPrevSig = get_str(obj, "injPendingPrevSig");
+    //
+    // AND THEY ARE READ BEHIND A KEY THAT IS ALREADY IN HAND. get_str scans the
+    // whole session object, and the session object is the largest thing the
+    // gate parses; three unconditional extra scans cost real microseconds on
+    // EVERY tool call, to carry a fact that exists in a handful of them.
+    // Measured paired against F3c-oncesi, 8 reps: three scans read +101.8 us on
+    // the mean with 6/8 paired signs positive. Each of these fields is written
+    // only when its own gate above is set, so reading it when that gate is
+    // clear cannot find anything — the scan was pure cost.
+    if (!s.injPending.empty()) s.injPendingPrevSig = get_str(obj, "injPendingPrevSig");
     s.injAnsSignal = get_str(obj, "injAnsSignal");
-    s.injAnsPrevSig = get_str(obj, "injAnsPrevSig");
-    s.injAnsAfterSeq = s.injAnsSignal.empty() ? -1 : (long long)get_num(obj, "injAnsAfterSeq");
+    if (!s.injAnsSignal.empty()) {
+      s.injAnsPrevSig = get_str(obj, "injAnsPrevSig");
+      s.injAnsAfterSeq = (long long)get_num(obj, "injAnsAfterSeq");
+    }
     // R5. A session written before R5 has none of these keys; get_num answers 0
     // and get_str answers "", so injCapMoveSeq would read back as move 0 — "the
     // cap was reached at the very first move", which is the ONE value that
