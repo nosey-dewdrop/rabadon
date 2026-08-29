@@ -4,6 +4,37 @@ Koşunun kısa ve KANITLI durumu. Her satır bir ölçümden okundu.
 Ayrıntı ve komutlar: `reports/kosu/ENVANTER.md`.
 Koşu 3'ün DURUM'u `reports/kosu/arsiv/DURUM-kosu3.md`'de, iptal notuyla duruyor.
 
+## SON HÜKÜM — F3h: **KALDI** (2026-08-30, `KAPI.md`)
+
+Kapı sayıları kartla **birebir** ve hakem tarafından yeniden koşturuldu:
+`make test` **EXIT=0** · native **4022** iddia + **633** kontrol + `npm test`
+**64/0** = **4719 yeşil / 0 kırmızı** (taban 4664, **+55**; +55'in tamamı
+süit-diff'iyle ayrıldı: `law_family` 68→117, yeni `home_isolation` 0→6).
+`accept.sh` **EXIT=1, 23/3, `{2b, 6e, 7b}` BÜYÜMEDİ**. Süit **116 → 117**.
+Küçülen 0 · kaybolan 0 · silinen dosya 0.
+
+**GEÇEN:** K0 (`~/.claude/settings.json` bayt bayt aynı, mutasyon 4/2 kırmızı) ·
+K1 (beş yanlış pozitif kapandı, daraltma bypass açmadı, çift yönde pinlendi) ·
+K3 (911 µs yeniden üretildi ve karttan **daha ağır** çıktı: daemon +530,4 µs,
+8/8, bandı **aşıyor**).
+
+**KAPATMAYAN:** yasanın ailesinde ölçülmüş, yasayı gerçekten yok eden bir şekil
+sınıfı var (`ls -a | xargs rm -rf`, `find . -delete` ve dört `-not` varyantı,
+`cd .. && rm -rf proj` — sekizi de ALLOW + law-GONE) ve **ürün bunu
+söylemiyor**: `blind spots:` ekranı bu fazın diff'inde hiç yok. Kartta ilan,
+ilan değildir (Promise 1). Ayrıntı: `reports/kosu/RAPOR/F3h-R.md`.
+
+### SÜİT SAYACI — TEK GEÇERLİ SAYAÇ (F3h hükmü, log regex'i EMEKLİ)
+
+Üç faz üç farklı sayı verdi çünkü herkes `make test` **çıktısını** regex'liyordu.
+Süit sayısı bundan sonra **kaynaktan** okunur:
+
+    awk '/^test:/{f=1} f&&/^$/{exit} f' Makefile \
+      | grep -oE 'native/[a-zA-Z0-9_.-]+\.sh' | sort -u | wc -l
+
+`F3h-oncesi` → **116** · HEAD → **117**. (Aynı şey logdan sayılınca 115/116
+çıkıyor — bu yüzden log regex'i emekli.)
+
 ## KÖK VE DAL
 - **Tek kök: `/Users/damummyphus/damla_projects_2026/rabadon`. Tek dal: `main`.**
 - Bu koşuda çalışılacak dizin budur. Worktree açılmaz, yeni dal açılmaz.
@@ -33,7 +64,18 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 - **Landing:** eski ürünü satıyor — başlık "guardrails and a verifiable record",
   kurulum `git clone && make`, komutlar `watch/on/usage/repair/audit`.
   "compound error" ve "injection" sayfada **0 kez** geçiyor.
-- **Kapı bugün (2026-08-29, hakem ölçtü — bu satır GÜNCELDİR):**
+- **⚠ KAPI BUGÜN (2026-08-30, F3h hakemi ölçtü — GÜNCEL SATIR BUDUR, aşağıdaki
+  2026-08-29 satırı ARTIK YANLIŞ, silinmiyor):** mod **WATCH**, `enabled` YOK,
+  yani **kullanıcının freni KAPALI.** Üç yoldan ölçüldü: `cat ~/.rabadon/mode`
+  → `watch`; `ls ~/.rabadon/enabled` → yok; sevk edilen ikiliye gerçek
+  `PreToolUse` (`git push --force origin main`) → *"rabadon (watch) would have
+  blocked this. Nothing was stopped."* **EXIT=0.** `mode` mtime **30 Ağu
+  02:03:16**, F3h penceresinin (01:48→02:36) ortası; `enabled`'ın kalkması
+  `rabadon off` imzasıdır ama **kimin yaptığı ÖLÇÜLEMEDİ** (aynı dakikalarda
+  makinede ilgisiz ikinci bir Claude oturumu koşuyordu). Hakem kapı durumunu
+  **DEĞİŞTİRMEDİ.** Hüküm: `KARARLAR.md` · 2026-08-30 · F3h · (4).
+  **F3i'nin ilk işi: freni geri açmak ve bu satırı ölçümle tazelemek.**
+- **Kapı 2026-08-29'da (hakem ölçtü — ARTIK GÜNCEL DEĞİL, yukarıya bak):**
   `~/.claude/settings.json` kök klonun `native/rabadon-gate` ikilisini çağırıyor,
   mod **ENFORCE (deny)**. Üç yoldan ölçüldü: `~/.rabadon/mode` içeriği `enforce`;
   `rabadon status` → "ON — the arbiter acts"; sevk edilen ikiliye gerçek
