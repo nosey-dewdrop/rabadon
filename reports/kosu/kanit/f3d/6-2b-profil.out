@@ -1,0 +1,7 @@
+N=300   empty baseline (env + /usr/bin/true) = 2095.9 us
+
+everything on (what ships)             raw   3495.4   attributable   1399.5 us
+detectors off                          raw   3580.0   attributable   1484.1 us
+injection off                          raw   3639.7   attributable   1543.8 us
+detectors+injection off                raw   3708.7   attributable   1612.8 us
+gate switched off entirely             raw   2706.1   attributable    610.2 us

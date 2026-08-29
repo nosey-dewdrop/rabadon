@@ -1,0 +1,20 @@
+sanity: benchmarked event is ALLOWED, gate exit 0
+A/A: the SAME binary in both arms. N=500 per arm, 8 pairs, arms alternated.
+
+  pair 1: armA   2675.4  armB   3114.3  diff   +438.9   (attributable armA   1524.5)
+  pair 2: armA   2961.2  armB   2810.8  diff   -150.4   (attributable armA   1698.2)
+  pair 3: armA   2892.5  armB   3036.6  diff   +144.1   (attributable armA   1719.6)
+  pair 4: armA   3207.3  armB   3285.4  diff    +78.1   (attributable armA   2034.2)
+  pair 5: armA   3376.7  armB   3410.5  diff    +33.8   (attributable armA   2104.6)
+  pair 6: armA   3286.0  armB   3618.0  diff   +332.0   (attributable armA   2026.3)
+  pair 7: armA   3639.1  armB   3514.6  diff   -124.5   (attributable armA   2346.0)
+  pair 8: armA   3625.9  armB   3737.0  diff   +111.1   (attributable armA   2492.5)
+
+  pairs            : 8
+  mean difference  : +107.9 us   (true difference is ZERO by construction)
+  spread           : min -150.4  max +438.9  range 589.3 us
+  stdev            : 202.9 us
+  sign split       : 6 positive / 2 negative
+
+  => NOISE BAND, measured: a paired claim on this machine must clear
+     |439 us| and be one-sided in the sign test to mean anything.

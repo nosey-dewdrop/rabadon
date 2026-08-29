@@ -1,0 +1,25 @@
+sanity: full path exit 0 (allow), RABADON_OFF=1 path exit 0
+paired, alternated. N=400 per arm, 6 pairs.
+
+  pair 1: ON   2698.0  OFF   1890.3  null   1295.1   attributable: ON  1402.9  OFF   595.2   work  +807.7
+  pair 2: ON   2860.7  OFF   1712.7  null   1134.2   attributable: ON  1726.5  OFF   578.5   work +1148.0
+  pair 3: ON   2790.4  OFF   1929.1  null   1344.4   attributable: ON  1446.0  OFF   584.7   work  +861.3
+  pair 4: ON   3268.4  OFF   1905.9  null   1266.3   attributable: ON  2002.1  OFF   639.6   work +1362.5
+  pair 5: ON   2827.1  OFF   1686.6  null   1275.0   attributable: ON  1552.1  OFF   411.6   work +1140.5
+  pair 6: ON   2970.3  OFF   1889.9  null   1128.2   attributable: ON  1842.1  OFF   761.7   work +1080.4
+
+  attributable, FULL path   : mean 1662.0 us   (median 1639.3)
+  attributable, SWITCH ONLY : mean 595.2 us   (median 590.0)
+  rabadon's own WORK        : mean 1066.7 us   signs 6+/0-
+
+  ceiling (R7 2b)           : 1000.0 us  — NOT moved, not movable by a phase agent (§3.8/4)
+  floor as a share of ceiling: 60%
+  headroom left for all of rabadon's logic: 405 us
+
+== TODAY, N=500, the standard tool, unchanged binary ==
+N (mean, not median)                  = 500
+REAL gate, end to end                 = 2837.2 us
+empty baseline /usr/bin/true, same    = 1140.5 us
+cost ATTRIBUTABLE to rabadon          = 1696.7 us
+ceiling (R7 2b)                       = 1000.0 us
+attributable / ceiling                = 1.70x
