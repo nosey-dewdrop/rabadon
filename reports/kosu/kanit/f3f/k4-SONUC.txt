@@ -1,0 +1,60 @@
+== KART 4 -- yanlis pozitif kartina bakildi, KARSITI bulundu. (2026-08-29)
+
+1) BILDIRILEN YANLIS POZITIF URETILEMEDI, ve bu bir olcumdur.
+   F3e hakemi `no-shell-rewrite-of-guard-or-promise`'in SALT-OKUMA bir
+   `grep -n ... guard.json`'i kestigini bildirdi. Kural .rabadon/guard.json'da,
+   bana KAPALI; o yuzden once fikstürde uretmeye calistim (k4-twin-arm.txt):
+   canli kural birebir kopyalandi, 9 salt-okuma sekli GERCEK gate'e verildi --
+   cat / grep -n / grep -in / git diff / sed -n / python3 -m json.tool /
+   `python3 -c ...; grep -n ... guard.json` / `python3 ... && grep -in ... | head` /
+   `grep -rn --include=*.json .`
+   -> ARM A yanlis pozitif = 0/9. HICBIRI KESILMEDI.
+   Hipotezim (bilesik satirda `python3` + baska bir komutun `-i` bayragi +
+   yolun ayni satirda olmasi, `[^\n]*` ile birlesmesi) de TUTMADI.
+   HUKUM: bu sekliyle URETILEMEDI. Hakemin kestigi tam komut metni kartta
+   yazili degil; onsuz daraltilacak bir kapsam da yok. **OLCEMEDIM.**
+   (CLAUDE.md 8: uretilemedi diye yazilir, olumluya cevrilmez.)
+
+2) AYNI KURALDA KARSIT KUSUR BULUNDU -- CANLI BYPASS, ve ONARILDI.
+   ARM B (gercek kurcalama sekilleri, hepsi REDDEDILMELI):
+     mv .rabadon/guard.json /tmp/x    -> rc=2 RED
+     rm .rabadon/guard.json           -> rc=0 GECTI   <-- BYPASS
+     rm -f .rabadon/guard.json        -> rc=0 GECTI   <-- BYPASS
+     rm ./.rabadon/guard.json         -> rc=0 GECTI   <-- BYPASS
+     rm .rabadon/promise.json         -> rc=0 GECTI   <-- BYPASS
+   Kuralin KENDI regex'i dorduyle de ESLESIYOR (desene dogrudan bakildi,
+   k4-rm-probe.txt). Yani red desende kaybolmuyor, esles-sonrasi
+   BASTIRILIYOR: native/rules.h `all_targets_disposable`.
+   O bastirma dogru sebeple kondu (precision_fixture'daki 20 reddin 9'u
+   `rm -rf /tmp/proj1-build` gibi makine cop dizinleriydi). Ama tam olarak
+   IKI dosyada yanlis: .rabadon/guard.json ve .rabadon/promise.json projenin
+   ICINDE OLMAK ZORUNDA, o yuzden "hedef proje icinde" onlar icin bir kanit
+   degil, taniminin tekrari. Sonuc: kuralin `rm` kolu tamamen kapali,
+   `mv` kolu acik -- disaridan hicbir sey bozuk gorunmuyor.
+   Bu, kuralin yazilma sebebinin ta kendisi (olay 2026-08-03: muhurlu
+   guard-weaken/promise-tamper yalniz Edit/Write TOOL cagrilarini yargiliyor,
+   shell ikisine de o yasadan gecmeden ulasiyor).
+
+   ONARIM: URUN TARAFINDA (native/rules.h), guard.json'a DOKUNULMADI.
+   Yapilan sey bir DARALTMA degil, bir BASTIRMANIN daraltilmasi -- yalniz
+   REDDI ARTIRABILIR, azaltamaz. Desen eklenmedi, esik gevsetilmedi.
+
+3) TWIN ARM (daralttiginin bypass olmadigini olcen kol) -- native/guard_delete_test.sh:
+   ARM 1 yasa dosyalari (6 iddia)      : hepsi REDDEDILIYOR
+   ARM 2 bastirmanin var olma sebebi   : `rm -rf build`, `rm -rf ./build`,
+                                         `rm -f README.md` HALA GECIYOR (3 iddia)
+   ARM 3 salt-okuma sekilleri          : 6 sekil HALA GECIYOR (yanlis pozitif yok)
+   ARM 4 proje disi silme              : hala REDDEDILIYOR
+   -> 16 passed / 0 failed.
+
+4) MUTASYON KANITI (C): rules.h'de carve-out'u `if (false && ...)` yap
+   -> 11 passed / 5 FAILED. Geri alindi -> 16/0.
+   BOS YESIL TURU: ayni suit F3f-oncesi (b482d40) agacinda 11 passed / 5 FAILED.
+
+5) DOKUM -- bu turda benim ustumde ATESLEYEN kapi (sayilir):
+   `no-blind-inplace-source-rewrite` beni 2 kez kesti.
+   (a) `perl -0pi -e ... native/gate.cpp`  -> DOGRU RET, mutasyonu Edit ile yaptim.
+   (b) `python3 -c '...' > "$R/.claude/settings.json"` (/tmp'de bir FIKSTUR
+       yaziyordu, motor kaynagi degil) -> kuralin adi "engine source and its
+       test expectations" diyor, kestigi sey oyle bir sey degildi.
+       YANLIS POZITIF ADAYI, bu fazda ONARILMADI, kart acilmadi. Sahipsiz.

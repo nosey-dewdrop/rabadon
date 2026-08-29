@@ -384,11 +384,44 @@ inline bool pattern_names_a_path(const string& p) {
          p.find("$HOME") != string::npos || p.find("$TMPDIR") != string::npos;
 }
 
+// CONTAINED IS NOT THE SAME AS DISPOSABLE, and there are exactly two files
+// where the difference is the whole point. `<project>/.rabadon/guard.json` and
+// `<project>/.rabadon/promise.json` are the project's own copy of the law. They
+// live inside the tree BY CONSTRUCTION, so "every target lands inside the
+// project" — the evidence that made `rm -rf ./build` disposable — is, for these
+// two, simply a restatement of what they are. The suppression therefore turned
+// the `rm` arm of `no-shell-rewrite-of-guard-or-promise` off entirely, silently,
+// and left the `mv` arm refusing so that nothing looked broken. Measured
+// 2026-08-29 against the shipped binary with the live rule, verbatim:
+//
+//     mv .rabadon/guard.json /tmp/x   -> rc 2, refused
+//     rm .rabadon/guard.json          -> rc 0, ALLOWED   (the pattern matches)
+//     rm .rabadon/promise.json        -> rc 0, ALLOWED   (the pattern matches)
+//
+// That is the exact incident the rule was authored for (2026-08-03: the sealed
+// guard-weaken and promise-tamper laws judge Edit/Write tool calls only, so a
+// shell reaches both files without passing them) — reopened from underneath by
+// a narrowing that was correct about everything else.
+//
+// This carve-out can only make the gate refuse MORE: it removes a suppression,
+// it does not add a pattern. Deleting scratch inside a project is still
+// suppressed, which native/guard_delete_test.sh holds from the other side.
+inline bool is_rabadon_law_file(const string& target) {
+  const size_t s = target.rfind('/');
+  const string base = s == string::npos ? target : target.substr(s + 1);
+  if (base != "guard.json" && base != "promise.json") return false;
+  const string dir = s == string::npos ? string() : target.substr(0, s);
+  const size_t d = dir.rfind('/');
+  return (d == string::npos ? dir : dir.substr(d + 1)) == ".rabadon";
+}
+
 inline bool all_targets_disposable(const rbtext::Seg& sg, const string& cwd) {
   const rbpath::Delete d = rbpath::delete_of(sg.words);
   if (!d.isDelete || d.targets.empty()) return false;
-  for (size_t i = 0; i < d.targets.size(); i++)
+  for (size_t i = 0; i < d.targets.size(); i++) {
+    if (is_rabadon_law_file(d.targets[i])) return false;
     if (rbpath::land_of(d.targets[i], cwd, string()).where != rbpath::CONTAINED) return false;
+  }
   return true;
 }
 

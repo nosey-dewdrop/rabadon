@@ -202,6 +202,14 @@ test: all
 # catches up on its own -- and whether the catching up leaves everything that is
 # not rabadon's exactly where it was.
 	./native/hook_upgrade_test.sh
+# rules.h suppresses a path rule when every target of a delete lands inside the
+# project -- the fix for nine wrong refusals on machine scratch. Two files break
+# that reasoning: .rabadon/guard.json and .rabadon/promise.json are inside the
+# tree BY CONSTRUCTION, so `contained` proved nothing about them and the rm arm
+# of no-shell-rewrite-of-guard-or-promise was off. Measured on the shipped
+# binary: mv refused, rm allowed, the pattern matching both. This holds the
+# carve-out from both sides -- the law is refused, real scratch still is not.
+	./native/guard_delete_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an
