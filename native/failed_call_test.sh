@@ -296,37 +296,63 @@ SG="$(moves_py 'm[-1]["err_sig"] if m else "NONE"')"
 # ---------------------------------------------------------------------------
 # CLAIM 10 — AN INSTALL FROM BEFORE TODAY IS STILL BLIND, AND THE PRODUCT HAS
 # TO SAY SO. Teaching the binary the event fixes nothing on a machine whose
-# .claude/settings.json was written last week: the agent still never sends it.
-# `rabadon doctor` is the screen that exists for exactly this question, and it
-# was asking the wrong one — it matched the string `gate.mjs`, the JS gate this
-# product stopped installing, so it could not tell a complete subscription from
-# a missing one either way. Promise 1: rabadon says "I cannot see this", it
-# never goes quiet.
-if [ "$NODE_OK" = "0" ]; then
-  fail "node is not available — doctor's answer to the blind spot went UNCHECKED"
-else
-  DDIR="$ROOT/doctortarget"; mkdir -p "$DDIR/.claude"
-  # a settings.json in the shape rabadon itself wrote before this fix: every
-  # event subscribed EXCEPT the failure one.
-  python3 -c '
+# .claude/settings.json was written last week: the agent still never sends it,
+# and a supervisor that is silently blind is the failure this repo sells a cure
+# for. The screen for this is the session contract's `blind spots:` block —
+# the one place rabadon already lists where its coverage has holes.
+#
+# NOT `rabadon doctor`: bin/rabadon.mjs is a frozen anti-path in this project
+# and the gate refused the edit. The refusal was correct and the approach
+# changed rather than the rule.
+# A DISTINCT SESSION PER PROBE. The contract is stated once per session, so
+# reusing one id makes the second and third reads EMPTY — and an empty string
+# passes a "does not contain" assertion for the wrong reason. That is a vacuous
+# green, caught here while writing this suite.
+SESSION_START() { # SESSION_START <project-dir> <session-id>
+  printf '{"hook_event_name":"SessionStart","session_id":"%s","cwd":"%s"}' "$2" "$1" | "$GATE" 2>/dev/null
+}
+
+STALE="$ROOT/stale"; mkdir -p "$STALE/.claude" "$STALE/.git"
+printf 'ref: refs/heads/main\n' > "$STALE/.git/HEAD"
+# the shape rabadon itself wrote before this fix: every event EXCEPT the one
+# that carries a failure.
+python3 -c '
 import json, sys
 g = sys.argv[2]
 ev = lambda: [{"matcher": "*", "hooks": [{"type": "command", "command": g}]}]
 json.dump({"hooks": {k: ev() for k in
           ("SessionStart","UserPromptSubmit","Stop","PreToolUse","PostToolUse")}},
-          open(sys.argv[1], "w"))' "$DDIR/.claude/settings.json" "$HERE/rabadon-gate"
-  OUT="$(cd "$DDIR" && node "$(cd "$HERE/.." && pwd)/bin/rabadon.mjs" doctor 2>&1 || true)"
-  case "$OUT" in
-    *PostToolUseFailure*) pass "doctor names PostToolUseFailure as missing on a stale install" ;;
-    *) fail "doctor is silent about a stale install that cannot see failing calls" ;;
-  esac
-  # and it must not cry wolf on a complete one.
-  OUT2="$(cd "$IDIR" && node "$(cd "$HERE/.." && pwd)/bin/rabadon.mjs" doctor 2>&1 || true)"
-  case "$OUT2" in
-    *"PostToolUseFailure"*) fail "doctor reports a missing event on a complete install" ;;
-    *) pass "doctor stays quiet about the event when the install is complete" ;;
-  esac
-fi
+          open(sys.argv[1], "w"))' "$STALE/.claude/settings.json" "$HERE/rabadon-gate"
+
+CARD="$(SESSION_START "$STALE" s-card-1)"
+case "$CARD" in
+  *PostToolUseFailure*) pass "the session card DECLARES the blind spot on a stale install" ;;
+  *) fail "a stale install is silently blind to failing calls — the card says nothing" ;;
+esac
+
+# and it must not cry wolf on a complete one. Same directory, one event added.
+python3 -c '
+import json, sys
+p = sys.argv[1]; g = sys.argv[2]
+d = json.load(open(p))
+d["hooks"]["PostToolUseFailure"] = [{"matcher": "*", "hooks": [{"type": "command", "command": g}]}]
+json.dump(d, open(p, "w"))' "$STALE/.claude/settings.json" "$HERE/rabadon-gate"
+CARD2="$(SESSION_START "$STALE" s-card-2)"
+case "$CARD2" in
+  *PostToolUseFailure*) fail "the card cries blind spot at an install that IS subscribed" ;;
+  *) pass "the card drops the blind spot once the install subscribes" ;;
+esac
+
+# the check reads a SUBSCRIPTION, not the word. A settings.json that merely
+# mentions the event must not silence the warning — that is precisely the fake
+# gate this suite already caught itself shipping once.
+printf '{"hooks":{"PostToolUseFailure":[{"matcher":"*","hooks":[{"type":"command","command":"/usr/bin/true"}]}]}}\n' \
+  > "$STALE/.claude/settings.json"
+CARD3="$(SESSION_START "$STALE" s-card-3)"
+case "$CARD3" in
+  *PostToolUseFailure*) pass "someone else's hook on the event does not count as rabadon subscribing" ;;
+  *) fail "the card was silenced by an event entry that has no rabadon hook in it" ;;
+esac
 
 printf 'failed_call: %d passed, %d failed\n' "$PASSN" "$FAIL"
 [ "$FAIL" = "0" ] || exit 1

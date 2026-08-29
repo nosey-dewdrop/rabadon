@@ -1178,6 +1178,45 @@ static bool tree_changed_since(const string& dir, long long sinceMs, int cap, bo
 // project, the contract has to SAY so and say what would fix it. A tool that
 // finds nothing to run and then says nothing is indistinguishable, from the
 // outside, from a tool that is working.
+// Is this machine subscribed to the event that carries a FAILED tool call?
+//
+// A substring test would answer "the word appears somewhere in the file",
+// which a comment or an unrelated tool's hook satisfies. The question is
+// narrower: is there a rabadon command registered under that event. So: find
+// the key, then look for a rabadon binary before the next top-level event key
+// begins. Cheap, and it runs once per session on the contract path, never on
+// the hot path.
+//
+// BOTH FILES ARE ASKED, because Claude Code merges the user-global settings
+// with the project's and a hook in either one is delivered. Answering from the
+// project alone would print a blind spot at a user whose global install is
+// fine — a false alarm on the one screen that has to be trustworthy.
+static bool settings_subscribes(const string& path) {
+  const string s = read_file(path);
+  size_t k = s.find("\"PostToolUseFailure\"");
+  while (k != string::npos) {
+    // the window ends at the next event key at the same level, or at the end
+    const size_t end = std::min(s.size(), k + 2048);
+    const string win = s.substr(k, end - k);
+    if (win.find("rabadon-gate") != string::npos ||
+        win.find("rabadon/hooks/gate.mjs") != string::npos) return true;
+    k = s.find("\"PostToolUseFailure\"", k + 1);
+  }
+  return false;
+}
+
+static bool subscribed_to_failures(const string& cwd) {
+  if (settings_subscribes(cwd + "/.claude/settings.json")) return true;
+  if (settings_subscribes(cwd + "/.claude/settings.local.json")) return true;
+  const char* h = getenv("HOME");
+  if (h && *h) {
+    const string home = h;
+    if (settings_subscribes(home + "/.claude/settings.json")) return true;
+    if (settings_subscribes(home + "/.claude/settings.local.json")) return true;
+  }
+  return false;
+}
+
 static string contract_block(const string& cwd, const string& truthJson,
                              bool enforce, bool repairOn, bool cursorDialect,
                              const string& guardRaw) {
@@ -1266,6 +1305,21 @@ static string contract_block(const string& cwd, const string& truthJson,
     blind.push_back("an agent that calls a program by absolute path (/usr/bin/git) walks past me");
     if (guardRaw.empty())
       blind.push_back("no .rabadon/guard.json here, so no command is denied — I only watch");
+    // THE ONE THAT COST FOUR PHASES. Claude Code delivers a tool call that
+    // FAILED under its own event name, PostToolUseFailure, and does not also
+    // fire PostToolUse for it. An install written before 2026-08-29 subscribes
+    // to PostToolUse only, so on that machine every command that exited
+    // non-zero is invisible: no completion, no error signature, and therefore
+    // no "the same error came back" — the thing this product is for, missing
+    // exactly where it is needed. Fixing the binary does not fix those
+    // machines; only re-running `rabadon init` does. So it is declared here,
+    // out loud, until it is true. Checked against BOTH settings files a hook
+    // can live in, because either one subscribing is enough.
+    if (!subscribed_to_failures(cwd))
+      blind.push_back("this install does not subscribe to PostToolUseFailure, so a command "
+                      "that EXITS NON-ZERO is invisible to me here\n"
+                      "                 (no error signature, so no repeat is ever detected) "
+                      "— fix: `rabadon init`");
     o << "  blind spots:\n";
     for (const auto& b : blind) o << "               - " << b << "\n";
   }

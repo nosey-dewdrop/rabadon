@@ -15,3 +15,8 @@ failed_call: 18 passed, 0 failed
   FAIL - rabadon installs no PostToolUseFailure hook — on a real machine the event is never delivered
 failed_call: 17 passed, 1 failed
 failed_call: 18 passed, 0 failed
+--- MUTATION 4: the card stops declaring the blind spot ---
+  ok   - the card drops the blind spot once the install subscribes
+failed_call: 19 passed, 2 failed
+--- RESTORED ---
+failed_call: 21 passed, 0 failed
