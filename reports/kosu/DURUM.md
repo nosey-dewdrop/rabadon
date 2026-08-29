@@ -419,6 +419,75 @@ Kart raporları: `RAPOR/f2-0-kart.md` … `f2-5-kart.md`.
 - **Yüzey:** yeni ürün verb'ü YOK. `git diff --name-only f03320f..HEAD`
   çıktısında `bin/` **YOK** (anti-path donuk kaldı, O3).
 
+## F3 HAKEM HÜKMÜ: **GEÇTİ** (2026-08-29, `KAPI.md`) — FAZ §3.7 İLE BÖLÜNDÜ
+
+Kartın iki BLOKLAYAN kartı gerçekten kapandı; kartın **tek sayısını
+kopyalamadan** hepsini temp kökü DIŞINDAKİ kendi kum havuzumda yeniden ürettim
+(`~/damla_projects_2026/_hakem_f3_{head,base}`, iki worktree, ikisi de
+kaldırıldı) ve BİREBİR tuttular:
+
+| ölçü | kartta | **hakem** |
+|---|---|---|
+| `make test` | EXIT=0, 3808 + 633 | **EXIT=0, 3808 + 633** |
+| `npm test` | 64/0 | **64 pass / 0 fail** |
+| **TOPLAM** | 4505 / 0 | **4505 yeşil / 0 kırmızı** (taban 4483, **+22**) |
+| `reports/R7/accept.sh` | exit 1, 23/3 | **EXIT=1, 23 yeşil / 3 kırmızı** |
+| kırmızı ad kümesi | `{2b,6e,7b}` | **`{2b,6e,7b}` — BÜYÜMEDİ** |
+| `2b` | 1240,2 µs | **1237,5 µs** (tavan 1000 µs oynatılmadı) |
+| F1e-C üçlüsü | 42/0 · 38/0 · 13/0 | **42/0 · 38/0 · 13/0, üçü de EXIT=0** |
+
+**+22 aritmetik olarak tam tamına iki yeni süide ait** (13 + 9). F3'te `docs/`
+commit'i YOK, yani kâtip şartı boş yere sağlanıyor — ve bayatlayan belge cümlesi
+de yok (`grep -rn "red-base" docs/ README.md docs/claims.tsv` → 0 satır).
+
+**HAKEMİN KENDİ MUTASYONLARI (kartınkiler kopyalanmadı):** fikstürler faz öncesi
+ikilide gerçekten kırmızı düşüyor (`discovery_scope` **7/6**, `redbase_scope`
+**8/1**, `/tmp` DIŞINDA ayrı worktree); `gate.cpp:4776` `git -C` takibi
+kapatılınca **8/1**, muafiyet koşulsuza çevrilince **5/4** ve ilk düşen arm
+`the red stopped refusing work on the broken base — the rule is gone`; ikisi de
+geri alındı → 9/0.
+
+**KARTIN "ÖLÇÜLMEDİ" BIRAKTIĞI `Library` SORUSU ÖLÇÜLDÜ:** faz öncesi ağaçta
+`skip_dir`'e `Library` eklendi → **9 ok / 4 fail**, düşen arm
+`src/Library/ went blind`. **D6/2'nin lafzı ölçümle YANLIŞLANDI**, ajanın
+`Library`'yi eklememesi DOĞRU sapmadır (`KARARLAR.md` · F3 · (a)).
+
+**KURAL GEVŞETİLMEDİ:** `gate.cpp:3549` inconclusive bloğu faz öncesiyle bayt
+bayt aynı; `disabled[]` değişmedi; `~/.rabadon/guard.json` mtime **15:36**,
+fazın ilk commit'i **18:05** — dosya açılmadı; `accept.sh` / `ON-KAYIT.md` /
+`claims.tsv` / `.rabadon/` diff'te HİÇ YOK. CHALLENGE-2'nin muafiyeti
+`red-base`'i zayıflatmıyor, **kapsamını daraltıyor** ve dört twin arm
+daralttığının bypass olmadığını ölçüyor.
+
+**YENİ KART: D7 · `Makefile:79` — F3b'nin BLOKLAYAN İLK KARTI.** Kartın "make
+başlık bağımlılığı izlemiyor" ilanının kök sebebi bulundu ve DAHA DAR/DAHA KÖTÜ:
+`Makefile:29` `rabadon-gate` `pathres.h`'i sayıyor ama `Makefile:79`
+`rabadon-net` yalnız `net.cpp cli_help.h` diyor, oysa `net.cpp:50-51`
+`testout.h` + `pathres.h` include ediyor. Ölçüldü: `touch native/pathres.h &&
+make all` sonrası `rabadon-net` mtime **DEĞİŞMİYOR**, `rabadon-gate` değişiyor.
+`pathres.h` D6'nın `$HOME` onarımının, `net.cpp` `rc==5` onarımının yaşadığı
+dosyadır — **iki onarım da bayat ikiliden yeşil alabilir.** Gerekçe ve kabul
+maddesi: `KARARLAR.md` · F3 · (c).
+
+**§3.12 HÜKMÜ:** ajan §3.12'ye dayanıp durdu, ama bu koşuda F3 için **yazılı bir
+tahmin YOKTUR** (`grep -n "tahmin" KOSU-RABADON-5.md` → 0 satır), yani
+tetikleyici nicelik hiç ölçülmemiştir. **Dayanak yok, en kısıtlayıcı seçildi:**
+durmanın USULÜ kabul (ajan durmayı İLAN ETTİ, §3.12'nin yasağı sessizce
+sürünmektir), ama fazın ÜRÜN kapsamı sürünmüştür ve **§3.7 ile bölünmüştür.**
+Bölme gerekçesi üç sayı: (i) KOSU §F3'ün kendi kapsamından teslim **%0**
+(diff'te `inject.h`/`signals.h`/`policy.h` HİÇ YOK; aşağıdaki "(b) ve (c) için
+HİÇ kanıt yok" satırı hâlâ doğru); (ii) +22 iddianın 22'si onarım kartlarına,
+enjeksiyona **0**; (iii) `2b`'nin tavana açığı **681,3 µs** (%40,5 iniş kaldı).
+
+**F3-S1'İN KABUL MADDESİ KARŞILANDI, ONARIMI DEĞİL.** Medyan yükselmedi
+(F2 1271,2 → F1b 1259,2 → kart 1240,2 → **hakem 1237,5 µs**) ve kart eksiği
+ölçüyle+adıyla yazdı — `SAPMA-KARARLARI.md:800-806`'nın istediği budur.
+Hakem `2b`'yi uçtan uca kendi de ölçtü (N=200 mean): faz öncesi
+**2004,9 µs = 2,00×**, nihai ikili **1681,3 µs = 1,68×** — **sıcak yol
+yavaşlamadı.** **F3-S1'İN SAHİBİ ADIYLA: F3b.**
+
+Ayrıntı, NOT VERIFIED ve §5.5 dökümü: **`reports/kosu/RAPOR/F3-R.md`**.
+
 ## F3'ÜN DEĞİŞTİRDİĞİ ÖLÇÜMLER (BUNLAR EN GÜNCEL SATIRLARDIR)
 Kart: `reports/kosu/RAPOR/F3.md`. Kanıt: `reports/kosu/kanit/f3/`. Aralık `6913ae1..HEAD`.
 
@@ -635,7 +704,53 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 ## SIRA
 
-### F1b HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+### F3 HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F3: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F3-R.md`'de. Dört açık kalem hükme bağlandı (`KARARLAR.md`,
+2026-08-29 · F3 · (a)–(d)).
+
+**KIRMIZI AD KÜMESİ, F3 SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı, `2b` **1237,5 µs**, tavan 1000 µs
+oynatılmadı). **DEVİR SAYILARI: 4505 yeşil / 0 kırmızı** (taban 4483, **+22**;
+native 3808 iddia + 633 kontrol + npm 64). İzlenen `native/*_test.sh`:
+**109 → 111**. Silinen dosya YOK, silinen iddia YOK.
+
+**SIRADAKİ FAZ: F3b** (§3.7, hakem fazı böldü — gerekçe üç ölçülen sayı:
+KOSU §F3'ün kendi kapsamından teslim %0, +22'nin 0'ı enjeksiyona ait,
+`2b`'nin tavana açığı 681,3 µs). **F3b'nin kapsamı:**
+
+1. **D7 — `Makefile:79`, BLOKLAYAN İLK KART.** `native/rabadon-net`'in önkoşul
+   listesi `pathres.h` + `testout.h`'i saymıyor, `touch native/pathres.h &&
+   make all` ikiliyi YENİDEN DERLEMİYOR (ölçüldü, mtime değişmiyor) ve
+   `discovery_scope_test.sh` bayat ikiliden **sahte yeşil** verebiliyor —
+   ajanın MUTANT 2'sinde gerçekten verdi (13/0 → zorlanınca 11/2).
+   D7 onarılmadan F3b'nin kendi yeşilleri güvenilmez. Kabul maddesi:
+   `KARARLAR.md` · F3 · (c).
+2. **KOSU §F3'ün kendi metni:** motoru canlı hook'a bağla; sinyal PostToolUse'da
+   doğsun, sonraki PreToolUse'da `additionalContext` ile binsin (400 karakter
+   tavan, satır numarası ve öneri yok); **merdiven** enjeksiyon → enjeksiyon →
+   blok (blok sebebini ve çıkış yolunu söyler); `rabadon mute <sinyal>`;
+   yeni sinyaller kullanıcıda **gözlem modunda** başlar.
+   **Üç katmanlı kabul, ilki tek başına kanıt DEĞİL:** (a) ledger'da SIGNAL +
+   INJECT + COUNTER, (b) enjeksiyondan sonraki ilk hamlenin imzası değişmiş
+   olmalı, (c) negatif kontrol. **(c) ölçülmeden F4 AÇILMAZ.**
+3. **F3-S1 — sahibi adıyla F3b.** Kabul maddesi F3'te KARŞILANDI (medyan
+   yükselmedi); karşılanmayan ONARIMDIR. Hedef prob sayısı DEĞİL, **sevk edilen
+   ikilinin uçtan uca sayısı**. Bugünkü taban (hakem, N=200 mean): faz öncesi
+   **2004,9 µs = 2,00×**, nihai ikili **1681,3 µs = 1,68×**. Tavan 1000 µs
+   F3b'de de OYNATILAMAZ (§11).
+
+**F3b ŞEFİNE BAĞLAYICI İKİ SATIR:**
+(1) **Faz açılırken tahmin SAYIYLA yazılır.** §3.12 ("tahminin iki katı") bu
+koşuda uygulanamaz hâldedir çünkü hiçbir faza yazılı tahmin konmamıştır; hakem
+sayı uydurmadı, kuralı koydu.
+(2) **F1e-C her fazda geçerli:** kâtibin commit'i fazın SON commit'i olamaz ve
+`docs_truth` + `install_docs` + `version` üçlüsü fazın NİHAİ ikilisine karşı
+yeşil koşmadan faz kapanmaz. F3'te `docs/` hiç değişmediği için şart boş yere
+sağlandı; F3b canlı enjeksiyon ekranı üreteceği için **kâtip commit'i
+ZORUNLUDUR** ve `docs/claims.tsv`'ye kayıtsız iddia cümlesi KIRMIZIDIR.
+
+### F1b HAKEM HÜKMÜ (2026-08-29)
 **`F1b: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
 `RAPOR/F1b-R.md`'de. §3.4'ün üç açık kalemi **hakem tarafından hükme bağlandı**
 (`KARARLAR.md`, 2026-08-29 · F1b · (b) ve (c)):
