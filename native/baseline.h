@@ -273,6 +273,19 @@ inline bool word_could_name_law(const string& raw) {
 // walked (see inside_supervision, which learned this the same way).
 inline bool word_names_law(const string& raw, const string& cwd) {
   if (raw.empty()) return false;
+  // A BRACE IS ONE WORD THAT MEANS SEVERAL, and `mv .rabadon{,.bak}` was rc=0
+  // on 2026-08-30 — a shape on nobody's list, found by trying the spellings a
+  // shell offers rather than the ones the code already knew. The delete law
+  // already expands braces before it judges (pathres.h::brace_expand); this one
+  // did not, so a single pair of braces walked it. Every form the brace can
+  // produce is judged, because every one of them is a path this command names.
+  if (raw.find('{') != string::npos) {
+    vector<string> forms;
+    if (rbpath::brace_expand(raw, 0, forms, 64))
+      for (size_t i = 0; i < forms.size(); i++)
+        if (word_could_name_law(forms[i]) && is_project_law_path(lexical_abs(forms[i], cwd)))
+          return true;
+  }
   if (word_could_name_law(raw) && is_project_law_path(lexical_abs(raw, cwd))) return true;
   const size_t eq = raw.find('=');
   if (eq == string::npos || eq + 1 >= raw.size()) return false;
@@ -356,6 +369,23 @@ inline bool has_inplace_flag(const vector<rbtext::Word>& t, size_t ci) {
 // line, guessing at it would be a guess, and ARM 7 holds that from the other
 // side.
 inline string interpreter_inline_body(const vector<rbtext::Word>& t, size_t ci) {
+  // awk IS THE ONE WHOSE PROGRAM IS NOT BEHIND A FLAG, and it was not on
+  // anybody's list: measured 2026-08-30, `awk 'BEGIN{system("rm
+  // .rabadon/guard.json")}'` was rc=0 while the same intent spelled `python3
+  // -c` was refused. awk's first non-option operand IS the program unless -f
+  // hands it a file, in which case the text is off the command line and we are
+  // back to a guess we do not make.
+  const bool isAwk = rbtext::name_is(rbtext::base_of(t[ci].text), "awk");
+  if (isAwk) {
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (s == "-f" || s == "--file" || s.compare(0, 7, "--file=") == 0) return string();
+      if (s == "-v" || s == "--assign") { i++; continue; }
+      if (s.size() > 1 && s[0] == '-') continue;
+      return s;
+    }
+    return string();
+  }
   for (size_t i = ci + 1; i < t.size(); i++) {
     const string& s = t[i].text;
     if (s.size() < 2 || s[0] != '-') continue;
