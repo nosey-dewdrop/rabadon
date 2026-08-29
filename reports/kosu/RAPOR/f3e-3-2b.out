@@ -1,0 +1,36 @@
+F3e KART 3 — 2b, UÇTAN UCA. SONUÇ: BU FAZ DA HIZLANDIRMADI.
+
+1) ADAY: sevk edilen ikiliyi kucultmek (strip -x, 800096 -> 703152 bayt, %12).
+   Esli, alternatif, N=200 x 8 cift:
+   mean A-B = -80.1 us  isaret 3+/5-  -> gurultu bandinin (|439 us|) COK ALTINDA
+   ve tek yanli DEGIL. Aday REDDEDILDI, agaca girmedi.
+
+2) TABAN OLCUMU (N=200, 5 tekrar medyani, ayni kosum):
+   /usr/bin/true          1239.8 us
+   bos C ikilisi          1392.9 us   (16 KB, 1 dylib)
+   bos C++ ikilisi        1318.4 us
+   bos C++ + libc++       1368.9 us   (38 KB, 2 dylib)
+   rabadon-gate          2651.7 us   (800 KB, 2 dylib)
+   -> libc++ baglamak BEDAVA (1368.9 ~ 1392.9). Surec baslatma zemini ~1370 us,
+      ve o zemin urunun degil, makinenin.
+
+3) AYRISTIRMA (N=200, 6 tekrar medyani):
+   gate tam yol          3122.7 us
+   gate RABADON_OFF=1    1882.8 us
+   bos C ikilisi         1358.3 us
+   OFF - bos ikili   =    524.6 us   (imaj yuklemesi + anahtar okunmadan once yapilan is)
+   tam - OFF         =   1239.9 us   (kurallarin kendisi)
+   tam - bos ikili   =   1764.5 us   = TAVANIN 1.76 KATI. Tavan 1000 us OYNATILMADI.
+
+4) CHALLENGE — F3d HAKEMININ YONLENDIRMESI OLCUMLE CELISIYOR.
+   F3d hukmu: '676 us ikilinin kendi yukleme maliyetidir ... F3-S1'in HEDEFI
+   ikili yukleme maliyeti olmalidir; 324 us'lik pencerede algoritmik kazanc
+   tavana ulasmaz.' Uc bagimsiz olcum bunun tersini soyluyor:
+   (a) __mod_init_func bolumu YOK — kaldirilacak statik ilklendirici yok.
+   (b) ikiliyi %12 kucultmek olculebilir hicbir sey degistirmedi (-80.1 us, 3+/5-).
+   (c) bos bir C++ ikilisi bos bir C ikilisiyle ayni maliyette — C++ runtime bedava.
+   Yani baskin terim yukleme DEGIL, kural yolunun kendisi: 1239.9 us / 1764.5 us = %70.
+   Pencere 324 us degil, ~1240 us. Bu bir ONERI degil, bir olcumdur; kabul olcutune
+   dokunmadim (accept.sh ve claims.tsv bu ajana kapali, SS3.8/1).
+
+NOT: 2b hala KIRMIZI ve oyle raporlandi. 'Yaklasti' yazilmadi.
