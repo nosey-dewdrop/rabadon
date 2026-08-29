@@ -293,5 +293,40 @@ SG="$(moves_py 'm[-1]["err_sig"] if m else "NONE"')"
 [ -z "$SG" ] && pass "a silent failure honestly carries NO err_sig (nothing to sign)" \
              || fail "a silent failure invented an err_sig: $SG"
 
+# ---------------------------------------------------------------------------
+# CLAIM 10 — AN INSTALL FROM BEFORE TODAY IS STILL BLIND, AND THE PRODUCT HAS
+# TO SAY SO. Teaching the binary the event fixes nothing on a machine whose
+# .claude/settings.json was written last week: the agent still never sends it.
+# `rabadon doctor` is the screen that exists for exactly this question, and it
+# was asking the wrong one — it matched the string `gate.mjs`, the JS gate this
+# product stopped installing, so it could not tell a complete subscription from
+# a missing one either way. Promise 1: rabadon says "I cannot see this", it
+# never goes quiet.
+if [ "$NODE_OK" = "0" ]; then
+  fail "node is not available — doctor's answer to the blind spot went UNCHECKED"
+else
+  DDIR="$ROOT/doctortarget"; mkdir -p "$DDIR/.claude"
+  # a settings.json in the shape rabadon itself wrote before this fix: every
+  # event subscribed EXCEPT the failure one.
+  python3 -c '
+import json, sys
+g = sys.argv[2]
+ev = lambda: [{"matcher": "*", "hooks": [{"type": "command", "command": g}]}]
+json.dump({"hooks": {k: ev() for k in
+          ("SessionStart","UserPromptSubmit","Stop","PreToolUse","PostToolUse")}},
+          open(sys.argv[1], "w"))' "$DDIR/.claude/settings.json" "$HERE/rabadon-gate"
+  OUT="$(cd "$DDIR" && node "$(cd "$HERE/.." && pwd)/bin/rabadon.mjs" doctor 2>&1 || true)"
+  case "$OUT" in
+    *PostToolUseFailure*) pass "doctor names PostToolUseFailure as missing on a stale install" ;;
+    *) fail "doctor is silent about a stale install that cannot see failing calls" ;;
+  esac
+  # and it must not cry wolf on a complete one.
+  OUT2="$(cd "$IDIR" && node "$(cd "$HERE/.." && pwd)/bin/rabadon.mjs" doctor 2>&1 || true)"
+  case "$OUT2" in
+    *"PostToolUseFailure"*) fail "doctor reports a missing event on a complete install" ;;
+    *) pass "doctor stays quiet about the event when the install is complete" ;;
+  esac
+fi
+
 printf 'failed_call: %d passed, %d failed\n' "$PASSN" "$FAIL"
 [ "$FAIL" = "0" ] || exit 1

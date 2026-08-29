@@ -1,0 +1,22 @@
+failed_call: a tool call that failed is a tool call rabadon has to see
+  ok   - a successful call leaves exactly one move on the record
+  ok   - a successful call records claimed_rc 0
+  ok   - before the completion the move is open (claimed_rc -1)
+  ok   - a failing call closes its move rather than opening a second one
+  ok   - the completion for a failing call ARRIVED (claimed_rc left -1)
+  ok   - a failing call records a non-empty err_sig (0956bc3deaa2b64e)
+  ok   - a failing call records claimed_rc 1
+  ok   - the same failure twice carries the same err_sig (0956bc3deaa2b64e)
+  ok   - the failing call opened a STEP_START on the ledger
+  ok   - the failing call is CLOSED on the ledger (STEP_START no longer dangles)
+  ok   - the closing event carries rc:1 — a reader can tell failure from success
+  ok   - a successful call carries no rc:1 (the marker is not painted on everything)
+  ok   - the PreToolUse before a failure still exits 0
+  ok   - observing a failed call exits 0 — it refuses nothing
+  ok   - the settings.json rabadon WRITES subscribes the gate to PostToolUseFailure
+  ok   - the live capture this suite is written against is in the repo
+  ok   - a silent failure is still recorded as a failure (claimed_rc 1)
+  ok   - a silent failure honestly carries NO err_sig (nothing to sign)
+  FAIL - doctor is silent about a stale install that cannot see failing calls
+  ok   - doctor stays quiet about the event when the install is complete
+failed_call: 19 passed, 1 failed
