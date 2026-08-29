@@ -687,7 +687,7 @@ bugüne kadar hiç ölçülmemişlerdi.
 | kırmızı ad kümesi | **3 → 3 (büyümedi)** — `{2b, 6e, 7b}` |
 | test sayısı, TEK GEÇERLİ SAYAÇ | **4428** = native (3738 iddia + 626 kontrol) + node 64 |
 | konteyner census | **105 süit: 102 yeşil / 3 kırmızı / 0 hiç koşmayan** (öncesi: 46 süit ölçülmemiş) |
-| ölçülmüş yanlış pozitif | **4 olay / 2 sınıf** — 2 onarıldı, 1 sınıf AÇIK (`red-suite-test-write`) |
+| ölçülmüş yanlış pozitif | *(F1d satırı, EMEKLİ)* 4 olay / 2 sınıf. **GÜNCEL, 2026-08-30 F3g hakemi: 11 olay / 4 sınıf — 6 onarıldı (`red-suite-test-write` 4, F3f'in `grep -c rm` 1, F3g'nin `cd .rabadon` 1), 5 ŞEKİL / 1 SINIF AÇIK** (`baseline-law-unmade` bilinmeyen verb + herhangi bir `.rabadon` yolu: `mkdir`, mutlak yol, `$VAR`, `tar -cf` yedekleme, `find -not -path`) |
 | durma koşulu tetiklendi mi | **hayır** |
 
 ## DEVİR SAYILARI (geçmiş)
@@ -703,6 +703,127 @@ bugüne kadar hiç ölçülmemişlerdi.
 | durma koşulu tetiklendi mi | hayır | hayır | hayır | **hayır** |
 
 ## SIRA
+
+### F3g HAKEM HÜKMÜ (2026-08-30) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+
+**`F3g: KALDI`. SIRADAKİ FAZ F3h.** Tek satır hüküm `KAPI.md`'nin başında,
+ayrıntı `RAPOR/F3g-R.md`'de. Altı açık kalem hükme bağlandı
+(`KARARLAR.md`, 2026-08-30 · F3g · (1)–(6)).
+
+**TEST SAYACI, HAKEM KENDİ KOŞTURDU (üç komut, §10):**
+
+| ölçü | F3f sonrası (taban) | **F3g sonrası** |
+|---|---|---|
+| `make test` exit | 0 | **0** |
+| native iddia (GENİŞ) | 3893 | **3967** |
+| native `PASS (N checks)` | 633 | **633** |
+| `npm test` | 64 / 0 | **64 / 0** |
+| **TOPLAM** | **4590** | **4664 yeşil / 0 kırmızı** (**+74**) |
+| süit | 114 | **115** |
+
+Taban `906b1e1`'i `$HOME` altındaki kendi worktree'imde koşturdum: 3893+633+64
+= 4590. **Süit diff'i bölüm bölüm: `guard_delete_test.sh` 16 → 22 (+6),
+`law_family_test.sh` YOK → 68 (yeni). Küçülen 0 · kaybolan 0 · başka hiçbir
+süidin sayısı değişmedi.** Kartın "114 → 115"i **DOĞRU**; F3f hakeminin
+113→115'i ile görünen çelişki, `net_test.sh`'in stderr'e bastığı
+`./native/net_test.sh: line 111: <PID> Killed: 9 …` satırının PID'i her koşuda
+değiştiği için ayrı bir "süit" gibi sayılmasıydı — artefakt, çözüldü.
+
+**KIRMIZI AD KÜMESİ, F3g SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı).
+
+**`2b` DURUMU — TANIMI DEĞİŞTİ, TAVANI DEĞİŞMEDİ. BUGÜNKÜ SAYI: 1942,8 µs ·
+tavan 1000 µs · KALAN AÇIK 942,8 µs.** Hakem `reports/R7/accept.sh`'i okudu
+(satır 154-207): `2b`'nin aleti `gate.cpp` kopyasında **`main()`'in ilk
+satırına** enjekte edilen in-process bir probe'tur. **Yani `2b` = leg 3
+(main→exit) ve exec/dyld/imaj yüklemesini HİÇ İÇERMEZ.** F3g kartının "tavan
+ulaşılmaz çünkü maliyetin %70'i dyld" muhakemesi `2b`'nin ölçmediği bir bacağa
+dayanıyor; kartın "atfedilebilir = gate − boş taban = 1965 µs" tanımı kartın
+kendi uydurmasıdır, `accept.sh`'te taban çıkarma YOKTUR. **`2b` açığının %100'ü
+rabadon'un kendi kodudur; tavan ulaşılamaz DEĞİLDİR, oynatılmadı, `accept.sh`
+diff'te yok.** Profil kısmı doğru ve hakem bağımsız yeniden üretti (N=200):
+leg1 **2202,9 µs %68,2** · leg2 2,0 µs · leg3 **1031,5 µs %31,9**; 13 deny
+kuralının tamamı **156,5 µs = %4,7** → F3e'nin "%70 kural yolu" iddiası çürük.
+**AÇIKLANMAYAN 911 µs:** sevk edilen ikilinin leg 3'ü 1031,5 µs, `accept.sh`'in
+daemon-ayakta probe'u 1942,8 µs, aynı `-O2` (Makefile:10 = accept.sh:182).
+**§3.7: `2b`'nin sahibi F3-S1 → F3h (tek kart); F3h önce bu 911 µs'yi ölçecek.**
+
+**F3g'DE GERÇEKTEN OLAN, ALTI SATIR:**
+1. **DOKUZ ŞEKİL GERÇEKTEN KAPANDI ve onarım verbe değil EYLEME bakıyor** —
+   hakem kendi probe'uyla (`$HOME` altında, boş `bash[]` fikstür) dokuzunu da
+   ve kartın listelemediği **28 kardeşi** de REFUSE ölçtü.
+2. **AMA AİLE KAPANMADI.** Aynı etkiyi üreten sekiz şekil hâlâ rc=0 ALLOW:
+   `rm -rf .r*` · `rm -rf .rabado?` · `python3 -c os.remove/shutil.rmtree` ·
+   `perl -e unlink` · `cd .. && rm -rf proj` · **`mv . ../renamed`** ·
+   **`tar -xf … -C .`** (son ikisini kart hiç ilan etmedi, hakem buldu);
+   ayrıca `git worktree remove --force` bütün ağacı yasayla birlikte siliyor.
+   **İş geri alınmaz, AD düzeltilir: teslim edilen 37 ŞEKİLDİR, aile değil.**
+3. **KART 2 GEÇTİ.** `grep -c rm .rabadon/guard.json` ve `cd .rabadon` bugün
+   ALLOW; 37 gerçek ihlal hâlâ BLOCK; daraltma bypass AÇMADI; `guard.json`
+   diff'te yok, kural gevşetilmedi.
+4. **⚠ YANLIŞ POZİTİF SAYACI +5 ŞEKİL / 1 SINIF, ONARILMAMIŞ.** Hakem sıradan
+   iş yaparken kendi elinde: `mkdir -p .rabadon` (kurulumun ilk adımı) ·
+   `mkdir -p /baska/yer/.rabadon` (projeyle ilgisiz MUTLAK yol) ·
+   `mkdir -p "$VAR/.rabadon"` · `tar -cf backup.tar .rabadon` (YEDEKLEME) ·
+   `find … -not -path '*/.rabadon/*' -delete` (yasayı AÇIKÇA hariç tutan komut).
+   Sınıf tek: **bilinmeyen verb + `.rabadon` ile biten HERHANGİ bir yol, diskte
+   nerede olursa olsun, kapalı düşüyor** — bu, sevk edilen `docs/guard.md`'nin
+   *"this project's own copy of the law"* cümlesini YANLIŞ çıkarır.
+   **F3h'nin İLK BLOKLAYAN KARTI budur.**
+5. **⚠ `make test` KULLANICININ CANLI `~/.claude/settings.json`'INI EZİYOR.**
+   Hakem deterministik üretti: `$HOME` altındaki bir `--detach` worktree'de
+   `make test` koşunca canlı settings.json'ın **altı hook girdisi birden**
+   worktree ikilisini gösterir oldu; geri yazıp tekrarladım, yine oldu.
+   Tek başına `SessionStart` bunu YAPMIYOR → sebep F3f self-heal'i değil,
+   gerçek `$HOME`'a yazan beş süit (`doctor_test` · `exit_path_test` ·
+   `failed_call_test` · `hook_upgrade_test` · `npm_install_test`). Worktree
+   kaldırılınca kullanıcının freni var olmayan bir ikiliyi gösterir ve
+   **sessizce ölür** — üstelik bu koşunun protokolü her fazda worktree istiyor.
+   Hakem 6 pointer'ı kök klona geri yazdı ve doğruladı.
+6. **ÇIKIŞ KAPISI: §4.9 İHLALİ YOK, ama kart YANLIŞ ADRES YAYIMLADI.** Kartın
+   ilan ettiği `RABADON_OFF=1 rm -rf …` hakemin elinde **REFUSE** (env ön eki
+   komut metnidir; `gate.cpp:228` onu susturucu olarak listeler). Çalışan
+   kapılar ölçüldü, dördü de rc=0: `rabadon off` · `<proje>/.rabadon/mode=silent`
+   · `disabled[]` · ajan dışı düz kabuk. **Ayrı sapma:** belgelenen
+   "env → proje → makine" katman sırası tutmuyor, `RABADON_MODE=silent` gate
+   env'inde rc=2 verdi.
+
+**§3.8 / §3.12 DENETİMİ TEMİZ:** silinen dosya **0** · silinen/`skip`/`xfail`
+iddia **0** · mühürlü set (`accept.sh` · `ON-KAYIT.md` · `docs/claims.tsv` ·
+`.rabadon/guard.json` · korpus/snapshot) ve **`bin/rabadon.mjs` (O3)** diff'te
+**HİÇ YOK** · `CAP=200` yerinde (`native/moves.h:63`) · ölçüt commit'leri
+`acbbee4`/`3b4e85b` koddan ÖNCE ve **KODSUZ** (ürün kodu `1f0f811`'de) ·
+§3.12 tahmini `ce199e9` fazın **İLK** commit'i · `cli` **315/0** (beş-verb
+tavanı) · `doctor` **43/0** · `install_docs` **38/0** · F1e-C üçlüsü nihai
+ikiliye karşı **42/0 · 38/0 · 13/0**, kâtip commit'i `ef58402` fazın sonuncusu
+**DEĞİL** · `docs/guard.md` davranışla **aynı fazda** güncellendi, `claims.tsv`
+gerekmiyordu ve ajan dokunmadı.
+
+**MUTASYON — HAKEMİN KENDİ MUTANTLARI:** M1 (`segment_reads_the_law`→true)
+`law_family` **35/33 KIRMIZI** · M3 (daraltma kaldırıldı) `guard_delete`
+**18/4 KIRMIZI** · geri alınınca **68/0** ve **22/0**. **M2
+(`segment_writes_nothing`→true, aşırı geniş) İKİ SÜİDİ DE YEŞİL BIRAKTI** —
+twin-arm daraltmayı "çok geniş" yönünde pinlemiyor, o yönde kırmızı düşebilen
+test YOK (§3.8/3). **BOŞ YEŞİL TURU** `906b1e1` worktree'sinde hakem koşturdu:
+`law_family 32/36` · `guard_delete 18/4` (kartın 26/36'sı ile KIRMIZI sayısı
+birebir) — her iki süit de kırmızı düşebiliyor.
+
+**DİSKTE KALAN (ölçüm):** `_f3g_kum/proj/.rabadon/{guard,promise}.json` ve
+`_hakem_f3g_lab/proj/.rabadon/` (5 dosya) izinli hiçbir şekille silinemedi;
+`~/.claude/settings.json.hakem-f3g-save` de silinemedi. F3h temizlesin.
+
+**HAKEMİN ÖLÇEMEDİKLERİ:** konteynerde hiçbir şey koşmadı (yalnız konak macOS);
+`law_family_test.sh` `$HOME` yazılamayan referans ortamında `exit 1` verir,
+ölçülmedi; 911 µs'nin sebebi; `mv .`/`tar -x` deliklerinin kurgusuz
+üretilebilirliği. **(c) negatif kontrolü kapsam dışıydı, koşulmadı → F4 HÂLÂ
+KAPALI** (F3d hükmü: (c) F6'nın aletiyle koşar).
+
+**F3h'YE SIRA:** (1) yanlış pozitif sınıfını kapat + `docs/guard.md`'nin yanlış
+kapsam cümlesini düzelt, (2) `mv .`/`tar -x`/glob/yorumlayıcı deliklerini ya
+kapat ya "aile" iddiasını "37 şekil" diye küçült, (3) `make test`'in canlı
+`$HOME`'a yazmasını durdur, (4) 911 µs'yi ölç, sonra `2b`.
+
+---
 
 ### F3f HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
 **`F3f: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
