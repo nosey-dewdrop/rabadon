@@ -218,10 +218,20 @@ else
   printf '%s\n' "$NO" | sed 's/^/    | /'
 fi
 
-# NOT COVERED, on purpose and in writing: this file reads source, so a branch
-# that runs no assertions and prints nothing at all is invisible to it. The
-# only tool that sees that one is a per-suite assertion count pinned from
-# outside, and nothing in this repo has one yet.
+# NOT COVERED, on purpose and in writing:
+#   - this file reads source, so a branch that runs no assertions and prints
+#     nothing at all is invisible to it. The only tool that sees that one is a
+#     per-suite assertion count pinned from outside, and nothing in this repo
+#     has one yet.
+#   - the number in the announcement ("3 assertion(s) did NOT run") is written
+#     by hand in each suite. Nothing checks it against how many assertions the
+#     branch really contains, so it can go stale the day an arm grows.
+#
+# Measured on the day the repairs landed, for whoever reads the census line
+# above: 15 sites in 13 files before, 12 sites in 12 files after — the three
+# that went away are the branches that became FAILURES (version_test.sh,
+# guard_lint_test.sh) rather than announcements, plus redbase_scope_test.sh's
+# whole-suite exit that now prints a summary before it leaves.
 echo ""
 echo "silent skip: $PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]
