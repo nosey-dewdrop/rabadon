@@ -771,6 +771,13 @@ test: all
 # check refuses nothing — a stop with no way out is how a guardrail gets
 # uninstalled, and it would be this rule that did it.
 	./native/redbase_test.sh
+# redbase_test.sh proves the stop works. this one asks whose work it stops: a
+# red is about a TREE, and `cd <neighbour> && git commit` was refused although
+# the neighbour is its own worktree with its own verdict (measured, F1b
+# CHALLENGE-2). Every arm here has a twin, because the cheap fix — letting a
+# `cd` in front of a command switch red-base off — is a bypass an agent would
+# learn in one session.
+	./native/redbase_scope_test.sh
 	./native/scope_test.sh
 	./native/pushgate_test.sh
 # pushgate_test.sh proves the gate runs the suite and reads the real result.
