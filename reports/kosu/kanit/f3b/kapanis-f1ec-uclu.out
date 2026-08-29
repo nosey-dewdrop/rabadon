@@ -1,0 +1,12 @@
+=== docs_truth_test.sh
+
+docs truth: 42 ok / 0 fail
+EXIT=0
+=== install_docs_test.sh
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+38 ok / 0 fail
+EXIT=0
+=== version_test.sh
+
+version: 13 passed, 0 failed
+EXIT=0
