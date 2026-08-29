@@ -704,7 +704,78 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 ## SIRA
 
-### F3d HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+### F3e HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F3e: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F3e-R.md`'de. Üç açık kalem hükme bağlandı (`KARARLAR.md`,
+2026-08-29 · F3e · (a)–(c)).
+
+**KIRMIZI AD KÜMESİ, F3e SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı; `2b` **1252,1 µs**, tavan **1000 µs**
+oynatılmadı, `accept.sh` fazın diff'inde **HİÇ YOK**).
+**DEVİR SAYILARI: 4556 yeşil / 0 kırmızı** (taban 4535, **+21**; native **3859**
+iddia + **633** kontrol + npm **64/0**). Hakem tabanı da kendi koşturdu
+(3838+633+64 = 4535) — **+21'in tamamı tek yeni süittir**. Süit karşılaştırması,
+hakemin kendi ayrıştırıcısıyla: **111 → 112 süit, küçülen 0 · kaybolan 0 ·
+büyüyen 0 · yeni 1** (`failed_call_test.sh` 21). Silinen dosya **0**, silinen /
+`skip` / `xfail` / yoruma alınmış iddia **0**, `CAP=200` yerinde
+(`moves.h` diff'i 0 satır), mühürlü set (`accept.sh` · `ON-KAYIT.md` ·
+`docs/claims.tsv` · `guard.json` · korpus/snapshot) ve **`bin/rabadon.mjs` (O3)**
+diff'te **HİÇ YOK**.
+
+**F3e'DE GERÇEKTEN OLAN, ÜÇ SATIR:**
+1. **KÖR NOKTA ÜRÜNÜN KENDİSİNDEYMİŞ, ve onarım hakem elinde doğrulandı.**
+   Claude Code başarısız bir tool çağrısını **`PostToolUseFailure`** adıyla
+   teslim ediyor; `hookev.h` adı tanımıyordu ve `hooks/install.mjs` olaya **hiç
+   abone olmuyordu**. Hakem aynı yükü iki ikiliye verdi: **taban** `STEP_START`,
+   kapanış YOK, `claimed_rc=-1`, `err_sig` **boş** ↔ **HEAD** `STEP_OK "rc":1`,
+   `claimed_rc=1`, `err_sig=d58714fac4f6feb4`. Ham yükün canlı olduğu harness
+   transcript'inden doğrulandı. Kapı: `native/failed_call_test.sh`, **21 iddia**,
+   hakemin **kendi iki mutasyonuyla** kırıldı (14/7 ve 20/1) ve `F3e-oncesi`
+   ağacında **10 passed / 11 kırmızı** düştü.
+2. **⚠ CANLI MAKİNE HÂLÂ KÖR — ONARIM SEVK EDİLDİ, KURULMADI.** Hakem bugün
+   çıkışı 1 olan bir Bash koşturdu (`toolu_01M14K72DJ4FP4trdsMuLknQ`): defterde
+   **`STEP_START` var, `STEP_OK` yok**. `~/.claude/settings.json`'ın
+   `PostToolUseFailure` bloğunda **rabadon-gate yok** (yalnız orkestra'nın
+   `tick.py`'si). Sevk edilen ikili bunu **ekranda ilan ediyor** (`blind spots:`
+   → "fix: `rabadon init`", hakem gözüyle görüldü). **Bu, F3f'in ilk bloklayan
+   kartıdır.**
+3. **(b) BUGÜN ÖLÇÜLEMEZ, ve sebebi TEK DEĞİL İKİ TANE.** Kışkırtılmamış (b)
+   üretilemedi (2 canlı oturum, 12 hamle, 12 ayrı imza). Hakem ölçümü bütün
+   korpusa büyüttü: **81 oturum / 1766 hamle → `repeat`'i ateşleyebilecek oturum
+   0/81.** Sebep (i) `repeat` **tam komut imzasına** bakıyor
+   (`moves.h:173`, `signals.h:127`), sebep (ii) **başarısız çağrı defterde hiç
+   kapanmadığı için `err_sig` hiç atanmıyordu** — yani `failed>=2` kolu
+   yapısal olarak ulaşılamazdı. F3e (ii)'yi onardı ama kurmadı.
+   **(b)'nin sahibi F3f; dedektör tasarımı (semantik imza) zaten F4'ün
+   içeriğidir, yeni kart açılmaz.**
+
+**`2b` DURUMU (F3e sonrası, hakem ölçtü):** hızlanmadı — eşli HEAD↔taban
+(N=200, 3 tekrar) **+221,2 µs ortalama, 2+/1−**, tek yanlı değil, |439 µs|
+bandını aşmıyor. **CHALLENGE hükme bağlandı:** F3d'nin "hedef ikili yükleme
+maliyeti, pencere 324 µs" yönlendirmesi **GERİ ÇEKİLDİ** (ikiliyi %12 küçültmek
+−80,1 µs / 3+/5− verdi; boş C++ ↔ boş C farkı 69,6 µs); F3e'nin yerine koyduğu
+"%70 kural yolu" da **BENİMSENMEDİ** (hakemde %49/%51; yükleme bacağı üç
+ölçümde 524,6 / 676,4 / **915,2** µs = yayılım 390 µs, gürültü bandının içinde).
+**AYAKTA KALAN:** uçtan uca atfedilebilir **1602–1799 µs**, tavan **1000 µs**,
+**~800 µs düşmeli ve hiçbir bacak tek başına küçük değil.** Kısıt: **bacakları
+gürültü bandının içinde olan bir ayrıştırmadan hedef seçilemez.** Eski sayılar
+silinmedi, gerekçesiyle düzeltildi.
+
+**YANLIŞ POZİTİF, F3e turu:** kart +2 (`baseline-truncating-redirect`,
+`no-rm-rf-outside`), hakem **+1 YENİ**: `no-shell-rewrite-of-guard-or-promise`
+**salt-okuma bir `grep -n … guard.json`'ı** kesti. `no-rm-rf-outside`'ın regex'i
+hakem tarafından okundu — "proje dışı"nı değil "mutlak ve /tmp değil"i
+yakalıyor, **ad yaptığı işi yanlış anlatıyor**. Üçü de sahipsiz, F3f'in üçüncü
+kartı. Hakemi kesen iki blokaj (`no-blind-inplace-source-rewrite` ve
+`no-rm-rf-outside`) **doğru retlerdi**; yaklaşım değiştirildi, `guard.json`'a
+dokunulmadı, `rabadon off` kullanılmadı, CHALLENGE-3 deliği kullanılmadı.
+
+**SIRADAKİ FAZ: F3f.** Bloklayan ilk kart: **kurulumu tazele ve canlı kanıtla**
+(bkz. yukarıda 2). İkinci kart: `2b` için gürültü bandının **altında** çözebilen
+bir ayrıştırma yöntemi. Üçüncü kart: üç sahipsiz yanlış pozitif.
+**F4 (c) ölçülmeden AÇILMAZ ve (c) F6'nın aletiyle koşar** (değişmedi).
+
+### F3d HAKEM HÜKMÜ (2026-08-29)
 **`F3d: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
 `RAPOR/F3d-R.md`'de. Beş açık kalem hükme bağlandı (`KARARLAR.md`,
 2026-08-29 · F3d · (a)–(e)).
