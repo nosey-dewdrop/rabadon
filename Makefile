@@ -219,6 +219,16 @@ test: all
 # still readable -- and its twin arms hold the reads and the ordinary
 # destructive work that must stay allowed.
 	./native/law_family_test.sh
+# A test suite that edits the operator's machine is a bug of the same class as a
+# missed catch: the reference environment is a clean container, and reaching the
+# dev box is how a green run leaves damage behind. Measured 2026-08-30 -- `make
+# test` from a --detach worktree repointed six rabadon hook entries plus one
+# drift entry in the live ~/.claude/settings.json, a file that on this machine
+# is SHARED with tools that are not ours; remove the worktree and the user's
+# brake points at a binary that is gone. Two suites did it, and this one holds
+# both of them against a decoy home, with a control arm so the lock cannot go
+# vacuous the day the mechanism moves.
+	./native/home_isolation_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an
