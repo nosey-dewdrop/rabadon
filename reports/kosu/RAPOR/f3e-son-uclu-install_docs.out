@@ -1,0 +1,42 @@
+install docs: the brake is inside the install block
+  ok   - README.md: install block found
+  ok   - README.md: install block is non-vacuous (8 command lines)
+  ok   - README.md: `rabadon on` is a command inside the install block
+  ok   - README.md: `rabadon on` is not before `rabadon init`
+  ok   - README.md: `rabadon on` is not after the agent is started
+  ok   - docs/quickstart.md: install block found
+  ok   - docs/quickstart.md: install block is non-vacuous (3 command lines)
+  ok   - docs/quickstart.md: `rabadon on` is a command inside the install block
+  ok   - docs/quickstart.md: `rabadon on` is not before `rabadon init`
+  ok   - docs/quickstart.md: `rabadon on` is not after the agent is started
+  ok   - site/index.html: install block found
+  ok   - site/index.html: install block is non-vacuous (6 command lines)
+  ok   - site/index.html: `rabadon on` is a command inside the install block
+  ok   - site/index.html: `rabadon on` is not before `rabadon init`
+  ok   - site/index.html: `rabadon on` is not after the agent is started
+  ok   - site/index.tmpl.html: install block found
+  ok   - site/index.tmpl.html: install block is non-vacuous (6 command lines)
+  ok   - site/index.tmpl.html: `rabadon on` is a command inside the install block
+  ok   - site/index.tmpl.html: `rabadon on` is not before `rabadon init`
+  ok   - site/index.tmpl.html: `rabadon on` is not after the agent is started
+
+install docs: no dead npm install command while the version is untagged
+  ok   - package.json version read: 0.2.3
+  ok   - tag v0.2.3 absent — `npm i -g rabadon` is E404 today, so it must not be typeable in any shipped doc
+  ok   - scanned set is non-vacuous (15 files: README, site pages, docs/*.md minus archives and captured evidence)
+  ok   - README.md: no typeable `npm i -g rabadon`
+  ok   - site/index.html: no typeable `npm i -g rabadon`
+  ok   - site/index.tmpl.html: no typeable `npm i -g rabadon`
+  ok   - docs/COUNTER.md: no typeable `npm i -g rabadon`
+  ok   - docs/DANISMAN-PROMPT.md: no typeable `npm i -g rabadon`
+  ok   - docs/POSITIONING.md: no typeable `npm i -g rabadon`
+  ok   - docs/agent-contract.md: no typeable `npm i -g rabadon`
+  ok   - docs/butce.md: no typeable `npm i -g rabadon`
+  ok   - docs/commands.md: no typeable `npm i -g rabadon`
+  ok   - docs/faq.md: no typeable `npm i -g rabadon`
+  ok   - docs/guard.md: no typeable `npm i -g rabadon`
+  ok   - docs/how-it-works.md: no typeable `npm i -g rabadon`
+  ok   - docs/quickstart.md: no typeable `npm i -g rabadon`
+  ok   - docs/threat-model.md: no typeable `npm i -g rabadon`
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+38 ok / 0 fail

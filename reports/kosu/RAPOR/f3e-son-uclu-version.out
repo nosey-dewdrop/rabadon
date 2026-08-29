@@ -1,0 +1,17 @@
+rabadon version lockstep
+
+  ok   - the tree agrees with itself: checked 4 platform package(s), 3 version.h includer(s), against 0.2.3
+  ok   - mutating package.json (bumped alone) is caught, and named: DRIFT native/version.h: RABADON_VERSION "0.2.3" != package.json 9.9.9
+  ok   - mutating native/version.h is caught, and named: DRIFT native/version.h: RABADON_VERSION "9.9.9" != package.json 0.2.3
+  ok   - mutating one npm platform package is caught, and named: DRIFT npm/darwin-arm64/package.json: version '9.9.9' != package.json 0.2.3
+  ok   - mutating an optionalDependencies pin is caught, and named: DRIFT optionalDependencies["@rabadon/darwin-arm64"]: '9.9.9' != package.json 0.2.3
+  ok   - mutating the Makefile prerequisite on version.h is caught, and named: DRIFT Makefile: native/rabadon-budget includes version.h but does not list it as a prerequisite 
+  ok   - mutating a hardcoded version banner in a source is caught, and named: DRIFT native/budget.cpp:203: hardcoded version banner: "rabadon-budget 9.9.9"
+  ok   - mutating a version typed into the docs is caught, and named: DRIFT docs/quickstart.md:197: a version typed into prose (0.1.9) — nothing bumps it, so it can o
+  ok   - mutating removing the docs the sweep reads is caught, and named: DRIFT the docs sweep read only 0 bytes across 0 file(s) — it is not reading the docs
+  ok   - a binary announcing a version nobody else says is caught, and quoted back
+  ok   - an unbuilt tree is reported, not read as agreement
+  ok   - make rebuilds 3 binaries when version.h changes (was: 'up to date')
+  ok   - the arm left the tree exactly as it found it (version.h mtime restored)
+
+version: 13 passed, 0 failed

@@ -1,0 +1,5 @@
+base suites=111  head suites=112
+SHRUNK: none
+DISAPPEARED: none
+NEW: [('failed_call_test.sh', 21)]
+base total=4471 head total=4492
