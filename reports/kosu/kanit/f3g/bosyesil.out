@@ -1,0 +1,59 @@
+== EMPTY GREEN ROUND — the two suites of F3g against the F3g-oncesi (906b1e1) artifact
+== worktree: /Users/damummyphus/damla_projects_2026/_f3g_bosyesil  (detached, OUTSIDE /tmp)
+-- law_family_test.sh
+  FAIL - ALLOWED: the long form of the size flag
+  FAIL - ALLOWED: dd with its operands the other way round
+  FAIL - ALLOWED: install with a mode
+  FAIL - ALLOWED: the symlink swap on the promise
+  FAIL - ALLOWED: cp with a ./ spelling
+  FAIL - ALLOWED: a truncating redirect, the original 2026-08-03 incident
+  FAIL - ALLOWED: an appending redirect still corrupts the document
+  FAIL - ALLOWED: the same redirect with a different producer
+  FAIL - ALLOWED: tee writes its operand
+  FAIL - ALLOWED: tee -a appends to it
+  FAIL - ALLOWED: an in-place editor
+  FAIL - ALLOWED: the same, one interpreter over
+  FAIL - ALLOWED: find -exec of a delete
+  FAIL - ALLOWED: git rm is still an rm
+  FAIL - ALLOWED: the path assembled by a cd, never spelled whole
+  FAIL - ALLOWED: handing the file to somebody else
+  FAIL - ALLOWED: the walk started from the project root
+  ok   - read stays allowed: cat
+  ok   - read stays allowed: grep whose PATTERN is the word rm
+  ok   - read stays allowed: grep -n
+  ok   - read stays allowed: head
+  ok   - read stays allowed: tail
+  ok   - read stays allowed: wc
+  ok   - read stays allowed: listing the directory
+  ok   - read stays allowed: git diff
+  ok   - read stays allowed: git log
+  ok   - read stays allowed: an interpreter READING it
+  ok   - read stays allowed: sed WITHOUT an in-place flag
+  ok   - read stays allowed: diff
+  ok   - read stays allowed: stat
+  ok   - read stays allowed: copying it OUT is a read of the law
+  ok   - ordinary work stays allowed: the project's own build directory
+  ok   - ordinary work stays allowed: an ordinary file in the tree
+  ok   - ordinary work stays allowed: an ordinary chmod
+  ok   - ordinary work stays allowed: an ordinary truncate
+  ok   - ordinary work stays allowed: an ordinary dd
+  ok   - ordinary work stays allowed: an ordinary rename
+  ok   - ordinary work stays allowed: an ordinary overwrite
+  ok   - ordinary work stays allowed: an ordinary redirect
+  ok   - ordinary work stays allowed: an ordinary find -delete
+  ok   - ordinary work stays allowed: a directory whose name merely STARTS with the law's
+  ok   - ordinary work stays allowed: a directory whose name merely CONTAINS it
+  ok   - ordinary work stays allowed: a file beside the directory, not inside it
+law_family: 26 passed, 36 failed
+EXIT=1
+-- guard_delete_test.sh
+  ok   - read-only stays allowed: sed WITHOUT -i
+  FAIL - FALSE POSITIVE: grep whose PATTERN is the word rm
+  FAIL - FALSE POSITIVE: the same with the other verb the rule names
+  FAIL - FALSE POSITIVE: the recursive spelling of the same search
+  ok   - read-only stays allowed: wc, which spells no verb at all
+  ok   - read-only stays allowed: git log of the file
+  FAIL - FALSE POSITIVE: a sentence that merely names both
+  ok   - a recursive delete outside the project is still refused
+guard_delete: 18 passed, 4 failed
+EXIT=1
