@@ -1,0 +1,6 @@
+
+docs truth: 42 ok / 0 fail
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+38 ok / 0 fail
+
+version: 13 passed, 0 failed

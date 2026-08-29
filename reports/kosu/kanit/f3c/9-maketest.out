@@ -674,7 +674,7 @@ audit: hash-chained ledger
   ok   - (j) baseline: with no lock held the native writer appends 2 line(s) to the day file
   ok   - (j) a lock held by the JS writer keeps the native writer out of the chained file
   ok   - (j) a lock left by a killed writer is stolen, not obeyed forever
-  ok   - (j) an unwritable spool fails open at once, it does not spin the wait (31ms for 5 gate runs)
+  ok   - (j) an unwritable spool fails open at once, it does not spin the wait (29ms for 5 gate runs)
   ok   - (k) the JS bus and the native gate land in the SAME day file the readers tail
   ok   - (k) interleaved C++ and JS writes verify as one chain -> INTACT (exit 0)
 audit: 34 passed, 0 failed
@@ -885,7 +885,7 @@ rabadon usage --signals — what rabadon RECORDED in your own sessions
 local, nothing leaves this machine · these signals are silent: none of them
 refused anything, and none of them reached a decision
 
-corpus: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbsigscr.sFrl6y/rb/sessions
+corpus: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbsigscr.vXQW51/rb/sessions
   2 session file(s) · 203 move(s) on disk · 2026-08-24 05:36 → 2026-08-24 05:46
   LOSS: 50 recorded move(s) are gone — the ring keeps the newest 200 per
         session, the header counted 253. Every number below is over the 203
@@ -1416,7 +1416,7 @@ lease and force: the other two laws are untouched
 lease and force: 146 passed, 0 failed
 ./native/glob_escape_test.sh
 glob escape: what the shell actually hands to rm
-  ok   - every word the pattern expanded to lands outside the dir it names (2/2, e.g. /tmp/rabadon-glob-test.bfys40/sandbox/tmpish/a/../../victim)
+  ok   - every word the pattern expanded to lands outside the dir it names (2/2, e.g. /tmp/rabadon-glob-test.4WLfiE/sandbox/tmpish/a/../../victim)
   ok   - the fake rm deleted nothing: the escape is proved without paying for it
 glob escape: refused (the positives — these are the product)
   ok   - refused: plain path out of the temp area, no pattern at all
@@ -1582,12 +1582,12 @@ temp root glob: 71 passed, 0 failed
   ok   compiled-in climbing out of the temp dir with ..
 
 == TMPDIR is the environment, and the environment is what an agent sets ==
-  ok   guard.json  $HOME/Documents still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.sl6cgr/home
-  ok   guard.json  the climb-out still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.sl6cgr/home
-  ok   guard.json  /usr/local/lib still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.sl6cgr/home
-  ok   compiled-in $HOME/Documents still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.sl6cgr/home
-  ok   compiled-in the climb-out still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.sl6cgr/home
-  ok   compiled-in /usr/local/lib still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.sl6cgr/home
+  ok   guard.json  $HOME/Documents still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.bcweAB/home
+  ok   guard.json  the climb-out still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.bcweAB/home
+  ok   guard.json  /usr/local/lib still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.bcweAB/home
+  ok   compiled-in $HOME/Documents still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.bcweAB/home
+  ok   compiled-in the climb-out still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.bcweAB/home
+  ok   compiled-in /usr/local/lib still refused with TMPDIR=/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rbpath.bcweAB/home
   ok   guard.json  $HOME/Documents still refused with TMPDIR=/
   ok   guard.json  the climb-out still refused with TMPDIR=/
   ok   guard.json  /usr/local/lib still refused with TMPDIR=/
@@ -1931,7 +1931,7 @@ PASS (63 checks)
 ./native/short_cluster_test.sh
 == premise: what git does with a clustered short option ==
   ok   a plain push of a rewound branch is rejected (so the next line proves force)
-  ok   push -fu FORCED the remote back to f30c82c (it was 2ac03dd)
+  ok   push -fu FORCED the remote back to c2f1d43 (it was 7760fff)
   ok   push -fu also set upstream, so the u in it is --set-upstream
   ok   git accepts 'push -fu' as options (it reached the remote lookup)
   ok   git accepts 'push -qf' as options (it reached the remote lookup)
@@ -2245,7 +2245,7 @@ the same parser, reached through exec (rabadon-sandbox), not the hook
 
 what a real shell does with these lines (the evidence, with stubs on PATH)
     | git push --force origin main
-    | rm -rf /tmp/rabadon-assign-test.N5ueCw/home/Documents
+    | rm -rf /tmp/rabadon-assign-test.1FJXJo/home/Documents
     | git push -f origin main
     | git push -f origin main
     | git push -f origin main
@@ -2879,7 +2879,7 @@ git verbs — the ways to lose work that are not a force push
   ok    refused: git gc --prune=now --aggressive
   ok    refused: rm -rf .git
   ok    refused: rm -rf ./.git
-  ok    refused: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-gitverbs.EA4T7p/proj clean -xfd
+  ok    refused: git -C /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-gitverbs.6DXkvm/proj clean -xfd
 
 2. ordinary work that must still run
   ok    allowed: git push --forc origin main
@@ -2960,7 +2960,7 @@ delete verbs — the destroyer does not have to be called rm
   ok    refused by baseline-delete-not-rm: find /Users/nobody/work/proj-other -name x -execdir rm -rf {} \;
   ok    refused by baseline-delete-not-rm: rsync -a --delete /tmp/empty/ /Users/nobody/work/proj-other/engine/
   ok    refused by baseline-delete-not-rm: shred -u /Users/nobody/work/proj-other/ROADMAP.md
-  ok    refused by baseline-delete-not-rm: shred -u /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-delverbs.mfRVUg/home/Documents/canary.txt
+  ok    refused by baseline-delete-not-rm: shred -u /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-delverbs.KmCv09/home/Documents/canary.txt
   ok    refused by baseline-delete-not-rm: truncate -s 0 /Users/nobody/work/proj-other/ROADMAP.md
   ok    refused by baseline-delete-not-rm: dd if=/dev/zero of=/Users/nobody/work/proj-other/ROADMAP.md bs=1m count=1
   ok    refused by baseline-truncating-redirect: > /Users/nobody/work/proj-other/ROADMAP.md
@@ -2968,7 +2968,7 @@ delete verbs — the destroyer does not have to be called rm
 
 2. ordinary work that must still run
   ok    allowed: find . -name '*.o' -delete
-  ok    allowed: find /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-delverbs.mfRVUg/work/proj/logs -name '*.log' -delete
+  ok    allowed: find /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-delverbs.KmCv09/work/proj/logs -name '*.log' -delete
   ok    allowed: find /Users/nobody/work/proj-other -name '*.log'
   ok    allowed: find /Users/nobody/work/proj-other -type f -name x -exec grep -l TODO {} +
   ok    allowed: rsync -a --delete src/ dist/
@@ -3012,10 +3012,10 @@ shell cwd — the walk has to know where the shell went
   ok    allowed: pushd /Users/nobody/work/proj-other && ls && popd && rm -rf engine
   ok    allowed: cd sub && rm -rf deep
   ok    allowed: cd sub/deep && rm -rf build
-  ok    allowed: cd /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-shellcwd.4jv9M2/work/proj && rm -rf engine
-  ok    allowed: cd -P /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-shellcwd.4jv9M2/work/proj && rm -rf engine
+  ok    allowed: cd /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-shellcwd.mkZCsb/work/proj && rm -rf engine
+  ok    allowed: cd -P /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-shellcwd.mkZCsb/work/proj && rm -rf engine
   ok    allowed: pushd sub && rm -rf deep
-  ok    allowed: pushd /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-shellcwd.4jv9M2/work/proj && rm -rf engine && popd
+  ok    allowed: pushd /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-shellcwd.mkZCsb/work/proj && rm -rf engine && popd
   ok    allowed: cd .. && cd proj && rm -rf engine
   ok    allowed: rm -rf engine
   ok    allowed: echo 'cd elsewhere && rm -rf x is the escape' >> NOTES.md
@@ -3378,7 +3378,7 @@ repair session: caught -> proposed -> re-verified
   ok   - green repo: nothing to repair, exit 0
   ok   - honest fix: arbiter re-ran green, REPAIR_OK (exit 0)
   ok   - propose-and-hold: the user's tree is UNTOUCHED
-  ok   - verified patch is held at .rabadon/repair-1788022824173.patch
+  ok   - verified patch is held at .rabadon/repair-1788023294635.patch
   ok   - applying the held patch turns the REAL repo green
   ok   - REPAIR_OK on the ledger
   ok   - test-neutering fix REJECTED by the hash lock (exit 2)
@@ -3437,7 +3437,7 @@ harness lock — the judge must refuse a green it did not grade
   ok    cmd-script-honest-fix      -> verified (exit 0)
   ok    test-file-edited           -> test-tamper (exit 2)
 
-  canary intact: /tmp/rabadon-harness-lock.45K3HI/home/CANARY-do-not-touch
+  canary intact: /tmp/rabadon-harness-lock.BqgGBf/home/CANARY-do-not-touch
 
   pass 9   fail 0   skip 0
   harness lock: GREEN
@@ -3453,7 +3453,7 @@ held-out probe — the green has to survive the patch's own crutches
   ok    honest-fix-touching-existing-eq -> verified (exit 0)
   ok    honest-fix-with-short-guard  -> verified (exit 0)
 
-  canary intact: /tmp/rabadon-heldout.LRxCJm/home/CANARY-do-not-touch
+  canary intact: /tmp/rabadon-heldout.2xfBgJ/home/CANARY-do-not-touch
 
   pass 8   fail 0   skip 0
   held-out probe: GREEN
@@ -3467,7 +3467,7 @@ lock coverage — repair must lock what truth discovers
   ok    a repo with no test files still says UNVERIFIED, and says why
   ok    on the same large suite a test-neutering proposal is REJECTED
 
-  canary intact: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-lockcov.fyp6Xi/home/CANARY-do-not-touch
+  canary intact: /var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T//rabadon-lockcov.WKotRx/home/CANARY-do-not-touch
 
   pass 4   fail 0   skip 0
   lock coverage: GREEN
@@ -3663,7 +3663,7 @@ blind switch: 7 passed, 0 failed
   ok   - and at every phase of the breath
   ok   - OFF never animates (same bytes at any phase)
   ok   - OFF still says so in words, not just colour
-  ok   - median render stays cheap (3ms/run, budget 25ms)
+  ok   - median render stays cheap (2ms/run, budget 25ms)
 
 lamp: 8 passed, 0 failed
 ./native/watch_test.sh
@@ -3830,7 +3830,7 @@ BR8 RABADON_OFF propagated to the claude child
   ok   - BR8 diagnose child saw RABADON_OFF=1 (supervisor never supervises itself)
   ok   - BR8 driftJudge child also saw RABADON_OFF=1
 BR8b bounded subprocess kills a hanging stub
-  ok   - BR8b RED terminal still fires around a slow child (exit 2, 2.0697832107543945s)
+  ok   - BR8b RED terminal still fires around a slow child (exit 2, 2.039991855621338s)
 BR9 non-test Bash
   ok   - BR9 'ls -la' -> STEP_OK ran, no state mutation: node==native (exit 0, state, spool)
   ok   - BR9 STEP_OK 'ran: ls -la'
@@ -4179,9 +4179,9 @@ discovery scope: whose tests, which tree
   ok   - dist-packages, the debian spelling of the same directory, is skipped too (fell to level 1)
   ok   - a real src/Library/ project is still discovered and still locked (skip_dir did not eat the name)
   ok   - an ordinary tests/ directory is still the project's suite
-  ok   - a project under a git-repo $HOME does not inherit $HOME as its root (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.NqKQU6/home/proj)
+  ok   - a project under a git-repo $HOME does not inherit $HOME as its root (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.d7HzVA/home/proj)
   ok   - it falls back to the directory itself, which governs no sibling
-  ok   - a real git root below $HOME still wins from a subdirectory (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.NqKQU6/home/g)
+  ok   - a real git root below $HOME still wins from a subdirectory (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.d7HzVA/home/g)
   ok   - premise: a python project with a tests/ directory is a level 3 SUITE
   ok   - premise: pytest collected nothing and exited 5 (not 0 — that is the whole bug)
   ok   - a run that executed no tests is INCONCLUSIVE, whatever the runner's exit code was
@@ -4201,7 +4201,7 @@ discovery scope: 13 ok, 0 fail
   ok   - a check that blows its budget is INCONCLUSIVE, never green
   ok   - timeout is never green
   ok   - 5 more edits during an in-flight check start 0 extra suites (single flight holds)
-./native/net_test.sh: line 111:  3342 Killed: 9               RABADON_NET_CAP_MS=9000 "$NET" "$R4" > /dev/null 2>&1
+./native/net_test.sh: line 111: 60608 Killed: 9               RABADON_NET_CAP_MS=9000 "$NET" "$R4" > /dev/null 2>&1
   ok   - a lock left by a dead process is reclaimed (the net cannot wedge itself)
 
 net: 13 passed, 0 failed
@@ -4289,9 +4289,9 @@ trace: a refusal is a caught step
   ok   - rabadon-gate REFUSED the force-push (exit 2) — the ledger below is a real refusal
   ok   - rabadon-sandbox REFUSED the same command (exit 2)
   ok   - rabadon-gate in WATCH mode did NOT stop the command (exit 0)
-  ok   - the two real binaries wrote 2 refused runs: ex-22931897-3588, ng-22931882-3586
+  ok   - the two real binaries wrote 2 refused runs: ex-23402722-60858, ng-23402707-60856
   ok   - neither refused run contains a STEP_START — this IS the shape trace could not read
-  ok   - `rabadon trace ex-22931897-3588` renders CAUGHT 1 over a {CHECK_FAIL, STOP} run
+  ok   - `rabadon trace ex-23402722-60858` renders CAUGHT 1 over a {CHECK_FAIL, STOP} run
   ok   - the rule that fired is named in the render (baseline-force-push)
   ok   - the check's own why is rendered
   ok   - the caught step is drawn as a step, named 'exec'
@@ -4300,7 +4300,7 @@ trace: a refusal is a caught step
   ok   - the header names the surface the refusal came through (exec) and says no model call
   ok   - the header prices no model call it never made
   ok   - the footer verdict reads BLOCKED, the reason the STOP carries
-  ok   - `rabadon trace ng-22931882-3586` renders CAUGHT 1 over a {CHECK_FAIL, STOP} run
+  ok   - `rabadon trace ng-23402707-60856` renders CAUGHT 1 over a {CHECK_FAIL, STOP} run
   ok   - the rule that fired is named in the render (baseline-force-push)
   ok   - the check's own why is rendered
   ok   - the caught step is drawn as a step, named 'Bash'
@@ -4457,7 +4457,7 @@ site claims — a number with no command behind it is a slogan
 
 3. two pages, one number
         AGREE      commands refused             391
-        AGREE      commits in this repository   859
+        AGREE      commits in this repository   860
         AGREE      would have refused           1329
         AGREE      refused outright once armed  391
         AGREE      laws still in a guard file   11
@@ -4467,7 +4467,7 @@ site claims — a number with no command behind it is a slogan
   ok    the overview and the pages it summarises agree
 
 4. the README counts its own lines
-  ok    README says ~23k, native/ measures 24233 lines
+  ok    README says ~23k, native/ measures 24244 lines
 
   pass 10   fail 0
   site claims: GREEN
@@ -4476,8 +4476,8 @@ field redaction — a truncated home path is still a home path
 
 1. what reached the published file
   ok    wrote the published file
-  ok    no '/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.Y905pWC1dy/alicewonder' in the published file
-  ok    no '/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.Y905pWC1dy/alicewon' in the published file
+  ok    no '/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.uWsC7iHg6W/alicewonder' in the published file
+  ok    no '/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/tmp.uWsC7iHg6W/alicewon' in the published file
   ok    no 'alicewonder' in the published file
   ok    no 'alicewond' in the published file
   ok    no '/Users/' in the published file
@@ -4648,19 +4648,19 @@ claims — every number is asked which run produced it
 fd duplication — 2>&1 is a descriptor, not a file
 
 1. these must pass
-  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && git status 2>&1
-  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && make test 2>&1 | tail -5
-  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls >&2
-  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls &> /dev/null
-  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls 1>&2
-  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && ls 2>&-
-  ok    git -C /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other status 2>&1
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && git status 2>&1
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && make test 2>&1 | tail -5
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && ls >&2
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && ls &> /dev/null
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && ls 1>&2
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && ls 2>&-
+  ok    git -C /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other status 2>&1
 
 2. these must still be refused
-  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && > ROADMAP.md
-  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && echo x > ROADMAP.md
-  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && echo x > ./1
-  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-5655/other && echo x 2> ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && > ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && echo x > ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && echo x > ./1
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-62926/other && echo x 2> ROADMAP.md
 
   11 passed, 0 failed
 ./native/sock_path_test.sh
@@ -4676,9 +4676,9 @@ day cache: one timezone load per process, still the right day
   ok   - every one agreed with gmtime_r+strftime
   ok   - midnight flips the string: 2024-12-31 -> 2025-01-01, asked in reverse order
   ok   - the live call answers today's UTC date (2026-08-29), same as `date -u +%F`
-  ok   - the FIRST call in a cold process cost 31us (<50us): the one-shot gate pays no timezone load
-  ok   - 100k repeat calls cost 2919us total (<100000us): the timezone load happened once
-  ok   - a forked child's FIRST call cost 17us (<50us): it inherited the warm cache
+  ok   - the FIRST call in a cold process cost 22us (<50us): the one-shot gate pays no timezone load
+  ok   - 100k repeat calls cost 2793us total (<100000us): the timezone load happened once
+  ok   - a forked child's FIRST call cost 20us (<50us): it inherited the warm cache
 day cache: 8 passed, 0 failed
 ./native/mode_wrong_test.sh
 mode + wrong refusal — the two events the ledger was not keeping
@@ -4803,4 +4803,3 @@ identity: a label is collapsed for an identity reason, or not at all
   ok   - a guard's identity is the directory it lives in, not the name it declares
   ok   - five labels resolve to three identities — the module answers, it does not pass through
 identity: 37 passed, 0 failed
-EXIT=
