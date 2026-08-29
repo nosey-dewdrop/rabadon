@@ -34,9 +34,14 @@ cd "$(dirname "$0")/.."
 BIN=./native/rabadon-gate
 [ -x "$BIN" ] || { echo "guard lint: build first (make native/rabadon-gate)"; exit 1; }
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0; SKIPA=0
 ok()  { PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
+# An arm that cannot run here is announced WITH ITS NAME AND ITS NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence; native/silent_skip_test.sh holds that rule
+# over every file in this directory. $1 = arm, $2 = assertions not run, $3 = why.
+skipped() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 
 TMP=$(mktemp -d /tmp/rabadon-guard-lint.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
@@ -265,7 +270,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     bad "session state is tracked under .rabadon/: $(printf '%s' "$leaked" | tr '\n' ' ')"
   fi
 else
-  echo "  skip - git tracking arm: not a git work tree"
+  skipped "git tracking arm" 1 "not a git work tree (an exported tarball has no .git), so the state-leak assertion was not judged here"
 fi
 
 # B4 — no rules at all is not a broken rule.
@@ -331,13 +336,39 @@ lint "$A1"; rc_lint_typo=$RC
 # end, reintroduced by the build. Same shape as the version.h hole the Makefile
 # comment already describes; version_test.sh section J is the precedent for
 # testing it this way. `make -q` only asks, it never builds.
-RULES_TARGETS="$(python3 - <<'PY'
-import os,re
+# THE TARGET NAME IS READ OUT OF THE MAKEFILE, NOT GUESSED FROM THE SOURCE
+# NAME. It used to be `native/rabadon-` + the stem, and native/gate_bench.cpp
+# includes rules.h while its target is called `native/gate_bench`. `make -q`
+# answered "No rule to make target native/rabadon-gate_bench" and exited 2, the
+# outer `if` read that as "the tree is not built", and the WHOLE empirical arm
+# took the skip branch — silently, on every run, on a fully built tree, since
+# the day it was written. Measured 2026-08-29. That is the defect this card is
+# about, hiding inside a suite written to catch it. A source that no rule
+# builds is now a failure with a name, not a target nobody can make.
+RULES_TARGETS="$(python3 - <<'RTS'
+import os, re
+mk = re.sub(r'\\\n\s*', ' ', open('Makefile', encoding='utf8').read())
+rules = {}
+for line in mk.splitlines():
+    m = re.match(r'^(native/[A-Za-z0-9_-]+)\s*:\s*(.*)$', line)
+    if m:
+        rules[m.group(1)] = m.group(2).split()
 for f in sorted(os.listdir('native')):
-    if f.endswith('.cpp') and re.search(r'#\s*include\s+"rules\.h"', open(os.path.join('native',f),encoding='utf8',errors='replace').read()):
-        print('native/rabadon-'+f[:-4])
-PY
+    if not f.endswith('.cpp'):
+        continue
+    src = os.path.join('native', f)
+    if not re.search(r'#\s*include\s+"rules\.h"',
+                     open(src, encoding='utf8', errors='replace').read()):
+        continue
+    hit = [t for t, pre in rules.items() if src in pre]
+    print(hit[0] if hit else 'NORULE:' + src)
+RTS
 )"
+NORULE="$(printf '%s\n' "$RULES_TARGETS" | sed -n 's/^NORULE://p')"
+if [ -n "$NORULE" ]; then
+  bad "a source includes rules.h but no Makefile rule builds it, so nothing holds it to the header: $(printf '%s' "$NORULE" | tr '\n' ' ')"
+fi
+RULES_TARGETS="$(printf '%s\n' "$RULES_TARGETS" | grep -v '^NORULE:' || true)"
 if [ -z "$RULES_TARGETS" ]; then
   bad "no .cpp includes rules.h — this suite is looking at the wrong header"
 elif unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $RULES_TARGETS >/dev/null 2>&1; then
@@ -355,8 +386,11 @@ elif unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $RULES_TARGETS >/dev/null 2>&1;
     && ok "the arm left the tree exactly as it found it (rules.h mtime restored)" \
     || bad "the make arm left the tree needing a rebuild"
 else
-  echo "  skip - make -q arm: the tree is not built (run make first)"
+  # Not a skip: this is the suite shrinking without saying so, and it is the
+  # same branch that took version_test.sh from 13 assertions to 11 on 2026-08-29
+  # while still exiting 0. §8.2. Named arm, one repair command.
+  bad "make -q arm did NOT run: the tree is not built or is out of date, so the empirical half of this suite (2 assertions) measured nothing — run \`make all\` and re-run this file"
 fi
 
-echo "guard lint: $PASS ok, $FAIL fail"
+echo "guard lint: $PASS ok, $FAIL fail, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$FAIL" -eq 0 ]

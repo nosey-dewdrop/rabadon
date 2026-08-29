@@ -106,8 +106,14 @@ cd "$(dirname "$0")/.."
 GATE=./native/rabadon-gate
 [ -x "$GATE" ] || { echo "unknown_wrapper_test: build first (make)"; exit 1; }
 
-ok=0; bad=0
+ok=0; bad=0; SKIP=0; SKIPA=0
 pass() { ok=$((ok+1)); echo "  ok   - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence, and every counter downstream reads the
+# smaller number as health. native/silent_skip_test.sh holds this over the
+# whole directory. $1 = arm, $2 = assertions not run, $3 = why.
+skipped() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
 
 LAB=$(mktemp -d /tmp/rabadon-unknown-wrapper-test.XXXXXX)
@@ -200,7 +206,7 @@ if command -v caffeinate >/dev/null 2>&1; then
   ran "caffeinate, the reported one"            'caffeinate -i git push --force origin main' "$PUSHARGV"
   ran "caffeinate with a flag that eats a value" 'caffeinate -t 30 rm -rf /etc/nginx'     "$RMARGV"
 else
-  echo "  skip - caffeinate is not on this machine; the shape cases below still run"
+  skipped "caffeinate arm" 2 "caffeinate is not on this machine — the reported wrapper itself could not be exercised; the shape cases below still ran"
 fi
 [ -f "$LAB/sandbox/keep.txt" ] && pass "the fakes ran instead of the real git and rm: nothing was pushed or deleted" \
   || fail "a real rm ran in the lab"
@@ -323,5 +329,5 @@ RC=$(run "$PROJ" "rbwrap --jobs 4 rm -rf ~/Documents")
 [ -d /tmp ] && [ -d /etc ] && [ -d "$HOME" ] \
   && pass "/tmp, /etc and the home dir are still on the machine" || fail "the test ran what it judged"
 
-echo "unknown wrappers: $ok passed, $bad failed"
+echo "unknown wrappers: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$bad" -eq 0 ]

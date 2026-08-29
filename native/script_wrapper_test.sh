@@ -51,8 +51,14 @@ cd "$(dirname "$0")/.."
 GATE=./native/rabadon-gate
 [ -x "$GATE" ] || { echo "script_wrapper_test: build first (make)"; exit 1; }
 
-ok=0; bad=0
+ok=0; bad=0; SKIP=0; SKIPA=0
 pass() { ok=$((ok+1)); echo "  ok   - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence, and every counter downstream reads the
+# smaller number as health. native/silent_skip_test.sh holds this over the
+# whole directory. $1 = arm, $2 = assertions not run, $3 = why.
+skipped() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
 
 LAB=$(mktemp -d /tmp/rabadon-script-test.XXXXXX)
@@ -144,7 +150,7 @@ if [ "$PTY_OK" = "1" ]; then
   [ -f "$LAB/sandbox/keep.txt" ] && pass "the fakes ran instead of the real git and rm: nothing was pushed or deleted" \
     || fail "a real rm ran in the lab"
 else
-  echo "  skip - no usable pty here, so script(1) cannot be measured on this machine"
+  skipped "script(1) allowed-shape arm" 5 "no usable pty on this machine, so script(1) cannot be run at all — the refusal arms below still ran"
 fi
 rm -f "$LAB/sandbox/git" "$LAB/sandbox/typescript"
 
@@ -250,5 +256,5 @@ RC=$(run "$PROJ" "scripted -q /dev/null git push --force origin main")
 [ -d /tmp ] && [ -d /etc ] && [ -d "$HOME" ] \
   && pass "/tmp, /etc and the home dir are still on the machine" || fail "the test ran what it judged"
 
-echo "script(1) wrapper: $ok passed, $bad failed"
+echo "script(1) wrapper: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$bad" -eq 0 ]

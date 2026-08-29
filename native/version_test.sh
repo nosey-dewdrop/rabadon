@@ -347,7 +347,18 @@ if (cd "$ROOT" && unset MAKEFLAGS MFLAGS MAKELEVEL && make -q $TARGETS >/dev/nul
     && ok "the arm left the tree exactly as it found it (version.h mtime restored)" \
     || bad "the make arm left the tree needing a rebuild"
 else
-  echo "  skip - make -q arm: the tree is not built (run make first); the textual rule above still held"
+  # A SKIP HERE IS THE SUITE GETTING QUIETLY SMALLER, so it is a failure.
+  #
+  # Measured, 2026-08-29 (F3c arbiter, by hand): `make all` then this file =
+  # 13 passed. `touch native/gate.cpp` and the same file = **11 passed,
+  # EXIT=0**. This branch is how: touching any source leaves the tree out of
+  # date, `make -q` says so, and the two assertions below — the empirical half
+  # of the whole file, plus the proof it can go red — stop running while the
+  # suite still reports success. One leg of the F1e-C gate shrinking 15%
+  # because somebody touched a file is the exact defect this file was written
+  # against, running inside it. §8.2: a suite that can shrink in silence is not
+  # a suite. The message names the arm and the one command that fixes it.
+  bad "make -q arm did NOT run: the tree is not built or is out of date, so the empirical half of this suite (2 assertions) measured nothing — run \`make all\` and re-run this file"
 fi
 
 echo ""

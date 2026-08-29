@@ -21,8 +21,14 @@ set -u
 # commit, which is how the red-before-green proof was taken.
 BIN="${RABADON_GATE_BIN:-$(cd "$(dirname "$0")" && pwd)/rabadon-gate}"
 [ -x "$BIN" ] || { echo "build first: make native/rabadon-gate"; exit 1; }
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0; SKIPA=0
 ok()  { PASS=$((PASS+1)); echo "  ok   - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence, and every counter downstream reads the
+# smaller number as health. native/silent_skip_test.sh holds this over the
+# whole directory. $1 = arm, $2 = assertions not run, $3 = why.
+skipped() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
 
 PROJ="$(mktemp -d)"
@@ -60,7 +66,7 @@ grep -q "cannot read its own switch" "$ERRFILE" \
 
 # --- D: the home cannot be entered -> unreadable ---
 if [ "$(id -u)" = 0 ]; then
-  echo "  skip - mode 000 is meaningless as root"
+  skipped "unreadable-home arm" 1 "running as root, where mode 000 is not a barrier — and the container census runs as root, so this is the arm that vanishes exactly where nobody is watching"
 else
   D_000="$(mktemp -d)"; chmod 000 "$D_000"
   rc=$(RABADON_DIR="$D_000" run mode000)
@@ -81,5 +87,5 @@ rc=$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"s-safe","t
               || bad "blind enforcement must not block everything, got exit $rc"
 
 echo
-echo "blind switch: $PASS passed, $FAIL failed"
+echo "blind switch: $PASS passed, $FAIL failed, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$FAIL" = 0 ]

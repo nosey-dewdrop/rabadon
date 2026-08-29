@@ -23,10 +23,15 @@ cd "$(dirname "$0")/.."
 SB=./native/rabadon-sandbox
 [ -x "$SB" ] || { echo "sandbox_test: build first (make native/rabadon-sandbox)"; exit 1; }
 
-ok=0; bad=0
+ok=0; bad=0; SKIP=0; SKIPA=0
 pass() { ok=$((ok+1)); echo "  ok   - $1"; }
 fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
-skip() { echo "  skip - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence, and every counter downstream reads the
+# smaller number as health. native/silent_skip_test.sh holds this over the
+# whole directory. $1 = arm, $2 = assertions not run, $3 = why.
+skip() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 
 echo "sandbox: kernel-enforced guard.json"
 
@@ -117,7 +122,7 @@ fi
 rm -rf "$LAWDIR" "$LAWHOME" "$BASEDIR"
 
 if ! "$SB" --check >/dev/null 2>&1; then
-  skip "no kernel sandbox backend on this platform — enforcement tests skipped (--check is honest about it)"
+  skip "kernel enforcement arm" 9 "no kernel sandbox backend on this platform; --check says so out loud, and these 9 assertions were not judged here"
   # HARDENED, not loosened (F1b). The shipped line is
   #   sandbox.cpp:365  "rabadon sandbox: NO usable kernel backend — %s"
   # and this assertion used to look for "no kernel backend", case-insensitively.
@@ -127,7 +132,7 @@ if ! "$SB" --check >/dev/null 2>&1; then
   # The expectation now names the string the product actually ships, verbatim
   # and case-sensitively: strictly FEWER strings satisfy it than before.
   "$SB" --check 2>&1 | grep -q "rabadon sandbox: NO usable kernel backend" && pass "--check reports the absence honestly" || fail "--check message"
-  echo "sandbox: $ok passed, $bad failed"; exit "$bad"
+  echo "sandbox: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"; exit "$bad"
 fi
 pass "a kernel sandbox backend is available (--check exit 0)"
 
@@ -195,8 +200,8 @@ if command -v curl >/dev/null 2>&1; then
   NRC=$?
   [ $NRC -ne 0 ] && pass "--deny-net: a network call inside the sandbox fails" || fail "--deny-net did not block the network (rc=$NRC)"
 else
-  skip "curl absent — --deny-net network test skipped"
+  skip "--deny-net network arm" 1 "curl is not on this machine, so no request could be attempted"
 fi
 
-echo "sandbox: $ok passed, $bad failed"
+echo "sandbox: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$bad" -eq 0 ]

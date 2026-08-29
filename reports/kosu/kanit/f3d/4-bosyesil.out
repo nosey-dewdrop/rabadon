@@ -1,0 +1,8 @@
+    | sites=15 files=13 scanned=114
+  ok   - the sweep can see skip announcements at all: 15 site(s) found
+  ok   - a planted silent skip is caught and the counted one is left alone
+  ok   - a skip counter that nothing prints is caught as unreported
+
+silent skip: 3 passed, 1 failed
+EXIT=
+F3d-oncesi (73bda28) + the new lock: EXIT=1

@@ -33,8 +33,14 @@
 set -u
 cd "$(dirname "$0")/.."
 
-ok=0; bad=0
+ok=0; bad=0; SKIP=0; SKIPA=0
 pass() { ok=$((ok+1)); echo "  ok   - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence, and every counter downstream reads the
+# smaller number as health. native/silent_skip_test.sh holds this over the
+# whole directory. $1 = arm, $2 = assertions not run, $3 = why.
+skipped() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 fail() { bad=$((bad+1)); echo "  FAIL - $1"; }
 
 echo "usage order: the meter reads real transcript key order"
@@ -62,7 +68,7 @@ CPP
 if ! "$CXX" -std=c++17 -O2 -I. -o "$TMP/probe" "$TMP/probe.cpp" >"$TMP/cc.log" 2>&1; then
   fail "the probe does not compile against the real meter (native/usage.h)"
   sed 's/^/    | /' "$TMP/cc.log" | tail -20
-  echo "usage order: $ok passed, $bad failed"; exit 1
+  echo "usage order: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"; exit 1
 fi
 pass "the probe compiles against the real meter (native/usage.h)"
 
@@ -134,9 +140,9 @@ done
 # the same file, counts top-level type=="assistant" lines that carry
 # message.usage and no toolUseResult, and the meter must agree exactly.
 if [ -z "$live" ]; then
-  echo "  SKIP - no real transcript on this machine (clean container); fixtures above still hold"
+  skipped "stock-parser oracle arm" 1 "no real transcript on this machine (a clean container has none), so the meter was never held against a real file — the fixtures above still ran"
 elif ! command -v python3 >/dev/null 2>&1; then
-  echo "  SKIP - no python3 for the stock-parser oracle; fixtures above still hold"
+  skipped "stock-parser oracle arm" 1 "no python3 here to be the oracle, so the meter was never held against a second reader — the fixtures above still ran"
 else
   want=$(python3 - "$live" <<'PY'
 import json, sys
@@ -166,5 +172,5 @@ PY
   fi
 fi
 
-echo "usage order: $ok passed, $bad failed"
+echo "usage order: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$bad" -eq 0 ]

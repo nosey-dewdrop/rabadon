@@ -41,10 +41,15 @@ NET="$HERE/rabadon-net"
 [ -x "$TRUTH" ] || { echo "build first: make native/rabadon-truth"; exit 1; }
 [ -x "$NET" ]   || { echo "build first: make native/rabadon-net"; exit 1; }
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0; SKIPA=0
 ok()   { PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad()  { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
-skip() { echo "  skip - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. A skip that increments nothing is the
+# suite getting smaller in silence, and every counter downstream reads the
+# smaller number as health. native/silent_skip_test.sh holds this over the
+# whole directory. $1 = arm, $2 = assertions not run, $3 = why.
+skip() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
 
 T="$(mktemp -d "${TMPDIR:-/tmp}/rabadon-scope.XXXXXX")"
 trap 'rm -rf "$T"' EXIT
@@ -150,7 +155,7 @@ if python3 -m pytest --version >/dev/null 2>&1; then
     && ok "a run that executed no tests is INCONCLUSIVE, whatever the runner's exit code was" \
     || bad "an empty pytest run was recorded '$V' — a false reject, and red-base then refuses everything"
 else
-  skip "pytest is not installed here — the empty-run arm cannot be measured"
+  skip "empty-run waiver arm" 1 "pytest is not installed here, so the empty run cannot be produced"
 fi
 
 # THE TWIN. The exemption is for runs that executed nothing, not for runs that
@@ -166,5 +171,5 @@ if python3 -m pytest --version >/dev/null 2>&1; then
 fi
 
 echo ""
-echo "discovery scope: $PASS ok, $FAIL fail"
+echo "discovery scope: $PASS ok, $FAIL fail, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$FAIL" -eq 0 ]

@@ -1,0 +1,85 @@
+== F3d card 2: mutation proof for every repaired skip branch ==
+
+### 1/2. version_test.sh and guard_lint_test.sh: an out-of-date tree is RED, not a skip
+before (built tree):
+--- version_test.sh, tree built
+    file : native/version_test.sh
+    exit : 0
+    last : version: 13 passed, 0 failed
+
+--- guard_lint_test.sh, tree built
+    file : native/guard_lint_test.sh
+    exit : 0
+    last : guard lint: 22 ok, 0 fail, 0 skipped (0 assertion(s) not run)
+
+mutation: touch native/gate.cpp — the tree is now out of date
+--- version_test.sh, tree stale
+    file : native/version_test.sh
+    exit : 1
+    last : version: 11 passed, 1 failed
+      FAIL - make -q arm did NOT run: the tree is not built or is out of date, so the empirical half of this suite (2 assertions) measured nothing — run `make all` and re-run this file
+
+--- guard_lint_test.sh, tree stale
+    file : native/guard_lint_test.sh
+    exit : 1
+    last : guard lint: 20 ok, 1 fail, 0 skipped (0 assertion(s) not run)
+      FAIL - make -q arm did NOT run: the tree is not built or is out of date, so the empirical half of this suite (2 assertions) measured nothing — run `make all` and re-run this file
+
+revert: make all
+--- version_test.sh, restored
+    file : native/version_test.sh
+    exit : 0
+    last : version: 13 passed, 0 failed
+
+### 3. blind_switch_test.sh: the root branch announces instead of vanishing
+--- blind_switch, id -u lies 0
+    file : native/blind_switch_test.sh
+    exit : 0
+    last : blind switch: 6 passed, 0 failed, 1 skipped (1 assertion(s) not run)
+      SKIP - unreadable-home arm: 1 assertion(s) did NOT run — running as root, where mode 000 is not a barrier — and the container census runs as root, so this is the arm that vanishes exactly where nobody is watching
+
+### 4. discovery_scope_test.sh: no pytest
+--- discovery_scope, python3 hidden
+    file : native/discovery_scope_test.sh
+    exit : 0
+    last : discovery scope: 9 ok, 0 fail, 1 skipped (1 assertion(s) not run)
+      SKIP - empty-run waiver arm: 1 assertion(s) did NOT run — pytest is not installed here, so the empty run cannot be produced
+
+### 5. redbase_scope_test.sh: no node — the whole suite, announced with its number
+--- redbase_scope, node hidden
+    file : native/redbase_scope_test.sh
+    exit : 0
+    last :   red base scope: NOT JUDGED — every case needs node
+      SKIP - the whole suite: 9 assertion(s) did NOT run — node is not installed, so the red fixture cannot be produced and NOTHING below was judged on this machine
+
+### 6. unknown_wrapper_test.sh: no caffeinate
+--- unknown_wrapper, caffeinate hidden
+    file : native/unknown_wrapper_test.sh
+    exit : 0
+    last : unknown wrappers: 61 passed, 0 failed, 1 skipped (2 assertion(s) not run)
+      SKIP - caffeinate arm: 2 assertion(s) did NOT run — caffeinate is not on this machine — the reported wrapper itself could not be exercised; the shape cases below still ran
+
+### 7. usage_order_test.sh: no real transcript on this machine
+--- usage_order, empty HOME
+    file : native/usage_order_test.sh
+    exit : 0
+    last : usage order: 8 passed, 0 failed, 1 skipped (1 assertion(s) not run)
+      SKIP - stock-parser oracle arm: 1 assertion(s) did NOT run — no real transcript on this machine (a clean container has none), so the meter was never held against a real file — the fixtures above still ran
+
+### 8. wrapper_exec_test.sh: a wrapper binary missing
+--- wrapper_exec, caffeinate hidden
+    file : native/wrapper_exec_test.sh
+    exit : 0
+    last : wrappers: 58 passed, 0 failed, 6 skipped (6 assertion(s) not run)
+      SKIP - caffeinate, bare (caffeinate): 1 assertion(s) did NOT run — the wrapper binary is not on this machine
+      SKIP - caffeinate with an assertion (caffeinate): 1 assertion(s) did NOT run — the wrapper binary is not on this machine
+      SKIP - caffeinate with a clustered set (caffeinate): 1 assertion(s) did NOT run — the wrapper binary is not on this machine
+      SKIP - caffeinate whose -t eats a word (caffeinate): 1 assertion(s) did NOT run — the wrapper binary is not on this machine
+      SKIP - caffeinate ending options at -- (caffeinate): 1 assertion(s) did NOT run — the wrapper binary is not on this machine
+      SKIP - caffeinate reaching rm (caffeinate): 1 assertion(s) did NOT run — the wrapper binary is not on this machine
+
+### 9. sandbox_test.sh, script_wrapper_test.sh: BRANCH NOT FORCED — I could not
+    reproduce 'no kernel backend' or 'no usable pty' on this machine from
+    outside the suite. Measured here only statically. NOT VERIFIED.
+
+== done ==

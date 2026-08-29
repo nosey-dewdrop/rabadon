@@ -30,11 +30,24 @@ GATE="$HERE/rabadon-gate"
 NET="$HERE/rabadon-net"
 [ -x "$GATE" ] || { echo "build first: make native/rabadon-gate"; exit 1; }
 [ -x "$NET" ]  || { echo "build first: make native/rabadon-net"; exit 1; }
-command -v node >/dev/null 2>&1 || { echo "  skip - node is not installed; the red fixture cannot be produced"; exit 0; }
 export RABADON_JUDGE=0
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0; SKIPA=0
 ok()  { PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
+# An arm that cannot run HERE is announced with its NAME and its NUMBER, and
+# the count reaches the summary line. This one is the whole file: without node
+# the red fixture cannot exist, so all 9 assertions go. It used to be
+#   ... || { echo "  skip - node is not installed"; exit 0; }
+# printed BEFORE the counters existed, so the file left no summary at all and
+# exited 0 — a suite that disappears completely and reads as success. §8.2.
+skipped() { SKIP=$((SKIP+1)); SKIPA=$((SKIPA+$2)); echo "  SKIP - $1: $2 assertion(s) did NOT run — $3"; }
+if ! command -v node >/dev/null 2>&1; then
+  skipped "the whole suite" 9 "node is not installed, so the red fixture cannot be produced and NOTHING below was judged on this machine"
+  echo ""
+  echo "red base scope: $PASS ok, $FAIL fail, $SKIP skipped ($SKIPA assertion(s) not run)"
+  echo "  red base scope: NOT JUDGED — every case needs node"
+  exit 0
+fi
 
 T="$(mktemp -d "${TMPDIR:-/tmp}/rabadon-rbscope.XXXXXX")"
 RD="$(mktemp -d "${TMPDIR:-/tmp}/rabadon-rbscope-rd.XXXXXX")"; : > "$RD/enabled"
@@ -99,5 +112,5 @@ echo "red base scope: a red stops where its tree stops"
   || bad "the neighbour is refused on its own ground"
 
 echo ""
-echo "red base scope: $PASS ok, $FAIL fail"
+echo "red base scope: $PASS ok, $FAIL fail, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$FAIL" -eq 0 ]
