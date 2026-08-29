@@ -465,9 +465,33 @@ static void rb_day_str_at(time_t t, char out[16]) {
   long long epochDay = (long long)t / 86400;
   if (t < 0 && (long long)t % 86400 != 0) epochDay--;
   if (cached[0] == '\0' || epochDay != cachedDay) {
-    struct tm tmv;
-    gmtime_r(&t, &tmv);
-    strftime(cached, 16, "%Y-%m-%d", &tmv);
+    // Integer calendar, not gmtime_r. The cache above only ever helps a process
+    // that is asked TWICE, and rabadon-gate is one process per hook event: it
+    // is asked once, so it walked the cold path on every action a developer
+    // took. Measured 2026-08-29 with gmtime_r here: 582 us for that one call,
+    // ~35% of the 1641 us the R7 `2b` ceiling is about, paid for a string that
+    // does not change all day. The cost is not the formatting, it is the first
+    // gmtime_r loading the timezone database — and this string is UTC, so there
+    // is no timezone in the answer to begin with.
+    //
+    // days-to-civil, Howard Hinnant, "chrono-Compatible Low-Level Date
+    // Algorithms" (2013-2016), http://howardhinnant.github.io/date_algorithms.html
+    // — the shifted-era form, exact for the whole range of time_t, no lookup
+    // table and no allocation. It is not trusted on its own: day_cache_probe
+    // compares it against gmtime_r+strftime on 64808 timestamps, one per day
+    // from the epoch to 2134 plus both sides of midnight, a leap day and a year
+    // boundary, and day_cache_test.sh fails on a single disagreement.
+    long long z = epochDay + 719468;
+    long long era = (z >= 0 ? z : z - 146096) / 146097;
+    unsigned doe = (unsigned)(z - era * 146097);            // [0, 146096]
+    unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    long long y = (long long)yoe + era * 400;
+    unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    unsigned mp = (5 * doy + 2) / 153;                      // [0, 11], March = 0
+    unsigned d = doy - (153 * mp + 2) / 5 + 1;              // [1, 31]
+    unsigned m = mp < 10 ? mp + 3 : mp - 9;                 // [1, 12]
+    y += (m <= 2);
+    snprintf(cached, 16, "%04lld-%02u-%02u", y, m, d);
     cachedDay = epochDay;
   }
   memcpy(out, cached, 16);

@@ -1,0 +1,10 @@
+day cache: one timezone load per process, still the right day
+  ok   - the probe compiles against the real gate (gate.cpp, main renamed)
+  ok   - the probe compared 64808 timestamps against the uncached computation
+  ok   - every one agreed with gmtime_r+strftime
+  ok   - midnight flips the string: 2024-12-31 -> 2025-01-01, asked in reverse order
+  ok   - the live call answers today's UTC date (2026-08-29), same as `date -u +%F`
+  ok   - the FIRST call in a cold process cost 16us (<50us): the one-shot gate pays no timezone load
+  ok   - 100k repeat calls cost 2828us total (<100000us): the timezone load happened once
+  ok   - a forked child's FIRST call cost 18us (<50us): it inherited the warm cache
+day cache: 8 passed, 0 failed
