@@ -25,6 +25,24 @@ GATE="$HERE/rabadon-gate"
 [ -x "$GATE" ] || { echo "build first: make native/rabadon-gate"; exit 1; }
 [ -x "$HERE/rabadon-truth" ] || { echo "build first: make native/rabadon-truth"; exit 1; }
 export RABADON_JUDGE=0
+# HOME ISOLATION — MEASURED, NOT ASSUMED (2026-08-30).
+# This suite drives SessionStart with a FRESH RABADON_DIR every arm, which means
+# the self-heal stamp is always absent, which means gate.cpp spawns
+# hooks/refresh.mjs, whose refresh() targets `os.homedir()` — the REAL one. On
+# this machine `~/.claude/settings.json` is shared with tools that are not
+# rabadon's, and running `make test` from a worktree repointed six rabadon hook
+# entries plus one drift entry at the worktree binary; when the worktree is
+# removed the user's brake points at a binary that no longer exists and dies
+# silently. Reproduced by hashing the live file around every suite in
+# native/*_test.sh: exactly two suites moved it, this one and promises_test.sh.
+# The reference environment is a clean container (CLAUDE.md "Quality bar"); a
+# suite that reaches the dev box's $HOME is a bug in the suite, so the suite
+# declares its own $HOME instead of borrowing the operator's. Held from the
+# other side by native/home_isolation_test.sh, which fails if this line is
+# removed. Nothing about the product's behaviour is switched off here —
+# RABADON_SELFHEAL is untouched — only the address it writes to is declared.
+SBHOME="$(mktemp -d)"; export HOME="$SBHOME"
+trap 'rm -rf "$SBHOME"' EXIT
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo "  ok   - $1"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }

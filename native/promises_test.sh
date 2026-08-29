@@ -32,6 +32,13 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 GATE="$HERE/rabadon-gate"
 [ -x "$GATE" ] || { echo "build first: make"; exit 1; }
 export RABADON_JUDGE=0
+# HOME ISOLATION — see the long note in native/contract_test.sh. This suite is
+# the second of the two measured on 2026-08-30 to rewrite the operator's live
+# ~/.claude/settings.json: SessionStart with a fresh RABADON_DIR leaves the
+# self-heal stamp absent, hooks/refresh.mjs runs, and refresh() writes to
+# os.homedir(). Declare the address; do not borrow the operator's.
+SBHOME="$(mktemp -d)"; export HOME="$SBHOME"
+trap 'rm -rf "$SBHOME"' EXIT
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo "  KEPT   - $1"; }
 bad() { FAIL=$((FAIL+1)); echo "  BROKEN - $1"; }
