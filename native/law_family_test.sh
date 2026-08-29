@@ -63,6 +63,9 @@ printf 'a\n' > "$P/a.txt"
 # asserts this one is not our subject; the scope law (baseline-rm-rf-outside)
 # is what covers it, under its own id.
 mkdir -p "$T/other-tree/.rabadon"; printf '{}\n' > "$T/other-tree/.rabadon/guard.json"
+# A finished project of the user's own, inside the tree, carrying its own law.
+# ARM 8 asserts they can still throw it away.
+mkdir -p "$P/old-project/.rabadon"; printf '{}\n' > "$P/old-project/.rabadon/guard.json"
 
 verdict() { # verdict <cwd> <command> -> ALLOW|REFUSE
   python3 -c 'import json,sys;print(json.dumps({"hook_event_name":"PreToolUse","session_id":"lawfam","cwd":sys.argv[1],"tool_name":"Bash","tool_input":{"command":sys.argv[2]}}))' "$1" "$2" \
@@ -275,7 +278,22 @@ python3 -c "import shutil; shutil.rmtree('.rabadon')"|an inline program body tha
 perl -e 'unlink ".rabadon/guard.json"'|the same one interpreter over
 node -e "require('fs').rmSync('.rabadon',{recursive:true})"|and one more
 ruby -e 'File.delete(".rabadon/guard.json")'|and one this list had never heard of
+awk 'BEGIN{system("rm .rabadon/guard.json")}'|awk, whose program is not behind a flag at all — ON NOBODY'S LIST
+mv .rabadon{,.bak}|a BRACE, one word that means two — ON NOBODY'S LIST
+rsync -a --delete empty/ .rabadon/|rsync --delete emptying the directory — ON NOBODY'S LIST
+gzip .rabadon/guard.json|gzip replaces the file with a .gz and the law is gone
+zip -m a.zip .rabadon/guard.json|zip -m MOVES it into the archive
+chflags uchg .rabadon/guard.json|a macOS flag that puts it out of reach
+echo x > ./sub/../.rabadon/guard.json|a path that walks out through .. to reach it
+bash -c 'rm .rabadon/guard.json'|a shell -c string, which IS re-read as a program
+env rm -rf .rabadon|behind an env prefix
+command rm -rf .rabadon|behind the shell's own builtin
 CMDS
+# The clobber-anyway redirect, spelled outside the loop because `|` is this
+# suite's field separator and `>|` carries one.
+v="$(verdict "$P" 'echo x >| .rabadon/guard.json')"
+[ "$v" = "REFUSE" ] && pass "still refused: the >| clobber-anyway redirect" \
+                    || fail "ALLOWED: >| walked past the redirection arm"
 
 # ---------------------------------------------------------------------------
 # ARM 7 — WHAT THE WIDENING MUST NOT HAVE COST. A glob that a real shell would
@@ -293,7 +311,40 @@ rm -rf .rabadonx*|a glob anchored on the name that merely STARTS like the law's
 python3 tools/clean.py|a program handed over as a FILE, whose text we cannot read
 node build.js|the same, one runtime over
 python3 -c "print(1)"|an inline program that does not name the law at all
+awk '{print}' log.txt|awk with an ordinary program over an ordinary file
+awk -f clean.awk .rabadon/guard.json|awk reading the law with a program we cannot see
+mv build{,.bak}|a brace over an ordinary directory
+cp a.txt{,.bak}|the brace idiom everybody uses for a backup
 CMDS
+
+# ---------------------------------------------------------------------------
+# ARM 8 — THE EXIT DOOR. §4.9: a product with no way out traps the user. The
+# previous phase left sandboxes on the disk that no permitted spelling could
+# remove, and published a way out (`RABADON_OFF=1 rm -rf ...`) that was itself
+# refused. So the way out is an ASSERTION now, not a sentence in a doc.
+#
+# Deleting a project of your own — including one that has a .rabadon in it — is
+# ordinary work and stays ordinary work. The law's subject is the law, not the
+# tree around it.
+while IFS='|' read -r cmd label; do
+  [ -n "$cmd" ] || continue
+  v="$(verdict "$P" "$cmd")"
+  [ "$v" = "ALLOW" ] && pass "the way out is open: $label" \
+                     || fail "TRAPPED: $label — §4.9, the product has no exit"
+done <<'CMDS'
+rm -rf ./old-project|deleting a whole project directory that carries its own law
+mv ./old-project /tmp/bin|moving one out of the way instead
+CMDS
+# And the documented per-id silence really does open it, in the same run: the
+# same command, against a guard that names the rule in disabled[].
+RD8="$T/rd8"; mkdir -p "$RD8"; : > "$RD8/enabled"
+P8="$T/proj8"; mkdir -p "$P8/.rabadon" "$P8/.git"
+printf 'ref: refs/heads/main\n' > "$P8/.git/HEAD"
+printf '{"project":"p8","bash":[],"disabled":["baseline-law-unmade"]}\n' > "$P8/.rabadon/guard.json"
+v8="$(python3 -c 'import json,sys;print(json.dumps({"hook_event_name":"PreToolUse","session_id":"lawfam","cwd":sys.argv[1],"tool_name":"Bash","tool_input":{"command":sys.argv[2]}}))' "$P8" 'rm -rf .rabadon' \
+  | env RABADON_DIR="$RD8" RABADON_JUDGE=0 RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; echo $?)"
+[ "$v8" != "2" ] && pass "the way out is open: disabled[\"baseline-law-unmade\"] really lets the law be removed" \
+                 || fail "TRAPPED: the id named in every refusal message does not open the door"
 
 printf 'law_family: %d passed, %d failed\n' "$PASSN" "$FAIL"
 [ "$FAIL" = "0" ] || exit 1
