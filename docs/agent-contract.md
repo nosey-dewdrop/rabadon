@@ -110,6 +110,22 @@ context measurably hurts), never an instruction, never more than 400 characters,
 and the same signal speaks at most twice per session — the third goes to the
 ledger only. `RABADON_INJECT=0` turns it off. It never changes an exit code.
 
+**Whether it landed is on the ledger, not in a ring.** An `INJECT` line carries
+`psig`, the normalised signature that was repeating at the moment the diagnosis
+was assembled, and the first move the agent makes afterwards is written as its
+own event:
+
+```json
+{"ev":"INJECT_ANSWER","signal":"oscillation","mseq":7,"psig":"…","sig":"…","same":false}
+```
+
+`same:false` means the agent's next move was a different move. One answer per
+injection, and the comparison is finished at the time it is made — because the
+move record is a 200-slot ring, and a session long enough to produce a signal is
+exactly the session long enough to roll past it. Before these two fields the
+question "did the agent read it" could only be asked while the ring still held
+the move, which on measured data meant it could not be asked at all.
+
 **On Cursor this arrives late, and that is not hidden.** With no
 `beforeFileEdit`, there is no pre-edit moment to ride, so the diagnosis is
 delivered at the next point that exists — the next `beforeShellExecution`. An

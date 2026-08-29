@@ -1,0 +1,22 @@
+inject-answer: 1. INJECT carries the signature it is about, on the line itself
+  ok   - the injection reached the agent (additionalContext on stdout)
+  ok   - exactly one INJECT on the ledger
+  ok   - INJECT carries psig, a 16-hex signature (5d8f862e04307ec4)
+  ok   - INJECT still carries mseq (6)
+inject-answer: 2. INJECT_ANSWER — the first move after the injection, on the ledger
+  ok   - one INJECT_ANSWER after one injection
+  ok   - INJECT_ANSWER quotes the same psig as its INJECT
+  ok   - the answering move has its own signature (ba0290a38ead3d9b)
+  ok   - same=false — the agent did NOT repeat itself
+  ok   - the answer is a LATER move than the one the injection rode on (7 > 6)
+inject-answer: 3. the ring rolls past CAP=200 and (b) is STILL answerable
+  ok   - the ring rolled: header counts 218 moves, CAP is 200
+  ok   - the move the injection rode on (seq 6) has been evicted (oldest held: 18)
+  ok   - exactly one INJECT_ANSWER survives — later moves do not re-answer
+  ok   - (b) is answerable from the ledger with the ring rolled: 5d8f862e04307ec4 -> ba0290a38ead3d9b, same=false
+inject-answer: 4. same=true when the agent repeats itself — the field is not hardwired
+  ok   - the repeated move hashes back to psig (5d8f862e04307ec4)
+  ok   - same=true — the ledger says the injection did not change the next move
+inject-answer: 5. no injection, no answer
+  ok   - a session with no injection writes no INJECT_ANSWER
+inject-answer: 16 passed, 0 failed

@@ -1,0 +1,16 @@
+=== M1: drop psig from the INJECT line ===
+  FAIL - INJECT has no psig field — (b) cannot be judged once the ring rolls
+  FAIL - INJECT_ANSWER psig '5d8f862e04307ec4' does not match INJECT psig ''
+inject-answer: 14 passed, 1 failed
+
+=== M2: never clear the answer-owed relay (211 answers for 1 injection) ===
+  FAIL - expected 1 INJECT_ANSWER after 210 further moves, got 211
+inject-answer: 15 passed, 1 failed
+
+=== M3: hardwire same=false ===
+  FAIL - expected same=true when the agent repeats itself, got 'false'
+inject-answer: 15 passed, 1 failed
+
+=== reverted, rebuilt ===
+  ok   - a session with no injection writes no INJECT_ANSWER
+inject-answer: 16 passed, 0 failed

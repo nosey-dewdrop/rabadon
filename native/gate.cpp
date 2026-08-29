@@ -1439,6 +1439,24 @@ struct Sess {
   // still sees it before it makes its next move.
   string injPending;         // the assembled text, waiting for a PreToolUse
   string injPendingSignal;   // whose it is, so the cap is charged on delivery
+  // ---- (b) "DID THE AGENT READ IT", MADE PERSISTENT -------------------------
+  // KOSU §F3's layer (b) is one comparison: the signature of the first move
+  // AFTER an injection against the signature that was repeating BEFORE it. Both
+  // halves used to live only in `moves`, which is a 200-slot ring, so the
+  // comparison expired with the session that produced it. Measured, not feared:
+  // the ledger held 7 INJECT lines and 0 of them could be judged; of 39 rings
+  // only 2 had rolled past CAP, and BOTH of those two were the rings carrying
+  // an injection. The loss is selective — a signal is born in a long session
+  // and a long session is exactly the one that rolls — so raising CAP would
+  // move the wall, not remove it.
+  //
+  // So the two halves are written to the SPOOL, which is append-only and
+  // hash-chained, and these three fields are only the relay that carries them
+  // from the event that queues to the event that answers.
+  string    injPendingPrevSig;    // the signature that was repeating, at QUEUE time
+  string    injAnsPrevSig;        // the same, held after delivery, awaiting an answer
+  long long injAnsAfterSeq = -1;  // answer = the first move with a seq above this
+  string    injAnsSignal;         // which signal is owed an answer
   // "the same signal" is the same NAME within this session (the plan's fifth
   // decision). Two arrays rather than a map: this struct is serialised by hand.
   std::vector<string> injNames;
@@ -1669,6 +1687,15 @@ struct State {
     s.injPending = get_str(obj, "injPending");
     s.injPendingSignal = get_str(obj, "injPendingSignal");
     s.lastErrText = get_str(obj, "lastErrText");
+    // (b)'s relay. Absent is spelled out for the same reason injMuteFromSeq is:
+    // get_num answers 0 for a key that is not there, and move seq 0 is a real
+    // move — "an answer is owed since the very first move" is the one value
+    // that would make an upgraded session emit an INJECT_ANSWER for an
+    // injection that never happened. No signal owed, no answer owed.
+    s.injPendingPrevSig = get_str(obj, "injPendingPrevSig");
+    s.injAnsSignal = get_str(obj, "injAnsSignal");
+    s.injAnsPrevSig = get_str(obj, "injAnsPrevSig");
+    s.injAnsAfterSeq = s.injAnsSignal.empty() ? -1 : (long long)get_num(obj, "injAnsAfterSeq");
     // R5. A session written before R5 has none of these keys; get_num answers 0
     // and get_str answers "", so injCapMoveSeq would read back as move 0 — "the
     // cap was reached at the very first move", which is the ONE value that
@@ -1736,6 +1763,17 @@ struct State {
     o << "],\"injPending\":\"" << json_escape(s.injPending) << "\""
       << ",\"injPendingSignal\":\"" << json_escape(s.injPendingSignal) << "\""
       << ",\"lastErrText\":\"" << json_escape(s.lastErrText) << "\"";
+    // (b)'s relay, WRITTEN ONLY WHEN THERE IS SOMETHING TO SAY — same rule as
+    // R5's block below, and for the same reason: a session that never had an
+    // injection must serialise identically to one written before this field
+    // existed, or every upgraded session differs from the parity oracle for a
+    // fact nobody has an opinion about.
+    if (!s.injPendingPrevSig.empty())
+      o << ",\"injPendingPrevSig\":\"" << json_escape(s.injPendingPrevSig) << "\"";
+    if (!s.injAnsSignal.empty())
+      o << ",\"injAnsSignal\":\"" << json_escape(s.injAnsSignal) << "\""
+        << ",\"injAnsPrevSig\":\"" << json_escape(s.injAnsPrevSig) << "\""
+        << ",\"injAnsAfterSeq\":" << s.injAnsAfterSeq;
     // R5, WRITTEN ONLY WHEN ARMED. Every other field in this object collapses
     // to a zero/empty default when nothing has happened, and native/postuse_
     // test.sh's differential relies on exactly that: a key the native gate
@@ -3183,6 +3221,33 @@ int main(int argc, char** argv) {
       rbmoves::push(ms.moves, ms.nextSeq, m);
       open_move = &ms.moves.back();
       stt.append_move(*open_move);
+      // ---- (b), CLOSED. The first move recorded after a delivered injection.
+      //
+      // Written here, on the ledger, and not left to be reconstructed later:
+      // "the agent's next move" is a fact that exists for exactly one event and
+      // then becomes a lookup into a ring that evicts. `same` is computed now,
+      // from two signatures that are both in hand, so a reader of the spool
+      // never has to have the moves to answer §F3's second layer.
+      //
+      // ONE ANSWER PER INJECTION. Cleared as it is written: without that, every
+      // later move in the session re-answers the same injection and the (b)
+      // number becomes a count of how long the session ran.
+      //
+      // A COMPLETION IS NOT AN ANSWER. This sits in the branch that opens a NEW
+      // move; a PostToolUse landing on the move the injection rode on is the
+      // same move finishing, not the agent's reply to anything.
+      if (ms.injAnsAfterSeq >= 0 && open_move->seq > ms.injAnsAfterSeq) {
+        const bool same = (open_move->sig == ms.injAnsPrevSig);
+        em.emit("INJECT_ANSWER",
+                "\"signal\":\"" + json_escape(ms.injAnsSignal) + "\",\"mseq\":" +
+                std::to_string(open_move->seq) +
+                ",\"psig\":\"" + json_escape(ms.injAnsPrevSig) + "\"" +
+                ",\"sig\":\"" + json_escape(open_move->sig) + "\"" +
+                ",\"same\":" + (same ? "true" : "false"));
+        ms.injAnsAfterSeq = -1;
+        ms.injAnsSignal.clear();
+        ms.injAnsPrevSig.clear();
+      }
       // R3 tier 1: the shape of the text that was written, stored beside the
       // move it belongs to. Computed once, here, on the move that is new —
       // never on a completion, which carries no text — and only for edits,
@@ -3295,6 +3360,12 @@ int main(int argc, char** argv) {
       }
       ms.injPending = rbinject::build(c);
       ms.injPendingSignal = name;
+      // (b)'s "before" half, taken HERE and not at delivery. The newest move at
+      // the moment the pattern completed IS the behaviour the diagnosis is
+      // about; by delivery time one more move has already been recorded (the
+      // carrier the injection rides on), and comparing the answer against the
+      // carrier would ask a different question than §F3's.
+      ms.injPendingPrevSig = ms.moves.empty() ? string() : ms.moves.back().sig;
       injQueuedThisEvent = true;
     };
 
@@ -5069,12 +5140,29 @@ int main(int argc, char** argv) {
     string injErrSig;
     for (size_t i = ss.moves.size(); i-- > 0;)
       if (!ss.moves[i].err_sig.empty()) { injErrSig = ss.moves[i].err_sig; break; }
+    //
+    // psig IS THE PART THAT OUTLIVES THE RING. mseq names a move, and a name is
+    // only worth something while the thing it names still exists — the ring
+    // keeps 200 and the sessions that produce injections are the ones that roll
+    // past it (2 of 2, measured). The signature itself is 16 hex characters and
+    // costs nothing to carry, so it is carried, and layer (b) stops being a
+    // question about a ring and becomes a question about two ledger lines.
+    const string injPrevSig = ss.injPendingPrevSig;
+    ss.injPendingPrevSig.clear();
     em.emit("INJECT",
             "\"signal\":\"" + json_escape(name) + "\",\"chars\":" +
             std::to_string(rbinject::nchars(text)) +
             ",\"mseq\":" + std::to_string(injMoveSeq) +
+            ",\"psig\":\"" + json_escape(injPrevSig) + "\"" +
             ",\"err\":\"" + json_escape(injErrSig) + "\"" +
             ",\"text\":\"" + json_escape(text) + "\"");
+    // and the other half is owed: the FIRST move recorded after this one closes
+    // the pair. Held in the session rather than answered here, because the move
+    // that answers has not been made yet — that is the whole shape of the
+    // channel (see injPending above).
+    ss.injAnsPrevSig = injPrevSig;
+    ss.injAnsSignal = name;
+    ss.injAnsAfterSeq = injMoveSeq;
   }
   stt.save();
   return 0;
