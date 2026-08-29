@@ -704,7 +704,89 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 ## SIRA
 
-### F3e HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+### F3f HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F3f: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F3f-R.md`'de. Sekiz açık kalem hükme bağlandı (`KARARLAR.md`,
+2026-08-29 · F3f · (a)–(h)).
+
+**KIRMIZI AD KÜMESİ, F3f SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı).
+**`2b` DURUMU, AYAKTA KALAN TEK SAYI: 1378,0 µs · tavan 1000 µs · KALAN AÇIK
+378 µs.** Kart 1249,0 yazmış; **129 µs fark, kartın kendi |439 µs| bandının
+içindedir** — yani iddia edilen −380,7 µs iyileşme aletin koşudan koşuya
+sapmasıyla aynı büyüklükte. Kart bunu "GÜRÜLTÜ, iddia yok" diye yazdı, doğru
+davranış budur (CLAUDE.md 8). **Tavan oynatılmadı, `accept.sh` diff'te yok.**
+
+**DEVİR SAYILARI: 4590 yeşil / 0 kırmızı** (taban 4556, **+34**; native **3893**
+iddia + **633** kontrol + npm **64/0**). Hakem tabanı da kendi worktree'sinde
+koşturdu (3859+633+64 = 4556). **Süit karşılaştırması, hakemin kendi
+ayrıştırıcısıyla: 113 → 115 süit; tek fark `hook_upgrade_test.sh` 18 +
+`guard_delete_test.sh` 16 = tam 34. Küçülen 0 · kaybolan 0 · başka hiçbir
+süidin sayısı değişmedi.** Silinen dosya **0**, silinen/`skip`/`xfail` iddia
+**0**, `CAP=200` yerinde, mühürlü set (`accept.sh` · `ON-KAYIT.md` ·
+`docs/claims.tsv` · `guard.json` · korpus/snapshot) ve **`bin/rabadon.mjs` (O3)**
+diff'te **HİÇ YOK**. Ölçüt commit'leri koddan ÖNCE ve KODSUZ.
+F1e-C üçlüsü nihai ikiliye karşı **42/0 · 38/0 · 13/0**; kâtip commit'i
+(`793a544`, `docs/how-it-works.md`) fazın sonuncusu **değil**.
+
+**F3f'DE GERÇEKTEN OLAN, DÖRT SATIR:**
+1. **"SEVK EDİLDİ AMA KURULMADI" KAPANDI, CANLIDA, HAKEM ELİNDE.**
+   `; true` OLMADAN exit-1 bir Bash → ham defterde `STEP_OK "rc":1`; halka
+   hakemin **kendi `RBMV1`/320B parser'ıyla** açıldı:
+   `seq=1328 claimed_rc=1 sig=e052be370cd30660 err_sig=7a32e59add7d390d`.
+   F3e hakeminde `STEP_START` var / `STEP_OK` yoktu. Kapı
+   `native/hook_upgrade_test.sh` **18 iddia**; hakemin **kendi** mutasyonları:
+   yükseltme adımı çıkarıldı → **9/9**, self-install koruması gevşetildi →
+   **17/1**, ikisi de geri alındı → 18/0. Boş yeşil turu `F3f-oncesi`'nde
+   **8 passed / 10 kırmızı**.
+2. **⚠ ÜRÜN ARTIK KULLANICININ `~/.claude/settings.json`'INI KENDİ TAZELİYOR —
+   ve bu, ALTI AYRI ÖLÇÜMLE, DOĞRU YAPILMIŞ.** `statusLine` **bayt bayt** korundu
+   (`IDENTICAL_BYTES: True`; paylaşımlı statusline öldürülmedi), **yabancı
+   kancalar 12 → 12**, `permissions` korundu, yedek gerçek ve `yedek == orijinal`,
+   **bozuk JSON yedeksiz EZİLMİYOR**, ekranın **birinci satırı** dosyayı ve
+   yedeği adıyla söylüyor ve "this one stays blind / live from your NEXT session"
+   diye **yuvarlamıyor**, `RABADON_SELFHEAL=0` dosyayı dokunmadan bırakıyor,
+   `docs/how-it-works.md` aynı fazda güncellendi. Kalan iki eksik bloklamıyor:
+   `README.md` kurulumdan ÖNCE söylemiyor, çıkış yalnız env değişkeni.
+   **AMA F1c'nin "iki yüzey, iki yasa"sı BİRLEŞMEDİ, ÜÇE ÇIKTI:**
+   `installCursorHooks` okunamayan `hooks.json`'ı **hâlâ yedeksiz eziyor ve
+   kullanıcının kancasını yok ediyor** (bugün ölçüldü), yeni `refresh.mjs` ise
+   güvenli ama **DİLSİZ** (hiçbir şey söylemiyor — "asla susmaz" ilkesine aykırı).
+3. **KART 2 DOĞRULANDI: `repeat` ENGELİNİN TAMAMI TAM-İMZA KATILIĞIDIR.**
+   Hakem script'i kendi koşturdu: A) 2/81 · C) 0/81 · **D) ÜST SINIR, 276
+   kapanmamış hamlenin hepsi başarısız sayılsa bile 0/81**; 75/81 oturumda imza
+   pencerede bir kez bile tekrar etmiyor. `err_sig` onarımı `repeat`'i
+   ateşlenebilir YAPMADI. F4'e devir: ilk-token imzasıyla 32/81 ve
+   **7/81 (kart 8/81 — fark korpusun canlı olmasındandır, ikisi de yazılı)**.
+4. **⚠ KART 4'ÜN ÜÇ İDDİASI YANLIŞ, VE SIRADAKİ FAZI BU DOĞURUYOR.**
+   **(a)** "canlı BYPASS" bir **/tmp artefaktıdır**: kartın betiği kum havuzunu
+   `${TMPDIR:-/tmp}` altında açıyor (Tuzak 1, aşağıda satır 578); **taban ikili,
+   `$HOME` altındaki gerçek bir projede `rm .rabadon/guard.json`'ı ZATEN
+   reddediyordu (rc=2)**. Açık yalnız temp-kökü sınıfındaydı. Onarım yine de
+   doğrudur ve yalnız reddi artırır. `guard_delete_test.sh` de `${TMPDIR}`
+   altında koşuyor: **16 iddianın 16'sı temp-kökü sınıfında.**
+   **(b)** Bildirilen yanlış pozitif **ÜRETİLEBİLİYOR ve hakem ÜRETTİ**:
+   **`grep -c rm .rabadon/guard.json` → rc=2**, salt-okuma bir grep.
+   Desen bir yazmayı değil bir **anmayı** yakalıyor. **F3e hakemi haklıydı;
+   kartın "ÜRETİLEMEDİ" ilanı yanlıştır, eski sayı silinmiyor.**
+   **(c) AİLE AÇIK, HEAD'DE CANLI:** **`rm -rf .rabadon`** · `truncate -s 0` ·
+   `cp /dev/null` · `chmod 000` · `ln -sf /dev/null` · `install -m 000` · `dd of=` ·
+   `find … -delete` — **sekizi de rc=0 GEÇİYOR.** `is_rabadon_law_file` yalnız iki
+   TABAN ADINA bakıyor, üst dizini görmüyor. **Guard'ın kendisi silinebiliyorsa
+   guard yoktur.**
+
+**SIRADAKİ FAZ: F3g. BLOKLAYAN İLK KARTI ÜRÜN KAPSAMINDANDIR — BEŞ FAZDIR
+İLK KEZ.** Yasa dosyasının bir ŞEKLİ değil **AİLESİ** kapatılacak
+(`rm -rf .rabadon` + 7 kardeşi), onarım ürün tarafında (`rules.h`/`gate.cpp`),
+`guard.json`'a dokunulmadan, mutasyon kanıtı + boş yeşil turu + **`${TMPDIR}`
+DIŞINDA da koşan** bir süitle; aynı kartta (b)'nin yanlış pozitifi sayılacak ve
+daraltılacak. İkinci kart: üç yasanın tek yasaya inmesi (dilsiz `refresh.mjs` +
+`installCursorHooks`'un yedeksiz ezmesi). Üçüncü kart: `2b`'nin **378 µs**'lik
+açığı — gürültü bandının ALTINDA çözebilen bir ayrıştırma kurulmadan hedef
+seçilmez. `no-rm-rf-outside`'ın ad-iş uyuşmazlığı hâlâ **SAHİPSİZ**.
+**F4 (c) ölçülmeden AÇILMAZ ve (c) F6'nın aletiyle koşar** (değişmedi).
+
+### F3e HAKEM HÜKMÜ (2026-08-29)
 **`F3e: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
 `RAPOR/F3e-R.md`'de. Üç açık kalem hükme bağlandı (`KARARLAR.md`,
 2026-08-29 · F3e · (a)–(c)).
