@@ -77,6 +77,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
+#include <fnmatch.h>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -219,18 +220,35 @@ using rbpath::temp_roots;
 // python's. Deleting the whole enclosing tree is a different family and belongs
 // to the recursive-delete laws, not this one.
 
+// A COMPONENT MATCHES A NAME. Written down once, because a glob that reaches
+// the law without spelling it is still the law being reached: `rm -rf .r*` was
+// rc=0 on 2026-08-30 and the reason was that this comparison was `==`.
+//
+// fnmatch with FNM_PERIOD, and the flag is the whole reason this is not a false
+// positive machine. bash does not expand `*` onto a dotted entry, so `rm -rf *`
+// in a project root cannot reach `.rabadon` and FNM_PERIOD gives that answer
+// for free; `.*`, `.r*` and `.rabado?` all do reach it, in bash and here alike.
+// This asks the disk nothing — the pattern is matched against the three names
+// the law is made of, not against what happens to be lying in the directory.
+inline bool comp_matches(const string& pat, const char* name) {
+  if (pat == name) return true;
+  if (pat.find_first_of("*?[") == string::npos) return false;
+  return fnmatch(pat.c_str(), name, FNM_PERIOD) == 0;
+}
+
 // The three paths, decided lexically so no stat() lands on the hot path: this
-// IS `<x>/.rabadon`, `<x>/.rabadon/guard.json`, or `<x>/.rabadon/promise.json`.
+// IS `<x>/.rabadon`, `<x>/.rabadon/guard.json`, or `<x>/.rabadon/promise.json`
+// — or a pattern that a shell would expand onto one of them.
 inline bool is_project_law_path(const string& abs) {
   const string a = norm_dir(abs);
   const size_t s = a.rfind('/');
   const string last = s == string::npos ? a : a.substr(s + 1);
-  if (last == ".rabadon") return true;
-  if (last != "guard.json" && last != "promise.json") return false;
+  if (comp_matches(last, ".rabadon")) return true;
+  if (!comp_matches(last, "guard.json") && !comp_matches(last, "promise.json")) return false;
   if (s == string::npos) return false;
   const string parent = a.substr(0, s);
   const size_t p = parent.rfind('/');
-  return (p == string::npos ? parent : parent.substr(p + 1)) == ".rabadon";
+  return comp_matches(p == string::npos ? parent : parent.substr(p + 1), ".rabadon");
 }
 
 // THE PRE-FILTER, and the reason the gate's published latency does not move: a
@@ -238,9 +256,15 @@ inline bool is_project_law_path(const string& abs) {
 // resolve. It is a substring test, not a boundary test, because `.rabadonx` has
 // to reach the resolver above and be told no there — a filter that answered
 // that question itself would be a second answer to it.
+// A WILDCARD IS A WORD THAT MIGHT SPELL IT. `.r*` carries none of the three
+// substrings and that is exactly why it walked; the pre-filter has to let a
+// pattern through to the matcher above, which is the one place allowed to
+// answer. The cost is bounded: only words that already carry `*`, `?` or `[`
+// pay the extra resolve, and they pay it in string operations, not in stat().
 inline bool word_could_name_law(const string& raw) {
   return raw.find(".rabadon") != string::npos || raw.find("guard.json") != string::npos ||
-         raw.find("promise.json") != string::npos;
+         raw.find("promise.json") != string::npos ||
+         raw.find_first_of("*?[") != string::npos;
 }
 
 // `of=<path>` is the spelling dd uses and `FOO=<path>` is the spelling a
@@ -321,12 +345,52 @@ inline bool has_inplace_flag(const vector<rbtext::Word>& t, size_t ci) {
   return false;
 }
 
+// The inline program a `-c` / `-e` / `--eval` hands an interpreter, or "" when
+// there is none. The body is opaque text — this parser re-reads a SHELL's -c
+// string as a program and does not re-read python's — so the only honest thing
+// to do with a body that spells the law is to refuse it, which is this law's
+// standing rule for anything it cannot read (fail CLOSED, subject is three
+// filenames). Measured 2026-08-30: `python3 -c "shutil.rmtree('.rabadon')"`,
+// `perl -e unlink`, `node -e rmSync` and `ruby -e File.delete` were all rc=0.
+// A program handed over as a FILE is untouched — its text is not on the command
+// line, guessing at it would be a guess, and ARM 7 holds that from the other
+// side.
+inline string interpreter_inline_body(const vector<rbtext::Word>& t, size_t ci) {
+  for (size_t i = ci + 1; i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s.size() < 2 || s[0] != '-') continue;
+    bool inl = false;
+    if (s.compare(0, 2, "--") == 0) {
+      inl = (s == "--eval" || s == "--expression" || s == "--command");
+    } else {
+      for (size_t k = 1; k < s.size(); k++) if (s[k] == 'c' || s[k] == 'e' || s[k] == 'E') inl = true;
+    }
+    if (inl && i + 1 < t.size()) return t[i + 1].text;
+  }
+  return string();
+}
+
+inline bool text_spells_law(const string& s) {
+  return s.find(".rabadon") != string::npos || s.find("guard.json") != string::npos ||
+         s.find("promise.json") != string::npos;
+}
+
 // the GENEROUS list, and it may be generous because its subject is exactly
 // three filenames: an interpreter that carries no in-place flag is reading.
 inline bool segment_reads_the_law(const vector<rbtext::Word>& t, size_t ci) {
   const string b = rbtext::base_of(t[ci].text);
   if (rbtext::name_is(b, "git")) return git_reads_only(t, ci);
-  if (is_interpreter(b)) return !has_inplace_flag(t, ci);
+  // tar answers by MODE, not by flag: create/append/list read the paths they
+  // are given and write only the archive, which is why `tar -cf backup.tar
+  // .rabadon` has to reach law_written_operands rather than be waved through
+  // here — the archive itself may BE the law (`tar -cf .rabadon/guard.json`).
+  if (rbtext::name_is(b, "tar")) return false;
+  // An interpreter with no in-place flag is reading — UNLESS it was handed an
+  // inline program that spells the law, in which case the text is opaque and
+  // this law's answer to what it cannot read is no. Declared here as well as in
+  // law_written_operands because this function is the earlier gate of the two.
+  if (is_interpreter(b))
+    return !has_inplace_flag(t, ci) && !text_spells_law(interpreter_inline_body(t, ci));
   return is_pure_reader(b);
 }
 
@@ -797,9 +861,118 @@ inline bool dest_is_last_operand(const string& b) {
          rbtext::name_is(b, "rsync");
 }
 
+// tar's MODE decides which of its operands get written, and reading that
+// backwards is a bug in both directions: `tar -cf backup.tar .rabadon` BACKS
+// THE LAW UP — docs/guard.md promises in writing that copying it out passes —
+// and it was refused on 2026-08-30 in an operator's own hands, while `tar -xf
+// a.tar -C .rabadon` unpacks over the law and was allowed. Create, append,
+// update and list write the ARCHIVE and read the paths; extract writes into
+// `-C` (or the cwd) and onto the member paths named after the archive.
+// Anything with no mode word at all falls through to the generic loop below,
+// which is the fail-closed answer this law gives to everything it cannot read.
+enum TarMode { TAR_NONE, TAR_WRITE_ARCHIVE, TAR_EXTRACT };
+inline TarMode tar_mode(const vector<rbtext::Word>& t, size_t ci) {
+  for (size_t i = ci + 1; i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s.compare(0, 2, "--") == 0) {
+      if (s == "--create" || s == "--append" || s == "--update" || s == "--list" ||
+          s == "--concatenate" || s == "--catenate" || s == "--compare" || s == "--diff" ||
+          s == "--test-label") return TAR_WRITE_ARCHIVE;
+      if (s == "--extract" || s == "--get") return TAR_EXTRACT;
+      continue;
+    }
+    // The first non-option word is tar's old-style bundle (`tar cf x.tar .`);
+    // otherwise the cluster after a single dash carries the mode letter.
+    const size_t k0 = (s.size() > 1 && s[0] == '-') ? 1 : (i == ci + 1 ? 0 : string::npos);
+    if (k0 == string::npos) continue;
+    for (size_t k = k0; k < s.size(); k++) {
+      switch (s[k]) {
+        case 'c': case 'r': case 'u': case 't': case 'A': case 'd': return TAR_WRITE_ARCHIVE;
+        case 'x': return TAR_EXTRACT;
+        default: break;
+      }
+    }
+  }
+  return TAR_NONE;
+}
+
+// The archive named by `-f <name>` / `--file=<name>` / the old-style bundle.
+inline string tar_archive(const vector<rbtext::Word>& t, size_t ci) {
+  for (size_t i = ci + 1; i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s.compare(0, 7, "--file=") == 0) return s.substr(7);
+    if (s == "--file" && i + 1 < t.size()) return t[i + 1].text;
+    if (s.size() > 1 && s[0] == '-' && s[1] != '-') {
+      if (s.find('f') != string::npos && i + 1 < t.size()) return t[i + 1].text;
+      continue;
+    }
+    if (i == ci + 1 && s[0] != '-' && s.find('f') != string::npos && i + 1 < t.size())
+      return t[i + 1].text;                              // old-style `tar cf x.tar .`
+  }
+  return string();
+}
+
+// `out` collects PATHS, which the caller resolves against the project root.
+// `opaque` collects the things that are not paths and never will be — a find
+// pattern, an interpreter's inline program — which are judged where they are
+// found because the walk and the program both run in cwd.
 inline void law_written_operands(const vector<rbtext::Word>& t, size_t ci, const string& cwd,
-                                 vector<string>& out) {
+                                 vector<string>& out, vector<string>& opaque) {
   const string b = rbtext::base_of(t[ci].text);
+
+  // mkdir CREATES. It cannot remove, empty, overwrite, rename, symlink over or
+  // chmod anything that is already there — on an existing path it either fails
+  // or, with -p, does nothing at all. `mkdir -p .rabadon` is the FIRST STEP OF
+  // INSTALLING THE LAW BY HAND and it was refused on 2026-08-30, which is the
+  // product refusing its own setup. A mode flag is a different command: `mkdir
+  // -m 000 .rabadon` can leave a directory the gate cannot read, so it is not
+  // exempt and falls through.
+  if (rbtext::name_is(b, "mkdir")) {
+    bool carriesMode = false;
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (s.empty() || s[0] != '-') continue;
+      if (s == "-m" || s == "--mode" || s.compare(0, 7, "--mode=") == 0) carriesMode = true;
+      else if (s.size() > 1 && s[1] != '-' && s.find('m') != string::npos) carriesMode = true;
+    }
+    if (!carriesMode) return;                            // create-only: nothing is unmade
+  }
+
+  if (rbtext::name_is(b, "tar")) {
+    const TarMode m = tar_mode(t, ci);
+    if (m == TAR_WRITE_ARCHIVE) {                        // the archive is written; paths are READ
+      const string a = tar_archive(t, ci);
+      if (!a.empty() && word_names_law(a, cwd)) out.push_back(a);
+      return;
+    }
+    if (m == TAR_EXTRACT) {
+      const string a = tar_archive(t, ci);
+      for (size_t i = ci + 1; i < t.size(); i++) {
+        const string& s = t[i].text;
+        if (s == "-C" || s == "--directory") {           // the destination it unpacks into
+          if (i + 1 < t.size() && word_names_law(t[i + 1].text, cwd)) out.push_back(t[i + 1].text);
+          i++; continue;
+        }
+        if (s.compare(0, 12, "--directory=") == 0) {
+          if (word_names_law(s.substr(12), cwd)) out.push_back(s.substr(12));
+          continue;
+        }
+        if (s.size() > 1 && s[0] == '-') continue;
+        if (s == a) continue;                            // the archive is READ on extract
+        if (word_names_law(s, cwd)) out.push_back(s);    // a member unpacked straight onto the law
+      }
+      return;
+    }
+    // no mode word we could read: fall through and fail closed
+  }
+
+  if (is_interpreter(b)) {
+    const string body = interpreter_inline_body(t, ci);
+    if (text_spells_law(body))
+      opaque.push_back(body.size() > 60 ? body.substr(0, 57) + "..." : body);
+    // and keep walking: `sed -i '' s/a/b/ .rabadon/guard.json` names it as an
+    // operand, which the generic loop below reads.
+  }
 
   if (rbtext::name_is(b, "dd")) {                        // only of= is opened for writing
     for (size_t i = ci + 1; i < t.size(); i++)
@@ -820,10 +993,14 @@ inline void law_written_operands(const vector<rbtext::Word>& t, size_t ci, const
       const string& f = t[i].text;
       if (f != "-name" && f != "-iname" && f != "-path" && f != "-ipath" &&
           f != "-wholename" && f != "-iwholename") continue;
+      // A NEGATED PREDICATE SELECTS THE LAW OUT OF THE WALK, and this loop read
+      // the pattern without ever reading the negation in front of it. Measured
+      // 2026-08-30 in an operator's own hands: `find . -not -path '*/.rabadon/*'
+      // -delete` — the one spelling that PROTECTS the law — was the spelling
+      // that got refused. `-not` and `!` are the same word to find(1).
+      if (i > ci + 1 && (t[i - 1].text == "-not" || t[i - 1].text == "!")) continue;
       const string& pat = t[i + 1].text;
-      if (pat.find("guard.json") != string::npos || pat.find("promise.json") != string::npos ||
-          pat.find(".rabadon") != string::npos)
-        out.push_back(pat);
+      if (text_spells_law(pat)) opaque.push_back(pat);
     }
     return;
   }
@@ -862,7 +1039,26 @@ inline Hit law_hit(const string& shown, const string& how) {
           "what you meant."};
 }
 
-inline bool law_unmade(const rbtext::Seg& sg, const string& cwd, Hit& hit) {
+// THE SUBJECT IS THIS PROJECT'S COPY, WHICH IS WHAT THE SHIPPED DOCS ALWAYS
+// SAID AND WHAT THE CODE DID NOT DO. Until 2026-08-30 this law fired on EVERY
+// path on the disk whose last component was `.rabadon`, so `mkdir -p
+// /elsewhere/unrelated/.rabadon` — a directory belonging to no project of ours
+// — was refused in an operator's own hands. Another tree's law is the scope
+// law's business: `baseline-rm-rf-outside` already refuses a recursive delete
+// that lands outside this project, under its OWN id, which is the id a user
+// silences when that is really what they meant. Two laws answering the same
+// question in two voices is how a user ends up unable to name the one that is
+// refusing them.
+//
+// An EMPTY root means the caller could not say where the project is, and then
+// this narrows to nothing and the old, wider answer stands — a law that goes
+// quiet because a lookup failed would be the worse of the two mistakes.
+inline bool law_of_this_project(const string& word, const string& cwd, const string& root) {
+  if (root.empty()) return true;
+  return inside(norm_dir(root), norm_dir(lexical_abs(word, cwd)));
+}
+
+inline bool law_unmade(const rbtext::Seg& sg, const string& cwd, const string& root, Hit& hit) {
   // A redirection empties the file it points at before any command runs, and it
   // does it with no command word to read. `>>` is here too: appending to a JSON
   // document destroys it as surely as truncating it does.
@@ -871,6 +1067,7 @@ inline bool law_unmade(const rbtext::Seg& sg, const string& cwd, Hit& hit) {
     if (rd.op.find('>') == string::npos) continue;
     if (!rd.op.empty() && rd.op.back() == '&') continue;   // 2>&1 opens no file
     if (!word_names_law(rd.target, cwd)) continue;
+    if (!law_of_this_project(rd.target, cwd, root)) continue;
     hit = law_hit(rd.target, "the redirection '" + rd.op + "' at");
     return true;
   }
@@ -878,10 +1075,22 @@ inline bool law_unmade(const rbtext::Seg& sg, const string& cwd, Hit& hit) {
   if (ci >= sg.words.size()) return false;
   if (segment_reads_the_law(sg.words, ci)) return false;
   vector<string> written;
-  law_written_operands(sg.words, ci, cwd, written);
-  if (written.empty()) return false;
-  hit = law_hit(written[0], "`" + rbtext::base_of(sg.words[ci].text) + "` at");
-  return true;
+  vector<string> opaque;
+  law_written_operands(sg.words, ci, cwd, written, opaque);
+  // The opaque ones — a find PATTERN, an interpreter's inline PROGRAM — are not
+  // paths and cannot be resolved against a root. They belong to this project by
+  // construction: the walk starts in cwd and the program runs in cwd, and cwd
+  // is inside root.
+  if (!opaque.empty()) {
+    hit = law_hit(opaque[0], "`" + rbtext::base_of(sg.words[ci].text) + "` at");
+    return true;
+  }
+  for (size_t i = 0; i < written.size(); i++) {
+    if (!law_of_this_project(written[i], cwd, root)) continue;
+    hit = law_hit(written[i], "`" + rbtext::base_of(sg.words[ci].text) + "` at");
+    return true;
+  }
+  return false;
 }
 
 
@@ -894,7 +1103,7 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const stri
     // land inside the tree" answers yes for it and proves nothing — which is
     // exactly how the rm arm of the rule written for it got suppressed, and how
     // the other eight shapes never reached a law at all.
-    if (!disabled_has(disabled, "baseline-law-unmade") && law_unmade(p.segs[s], cwds[s], hit))
+    if (!disabled_has(disabled, "baseline-law-unmade") && law_unmade(p.segs[s], cwds[s], root, hit))
       return true;
     // A redirection destroys a file with no command on the line at all.
     // `> ROADMAP.md` opens it for writing and truncates it before anything
