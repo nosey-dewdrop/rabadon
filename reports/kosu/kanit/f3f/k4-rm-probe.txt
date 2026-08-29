@@ -1,0 +1,11 @@
+rm .rabadon/guard.json             rc=0  (no rule line)
+rm -f .rabadon/guard.json          rc=0  (no rule line)
+rm ./.rabadon/guard.json           rc=0  (no rule line)
+/bin/rm .rabadon/guard.json        rc=0  (no rule line)
+mv .rabadon/guard.json /tmp/x      rc=2  Rule: no-shell-rewrite-of-guard-or-promise
+rm .rabadon/promise.json           rc=0  (no rule line)
+
+-- the same strings against the deny regex alone (python re, ERE-ish):
+   rm .rabadon/guard.json             regex=MATCH
+   rm -f .rabadon/guard.json          regex=MATCH
+   mv .rabadon/guard.json /tmp/x      regex=MATCH

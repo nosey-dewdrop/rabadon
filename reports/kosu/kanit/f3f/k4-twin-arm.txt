@@ -1,0 +1,26 @@
+fixture rule copied verbatim; deny = (>\s*|\btee\s+(-a\s+)?)(\./)?\.rabadon/(guard|promise)\.json\b|\b(sed|perl|python3?|ruby)\b[^\n]*(\s-[0-9a-z]*i\b|--in-place)[^\n]*\.rabadon/(guard|promise)\.json|\b(rm|mv)\b[^\n]*\.rabadon/(guard|promise)\.json
+
+ARM A — READ-ONLY. Every one of these must be ALLOWED.
+  ok  ALLOW       cat .rabadon/guard.json
+  ok  ALLOW       grep -n "deny" .rabadon/guard.json
+  ok  ALLOW       grep -in "deny" .rabadon/guard.json
+  ok  ALLOW       git diff .rabadon/guard.json
+  ok  ALLOW       python3 -c 'print(1)'; grep -n deny .rabadon/guard.json
+  ok  ALLOW       python3 -c 'print(1)' && grep -in deny .rabadon/guard.json | head -3
+  ok  ALLOW       sed -n '1,5p' .rabadon/guard.json
+  ok  ALLOW       grep -rn "guard" --include=*.json . | head
+  ok  ALLOW       python3 -m json.tool .rabadon/guard.json
+
+ARM B — REAL TAMPER. Every one of these must stay REFUSED.
+  ok  REFUSE      echo {} > .rabadon/guard.json
+  ok  REFUSE      echo {} > ./.rabadon/guard.json
+  ok  REFUSE      cat x | tee .rabadon/guard.json
+  ok  REFUSE      cat x | tee -a .rabadon/promise.json
+  ok  REFUSE      sed -i '' 's/deny/allow/' .rabadon/guard.json
+  ok  REFUSE      perl -pi -e 's/deny/allow/' .rabadon/guard.json
+  ok  REFUSE      python3 -c 'x=1' -i .rabadon/guard.json
+  BYPASS          rm .rabadon/guard.json
+  ok  REFUSE      mv .rabadon/guard.json /tmp/x
+
+ARM A false positives = 0
+ARM B bypasses        = 1
