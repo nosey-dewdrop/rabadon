@@ -1,0 +1,16 @@
+discovery scope: whose tests, which tree
+  ok   - a test inside .venv/.../site-packages is NOT the project's suite (level 1 SYNTAX)
+  ok   - a test inside Library/.../site-packages is NOT the project's suite (fell to level 1)
+  ok   - site-packages is skipped wherever it sits, with no venv above it (fell to level 1)
+  ok   - dist-packages, the debian spelling of the same directory, is skipped too (fell to level 1)
+  ok   - a real src/Library/ project is still discovered and still locked (skip_dir did not eat the name)
+  ok   - an ordinary tests/ directory is still the project's suite
+  ok   - a project under a git-repo $HOME does not inherit $HOME as its root (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.IcS26c/home/proj)
+  ok   - it falls back to the directory itself, which governs no sibling
+  ok   - a real git root below $HOME still wins from a subdirectory (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.IcS26c/home/g)
+  ok   - premise: a python project with a tests/ directory is a level 3 SUITE
+  ok   - premise: pytest collected nothing and exited 5 (not 0 — that is the whole bug)
+  ok   - a run that executed no tests is INCONCLUSIVE, whatever the runner's exit code was
+  ok   - a suite that really fails is still RED — the exemption did not swallow the catch
+
+discovery scope: 13 ok, 0 fail

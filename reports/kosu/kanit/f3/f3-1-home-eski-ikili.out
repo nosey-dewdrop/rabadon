@@ -1,0 +1,5 @@
+=== OLD binary (F3-oncesi)
+/Users/damummyphus            level 3  SUITE  (strong: real behaviour)
+    run: cd damla_projects_2026/stitchu && python3 -m pytest -q engine/tests/py
+    via: .rabadon/guard.json check
+    20657 code files in [Big Java BilMart CS HW CSFinal CS_102 Chain of Words DamlaFaresi Desktop] · 2797 test file(s) to lock

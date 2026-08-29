@@ -1,0 +1,60 @@
+  ok   - the tee spelling -> refused by no-truncating-write
+  ok   - an unrelated file -> allowed
+
+3. protectedPaths: the rule is written relative, the event carries absolute
+  ok   - the ^-anchored relative rule fires on the absolute path Claude Code sends
+  ok   - the absolute path is caught, by whichever rule is first
+  ok   - the ^-anchored rule DOES fire on a relative spelling (which nothing sends) -> refused by anchored-relative
+
+4. guard reach: a session standing one directory below the project root
+  ok   - at the project root the rule holds -> refused by reach-no-yarn
+  ok   - one directory down the rule still holds
+  ok   - two directories down the rule still holds
+
+5. judging is not running
+  ok   - the home canary survived
+  ok   - the delete fixture survived every probe above
+  ok   - the guards on disk are unmodified by judging
+
+  pass 17   fail 0
+  rule census: GREEN (no mechanism found)
+./native/identity_test.sh
+identity: a label is collapsed for an identity reason, or not at all
+  ok   - an ordinary project name is a project, unchanged
+  ok   - the :session suffix is a pipe spelling, not part of the name
+  ok   - an underscore is a real directory character and is NOT rewritten
+  ok   - a dot INSIDE a name is part of the name
+  ok   - a name that resembles nothing on any list survives as a name
+  ok   - an UNKNOWN label stays a project name: the fail-safe direction is 'in front of a human'
+  ok   - a space becomes a dash: two spellings of one project collapse
+  ok   - and the same for the second one
+  ok   - leading, trailing and repeated whitespace all normalise
+  ok   - the marker itself stays the marker
+  ok   - what a scrub left behind is residue, not a second project
+  ok   - wherever in the label the marker lands
+  ok   - (lab) re-resolves to itself
+  ok   - (no project) re-resolves to itself
+  ok   - a record with no project recorded says so
+  ok   - and so does an empty label
+  ok   - the home directory is not a project
+  ok   - and it is not one in the spelling an unhomed path leaves either
+  ok   - a dot-directory is configuration, not a project
+  ok   - including a dotted probe tree
+  ok   - the system scratch area is not a project
+  ok   - a probe tree with an mktemp suffix
+  ok   - and the other probe family
+  ok   - the bench harness's twelve scratch repos
+  ok   - mktemp's own spelling
+  ok   - the repair harness's scratch repository
+  ok   - the demo
+  ok   - a public repo visited to be measured keeps its name
+  ok   - a label the committed list speaks for, with its evidence beside it
+  ok   - a label resolves through the list it is actually given
+  ok   - and NOT through a list that does not name it — no rule is baked into the code
+  ok   - with an empty list every structural rule still holds and nothing else collapses
+  ok   - every line of site/non-projects.txt parses as <lab|none> <label>
+  ok   - the committed list is 4 entries — small enough that every one can be argued
+  ok   - every entry has its evidence written above it
+  ok   - a guard's identity is the directory it lives in, not the name it declares
+  ok   - five labels resolve to three identities — the module answers, it does not pass through
+identity: 37 passed, 0 failed

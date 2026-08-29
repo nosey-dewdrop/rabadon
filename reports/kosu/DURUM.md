@@ -419,6 +419,54 @@ Kart raporları: `RAPOR/f2-0-kart.md` … `f2-5-kart.md`.
 - **Yüzey:** yeni ürün verb'ü YOK. `git diff --name-only f03320f..HEAD`
   çıktısında `bin/` **YOK** (anti-path donuk kaldı, O3).
 
+## F3'ÜN DEĞİŞTİRDİĞİ ÖLÇÜMLER (BUNLAR EN GÜNCEL SATIRLARDIR)
+Kart: `reports/kosu/RAPOR/F3.md`. Kanıt: `reports/kosu/kanit/f3/`. Aralık `6913ae1..HEAD`.
+
+- **D6 KAPANDI, ÜÇ KÖKÜN ÜÇÜ DE.** `truth.cpp skip_dir()`'e **`site-packages` +
+  `dist-packages`** eklendi (`Library` EKLENMEDİ — ölçüldü, eklemek `src/Library/`
+  projesini kör ediyor); `pathres.h project_root()` artık **`$HOME`'u kök seçmiyor**,
+  altındaki gerçek git kökü hâlâ kazanıyor; `net.cpp:274` boş-koşu muafiyeti
+  `(rc==0 || rc==5)` oldu, yani pytest'in "no tests ran" çıkışı artık **inconclusive**,
+  kırmızı değil. Fikstür koddan ÖNCE (`6350d8d` → `d4e80e8`).
+  Kilit: `native/discovery_scope_test.sh` — faz öncesi ikilide **7 ok / 6 fail**,
+  bugün **13/0**. Hakemin iki hücresi: `.venv/...` level 1 YEŞİL kaldı,
+  `Library/Python/3.9/.../site-packages` **level 3 → level 1** düştü.
+- **CHALLENGE-2 YENİDEN ÜRETİLDİ ve KAPANDI.** Sevk edilen ikilide ölçüldü: P kırmızıyken
+  hook cwd=P iken `cd <komşu> && git commit` **exit 2**, hook cwd=komşu iken **exit 0** —
+  ret eylemin dokunduğuna değil oturumun nerede başladığına bakıyordu. `gate.cpp` red-base
+  artık her segmentin kendi kökünü soruyor. Muafiyet dar: bir segment içerideyse satır
+  reddedilir, `git -C` izlenir, degraded satıra muafiyet yok.
+  Kilit: `native/redbase_scope_test.sh` — faz öncesi **8/1**, bugün **9/0**.
+- **MUTASYON KANITI, dört mutant:** site-packages geri alındı → **10/3**; `$HOME` koruması
+  geri alındı → **11/2**; `rc==5` geri alındı → **12/1**; red-base muafiyeti `git -C`
+  takibini bıraktı → **8/1**. Hepsi geri alındı, `f3-mutasyon.out`.
+- **BOŞ YEŞİL (§8.2), iki kilidin ikisi de:** `git worktree add --detach /tmp/f3-pre
+  F3-oncesi` üstünde `discovery_scope_test.sh` **7/6 KIRMIZI**, `redbase_scope_test.sh`
+  **8/1 KIRMIZI**. Worktree kaldırıldı.
+- **§8.5 ÜÇÜNCÜ HARNESS'TA DOĞRULANDI, ONARILMADI.** `reports/kosu/kanit/f3/2b-uctan-uca.sh`
+  (yeni, yalnız ölçer, MEAN/allow-yolu — §8.5'in MEDIAN/refused sayısıyla aynı büyüklük
+  ama aynı sayı DEĞİL): `F3-oncesi` **1985,7 µs atfedilebilir = 1,99×**, fazın nihai
+  ikilisi **1941,3 µs = 1,94×**. **Tavan 1000 µs oynatılmadı**, sıcak yol yavaşlamadı.
+  **F3-S1 onarımı BAŞLAMADI** (§3.12, kartta gerekçeli).
+- **CANLI `$HOME` ÜSTÜNDE ONARIM ÖLÇÜLEMEZ:** eski ikili 20657 kod / 2797 test, yeni ikili
+  20672 / 2804 — ama **ikisi de `discoveryCapped:["depth","budget"]`**, yani sayı ağacın
+  değil sınırın şekli (Kapı 2), ve `via:` hâlâ elle daraltılmış `.rabadon/guard.json check`.
+  Bütün D6 ölçümleri bu yüzden **fikstürle** üretildi. `rabadon-truth $HOME` doğrudan
+  çağrılınca hâlâ level 3'tür: kökü orada kullanıcı açıkça veriyor.
+- **İLAN EDİLEN, KART AÇILMADI:** `make` başlık bağımlılığı izlemiyor — `pathres.h`
+  düzenlenip `make all` koşulduğunda ikili yeniden derlenMEDİ ve bir mutant sahte yeşil
+  verdi (`touch` ile yakalandı). **Bayat ikiliyle yeşil üretilebilir.**
+- **Test:** `make test` exit **0**, native **3808** iddia + **633** kontrol = **4441**,
+  `npm test` **64/0** → **TOPLAM 4505 yeşil / 0 kırmızı** (F2 tabanı 4483, **+22**).
+  Silinen/zayıflatılan/atlanan test YOK; eşik/tolerans/fikstür/ön-kayıt HİÇ değişmedi.
+  Kabul dosyasına dokunulmadı. `Makefile`'a yalnız iki süit satırı eklendi.
+- **F3 SONRASI KIRMIZI AD KÜMESİ: `{2b, 6e, 7b}` — BÜYÜMEDİ.** `bash reports/R7/accept.sh`
+  → exit 1, **23 yeşil / 3 kırmızı**. `2b` bu koşuda **1240,2 µs** (on üçüncü ölçüm; seri
+  1299,4 → … → 1164,0 → 1257,5 → **1240,2**). Test süitlerinde kırmızı ad YOK.
+- **ÖLÇÜLMÜŞ YANLIŞ POZİTİF, bu faz: 1.** `make test` çıktısını `grep -nE "FAIL"` ile
+  taradığım komuta PostToolUse **"tests are RED"** bastı; `make test` EXIT=0'dı ve kural
+  benim grep çıktımı süit çıktısı sandı. Sayılıyor, mazur görülmüyor.
+
 ## F2 · KIRMIZI AD KÜMESİ VE BİR KABUL-DOSYASI KARARI
 **F2 SONRASI: `{ 2b, 6e, 7b }` — BÜYÜMEDİ.** `bash reports/R7/accept.sh` →
 exit 1, **23 yeşil / 3 kırmızı**. `2b` bu koşuda **1164,0 µs** (aynı ajanın faz

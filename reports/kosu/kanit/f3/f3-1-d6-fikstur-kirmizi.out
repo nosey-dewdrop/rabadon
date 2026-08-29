@@ -1,0 +1,16 @@
+discovery scope: whose tests, which tree
+  ok   - a test inside .venv/.../site-packages is NOT the project's suite (level 1 SYNTAX)
+  FAIL - pip install --user's target was read as the project's own test suite (level 3)
+  FAIL - a bare site-packages was read as the project's own test suite (level 3)
+  FAIL - dist-packages was read as the project's own test suite (level 3)
+  ok   - a real src/Library/ project is still discovered and still locked (skip_dir did not eat the name)
+  ok   - an ordinary tests/ directory is still the project's suite
+  FAIL - $HOME was chosen as the project root: every sibling under it shares one verdict
+  FAIL - the fallback root is neither $HOME nor the directory itself: /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.UdLODN/home
+  ok   - a real git root below $HOME still wins from a subdirectory (root=/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rabadon-scope.UdLODN/home/g)
+  ok   - premise: a python project with a tests/ directory is a level 3 SUITE
+  ok   - premise: pytest collected nothing and exited 5 (not 0 — that is the whole bug)
+  FAIL - an empty pytest run was recorded 'red' — a false reject, and red-base then refuses everything
+  ok   - a suite that really fails is still RED — the exemption did not swallow the catch
+
+discovery scope: 7 ok, 6 fail

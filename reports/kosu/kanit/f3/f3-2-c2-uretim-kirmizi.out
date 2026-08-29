@@ -1,0 +1,12 @@
+  ok   - premise: the project's own check really is red
+  ok   - premise: the verdict names the tree it is about
+red base scope: a red stops where its tree stops
+  ok   - a command that runs IN the red tree is still refused
+  FAIL - a neighbour tree inherited this project's red: work the user knows is unrelated was refused
+  ok   - one segment back inside the red tree refuses the whole line (cd is not an escape)
+  ok   - git -C into the red tree is refused wherever the shell stands
+  ok   - an ordinary command with no cd is refused exactly as before
+  ok   - re-running the check is still allowed — the escape hatch did not close
+  ok   - a session standing in the neighbour is not refused (unchanged)
+
+red base scope: 8 ok, 1 fail
