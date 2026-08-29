@@ -1,0 +1,18 @@
+failed_call: a tool call that failed is a tool call rabadon has to see
+  ok   - a successful call leaves exactly one move on the record
+  ok   - a successful call records claimed_rc 0
+  ok   - before the completion the move is open (claimed_rc -1)
+  ok   - a failing call closes its move rather than opening a second one
+  FAIL - the move is still open after the failure event — the completion was dropped
+  FAIL - a failing call recorded NO err_sig ('') — the repeat detector cannot see it
+  FAIL - failing call recorded claimed_rc=-1, expected 1
+  FAIL - two identical failures did not share an err_sig: |
+  ok   - the failing call opened a STEP_START on the ledger
+  FAIL - STEP_START for the failing call was never closed — the blind spot is open
+  FAIL - the closing event for a failing call is indistinguishable from a successful one
+  ok   - a successful call carries no rc:1 (the marker is not painted on everything)
+  ok   - the PreToolUse before a failure still exits 0
+  ok   - observing a failed call exits 0 — it refuses nothing
+  FAIL - hooks/install.mjs never subscribes to PostToolUseFailure — the event is never delivered
+  ok   - the live capture this suite is written against is in the repo
+failed_call: 9 passed, 7 failed

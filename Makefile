@@ -180,6 +180,18 @@ test: all
 # and refusal path, exit codes compared. If R1 can move a verdict, R1 is not a
 # recorder and this goes red.
 	./native/moves_test.sh
+# moves_test.sh holds what a move record looks like. It never asked whether the
+# record can see a FAILING call, and measured 2026-08-29 it could not: Claude
+# Code delivers a failed tool call under its own event name,
+# PostToolUseFailure, hookev.h's dialect table did not list it, and
+# hooks/install.mjs never subscribed to it. So the branch that assigns err_sig
+# -- the only place a signature is ever assigned, and the whole basis of "the
+# same error came back" -- never ran for the exact calls it exists for. Four
+# phases read n=0 on the live injection ladder because of it. This suite is
+# written against the payload captured live from the harness
+# (reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json) and it goes red
+# the moment the event stops being understood or stops being subscribed to.
+	./native/failed_call_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an
