@@ -1,0 +1,18 @@
+silent skips: a suite may not shrink without saying so
+
+  FAIL - a skip announcement in native/ is silent or unreported
+    | SILENT native/blind_switch_test.sh:63: announces a skip and counts nothing — the suite gets smaller and still exits 0: echo "  skip - mode 000 is meaningless as root"
+    | SILENT native/discovery_scope_test.sh:47: announces a skip and counts nothing — the suite gets smaller and still exits 0: skip() { echo "  skip - $1"; }
+    | SILENT native/redbase_scope_test.sh:33: announces a skip and counts nothing — the suite gets smaller and still exits 0: command -v node >/dev/null 2>&1 || { echo "  skip - node is not installed; the red fixture
+    | SILENT native/sandbox_test.sh:29: announces a skip and counts nothing — the suite gets smaller and still exits 0: skip() { echo "  skip - $1"; }
+    | SILENT native/script_wrapper_test.sh:147: announces a skip and counts nothing — the suite gets smaller and still exits 0: echo "  skip - no usable pty here, so script(1) cannot be measured on this machine"
+    | SILENT native/unknown_wrapper_test.sh:203: announces a skip and counts nothing — the suite gets smaller and still exits 0: echo "  skip - caffeinate is not on this machine; the shape cases below still run"
+    | SILENT native/usage_order_test.sh:137: announces a skip and counts nothing — the suite gets smaller and still exits 0: echo "  SKIP - no real transcript on this machine (clean container); fixtures above still 
+    | SILENT native/usage_order_test.sh:139: announces a skip and counts nothing — the suite gets smaller and still exits 0: echo "  SKIP - no python3 for the stock-parser oracle; fixtures above still hold"
+    | SILENT native/wrapper_exec_test.sh:56: announces a skip and counts nothing — the suite gets smaller and still exits 0: skip() { echo "  --   - skipped, not on this machine: $1"; }
+    | sites=13 files=12 scanned=114
+  ok   - the sweep can see skip announcements at all: 13 site(s) found
+  ok   - a planted silent skip is caught and the counted one is left alone
+  ok   - a skip counter that nothing prints is caught as unreported
+
+silent skip: 3 passed, 1 failed

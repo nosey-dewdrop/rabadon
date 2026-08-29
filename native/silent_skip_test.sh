@@ -86,7 +86,30 @@ for f in files:
             continue
         sites += 1
         hit_files.add(f)
-        m = COUNTS.search(line)
+        # THE COUNTER DOES NOT HAVE TO BE ON THE ECHO'S OWN LINE, and the first
+        # version of this rule said it did. Measured 2026-08-29: that read
+        # harness_lock_test.sh and heldout_test.sh as offenders when both do
+        # exactly the right thing —
+        #     skipped=$((skipped+1))
+        #     echo "  SKIP  $name — no $kind toolchain on this box"
+        # — the increment simply sits on the line above. A rule that would have
+        # forced two correct files to be rewritten into one shape is a style
+        # rule wearing a correctness rule's clothes. The window is the branch:
+        # three lines up, one down.
+        # A line in the window that PRINTS something else — an `ok()` helper,
+        # a pass tally — is not this skip's counter, however close it sits.
+        # Without that exclusion the window swallows
+        #     ok() { PASS=$((PASS+1)); echo "  ok - $1"; }
+        # three lines up and calls a silent skip counted; measured, it did.
+        m = None
+        for j in range(max(0, i - 4), min(len(lines), i + 1)):
+            cand = lines[j]
+            if j != i - 1 and re.search(r'(?:echo|printf)\b', cand) \
+                          and not ANNOUNCE.search(cand):
+                continue
+            m = COUNTS.search(cand)
+            if m:
+                break
         if not m:
             problems.append(
                 f'SILENT native/{f}:{i}: announces a skip and counts nothing — '
