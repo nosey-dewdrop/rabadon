@@ -6,7 +6,7 @@ decides, deterministically, in about a millisecond. This document is the
 mechanism: the hooks, the gate contract, the ledger, the modes, and the two
 enforcement boundaries.
 
-## The five Claude Code hooks
+## The six Claude Code hooks
 
 `rabadon init` merges these into `.claude/settings.json`. Each is a subprocess
 Claude Code invokes at a defined moment.
@@ -15,8 +15,17 @@ Claude Code invokes at a defined moment.
   (for Bash, the command; for edits, the file path). This is where a forbidden
   action is refused before it happens. Matches **every** tool — Bash, file
   edits, and MCP tools alike.
-- **`PostToolUse`** — after a tool runs. Carries the tool name, input, and
-  result. This is where a real check can catch a break the moment it lands.
+- **`PostToolUse`** — after a tool runs **and succeeds**. Carries the tool name,
+  input, and result. This is where a real check can catch a break the moment it
+  lands.
+- **`PostToolUseFailure`** — after a tool runs and **fails**. Claude Code
+  delivers a failed tool call under this separate name and does not also fire
+  `PostToolUse` for it, so subscribing to `PostToolUse` alone leaves a
+  supervisor blind to every command that exited non-zero. rabadon treats it as
+  the completion it is: the move is closed, the error signature is taken from
+  the event's `error` field, and the closing ledger entry carries `"rc":1` so a
+  reader can tell a failure from a success. Measured on 2026-08-29; before that
+  date rabadon did not subscribe to it and recorded nothing for a failing call.
 - **`SessionStart`** — at the start of a session. Where rabadon prunes the spool
   past its retention window and seeds session state.
 - **`UserPromptSubmit`** — when you submit a prompt. Carries the prompt; feeds

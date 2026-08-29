@@ -15,7 +15,27 @@
 //
 // THREE DIALECTS ARE UNDERSTOOD
 //   claude   Claude Code hooks. hook_event_name is PreToolUse / PostToolUse /
-//            UserPromptSubmit / SessionStart / Stop.
+//            PostToolUseFailure / UserPromptSubmit / SessionStart / Stop.
+//
+//            PostToolUseFailure IS THE COMPLETION OF A TOOL CALL THAT FAILED,
+//            and it is a separate event name, not a flag on PostToolUse. That
+//            one fact was a hole straight through this product for four
+//            phases: `err_sig` -- the only signature "the same error came
+//            back" is ever measured against -- is assigned in the completion
+//            branch and nowhere else, so a command that exited non-zero left a
+//            STEP_START with nothing closing it and no signature at all. The
+//            calls rabadon exists for were the calls it could not see.
+//            Measured live 2026-08-29 and kept verbatim in
+//            reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json:
+//              {"hook_event_name":"PostToolUseFailure","tool_name":"Bash",
+//               "tool_input":{...},"tool_use_id":"toolu_...",
+//               "error":"Exit code 1\nls: /nope: No such file or directory",
+//               "is_interrupt":false,"duration_ms":184}
+//            There is no tool_response on it; the output lives in `error`. It
+//            is normalised to PostToolUse here, because downstream this IS a
+//            completion, and the one thing the name adds -- that the call
+//            really failed, as a fact from the harness rather than a guess
+//            from the text -- is carried on `failed`.
 //   cursor   Cursor agent hooks. hook_event_name is beforeShellExecution /
 //            afterFileEdit / beforeReadFile / beforeSubmitPrompt / stop /
 //            sessionStart. Cursor reads exit 2 as a block, same as Claude Code,
@@ -80,6 +100,13 @@ struct HookEvent {
   string raw;             // kept for the fields no dialect has normalised yet
   bool   sawToolInput = false;  // "tool_input was present at all", which is not
                                 // the same question as "command is empty"
+
+  // THE HARNESS SAID SO. Not "the output looked like an error" -- that guess
+  // already exists downstream as err_sig, and it is silent for a command that
+  // fails with no message. This is the agent telling us the call did not
+  // succeed, which is a different and stronger fact, and it is the only one
+  // that can honestly close a record.
+  bool   failed = false;
 };
 
 // ---------- dialect detection ----------
@@ -88,7 +115,8 @@ struct HookEvent {
 inline Dialect detect(const string& raw) {
   if (raw.find("\"rabadon\"") != string::npos) return DIALECT_GENERIC;
   const string h = rbrules::get_str(raw, "hook_event_name");
-  if (h == "PreToolUse" || h == "PostToolUse" || h == "UserPromptSubmit" ||
+  if (h == "PreToolUse" || h == "PostToolUse" || h == "PostToolUseFailure" ||
+      h == "UserPromptSubmit" ||
       h == "SessionStart" || h == "Stop" || h == "SessionEnd")
     return DIALECT_CLAUDE;
   if (h == "beforeShellExecution" || h == "afterShellExecution" ||
@@ -106,6 +134,16 @@ inline HookEvent parse_claude(const string& raw) {
   e.dialect = DIALECT_CLAUDE;
   e.raw = raw;
   e.hook = rbrules::get_str(raw, "hook_event_name");
+  // A failed call is a completion. Normalised here so that not one downstream
+  // branch has to learn a second name for the same moment -- the alternative
+  // was a second `hook ==` test in every one of them, and the missed one is
+  // how this hole stayed open.
+  if (e.hook == "PostToolUseFailure") {
+    e.hook = "PostToolUse";
+    e.failed = true;
+    // The output of a failed call is on `error`; there is no tool_response.
+    e.toolResponse = rbrules::get_str(raw, "error");
+  }
   e.cwd = rbrules::get_str(raw, "cwd");
   e.toolName = rbrules::get_str(raw, "tool_name");
   e.sessionId = rbrules::get_str(raw, "session_id");

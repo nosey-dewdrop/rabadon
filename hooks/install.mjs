@@ -172,6 +172,14 @@ function desiredHooks(gateCmd, driftCmd) {
     Stop: [bare, { hooks: [{ type: 'command', command: driftCmd }] }],
     PreToolUse: [matched(PRE_TIMEOUT_SEC)],
     PostToolUse: [matched(POST_TIMEOUT_SEC)],
+    // A TOOL CALL THAT FAILED IS DELIVERED UNDER ITS OWN NAME, and subscribing
+    // to PostToolUse does not subscribe you to it. Measured 2026-08-29 with a
+    // dumping hook on both events: a Bash call that exits non-zero fires
+    // PostToolUseFailure and does NOT fire PostToolUse. Every rabadon install
+    // before this line was therefore blind to exactly the calls the product
+    // exists for -- err_sig is assigned on the completion and the completion
+    // never arrived. Same timeout as PostToolUse: it is the same branch.
+    PostToolUseFailure: [matched(POST_TIMEOUT_SEC)],
   };
 }
 

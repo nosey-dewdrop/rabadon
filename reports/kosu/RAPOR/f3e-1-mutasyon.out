@@ -1,0 +1,17 @@
+--- MUTATION 1: PostToolUseFailure dropped from dialect table ---
+  FAIL - a silent failure recorded claimed_rc=-1, expected 1
+  ok   - a silent failure honestly carries NO err_sig (nothing to sign)
+failed_call: 11 passed, 7 failed
+--- MUTATION 2: event understood, but the failure is not recorded (old claimed_rc, no rc field) ---
+  FAIL - a silent failure recorded claimed_rc=0, expected 1
+  ok   - a silent failure honestly carries NO err_sig (nothing to sign)
+failed_call: 16 passed, 2 failed
+--- MUTATION 3: install stops subscribing (event understood but never delivered) ---
+  ok   - hooks/install.mjs subscribes the gate to PostToolUseFailure
+failed_call: 18 passed, 0 failed
+--- RESTORED ---
+failed_call: 18 passed, 0 failed
+--- MUTATION 3 (redone, gate fixed): install stops subscribing ---
+  FAIL - rabadon installs no PostToolUseFailure hook — on a real machine the event is never delivered
+failed_call: 17 passed, 1 failed
+failed_call: 18 passed, 0 failed

@@ -227,12 +227,39 @@ E2="$(post_fail s-f4 'ls /nonexistent-rabadon-probe' 'call-j-1' "$ERRTEXT")"
 
 # ---------------------------------------------------------------------------
 # CLAIM 7 — THE INSTALL SIDE. Understanding the event is worth nothing if the
-# agent is never told to send it. The hook rabadon writes must subscribe.
-INST="$(cd "$HERE/.." && pwd)/hooks/install.mjs"
-if [ -f "$INST" ] && grep -q 'PostToolUseFailure' "$INST"; then
-  pass "hooks/install.mjs subscribes the gate to PostToolUseFailure"
+# agent is never told to send it.
+#
+# THIS CLAIM WAS WRITTEN WRONG THE FIRST TIME AND THE MUTATION RUN CAUGHT IT:
+# it grepped hooks/install.mjs for the string, so it stayed green after the
+# subscription was deleted, matching the COMMENT that explains it. A gate that
+# reads the file that is supposed to change is not a gate. It now RUNS the
+# installer into a scratch directory and reads the settings.json that a user
+# would actually get.
+NODE_OK=0
+command -v node >/dev/null 2>&1 && NODE_OK=1
+if [ "$NODE_OK" = "0" ]; then
+  # NOT a skip. The installer is JavaScript; without node this claim cannot be
+  # answered, and an unanswerable claim is red, not absent.
+  fail "node is not available — the install side of the blind spot went UNCHECKED"
 else
-  fail "hooks/install.mjs never subscribes to PostToolUseFailure — the event is never delivered"
+  IDIR="$ROOT/installtarget"; mkdir -p "$IDIR"
+  ROOTDIR="$(cd "$HERE/.." && pwd)"
+  node -e '
+    import(process.argv[1] + "/hooks/install.mjs").then((m) => {
+      m.installHooks(process.argv[2], { gateCmd: process.argv[1] + "/native/rabadon-gate" });
+    }).catch((e) => { console.error(String(e)); process.exit(3); });
+  ' "$ROOTDIR" "$IDIR" >/dev/null 2>&1
+  WROTE="$IDIR/.claude/settings.json"
+  if [ -f "$WROTE" ] && python3 -c '
+import json,sys
+h = json.load(open(sys.argv[1])).get("hooks", {})
+ents = h.get("PostToolUseFailure") or []
+cmds = [k.get("command","") for e in ents for k in (e.get("hooks") or [])]
+sys.exit(0 if any("rabadon-gate" in c for c in cmds) else 1)' "$WROTE"; then
+    pass "the settings.json rabadon WRITES subscribes the gate to PostToolUseFailure"
+  else
+    fail "rabadon installs no PostToolUseFailure hook — on a real machine the event is never delivered"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -248,6 +275,23 @@ sys.exit(0 if d.get("hook_event_name") == "PostToolUseFailure" and "error" in d
 else
   fail "the live PostToolUseFailure capture is missing or no longer has that shape"
 fi
+
+# ---------------------------------------------------------------------------
+# CLAIM 9 — THE RESIDUAL, STATED RATHER THAN HIDDEN. A command that fails
+# without printing anything an error scanner recognises (`false`, a bare
+# `exit 1`) still has no err_sig, because there is no error text to sign. What
+# it MUST have is claimed_rc 1: the record says "this failed, and I have no
+# signature for it" instead of quietly saying "this succeeded". Pinned here so
+# the gap is a documented shape and not a surprise for the next reader.
+fresh
+pre_bash  s-f5 'false' 'call-k-1' >/dev/null
+post_fail s-f5 'false' 'call-k-1' 'Exit code 1' >/dev/null
+RC="$(moves_py 'm[-1]["claimed_rc"] if m else "NONE"')"
+SG="$(moves_py 'm[-1]["err_sig"] if m else "NONE"')"
+[ "$RC" = "1" ] && pass "a silent failure is still recorded as a failure (claimed_rc 1)" \
+                || fail "a silent failure recorded claimed_rc=$RC, expected 1"
+[ -z "$SG" ] && pass "a silent failure honestly carries NO err_sig (nothing to sign)" \
+             || fail "a silent failure invented an err_sig: $SG"
 
 printf 'failed_call: %d passed, %d failed\n' "$PASSN" "$FAIL"
 [ "$FAIL" = "0" ] || exit 1

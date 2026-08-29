@@ -3280,9 +3280,16 @@ int main(int argc, char** argv) {
         const string et = rbinject::readable_error(toolResponse, cwd);
         if (!et.empty()) ms.lastErrText = et;
       }
-      // A CLAIM, from text the session produced about itself. There is no exit
-      // code on this hook; naming the field anything else would launder that.
-      open_move->claimed_rc = open_move->err_sig.empty() ? 0 : 1;
+      // A CLAIM, from text the session produced about itself. PostToolUse
+      // carries no exit code, so on that event this stays a reading of the
+      // output and the field name says so.
+      //
+      // PostToolUseFailure is the exception and it is not a guess: the harness
+      // is stating the call did not succeed. Taken first, because the text
+      // reading is silent for a command that fails without printing anything
+      // that looks like an error (`false`, a bare `exit 1`), and recording
+      // those as rc 0 is the lie this whole card was cut to end.
+      open_move->claimed_rc = (E.failed || !open_move->err_sig.empty()) ? 1 : 0;
       // A completion is an append with the same seq, not a patch of the line
       // already on disk. The reader lets the later line win.
       stt.append_move(*open_move);
@@ -3696,6 +3703,16 @@ int main(int argc, char** argv) {
   if (hook == "PostToolUse") {
     const long long now = now_ms();
 
+    // A CLOSING EVENT THAT CANNOT SAY THE CALL FAILED IS A RECORD NOBODY CAN
+    // READ BACK. STEP_OK means "the call completed", and it stays the closing
+    // event for both outcomes so the STEP_START/STEP_OK join every reader and
+    // exporter is built on keeps working. What was missing is the outcome:
+    // before this field a failed call and a successful one produced the same
+    // line, which is how "step 3 went red and 4-10 ran on rotten ground" was
+    // invisible on rabadon's own ledger. Emitted only when the harness said
+    // the call failed -- never inferred, so it is not painted on everything.
+    const string rcField = E.failed ? ",\"rc\":1" : "";
+
     // ---------- THE ALWAYS-ON NET ----------
     // The agent just touched code. Start the project's own check in a DETACHED
     // child and return immediately: a hook that waits for a test suite freezes
@@ -3873,7 +3890,7 @@ int main(int argc, char** argv) {
       }
 
       const string base = filePath.substr(filePath.rfind('/') + 1);
-      em.emit("STEP_OK", "\"step\":\"edited: " + json_escape(base) + "\"");
+      em.emit("STEP_OK", "\"step\":\"edited: " + json_escape(base) + "\"" + rcField);
       return 0;
     }
 
@@ -3895,7 +3912,7 @@ int main(int argc, char** argv) {
         isTest = rx_test("ctest|--test|npm test", command);
 
       if (!isTest) {
-        em.emit("STEP_OK", "\"step\":\"ran: " + json_escape(utf8_clip(command, 80)) + "\"");
+        em.emit("STEP_OK", "\"step\":\"ran: " + json_escape(utf8_clip(command, 80)) + "\"" + rcField);
         stt.save();
         return 0;
       }
