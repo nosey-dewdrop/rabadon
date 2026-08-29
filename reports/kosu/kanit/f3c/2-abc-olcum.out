@@ -1,0 +1,29 @@
+=== fixture: an A-B-A-B-A-B oscillation on one file, the real binary ===
+delivery      : YES — additionalContext on stdout, the documented envelope
+
+=== (a) did rabadon write it ===
+  SIGNAL   x1   PRESENT
+  INJECT   x1   PRESENT
+  COUNTER  x1   PRESENT
+  (a) = MET
+  (STEP_START x8 is NOT counted: written on both hooks regardless.)
+
+=== (b) did the agent read it ===
+  signal=oscillation psig=5d8f862e04307ec4 -> sig=ba0290a38ead3d9b same=False
+  INJECT n=1, INJECT_ANSWER n=1, JUDGEABLE n=1
+  (b) = ANSWERABLE
+
+=== (c) did it do harm ===
+  NOT RUN. The negative control is a two-armed run over the sealed task
+  set (orkestrasyon v6 §3.8/2) and needs network plus `claude -p`.
+  §F3: "Bu olcum yapilmadan F4 acilmaz." -> F4 STAYS CLOSED.
+
+=== the LIVE ledger, for contrast (this is the number that matters) ===
+  live spool           : /Users/damummyphus/.rabadon/spool
+  INJECT               : 7
+  of those carrying psig: 0
+  INJECT_ANSWER        : 0
+  live judgeable n     : 0
+  Every INJECT line older than this phase predates psig, so a live n of 0
+  is expected and is NOT evidence that the mechanism fails; it is the
+  count starting from zero. The fixture above is what proves the wiring.
