@@ -103,6 +103,12 @@ bench: native/rabadon-gate native/gate_bench
 # binary. the dependency is 'everything this repo builds'.
 test: all
 	./native/version_test.sh
+# version_test.sh holds ONE header (version.h) from both ends. this holds the
+# WHOLE include graph the same way: a rule whose source includes a header it
+# does not list answers `make` with "up to date" and hands the next phase a
+# green measured on a binary that was never rebuilt. measured 2026-08-29,
+# before this line existed: rabadon-net did not rebuild when pathres.h changed.
+	./native/make_deps_test.sh
 	./native/cli_test.sh
 # cli_test.sh asks whether the dispatcher's screens are well-formed. this one
 # asks whether they are TRUE: every claim `rabadon status`, `on` and `off` make

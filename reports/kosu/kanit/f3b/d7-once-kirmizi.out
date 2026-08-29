@@ -1,0 +1,19 @@
+rabadon make dependency graph
+
+  FAIL - a compile rule is missing a prerequisite its source includes
+    | MISSING native/rabadon-gate: gate.cpp includes testout.h but the rule does not list it as a prerequisite — editing native/testout.h answers make with "up to date" and ships a stale binary
+    | MISSING native/rabadon-gated: gate.cpp gated.cpp includes testout.h but the rule does not list it as a prerequisite — editing native/testout.h answers make with "up to date" and ships a stale binary
+    | MISSING native/rabadon-run: run.cpp includes baseline.h but the rule does not list it as a prerequisite — editing native/baseline.h answers make with "up to date" and ships a stale binary
+    | MISSING native/rabadon-run: run.cpp includes gitcfg.h but the rule does not list it as a prerequisite — editing native/gitcfg.h answers make with "up to date" and ships a stale binary
+    | MISSING native/rabadon-net: net.cpp includes cmdtext.h but the rule does not list it as a prerequisite — editing native/cmdtext.h answers make with "up to date" and ships a stale binary
+    | MISSING native/rabadon-net: net.cpp includes pathres.h but the rule does not list it as a prerequisite — editing native/pathres.h answers make with "up to date" and ships a stale binary
+    | MISSING native/rabadon-net: net.cpp includes testout.h but the rule does not list it as a prerequisite — editing native/testout.h answers make with "up to date" and ships a stale binary
+    | checked 20 compile rule(s), 112 source->header edge(s)
+  ok   - removing one prerequisite is caught and named: MISSING native/gate_bench: gate_bench.cpp includes pathres.h but the rule does not list 
+  ok   - a header reached only through another header is still required
+  ok   - a Makefile with no compile rules is reported, not read as agreement
+  FAIL - make answers 'up to date' after a header it compiles in changed: native/rabadon-run<-baseline.h native/rabadon-net<-cmdtext.h native/rabadon-run<-gitcfg.h native/rabadon-net<-pathres.h native/rabadon-gate<-testout.h native/rabadon-gated<-testout.h native/rabadon-net<-testout.h
+  ok   - the make arm left the tree exactly as it found it (header mtimes restored)
+  ok   - with the prerequisite removed, make really does answer 'up to date' after touching pathres.h — arm E can go red
+
+make deps: 5 passed, 2 failed
