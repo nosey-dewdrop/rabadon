@@ -192,6 +192,16 @@ test: all
 # (reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json) and it goes red
 # the moment the event stops being understood or stops being subscribed to.
 	./native/failed_call_test.sh
+# failed_call_test.sh proves the binary understands the event and that the
+# INSTALLER writes the subscription. Neither of those reaches a machine that was
+# installed last week: measured 2026-08-29, this machine's settings.json (26 Aug
+# 20:17) still listed five events while the binary had learned the sixth that
+# morning, `rabadon doctor` printed "all green" at it, and an exit-1 Bash left a
+# STEP_START with no STEP_OK. Shipped is not installed. This suite runs the real
+# binary against a fixture written in the OLD shape and asks whether the machine
+# catches up on its own -- and whether the catching up leaves everything that is
+# not rabadon's exactly where it was.
+	./native/hook_upgrade_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an

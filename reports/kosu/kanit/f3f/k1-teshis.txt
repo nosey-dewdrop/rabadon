@@ -1,0 +1,42 @@
+== KART 1 TESHIS -- 2026-08-29 23:10:03
+
+-- 1. KAYITLI KANCALAR (~/.claude/settings.json), yalniz rabadon'a ait olanlar:
+    PostToolUse |matcher= * |timeout= 120 | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    PreToolUse |matcher= * |timeout= 960 | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    SessionStart |matcher= None |timeout= None | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    Stop |matcher= None |timeout= None | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    UserPromptSubmit |matcher= None |timeout= None | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+   KAYITLI OLAY KUMESI = ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop', 'UserPromptSubmit']
+   dosya mtime        = Aug 26 20:17:55 2026
+
+-- 2. hooks/install.mjs'in BUGUN uretecegi olay kumesi:
+    SessionStart |matcher= undefined |timeout= undefined | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    UserPromptSubmit |matcher= undefined |timeout= undefined | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    Stop |matcher= undefined |timeout= undefined | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    Stop |matcher= undefined |timeout= undefined | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-drift
+    PreToolUse |matcher= * |timeout= 960 | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    PostToolUse |matcher= * |timeout= 120 | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+    PostToolUseFailure |matcher= * |timeout= 120 | /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+   ISTENEN OLAY KUMESI = ["PostToolUse","PostToolUseFailure","PreToolUse","SessionStart","Stop","UserPromptSubmit"]
+
+-- 3. FARK: kayitli kumede olmayan istenen olay(lar):
+    PostToolUseFailure  -- rabadon-gate KAYITLI DEGIL (yalniz orkestra tick.py var)
+    ikili yolu ESKI DEGIL: kayitli komut = bu klonun native/rabadon-gate'i, dosya var:
+    -rwxr-xr-x@ 1 damummyphus  staff  800096 29 Ağu 22:11 native/rabadon-gate
+
+-- 4. installHooks() bu dosyayi ONARIR MIYDI? (healthy karari, salt-okuma):
+    PostToolUseFailure altinda rabadon komutu var mi?  false
+    -> healthy=false, yani `rabadon init --global` ONARIRDI. Ama hic kosmadi.
+
+-- 5. DOCTOR YANLIS YESIL VERIYOR (2026-08-29, onarim oncesi, canli makine):
+       $ node hooks/manage.mjs doctor
+         ok   global hooks healthy (1 rabadon command(s), all from this install)
+         all green.
+       Yani kor kurulum "saglikli" diye sertifikalandi. doctor yalniz yolun olu/yabanci
+       olup olmadigini soruyor, OLAY KUMESININ guncel olup olmadigini hic sormuyor.
+
+-- 6. BOS YESIL TURU (F3f-oncesi = b482d40, ayri worktree, yeni suit kopyalandi):
+       native/hook_upgrade_test.sh -> 8 passed / 10 FAILED, EXIT=1
+       Kirmizi dusen iddialar: abonelik eklenmiyor / drift kayitsiz / yedek yok /
+       dosya adi soylenmiyor / bu oturum kor demiyor / defterde kayit yok /
+       doctor stale kurulumu saglikli diyor + hangi abonelik eksik demiyor.
