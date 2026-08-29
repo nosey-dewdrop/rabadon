@@ -1,0 +1,8 @@
+INJECT events on the ledger: 7
+  carrying mseq+err (judgeable at all): 3
+  MISS    sess=5b79eca6-1cc signal=root_migration mseq=11 — no move ring on this machine
+  NOJUDGE sess=8e263345-d3e ring holds 200 records, 0 at-or-before mseq and 200 after — the CAP=200 ring rolled past the injection
+  NOJUDGE sess=b6ac9ea0-e00 ring holds 200 records, 0 at-or-before mseq and 200 after — the CAP=200 ring rolled past the injection
+
+(b) rings found 2/7, judgeable 0, signature changed 0
+(b) NOT MEASURED — n=0. The per-injection reason is printed above. n=0 is not a pass and must never be quoted as one.

@@ -1,0 +1,12 @@
+interleaved A/B, 2b-uctan-uca.sh N=200, 10 reps each
+A = F3b-oncesi (2f4c592)   B = HEAD
+rep1 A=1340.5 B=1027.7
+rep2 A=1666.2 B=1347.1
+rep3 A=1989.9 B=1629.1
+rep4 A=1947.7 B=1677.4
+rep5 A=1982.9 B=1693.8
+rep6 A=1961.2 B=1282.2
+rep7 A=1297.1 B=927.7
+rep8 A=1280.6 B=1313.9
+rep9 A=1609.4 B=1296.9
+rep10 A=1961.5 B=1630.5

@@ -1,0 +1,9 @@
+paired: HEAD unstripped vs HEAD stripped (strip -x), N=200, 8 reps
+rep1 unstripped=1268.2 stripped=1628.2
+rep2 unstripped=1641.9 stripped=1645.6
+rep3 unstripped=1659.1 stripped=1628.6
+rep4 unstripped=999.2 stripped=1003.3
+rep5 unstripped=1315.8 stripped=1308.7
+rep6 unstripped=1668.7 stripped=1601.0
+rep7 unstripped=1611.9 stripped=1645.2
+rep8 unstripped=1693.2 stripped=1065.9
