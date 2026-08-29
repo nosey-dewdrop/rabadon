@@ -1,0 +1,27 @@
+== KART 1 MUTASYON KANITI (2026-08-29)
+Suit: native/hook_upgrade_test.sh -- saglam hal 18 passed / 0 failed, EXIT=0
+
+MUTASYON A -- yukseltme adimini kaldir.
+  native/gate.cpp SessionStart:
+    -  const bool refreshed = refresh_hook_subscriptions(cwd, rdir, refreshMsg);
+    +  const bool refreshed = false; (void)refreshMsg;
+  make all; ./native/hook_upgrade_test.sh
+  -> 9 passed / 9 FAILED, EXIT=1
+  Kirmiziya donen iddialar: abonelik eklenmedi · drift kayitsiz kaldi · yedek yok ·
+  degisen dosya adi soylenmedi · yedegin yeri soylenmedi · "bu oturum kor" cumlesi yok ·
+  defterde HOOKS_REFRESHED yok · ikinci oturumda kart hala kor diyor ·
+  doctor tam abone kurulumda kirmizi kaliyor.
+  GERI ALINDI -> 18/0.
+
+MUTASYON B -- "kendini kuran" korumasini kaldir (self-heal, self-install olsun).
+  hooks/refresh.mjs:
+    -  if (!before || before.size === 0) return null;
+    +  if (!before) return null;
+  -> 17 passed / 1 FAILED, EXIT=1
+  Kirmizi: "the upgrade INSTALLED rabadon into a machine that had not installed it"
+  Yani mekanizmanin en tehlikeli yan etkisi (rabadon'u kurmayan makineye kurmasi)
+  ayri ve kirmizi dusebilen bir iddiayla tutuluyor.
+  GERI ALINDI -> 18/0.
+
+BOS YESIL TURU: ayni suit F3f-oncesi (b482d40) agacinda 8 passed / 10 FAILED, EXIT=1.
+(ayrinti: k1-teshis.txt madde 6)
