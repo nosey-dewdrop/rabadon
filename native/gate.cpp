@@ -4716,7 +4716,77 @@ int main(int argc, char** argv) {
       if (all) isFixPath = true;
     }
 
-    if (!isFixPath) {
+    // ---- SCOPE: a red is about a TREE, and it used to refuse work outside it --
+    // Measured 2026-08-29 (F1b CHALLENGE-2, reproduced in F3 before this line
+    // existed): with project P red, `cd <neighbour> && git commit -m wip` was
+    // refused with exit 2, although the neighbour is its own git worktree, holds
+    // its own verdict, and shares nothing with P. Standing IN the neighbour and
+    // running the same command was allowed (exit 0), so the refusal was decided
+    // by which directory the session happened to start in, not by what the
+    // action touched. That is a FALSE REJECT, which CLAUDE.md counts at the same
+    // severity as a missed catch, and it is the shape that gets a guard
+    // uninstalled: it refuses work the user knows is unrelated.
+    //
+    // The waiver is deliberately narrow, because the cheap version of it is a
+    // bypass — prefix any command with `cd /tmp &&` and red-base is gone:
+    //   - EVERY segment must act outside the red tree. One segment inside it and
+    //     the whole line is refused, so `cd /tmp && cd $P && git push` still is.
+    //   - the tree is the verdict's own `root` field, resolved. No root recorded
+    //     (a legacy net.json) means no waiver.
+    //   - a line the parser could not read (degraded) gets no waiver. Failing
+    //     closed on an unreadable line is the only safe direction here.
+    // segment_cwds() already follows cd/pushd/popd through subshells and
+    // `sh -lc`, which is why this can be asked per segment at all.
+    bool actsOutsideTheRedTree = false;
+    if (!isFixPath && !command.empty()) {
+      const string redRoot = get_str(read_file(cwd + "/.rabadon/net.json"), "root");
+      if (!redRoot.empty()) {
+        const string rr = rbpath::resolve_real(redRoot);
+        rbtext::Parsed sp = rbtext::parse(command);
+        if (!sp.degraded && !sp.segs.empty()) {
+          const std::vector<string> segCwd =
+              rbpath::segment_cwds(sp, rbpath::resolve_real(cwd));
+          bool anyInside = false, anySeg = false;
+          for (size_t i = 0; i < sp.segs.size() && i < segCwd.size(); i++) {
+            if (sp.segs[i].surface.empty()) continue;
+            // The verbs that MOVE the shell are not work done on the base. They
+            // are evaluated where the shell stands, which for a leading `cd` is
+            // always the red tree — counting them made every line look inside
+            // it and the waiver could never fire. Measured while writing this.
+            const rbtext::Seg& sg = sp.segs[i];
+            const size_t ci0 = rbtext::command_index(sg.words);
+            if (ci0 < sg.words.size()) {
+              const string b0 = rbtext::base_of(sg.words[ci0].text);
+              if (rbtext::name_is(b0, "cd") || rbtext::name_is(b0, "pushd") ||
+                  rbtext::name_is(b0, "popd"))
+                continue;
+            }
+            anySeg = true;
+            string dir = segCwd[i];
+            // `git -C <red tree> push` runs where the flag points, not where the
+            // shell stands. rules.h already reads these knobs for the same
+            // reason; without them `cd /tmp && git -C $P push` would be waived,
+            // which is the bypass this waiver must not become.
+            const std::vector<rbtext::Word>& t = sp.segs[i].words;
+            const size_t ci = rbtext::command_index(t);
+            if (ci < t.size() && rbtext::name_is(rbtext::base_of(t[ci].text), "git")) {
+              size_t sub = 0;
+              if (rbtext::git_subcommand(t, ci, sub)) {
+                std::vector<string> chdirs; string gitDirOpt;
+                if (rbtext::git_repo_knobs(t, ci, sub, chdirs, gitDirOpt))
+                  for (size_t k = 0; k < chdirs.size(); k++)
+                    dir = rbpath::lexical_abs(chdirs[k], dir);
+              }
+            }
+            const string d = rbpath::resolve_real(dir);
+            if (rbpath::inside(rr, d) || rbpath::project_root(d) == rr) { anyInside = true; break; }
+          }
+          actsOutsideTheRedTree = anySeg && !anyInside;
+        }
+      }
+    }
+
+    if (!isFixPath && !actsOutsideTheRedTree) {
       string tail = netTail;
       if (tail.size() > 400) tail = tail.substr(tail.size() - 400);
       block("red-base",
