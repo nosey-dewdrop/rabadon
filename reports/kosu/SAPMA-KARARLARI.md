@@ -1972,3 +1972,100 @@ maddeleridir (S12-S15), D1 bloklayan ilk karttır.
   yolunu ölçmedim (yayımlanmamış); gerçek Cursor uygulamasını başlatmadım;
   15 retin hangilerinin DOĞRU hangilerinin YANLIŞ olduğunu tek tek hükme
   bağlamadım — bu S13/c'nin işidir ve kasten bana ait değil.
+
+---
+
+### D6 · KEŞİF SEÇİCİSİ — D5'in öksüz bıraktığı kalem, ve ölçüldüğünde D1'den ESKİ (2026-08-29)
+
+**Neden bu kart var: bir muhasebe kaybı.** 27 Ağu'da `KARARLAR.md:10`
+(F1b · CHALLENGE-1) bu kusur için "**KÖK SEBEP ONARILACAK, KENDİ KARTINDA
+(F1f)**" hükmünü verdi. Aynı gün D5 "**F1f YOKTUR**" dedi ve F2'ye yalnız
+D1/D1b/D3/D4'ü devretti. **Kalem bu ikisinin arasında düştü.** Ölçtüm:
+`grep -rn "truth.cpp" reports/kosu/` bugün yalnız üç yerde geçiyor — kusuru
+BULAN kart (`RAPOR/F1b.md:140,240`), onu ERTELEYEN hüküm (`KARARLAR.md:10`)
+ve onu KAYDEDEN durum satırı (`DURUM.md:65`). **Onu SAHİPLENEN hiçbir kart,
+hiçbir kabul maddesi, S1-S15'te hiçbir satır yok.** Kart bu yüzden açıldı;
+yeni bir bulgu değil, D5'in kapattığı zincirin dışında kalmış eski bir hüküm.
+
+**ÖLÇÜM 1 — kusur, farklı fikstürlerde. `native/truth.cpp:64-71` `skip_dir()`.**
+Atlanan ad listesi: `node_modules .git build dist .next venv .venv __pycache__
+target vendor Pods DerivedData .rabadon coverage .cache` + **nokta ile başlayan
+her dizin**. `site-packages` bu listede **YOK** (`repair.cpp:483-489`'un kendi
+listesinde VAR — iki liste ayrışmış). Sonuç, iki fikstür, ikisi de bu makinede
+koştu, ikisinin de kullanıcıya ait **sıfır** testi var:
+
+| fikstür (`.git` + `app.py` + tek test dosyası) | `rabadon-truth` |
+|---|---|
+| test yalnız `.venv/lib/python3.11/site-packages/numpy/tests/` içinde | `level 1 SYNTAX` — **doğru** |
+| test yalnız `Library/Python/3.9/lib/python/site-packages/pytz/tests/` içinde | **`level 3 SUITE` · `run: python3 -m pytest -q` · `via: python test files`** |
+
+İkinci satır kusurdur: nokta**sız** bir `site-packages` — yani macOS'ta
+`pip install --user`'ın varsayılan hedefi — kullanıcının kendi süiti sayılıyor.
+Ayrım tırnak değil bir nokta karakteri.
+
+**ÖLÇÜM 2 — bu makinede kim sayılıyor.** `rabadon-truth /Users/damummyphus`
+bugün: **20698 kod dosyası · 2849 kilitlenecek test dosyası** (`--json`'un
+`testFiles` listesi `Downloads/rabadon-main/core/bus.test.mjs` ile açılıyor —
+kullanıcının indirdiği rabadon kopyaları kilit setinde). Python alt kümesinin
+dağılımı, rabadon'un kendi atlama kurallarıyla: `_arsiv_2026-08-18` **503**
+(18 Ağu'da emekliye ayrılmış arşiv), `Library/Python` **313** ve `emsdk/python`
+**76** — bu 330'unun tamamı `site-packages` altında, ÖLÇÜM 1'in sınıfı —
+`lulumelon` 43, `stitchu` 6, `Downloads/stitchu-main-*` kopyaları.
+**Kullanıcının canlı işi bu sayının altında kalıyor.**
+
+**ÖLÇÜM 3 — zararın bugünkü şekli DEĞİŞTİ, ve daha kötü.** 27 Ağu'da zarar
+`verdict: red` + `exit 5` (yanlış RET) idi. `~/.rabadon/net.json`, 28 Ağu:
+`"dur_ms":120008, "verdict":"inconclusive", "exit":-1,
+"tail":"check exceeded its 120000ms budget"`. Yani çek artık **dönmüyor**:
+120 s bütçeyi yakıyor ve `gate.cpp:3549` inconclusive'i kırmızı saymadığı için
+kapı **açık** kalıyor. `KARARLAR.md:10`'un "blokaj kendiliğinden düştü, bu bir
+onarım DEĞİL, tesadüftür" cümlesi doğrulandı: tesadüf kalıcılaştı ve kapı
+iki gündür bu makinede **hiçbir şeyi yargılamıyor**. Yanlış RET, sessiz
+YOKLUĞA dönüştü — §1'e göre daha ağır olan hâl.
+
+**ÖLÇÜM 4 — ikinci zincir hâlâ açık.** Kusurun kökü tek değil, iki:
+(a) `truth.cpp:336-337` seçici, yukarıdaki; (b) `pathres.h:416-426`
+`project_root()`, `$HOME`'un kendisi bir git deposu olduğu için (`ls ~/.git`
+var) kendi `.git`'i olmayan her dizin için `$HOME`'a düşüyor — 68 bağımsız
+proje TEK proje sayılıyor. (a) onarılıp (b) durursa arşiv 503'ü hâlâ
+sayılacaktır. **İkisi bir karttır.**
+
+**HÜKÜM.**
+1. **Yeni mini-faz DOĞMAZ** (D5/1 aynen geçerli, ve D5/3'ün O5 tetiği
+   çalmaz: bu F2 hakeminin YENİ bulgusu değil, 27 Ağu'da hükme bağlanmış
+   ESKİ bir kalemin geri konmasıdır). **D1'in yanında, F2'nin ikinci
+   BLOKLAYAN kartıdır** ve D1'den önce kapanır: D1 yanlış RET üretiyor,
+   D6 kapıyı tamamen sessizleştiriyor.
+2. **KURAL GEVŞETİLMEZ** — `KARARLAR.md:10`'un yazdığı yön aynen durur:
+   onarım `red-base`'i zayıflatmak değil; `truth.cpp` `skip_dir()`'e
+   `site-packages` + `Library` sınıfının eklenmesi, `net.cpp`'nin boş-koşu
+   muafiyetinin pytest exit 5'e genişletilmesi, ve `$HOME`'un kök olarak
+   seçilmesinin reddi. **Fikstür koddan ÖNCE, mutasyon kanıtıyla**
+   (yukarıdaki iki satırlık tablo o fikstürün taslağıdır: `.venv` satırı
+   YEŞİL kalmak, `Library/...` satırı KIRMIZI düşmek zorunda).
+3. **`skip_dir` iki kopyası birleştirilmez, sapması KAYDA GEÇER.**
+   `truth.cpp:64` ile `repair.cpp:483` ayrı listeler ve ayrı sorular
+   soruyorlar; birleştirme bu kartın işi değil. Kart yalnız **`truth.cpp`
+   tarafındaki eksiği** kapatır.
+
+**BU KARTIN KENDİ YANLIŞI, ilan ediyorum.** Kartı açtıran cümle
+"1895 dosya … kullanıcının venv'ini kendi testi sanıyor" idi. **1895 sayısı
+YANLIŞ** — o, ev dizininin değil `stitchu`'nun `test_*.py` + `*_test.py`
+sayısıdır ve bir önceki turda ben yanlış etiketledim. Ev geneli ham `find`
+sayısı **9293**'tür (7703'ü `site-packages|.venv|node_modules|venv` altında),
+rabadon'un kendi sayısı **2849**'dur. **"venv'ini kendi testi sanıyor" cümlesi
+de olduğu gibi YANLIŞ:** `.venv` ATLANIYOR (ÖLÇÜM 1, birinci satır). Doğru
+cümle: *nokta ile başlamayan `site-packages` atlanmıyor.* Bu satır, sayı
+dışarı söylenmeden düzeltilsin diye burada.
+
+**DOĞRULANMADI:** onarımı yazmadım, tek satır kod değişmedi; `make test` /
+`npm test` / `reports/R7/accept.sh` bu oturumda hiç koşmadı, kırmızı ad
+kümesi `{2b, 6e, 7b}` ölçülmedi. 2849'un kalan (python olmayan) dağılımını
+tek tek ayırmadım. `Library` adını `skip_dir`'e eklemenin gerçek bir projeyi
+(`src/Library/`) kör edip etmediğini ölçmedim — HÜKÜM 2'nin fikstürü bunu
+sınamak zorunda. Kusurun operatörün makinesi dışında, `$HOME`'u git deposu
+OLMAYAN bir kullanıcıda hangi şekli aldığını ölçmedim. `~/.rabadon/guard.json`
+`check` alanı 29 Ağu'da elle daraltıldı (`cd damla_projects_2026/stitchu &&
+python3 -m pytest -q engine/tests/py`, yeşil, 276 ms) — bu **semptomu**
+susturur, D6'nın kusurunu **onarmaz**; keşif yolu bu makinede artık
+tetiklenmediği için ÖLÇÜM 1 fikstürle üretildi, canlı `$HOME` ile değil.
