@@ -1,0 +1,13 @@
+ALLOW    rm -rf .rabadon
+ALLOW    rm -rf ./.rabadon
+ALLOW    truncate -s 0 .rabadon/guard.json
+ALLOW    cp /dev/null .rabadon/guard.json
+ALLOW    chmod 000 .rabadon/guard.json
+ALLOW    ln -sf /dev/null .rabadon/guard.json
+ALLOW    install /dev/null .rabadon/guard.json
+ALLOW    dd if=/dev/null of=.rabadon/guard.json
+ALLOW    find .rabadon -name guard.json -delete
+REFUSE   rm .rabadon/guard.json
+REFUSE   mv .rabadon/guard.json /tmp/x
+REFUSE   grep -c rm .rabadon/guard.json
+ALLOW    cat .rabadon/guard.json

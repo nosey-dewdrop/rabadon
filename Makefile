@@ -210,6 +210,15 @@ test: all
 # binary: mv refused, rm allowed, the pattern matching both. This holds the
 # carve-out from both sides -- the law is refused, real scratch still is not.
 	./native/guard_delete_test.sh
+# guard_delete_test.sh closed ONE shape by NAME. A name protects neither the
+# directory holding the file nor the nine other verbs that take a file apart:
+# measured on the shipped binary, `rm -rf .rabadon`, truncate, cp /dev/null,
+# chmod 000, ln -sf, install, dd of= and find -delete were all rc=0. This suite
+# asks the only question that closes a family instead of a shape -- after the
+# segment runs, is the project's own copy of the law still there, still whole,
+# still readable -- and its twin arms hold the reads and the ordinary
+# destructive work that must stay allowed.
+	./native/law_family_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an

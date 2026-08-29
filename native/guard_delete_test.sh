@@ -123,7 +123,21 @@ grep -in "deny" .rabadon/guard.json|grep with an -i flag
 git diff .rabadon/guard.json|git diff
 python3 -m json.tool .rabadon/guard.json|python3 reading it
 sed -n '1,5p' .rabadon/guard.json|sed WITHOUT -i
+grep -c rm .rabadon/guard.json|grep whose PATTERN is the word rm
+grep -c mv .rabadon/guard.json|the same with the other verb the rule names
+grep -rn rm .rabadon/guard.json|the recursive spelling of the same search
+wc -l .rabadon/guard.json|wc, which spells no verb at all
+git log --oneline -- .rabadon/guard.json|git log of the file
 CMDS
+# THE MENTION THAT IS NOT EVEN A PATH. The rule's rm arm asks only that the
+# tokens appear on one line in some order, so a line that TALKS about the file
+# reads as a delete of it. This is the same defect the rule beside it recorded
+# in its own wrongWhy on 2026-08-03 -- "a rule about a write was matching a
+# mention" -- and it was reproduced on 2026-08-30 against HEAD with
+# `grep -c rm .rabadon/guard.json` returning rc=2.
+v="$(verdict "$P" 'echo do not rm .rabadon/guard.json by hand')"
+[ "$v" = "ALLOW" ] && pass "read-only stays allowed: a sentence that merely names both" \
+                   || fail "FALSE POSITIVE: a sentence that merely names both"
 
 # ---------------------------------------------------------------------------
 # ARM 4 — a delete OUTSIDE the project is still refused by the rule that owns
