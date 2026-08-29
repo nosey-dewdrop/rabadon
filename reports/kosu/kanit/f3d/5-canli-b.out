@@ -1,0 +1,55 @@
+== F3d card 1: layer (b), LIVE, from a real Claude Code agent session ==
+source ledger: /Users/damummyphus/.rabadon/spool/2026-08-29.jsonl
+session      : 5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e (the F3d phase agent itself)
+pipe         : rabadon:session   (NOT a fixture, NOT native/*_test.sh)
+
+21:09:36 {"v": 1, "seq": 1, "ts": 1788026976012, "run": "ng-26976012-10569", "pipe": "rabadon:session", "ev": "SIGNAL", "call": "toolu_01MjSRpgVxwWtDVKbsNrJ3a5", "sess": "5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e", "signal": "root_migration", "conf": 0.75, "why": "one error survived 3 different moves", "seqs": [749, 755, 756], "prev": "6445a549d9d5370ec2a2f6b1f4bd65994ed5427108a313de7a80e684738e6960"}
+
+21:09:39 {"v": 1, "seq": 2, "ts": 1788026979953, "run": "ng-26979951-10591", "pipe": "rabadon:session", "ev": "INJECT", "call": "toolu_01S3H153FbMKAejVvie9dzNw", "sess": "5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e", "signal": "root_migration", "chars": 400, "mseq": 757, "psig": "1a37b823ede897e7", "err": "c827cdae109a188c", "text": "rabadon: attempt 3 on the same failure. The file last edited is native/silent_skip_test.sh. The previous attempt ended with: {\"stdout\":\"ls: /Users/damummyphus/damla_projects_2026/_f3d_temizklon/native/rabadon-gate: No such file or directory\",\"st. Contrast: no green move is on record this session; after `env ls -la ~/damla_projects_2026/_f3d_temizklon/native/rabadon-gate 2>&1; true` it failed. Sign", "prev": "d43ba05dc4f8dc2bbcd2cc22ba8f9e5dcfa8695864efc4aa4ba973b7c88e6c6d"}
+
+21:09:49 {"v": 1, "seq": 1, "ts": 1788026989922, "run": "ng-26989920-10650", "pipe": "rabadon:session", "ev": "INJECT_ANSWER", "call": "toolu_01FwXaxoT7oYxD1s7g1CCrwP", "sess": "5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e", "signal": "root_migration", "mseq": 758, "psig": "1a37b823ede897e7", "sig": "69f067c23b54e9ca", "same": false, "prev": "261c8c039dbe887404f9c95095b31e2e959a79dceed7b12f2742d7449942d299"}
+
+
+== WHAT THIS IS, AND WHAT IT IS NOT ==
+IS  : n = 1. A live INJECT carrying psig, and an INJECT_ANSWER answering it,
+      both written by the shipped native/rabadon-gate out of a real Claude Code
+      session's PreToolUse/PostToolUse events. The additionalContext really
+      reached the agent's context window (it arrived as a system-reminder on the
+      tool call it rode on, quoted in the phase card).
+      same = FALSE — the signature after the injection (69f067c23b54e9ca) is not
+      the one that was repeating (1a37b823ede897e7).
+NOT : proof that the agent read it. The injection rode on the tool call that was
+      already in flight, and the move after it was a different kind of move
+      anyway. §F3 line 142 defines (b) as the signature of the next move, and
+      that is what is recorded; it does not license the sentence "the text
+      changed the agent's behaviour". Establishing THAT needs (c) — the
+      negative control — which is still not run.
+
+== WHY (b) WAS n=0 FOR FOUR PHASES: MEASURED, THREE FACTS ==
+1. Two of the four signals allowed to inject (inject.h speaks()) have NEVER
+   fired in the whole 29-day spool: `oscillation` 0, and the injecting subset of
+   green_redefined ("only the test side") 0 out of 3479 SIGNAL lines. The two
+   green_redefined arms that DO fire live (493 + 34) are exactly the two that
+   are not allowed to speak. Live injection therefore rests on root_migration
+   (5 firings before today) and semantic_repeat (2).
+2. root_migration needs one err_sig across 3 different move signatures, and
+   err_sig is computed over the tool_response BLOB. Claude Code hands
+   PostToolUse a JSON object, which is one line, so the "error line" that gets
+   hashed is the whole `{"stdout":...,"stderr":...}` payload — visible verbatim
+   in the INJECT text above. Two commands share an err_sig only if their ENTIRE
+   output matches byte for byte after digit masking. Measured today: three
+   probes with the same failure but different surrounding output did NOT fire;
+   `ls -la X`, `command ls -la X`, `env ls -la X` — identical output, different
+   command text — fired on the third.
+3. A Bash call that exits non-zero left STEP_START with no PostToolUse event at
+   all in this session (measured on four exit-127 probes). err_sig is assigned
+   only in the PostToolUse branch, so the ordinary shape of a failing command
+   contributes nothing to root_migration. NOT VERIFIED: whether the hook is not
+   delivered by the harness, or delivered and returns before emitting.
+
+== FALSE POSITIVE, COUNTED (CLAUDE.md) ==
+1. This firing is one. Nothing was stuck: the same message repeated because the
+   phase agent was deliberately probing an unbuilt worktree three ways. The
+   diagnosis said "attempt 3 on the same failure" and "no green move is on
+   record this session" — the second clause is also wrong, this session had run
+   green suites. Counted, not excused.
