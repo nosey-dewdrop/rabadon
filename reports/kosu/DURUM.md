@@ -33,10 +33,41 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 - **Landing:** eski ürünü satıyor — başlık "guardrails and a verifiable record",
   kurulum `git clone && make`, komutlar `watch/on/usage/repair/audit`.
   "compound error" ve "injection" sayfada **0 kez** geçiyor.
-- **Kapı bugün:** `~/.claude/settings.json` kök klonun `native/rabadon-gate` ikilisini
-  çağırıyor, mod **watch (observe)**, deny değil. Öyle bırakıldı.
+- **Kapı bugün (2026-08-29, hakem ölçtü — bu satır GÜNCELDİR):**
+  `~/.claude/settings.json` kök klonun `native/rabadon-gate` ikilisini çağırıyor,
+  mod **ENFORCE (deny)**. Üç yoldan ölçüldü: `~/.rabadon/mode` içeriği `enforce`;
+  `rabadon status` → "ON — the arbiter acts"; sevk edilen ikiliye gerçek
+  PreToolUse olayı → **BLOCKED, EXIT=2**. Ayrıca kapı hakem oturumunda üç gerçek
+  komutu kesti. Kapı durumu hakem tarafından DEĞİŞTİRİLMEDİ.
+  *(Was: "mod **watch (observe)**, deny değil." — 2026-08-29'da ÖLÇÜLDÜ ve YANLIŞ
+  çıktı; hüküm `KARARLAR.md` · 2026-08-29 · F1b · (c). Eski cümle silinmiyor.)*
 
-## F1b'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER (2026-08-27 · faz BLOKE, kart `reports/kosu/RAPOR/F1b.md`)
+## F1b HAKEM HÜKMÜ: **GEÇTİ** (2026-08-29, `KAPI.md`) — aşağıdaki blok DÜZELTİLDİ
+
+Kart kendini "BLOKE" ve "F1e-C KARŞILANMADI" ilan etmişti. **O, 27 Ağu'daki
+`red-base` blokajı altında doğruydu; bugün DEĞİL.** Hakem HEAD `16631f3`'te,
+temp kökü DIŞINDAKİ kendi kum havuzunda ölçtü:
+
+| bacak | kartta | **hakem, 2026-08-29** |
+|---|---|---|
+| `make test` (konak) | EXIT=0, 3786 + 633 | **EXIT=0, 3786 + 633** |
+| `npm test` | ÖLÇÜLEMEDİ | **64 pass / 0 fail, EXIT=0** |
+| `bash reports/R7/accept.sh` | ÖLÇÜLEMEDİ | **EXIT=1, 23 yeşil / 3 kırmızı** |
+| kırmızı ad kümesi | ölçülmedi | **`{2b, 6e, 7b}` — BÜYÜMEDİ** (`2b` 1259,2 µs) |
+| F1e-C üçlüsü | KARŞILANMADI | **KARŞILANDI: 42/0 · 38/0 · 13/0, üçü de EXIT=0** |
+| **TOPLAM** | — | **4483 yeşil / 0 kırmızı** (F2 tabanıyla BİREBİR) |
+
+Sıfır büyüme beklenendir: sertleştirilen kol macOS'ta hiç koşmuyor. **Sayaç
+DÜŞMEDİ.** Hakem mutasyon kanıtını kartınkini kopyalamadan KONAKTA yeniden
+üretti (`sandbox-exec` içermeyen PATH gölgesiyle kolu açtı → 9/0; ürün dizgesini
+`NO kernel backend at all` yaptı → **8/1 EXIT=1**, ve o mutant dizgeyi **eski
+iddia GEÇİRİYORDU** → daralma kanıtlandı; geri aldı → 9/0).
+**FAZI BLOKE EDEN KIRMIZI BUGÜN ATEŞLEMİYOR** — ama onarıldığı için değil:
+`~/.rabadon/guard.json` `check` alanı 29 Ağu'da elle `stitchu`'nun süitine
+daraltıldı, yani semptom susturuldu, kusur duruyor (D6).
+Ayrıntı, NOT VERIFIED ve §5.5 dökümü: **`reports/kosu/RAPOR/F1b-R.md`**.
+
+## F1b'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER (2026-08-27 · kartın kendi yazdığı hâl, tarihsel)
 
 - **`native/sandbox_test.sh:121` sapması KAPANDI** (`09a93af`, tek satır, SERTLEŞTİRME:
   `grep -qi "no kernel backend"` → `grep -q "rabadon sandbox: NO usable kernel backend"`).
@@ -555,6 +586,50 @@ bugüne kadar hiç ölçülmemişlerdi.
 | durma koşulu tetiklendi mi | hayır | hayır | hayır | **hayır** |
 
 ## SIRA
+
+### F1b HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F1b: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F1b-R.md`'de. §3.4'ün üç açık kalemi **hakem tarafından hükme bağlandı**
+(`KARARLAR.md`, 2026-08-29 · F1b · (b) ve (c)):
+
+- **(b) D6'nın sahibi: F2 DEĞİL, F3.** F2 **2026-08-27'de GEÇTİ** ve D6'nın
+  "önce kapanır" dediği D1 = S12 iki gün ÖNCE kapandı (`DURUM.md`'nin S12
+  satırı). Kapalı faz §3.11 gereği açılmaz. D6'nın kusuru bugün ölçüldü ve
+  DURUYOR: `rabadon-truth /Users/damummyphus` → `level 3 SUITE`,
+  **20705 kod dosyası / 2850 test dosyası** tek proje sayılıyor (29 Ağu'da
+  20698/2849'du — büyüyor), ve `via:` satırı **`.rabadon/guard.json check`**
+  diyor, yani keşif yolu onarılmadı, elle daraltılmış bir `check` ile atlanıyor.
+  `truth.cpp:64-71` `skip_dir()`'de `site-packages` ve `Library` hâlâ YOK.
+- **(c) Kapı modu: ENFORCE (deny).** `DURUM.md`'nin "watch (observe)" satırı
+  BAYATTI, yukarıda düzeltildi. Üç ölçüm + üç canlı ret.
+
+**SIRADAKİ FAZ: F3.** Gerekçe: kalan sıra `F1b → F1n → F3`, ve **F1n §13 gereği
+uykuda KOŞMAZ** (operatör kararı, `UYANDIGINDA.md`), dolayısıyla sıradaki
+KOŞULABİLİR faz F3'tür.
+
+**F3 İKİ BLOKLAYAN KARTLA AÇILIR** (§3.7, hakem sırayı yeniden yazdı):
+1. **D6 — keşif seçicisi.** `truth.cpp:336-337` + `truth.cpp:64-71` `skip_dir()`
+   + `pathres.h:416-426` `project_root()` + `net.cpp:274` boş-koşu muafiyeti.
+   Kural GEVŞETİLMEZ (D6/2 aynen): fikstür koddan ÖNCE, mutasyon kanıtıyla,
+   `.venv` satırı YEŞİL kalacak, `Library/…/site-packages` satırı KIRMIZI düşecek.
+   `~/.rabadon/guard.json`'ın elle daraltılmış `check` alanı bir onarım DEĞİLDİR
+   ve kapanış ölçümü onun ARKASINDAN yapılamaz.
+2. **CHALLENGE-2 — kapsam sızıntısı.** Aynı `project_root()` çıktısı; komşu
+   dizin bu projenin kırmızısını miras alıyor. Aynı kart, ayrı kabul maddesi.
+   (Hakem bu oturumda YENİDEN ÜRETMEDİ — F3 önce üretecek, sonra onaracak.)
+
+**F3'E DEVREDEN, SAHİBİ OLMAYAN ÜÇ KALEM** (kart değil, kapanışta bakılmalı):
+- `site_claims_test.sh` **`gh` ikilisine ve ağa bağımlı** (`site_claims_test.sh:126`
+  → `site/build.py:277,285`). Temiz konteynerde `make test`'i **exit 2'de tutan
+  yeni ilk kalem**. CLAUDE.md kalite barının ("yalnız git ve shell") doğrudan ihlali.
+- `no-blind-inplace-source-rewrite` **yalnız kabuk yüzeyini kapsıyor**: aynı bayt
+  değişikliği `sed -i` yolundan REDDEDİLDİ, `Edit` aracından GEÇTİ (hakem ölçtü).
+- **CHALLENGE-3 deliği hâlâ açık** ve hiçbir hakem/faz onu KULLANMADI.
+
+**YANLIŞ POZİTİF SAYACI, bu hakem oturumu: 1** (`baseline-truncating-redirect`,
+henüz var olmayan bir çıktı dosyasına yönlendirme; ret metni "there is no command
+on the line to name" dedi, oysa satırda `make all` vardı). CLAUDE.md gereği
+sayılıyor, mazur görülmüyor.
 
 ### F2 HAKEM HÜKMÜ (2026-08-27)
 2026-08-27 · `F2: GEÇTİ` · Kartın sayılarını kopyalamadan hepsini kendi kum havuzumda yeniden ürettim ve tuttular: `make test` **EXIT=0**, native **3786** iddia + **633** kontrol + `npm test` **64/0** = **4483 yeşil / 0 kırmızı** (taban 4428, tam **+55**), `bash reports/R7/accept.sh` **exit 1, 23/3** ve kırmızı ad kümesi **`{2b, 6e, 7b}` büyümedi** (`2b` bende 1271,2 µs, tavan 1000 µs), F1e-C üçlüsü nihai ikiliye karşı 42/0 + 38/0 + 13/0 ve kâtip commit'i fazın sonuncusu değil; §3.8 temiz — zayıflatılan/silinen test YOK, eşikler oynatılmadı, beş kartın beşinde de ölçüt koddan ayrı ve önceki commit'te, ve mutasyon kanıtını kendim ürettim (`kSilencers`'a yedinci susturucu → `docs_truth_test.sh` 42/0'dan **41 ok / 1 fail EXIT=1**'e düştü; LOSS fikstürü 250→300 → `signals_screen_test.sh` 38/0'dan **37/1 EXIT=1**'e düştü — ekran kaybı gerçekten hesaplıyor). Tam gerekçe ve NOT VERIFIED listesi `KAPI.md`'de.

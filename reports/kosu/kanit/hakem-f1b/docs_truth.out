@@ -1,0 +1,53 @@
+docs truth: the silencer table, executed against the real gate
+
+  ok   - [env-off] the binary reports "RABADON_OFF=1" at "environment variable", next: unset RABADON_OFF
+  ok   - [project-off] the binary reports ".rabadon/off" at "<project>/.rabadon/off", next: rm <project>/.rabadon/off
+  ok   - [machine-silent] the binary reports "silent" at "$RABADON_DIR/silent", next: rabadon off
+  ok   - [machine-mode] the binary reports "mode = silent" at "$RABADON_DIR/mode", next: rabadon off
+  ok   - [project-mode] the binary reports ".rabadon/mode = silent" at "<project>/.rabadon/mode", next: rm <project>/.rabadon/mode
+  ok   - [env-mode] the binary reports "RABADON_MODE=silent" at "environment variable", next: unset RABADON_MODE
+
+docs truth: the fixture's silencer set equals the binary's own --silencers declaration
+  ok   - the binary declares 6 silencer source(s) on `--silencers` (this number is the binary's, not this file's)
+  ok   - set equality: the situations built here produce exactly the 6 silencer(s) the binary declares, name/where/next
+
+docs truth: every row of the docs/commands.md table, set up and then lifted
+  ok   - 6 silencer row(s) parsed out of docs/commands.md (the row count is the page's, not this file's)
+  ok   - set equality: the table lists exactly the 6 silencer(s) the binary can report
+  ok   - row 1 "RABADON_OFF=1" — the page's command and the screen's `next:` are the same bytes: unset RABADON_OFF
+  ok   - row 1 "RABADON_OFF=1" — `unset RABADON_OFF` really lifted the silence (gate now exit 2 / 399 bytes)
+  ok   - row 2 ".rabadon/off" — the page's command and the screen's `next:` are the same bytes: rm <project>/.rabadon/off
+  ok   - row 2 ".rabadon/off" — `rm <project>/.rabadon/off` really lifted the silence (gate now exit 2 / 399 bytes)
+  ok   - row 3 "silent" — the page's command and the screen's `next:` are the same bytes: rabadon off
+  ok   - row 3 "silent" — `rabadon off` really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - row 4 "mode = silent" — the page's command and the screen's `next:` are the same bytes: rabadon off
+  ok   - row 4 "mode = silent" — `rabadon off` really lifted the silence (gate now exit 0 / 296 bytes)
+  ok   - row 5 ".rabadon/mode = silent" — the page's command and the screen's `next:` are the same bytes: rm <project>/.rabadon/mode
+  ok   - row 5 ".rabadon/mode = silent" — `rm <project>/.rabadon/mode` really lifted the silence (gate now exit 2 / 399 bytes)
+  ok   - row 6 "RABADON_MODE=silent" — the page's command and the screen's `next:` are the same bytes: unset RABADON_MODE
+  ok   - row 6 "RABADON_MODE=silent" — `unset RABADON_MODE` really lifted the silence (gate now exit 2 / 399 bytes)
+
+docs truth: every behaviour claim in a marked block is bound to a live check
+  ok   - 15 behaviour-claim line(s) found inside the marked blocks
+  ok   - docs/commands.md:430912127 — `off-removes-machine-silent-file` still answers "removed", so "Was: "`rabadon off` does NOT remove any of these." Measure" stands on a measurement
+  ok   - docs/commands.md:3509263132 — `off-leaves-env-off-silent` still answers "silent", so "- `rabadon off` is not a way out of `RABADON_OFF=1` — row " stands on a measurement
+  ok   - docs/commands.md:2726597602 — `off-leaves-project-off-silent` still answers "silent", so "- `rabadon off` is not a way out of `<project>/.rabadon/of" stands on a measurement
+  ok   - docs/commands.md:1515264114 — `off-leaves-project-mode-silent` still answers "silent", so "- `rabadon off` is not a way out of `<project>/.rabadon/mo" stands on a measurement
+  ok   - docs/commands.md:2891484147 — `off-leaves-env-mode-silent` still answers "silent", so "- `rabadon off` is not a way out of `RABADON_MODE=silent` " stands on a measurement
+  ok   - docs/commands.md:1778811931 — `on-claim-under-silencer` still answers "SILENT", so "Was: "with a silencer present, `rabadon on` will report EN" stands on a measurement
+  ok   - docs/commands.md:1375349123 — `on-claim-under-silencer` still answers "SILENT", so "Measured false: under a silencer `rabadon on` will report " stands on a measurement
+  ok   - docs/commands.md:3907903842 — `status-discloses-silencer` still answers "named+located+next", so "Was: "`rabadon status` reports the mode, not the silencer." stands on a measurement
+  ok   - docs/commands.md:3086677682 — `status-discloses-silencer` still answers "named+located+next", so "Measured false: `rabadon status` reports the silencer as w" stands on a measurement
+  ok   - docs/commands.md:3499644692 — `off-is-watch-not-silence` still answers "live", so "The sentence that was right and stays: `rabadon off` is no" stands on a measurement
+  ok   - docs/commands.md:2748892572 — `silencer-count` still answers "6", so "The table above always lists every silencer the binary can" stands on a measurement
+  ok   - docs/faq.md:2555036853 — `status-discloses-silencer` still answers "named+located+next", so "measured false with `bash native/docs_truth_test.sh`: the " stands on a measurement
+  ok   - docs/faq.md:2287810221 — `off-leaves-env-off-silent` still answers "silent", so "`rabadon off` is not a way out of `RABADON_OFF=1`, `<proje" stands on a measurement
+  ok   - docs/uninstall.md:3812176264 — `rm-silent-file-alone-leaves-it-silent` still answers "silent", so "deleting that file alone is not enough, because `rabadon-g" stands on a measurement
+  ok   - docs/uninstall.md:2538984922 — `status-discloses-silencer` still answers "named+located+next", so "Measured false the same day: `rabadon status` reports the " stands on a measurement
+  ok   - docs/claims.tsv holds 15 registered claim(s), and this suite ran the check behind every one
+  ok   - no unregistered behaviour claim in any marked block
+
+  ok   - positive control: at least one probe got a REAL refusal (gate exit 2), so the instrument works
+  ok   - no file under the real ~/.rabadon was written by this suite
+
+docs truth: 42 ok / 0 fail

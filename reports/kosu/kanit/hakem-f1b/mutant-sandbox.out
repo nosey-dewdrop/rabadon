@@ -1,0 +1,12 @@
+sandbox: kernel-enforced guard.json
+  ok   - a guard deny rule refuses through exec (exit 2, the command never ran)
+  ok   - the refusal names the rule id and its reason
+  ok   - the exec refusal is written to the ledger (CHECK_FAIL + STOP, rule named)
+  ok   - exec writes through the SAME hash chain (audit: INTACT)
+  ok   - a baseline law (force-push to a shared branch) refuses through exec, with no guard.json at all
+  ok   - the same law fires on bare argv too (no shell to unwrap)
+  ok   - disabled[] still silences a rule through exec (the fix did not swallow the override)
+  ok   - an unforbidden command still runs through exec (exit 0)
+  skip - no kernel sandbox backend on this platform — enforcement tests skipped (--check is honest about it)
+  FAIL - --check message
+sandbox: 8 passed, 1 failed
