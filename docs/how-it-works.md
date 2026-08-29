@@ -27,7 +27,8 @@ Claude Code invokes at a defined moment.
   reader can tell a failure from a success. Measured on 2026-08-29; before that
   date rabadon did not subscribe to it and recorded nothing for a failing call.
 - **`SessionStart`** — at the start of a session. Where rabadon prunes the spool
-  past its retention window and seeds session state.
+  past its retention window, seeds session state, and **brings its own
+  subscriptions up to date** (below).
 - **`UserPromptSubmit`** — when you submit a prompt. Carries the prompt; feeds
   session-goal and drift tracking.
 - **`Stop`** — when the session ends. Fires the gate and, separately, the drift
@@ -36,6 +37,37 @@ Claude Code invokes at a defined moment.
 Claude Code hooks are one **binding**, not the product. rabadon's gate is a
 generic subprocess contract; any runtime that can run a subprocess before or
 after an action can implement it.
+
+## Upgrading an install that already exists
+
+A hook subscription is written once, at install time. That makes "the binary is
+new, the subscription is old" a silent and permanent state, and on 2026-08-29 it
+was one: rabadon had learned `PostToolUseFailure` that morning, this machine's
+`~/.claude/settings.json` had been written three days earlier, `rabadon doctor`
+reported "all green", and every command that exited non-zero was invisible.
+Shipped is not installed.
+
+So the gate carries the upgrade. At `SessionStart` — the one event every install
+that has ever existed subscribes to — it compares what is registered against what
+the installer would write today, and re-registers the difference by calling the
+same installer `rabadon init` calls. Specifically:
+
+- it only ever touches a `settings.json` that **already** contains rabadon
+  entries. Self-healing is not self-installing: a project you chose not to guard
+  stays unguarded, and a machine you uninstalled from stays uninstalled;
+- your previous file is copied to `settings.json.bak-rabadon` first, and hooks
+  that are not rabadon's — along with your `statusLine` and every other key —
+  are left exactly as they were;
+- it says so on the session card, names the file it changed, and writes a
+  `HOOKS_REFRESHED` entry to the ledger. It does not claim the session is
+  covered: your agent read its hooks before the gate ran, so the new events
+  arrive from your **next** session on, and the card keeps reporting the blind
+  spot for the current one;
+- it runs at most once every six hours and does nothing when there is nothing to
+  do. `RABADON_SELFHEAL=0` turns it off entirely;
+- `rabadon doctor` reports a stale subscription set as a problem and names the
+  missing events, so the one-step repair (`rabadon init --global`) is still there
+  if you would rather do it yourself.
 
 ## The gate contract
 
