@@ -1,0 +1,27 @@
+# EMPTY-GREEN RUN — the new arms on the F3h-oncesi artifact (3cd4fdc)
+
+Worktree: $HOME/.rb-f3h-wt, --detach, NOT under /tmp (DURUM.md: a temp root
+is exempt from the scope law and inflates the reading).
+
+    RABADON_GATE=$HOME/.rb-f3h-wt/native/rabadon-gate bash <new law_family_test.sh>
+    -> law_family: 81 passed, 18 failed
+
+18 red, by name:
+  FAIL - FALSE POSITIVE STILL OPEN: 1/5 mkdir -p .rabadon — the first step of installing the law by hand
+  FAIL - FALSE POSITIVE STILL OPEN: 1b mkdir without -p, same effect
+  FAIL - FALSE POSITIVE STILL OPEN: 2/5 an ABSOLUTE .rabadon belonging to no project of ours
+  FAIL - FALSE POSITIVE STILL OPEN: 3/5 a path only the shell can resolve
+  FAIL - FALSE POSITIVE STILL OPEN: 4/5 BACKING THE LAW UP — which docs/guard.md promises passes
+  FAIL - FALSE POSITIVE STILL OPEN: 4b the same with compression and an absolute archive
+  FAIL - FALSE POSITIVE STILL OPEN: 5/5 a walk that EXCLUDES the law by name
+  FAIL - FALSE POSITIVE STILL OPEN: 5b the same negation spelled with !
+  FAIL - FALSE POSITIVE STILL OPEN: listing an archive writes nothing at all
+  FAIL - FALSE POSITIVE STILL OPEN: a .rabadon outside the project tree
+  FAIL - ALLOWED: a glob that reaches the law without spelling it — the narrowing became a hole
+  FAIL - ALLOWED: the single-character wildcard — the narrowing became a hole
+  FAIL - ALLOWED: the dotted glob, which in a real shell does match .rabadon — the narrowing became a hole
+  FAIL - ALLOWED: a trailing star on the whole name — the narrowing became a hole
+  FAIL - ALLOWED: an inline program body that names the law — the narrowing became a hole
+  FAIL - ALLOWED: the same one interpreter over — the narrowing became a hole
+  FAIL - ALLOWED: and one more — the narrowing became a hole
+  FAIL - ALLOWED: and one this list had never heard of — the narrowing became a hole

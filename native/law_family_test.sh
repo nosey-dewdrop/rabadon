@@ -59,6 +59,10 @@ printf 'notes\n' > "$P/README.md"
 printf 'log\n' > "$P/log.txt"
 printf 'a\n' > "$P/a.txt"
 : > "$P/.rabadon-backup"
+# ANOTHER project's law, on the same disk, outside this project's tree. ARM 5
+# asserts this one is not our subject; the scope law (baseline-rm-rf-outside)
+# is what covers it, under its own id.
+mkdir -p "$T/other-tree/.rabadon"; printf '{}\n' > "$T/other-tree/.rabadon/guard.json"
 
 verdict() { # verdict <cwd> <command> -> ALLOW|REFUSE
   python3 -c 'import json,sys;print(json.dumps({"hook_event_name":"PreToolUse","session_id":"lawfam","cwd":sys.argv[1],"tool_name":"Bash","tool_input":{"command":sys.argv[2]}}))' "$1" "$2" \
@@ -189,6 +193,106 @@ find . -name '*.tmp' -delete|an ordinary find -delete
 rm -rf .rabadonx|a directory whose name merely STARTS with the law's
 rm -rf notrabadon|a directory whose name merely CONTAINS it
 rm -f .rabadon-backup|a file beside the directory, not inside it
+CMDS
+
+# ---------------------------------------------------------------------------
+# ARM 5 — THE FIVE FALSE POSITIVES, EACH MEASURED IN AN OPERATOR'S OWN HANDS.
+#
+# On 2026-08-30 the shipped law refused all five of these while somebody was
+# doing ordinary work with it. §4.3: a legitimate action that gets refused is a
+# bug of the same severity as a missed catch, and these are worse than average
+# because two of them are the FIRST STEP OF INSTALLING the law and BACKING IT
+# UP — the product refusing its own setup and its own safety net.
+#
+# THE REPAIR IS A NARROWING, NOT A WEAKENING, and each line has its twin in
+# ARM 6 where the same verb pointed at a real unmaking is still refused:
+#   mkdir  — creates; it cannot remove, empty, overwrite, rename or chmod
+#            anything that already exists. (`mkdir -m` carries a mode and is
+#            NOT exempt; see ARM 6.)
+#   tar -c — the archive is the thing written; the path operands are READ.
+#            (`tar -x` writes; see ARM 6.)
+#   find ! — a predicate under `-not` / `!` selects the law OUT of the walk.
+#            The old code read the pattern and never read the negation, so the
+#            one spelling that EXCLUDES the law was the one that fired.
+#   an absolute .rabadon that is not this project's — the law's subject is, in
+#            the shipped docs' own words, "this project's own copy of the law".
+#            Another tree's copy is the scope law's business
+#            (baseline-rm-rf-outside), which has its own id to silence.
+while IFS='|' read -r cmd label; do
+  [ -n "$cmd" ] || continue
+  v="$(verdict "$P" "$cmd")"
+  [ "$v" = "ALLOW" ] && pass "false positive closed: $label" \
+                     || fail "FALSE POSITIVE STILL OPEN: $label"
+done <<'CMDS'
+mkdir -p .rabadon|1/5 mkdir -p .rabadon — the first step of installing the law by hand
+mkdir .rabadon|1b mkdir without -p, same effect
+mkdir -p /elsewhere/unrelated/.rabadon|2/5 an ABSOLUTE .rabadon belonging to no project of ours
+mkdir -p "$VAR/.rabadon"|3/5 a path only the shell can resolve
+tar -cf backup.tar .rabadon|4/5 BACKING THE LAW UP — which docs/guard.md promises passes
+tar -czf /tmp/law.tgz .rabadon/guard.json|4b the same with compression and an absolute archive
+find . -not -path '*/.rabadon/*' -delete|5/5 a walk that EXCLUDES the law by name
+find . ! -path '*/.rabadon/*' -delete|5b the same negation spelled with !
+tar -tf backup.tar .rabadon|listing an archive writes nothing at all
+CMDS
+
+# The scope sentence, from the other side. docs/guard.md says the subject is
+# "this project's own copy of the law"; before this phase the law fired on every
+# path on the disk that ended in .rabadon.
+# Deliberately NOT spelled with rm: a recursive delete outside the tree is
+# refused by baseline-rm-rf-outside whatever it is pointed at, so an rm here
+# would pass for the wrong reason and prove nothing about scope. chmod is not a
+# delete, so the only law that can speak is this one.
+v="$(verdict "$P" "chmod 000 $T/other-tree/.rabadon/guard.json")"
+[ "$v" = "ALLOW" ] && pass "false positive closed: another tree's .rabadon is not this project's law" \
+                   || fail "FALSE POSITIVE STILL OPEN: a .rabadon outside the project tree"
+# And the same word inside the tree still is our subject, in the same run.
+v="$(verdict "$P" "chmod 000 $P/.rabadon/guard.json")"
+[ "$v" = "REFUSE" ] && pass "still refused: this project's own copy, spelled absolute" \
+                    || fail "ALLOWED: the scope narrowing swallowed the project's own law"
+
+# ---------------------------------------------------------------------------
+# ARM 6 — THE TWIN ARM OF ARM 5, IN THE SAME SUITE ON PURPOSE. Every narrowing
+# above is paired here with the shape it must NOT have opened, plus the family
+# members the F3g arbiter measured as still passing. If a repair buys ARM 5 by
+# widening a hole, this arm goes red in the same run.
+while IFS='|' read -r cmd label; do
+  [ -n "$cmd" ] || continue
+  v="$(verdict "$P" "$cmd")"
+  [ "$v" = "REFUSE" ] && pass "still refused: $label" \
+                      || fail "ALLOWED: $label — the narrowing became a hole"
+done <<'CMDS'
+mkdir -m 000 .rabadon|mkdir CARRYING A MODE is not the create-only shape
+tar -xf a.tar -C .rabadon|tar EXTRACTING into the law directory
+tar -xf a.tar .rabadon/guard.json|tar extracting one member straight onto the law
+tar -cf .rabadon/guard.json src|tar writing its ARCHIVE over the law
+find . -path '*/.rabadon/*' -delete|the same walk WITHOUT the negation
+find . -name guard.json -delete|the un-negated name predicate
+rm -rf .r*|a glob that reaches the law without spelling it
+rm -rf .rabado?|the single-character wildcard
+rm -rf .*|the dotted glob, which in a real shell does match .rabadon
+rm -rf .rabadon*|a trailing star on the whole name
+python3 -c "import shutil; shutil.rmtree('.rabadon')"|an inline program body that names the law
+perl -e 'unlink ".rabadon/guard.json"'|the same one interpreter over
+node -e "require('fs').rmSync('.rabadon',{recursive:true})"|and one more
+ruby -e 'File.delete(".rabadon/guard.json")'|and one this list had never heard of
+CMDS
+
+# ---------------------------------------------------------------------------
+# ARM 7 — WHAT THE WIDENING MUST NOT HAVE COST. A glob that a real shell would
+# never expand onto the law, an interpreter reading it, and a program handed to
+# an interpreter as a FILE rather than as inline text.
+while IFS='|' read -r cmd label; do
+  [ -n "$cmd" ] || continue
+  v="$(verdict "$P" "$cmd")"
+  [ "$v" = "ALLOW" ] && pass "ordinary work stays allowed: $label" \
+                     || fail "REFUSED: $label — the widening reached past its subject"
+done <<'CMDS'
+rm -rf *|the bare star, which bash does NOT expand onto a dotted name
+rm -rf build/*|a glob under an ordinary subdirectory
+rm -rf .rabadonx*|a glob anchored on the name that merely STARTS like the law's
+python3 tools/clean.py|a program handed over as a FILE, whose text we cannot read
+node build.js|the same, one runtime over
+python3 -c "print(1)"|an inline program that does not name the law at all
 CMDS
 
 printf 'law_family: %d passed, %d failed\n' "$PASSN" "$FAIL"
