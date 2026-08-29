@@ -15,7 +15,62 @@ These laws are compiled into the gate and hold in any repo, with no
 | `baseline-rm-rf-outside` | a recursive `rm` whose target lands outside the project tree **and** outside the system temp area. The target is **resolved**, not pattern-matched: `..`, `~` and a symlinked parent land where they really land, and a wildcard or a brace is expanded the way a shell expands it *before* it is judged — `rm -rf /tmp/*/../../Users/you/work` is refused because every word it expands to leaves the temp area, while `rm -rf /tmp/build-*/out` passes. The temp carve-out is **your** scratch, not the shared root's contents: under `/tmp`, `/var/tmp` or `$TMPDIR` the first component of the target must be a name you wrote, so `rm -rf /tmp/scratch-*` and `rm -rf /tmp/proj-out/*` pass while `rm -rf /tmp/*`, `rm -rf /tmp/*.log` and `rm -rf /tmp/*/x` are refused — they name another session's mktemp tree as surely as your own. `$TMPDIR` is read from the environment, which is the one input an agent writes for itself, so a root named there is honoured only when it lands inside the machine's real temp area (`/tmp`, `/var/tmp`, `/var/folders`) and not under `$HOME`: `TMPDIR=/usr/local rm -rf /usr/local/lib` and `TMPDIR=/srv rm -rf /srv/www` are refused, because an assignment does not make a directory disposable. The cost, stated: an unusual `$TMPDIR` such as `/run/user/1000` is no longer read as scratch, and a recursive delete there is refused when it is also outside the project tree — silence `baseline-rm-rf-outside` by id if that is your setup. `rm -rf ./build` and `rm -rf node_modules` pass. |
 | `baseline-branch-delete` | a push that **removes** a shared branch from the remote: the empty-source refspec (`git push origin :main`, `git push origin :refs/heads/main`), `--delete` and `-d`. A deletion is not a force-push and does not carry `-f`, which is how it walked past both the compiled law and the `--force|-f` deny regex most projects write. It has its own id on purpose: a repo that silenced `baseline-force-push` because one person rewrites their own trunk has not agreed to that trunk being deleted, and a force-push replaces history other people already have while a deletion removes the branch and every commit reachable only from it, with no remote reflog to walk back through. Deleting a branch you own is ordinary work and passes: `git push origin :feature/x`, `git push --delete origin my-branch`. So does deleting a tag (`git push origin :refs/tags/nightly`) and a branch merely named after one (`:main-backup`). |
 | `baseline-hard-reset` | `git reset --hard` onto a shared branch. `git reset --hard HEAD~1` passes. |
-| `baseline-law-unmade` | anything that takes apart **this project's own copy of the law** — `.rabadon/guard.json`, `.rabadon/promise.json`, or the `.rabadon` directory holding them. It is judged by **effect, not by verb name**, because the verbs are the part that goes stale: measured against the shipped binary on 2026-08-30, `rm -rf .rabadon`, `truncate -s 0`, `cp /dev/null`, `chmod 000`, `ln -sf /dev/null`, `install /dev/null`, `dd of=`, and `find .rabadon -delete` all returned 0 while only `rm <file>` was refused. So the question asked is: after this command, is the law still there, still whole, still readable? Removed, emptied, overwritten, renamed away, symlinked over, appended to, or chmod'ed out of reach are one answer, and a verb this law has never heard of pointed at those paths is refused rather than waved through. This is the one place in the gate where an unknown name fails **closed**, because the subject is exactly three filenames. **Reading passes**, and that is held by test from the other side: `cat`, `grep` (including `grep -c rm .rabadon/guard.json`, which spells a verb but writes nothing), `head`, `tail`, `wc`, `ls`, `stat`, `diff`, `git diff`, `git log`, `sed -n`, an interpreter with no in-place flag, `cd` into the directory, and `cp .rabadon/guard.json ./backup.json` — copying it **out** — all pass. So does ordinary destructive work anywhere else in the tree. Change the law with an edit the guard can see, or silence `baseline-law-unmade` by id if a shell rewrite is really what you meant. |
+| `baseline-law-unmade` | anything that takes apart **this project's own copy of the law** — `.rabadon/guard.json`, `.rabadon/promise.json`, or the `.rabadon` directory holding them. It is judged by **effect, not by verb name**, because the verbs are the part that goes stale: measured against the shipped binary on 2026-08-30, `rm -rf .rabadon`, `truncate -s 0`, `cp /dev/null`, `chmod 000`, `ln -sf /dev/null`, `install /dev/null`, `dd of=`, and `find .rabadon -delete` all returned 0 while only `rm <file>` was refused. So the question asked is: after this command, is the law still there, still whole, still readable? Removed, emptied, overwritten, renamed away, symlinked over, appended to, or chmod'ed out of reach are one answer, and a verb this law has never heard of pointed at those paths is refused rather than waved through. This is the one place in the gate where an unknown name fails **closed**, because the subject is exactly three filenames. A path is reached however the shell would reach it: a glob (`rm -rf .r*`, `rm -rf .*`) and a brace (`mv .rabadon{,.bak}`) are expanded before they are judged — but `rm -rf *` passes, because bash does not expand a bare star onto a dotted name. An **inline** program handed to an interpreter (`python3 -c`, `perl -e`, `node -e`, `ruby -e`, and awk's first operand) is opaque text, so a body that spells one of the three names is refused; a program handed over as a **file** is not guessed at. **Reading passes**, and that is held by test from the other side: `cat`, `grep` (including `grep -c rm .rabadon/guard.json`, which spells a verb but writes nothing), `head`, `tail`, `wc`, `ls`, `stat`, `diff`, `git diff`, `git log`, `sed -n`, an interpreter reading it with no in-place flag and no inline body, `cd` into the directory, and `cp .rabadon/guard.json ./backup.json` — copying it **out** — all pass. **So does creating it and backing it up:** `mkdir -p .rabadon` is the first step of installing the law by hand and `tar -cf backup.tar .rabadon` is the promise above being kept, and both were REFUSED until 2026-08-30 — see the correction below. So does ordinary destructive work anywhere else in the tree, and so does deleting a whole project of yours that happens to contain a `.rabadon`: the subject is the law, not the tree around it. Change the law with an edit the guard can see, or silence `baseline-law-unmade` by id if a shell rewrite is really what you meant. |
+
+### Correction, 2026-08-30 — what the sentence above did NOT do until today
+
+The row says "this project's own copy of the law", and until 2026-08-30 the
+compiled rule did not do that: it fired on **every** path on the disk whose last
+component was `.rabadon`, and it read five ordinary shapes as attacks. Measured
+with an empty `bash[]` fixture in a project sandbox under `$HOME` — deliberately
+not under a machine temp root, whose carve-out inflates the reading — one line
+per shape, `REFUSE` when the gate exits 2:
+
+    bash reports/kosu/kanit/f3h/probe.sh <<'EOF'
+    mkdir -p .rabadon
+    mkdir -p /elsewhere/unrelated/.rabadon
+    mkdir -p "$VAR/.rabadon"
+    tar -cf backup.tar .rabadon
+    find . -not -path '*/.rabadon/*' -delete
+    EOF
+
+    REFUSE  mkdir -p .rabadon                          <- installing the law by hand
+    REFUSE  mkdir -p /elsewhere/unrelated/.rabadon     <- an absolute path in no project of ours
+    REFUSE  mkdir -p "$VAR/.rabadon"
+    REFUSE  tar -cf backup.tar .rabadon                <- BACKING THE LAW UP
+    REFUSE  find . -not -path '*/.rabadon/*' -delete   <- the walk that EXCLUDES the law
+
+All five now pass, and each is an assertion in `native/law_family_test.sh`
+alongside the shape it must not have opened (`mkdir -m 000 .rabadon`,
+`tar -xf a.tar -C .rabadon`, `find . -path '*/.rabadon/*' -delete`, this
+project's own copy spelled absolute). **The rule was not weakened; its subject
+was narrowed to what this row always said it was.** Another tree's `.rabadon` is
+`baseline-rm-rf-outside`'s business, under that rule's own id.
+
+### The way out?
+
+A guard with no way out is a trap, so here is the way out, measured on
+2026-08-30 rather than asserted. **Deleting a project of your own that carries
+its own `.rabadon` is ordinary work and passes** — `rm -rf ./old-project`,
+`mv ./old-project /tmp/bin`, both held by assertion in
+`native/law_family_test.sh`. The subject of this rule is the law, not the tree
+around it.
+
+For a leftover somewhere else on the disk, the refusal now names the rule that
+is actually speaking, which before today it did not:
+
+    rm -rf ~/scratch/old-sandbox
+    -> Rule: baseline-rm-rf-outside — a recursive delete outside the project tree
+       (user override: add "baseline-rm-rf-outside" to disabled[] in .rabadon/guard.json,
+        or `rabadon off` to pause supervision)
+
+Both of those work, and so does `disabled: ["baseline-law-unmade"]` for the law
+itself — that path is asserted in the suite too, because an override named in
+every refusal message that does not actually open the door is worse than no
+override at all. **`RABADON_OFF=1 <command>` is NOT one of them**: an env prefix
+is part of the command text and the gate reads it as a silencer being spelled at
+it. That spelling was published by an earlier phase and is wrong; use
+`rabadon off`.
 
 Each is judged per command segment (`&&`, `||`, `;`, `|`, newline) after
 parsing, so `npm test && git push origin feature/x` is two commands and
