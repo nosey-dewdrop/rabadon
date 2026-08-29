@@ -133,6 +133,13 @@ stamp_targets() {
   done
 }
 mq() { (cd "$1" && unset MAKEFLAGS MFLAGS MAKELEVEL && shift && make -q "$@" >/dev/null 2>&1); }
+# `touch` sets mtime to NOW, and NOW can land inside the same timestamp tick as
+# a binary make just wrote. Measured on 2026-08-29 in the pre-phase worktree:
+# native/gate_bench read "up to date" after touching baseline.h, a header it
+# DOES list — a false red produced by the clock, not by the build. An arm that
+# fails for a reason it invented is worth less than no arm, so the header is
+# pushed to a fixed hour in the future instead, which no build can tie.
+future_touch() { python3 -c 'import os,sys,time; t=time.time()+3600; os.utime(sys.argv[1],(t,t))' "$1"; }
 
 echo "rabadon make dependency graph"
 echo ""
@@ -205,7 +212,7 @@ if mq "$ROOT" $ALLT; then
     deps="$(awk -F'\t' -v h="$h" '$2==h{print $1}' "$MAP" | tr '\n' ' ')"
     [ -n "$deps" ] || continue
     cp -p "$ROOT/native/$h" "$TMP/stamp.$h"
-    touch "$ROOT/native/$h"
+    future_touch "$ROOT/native/$h"
     for t in $deps; do
       CHECKED=$((CHECKED+1))
       if mq "$ROOT" "$t"; then BADH="$BADH $t<-$h"; fi
@@ -242,7 +249,7 @@ DEPS="$(awk -F'\t' '$2=="pathres.h"{print $1}' "$FMAP" | tr '\n' ' ')"
 if [ -z "$DEPS" ]; then
   bad "no binary includes pathres.h — the mutation arm has nothing to prove"
 elif mq "$F" $DEPS; then
-  touch "$F/native/pathres.h"
+  future_touch "$F/native/pathres.h"
   if mq "$F" $DEPS; then
     ok "with the prerequisite removed, make really does answer 'up to date' after touching pathres.h — arm E can go red"
   else
