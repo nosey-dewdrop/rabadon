@@ -36,6 +36,45 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 - **Kapı bugün:** `~/.claude/settings.json` kök klonun `native/rabadon-gate` ikilisini
   çağırıyor, mod **watch (observe)**, deny değil. Öyle bırakıldı.
 
+## F1b'NİN DEĞİŞTİRDİĞİ ÖLÇÜMLER (2026-08-27 · faz BLOKE, kart `reports/kosu/RAPOR/F1b.md`)
+
+- **`native/sandbox_test.sh:121` sapması KAPANDI** (`09a93af`, tek satır, SERTLEŞTİRME:
+  `grep -qi "no kernel backend"` → `grep -q "rabadon sandbox: NO usable kernel backend"`).
+  Konteynerde süit **7/1 KIRMIZI → 9/0 YEŞİL**. Mutasyon kanıtı konteynerde koştu
+  (yeşil→kırmızı→yeşil); seçilen mutant dizge (`NO kernel backend at all`) **eski iddiayı
+  geçerdi**, yenisi yakalıyor — gevşetme değil daralma.
+- **KARTIN GEREKÇESİNDEKİ CÜMLE YANLIŞ ÇIKTI, ÖLÇÜLDÜ.** "konteynerde `make test`'i exit 2'de
+  tutan **tek kalem**" iddiası (`KARARLAR.md`, `DURUM.md:551`) doğru değil: `sandbox_test.sh`
+  **tek** kalem değil **ilk** kalemdi. Onarımdan sonra konteynerde **`make test` HÂLÂ EXIT=2**,
+  şimdi `site_claims_test.sh`'te duruyor (`site/build.py:277` → `gh` ikilisi imajda YOK,
+  koşu `--network none`). Kanıt: `reports/kosu/kanit/f1b/sonrasi-konteyner-make-test.out`.
+- **Konteyner nüfusu** (`node:22-bookworm · arm64 · root · --network none`, HEAD `09a93af`,
+  `reports/refenv/f1b-arm64-root-suites.tsv`): 106 süit / **103 YEŞİL / 2 KIRMIZI** /
+  1 TIMEOUT. Kırmızılar: `site_claims_test.sh`, `publish_redaction_test.sh`.
+  TIMEOUT (`npm_install_test.sh`) **regresyon değil**, benim `--suite-timeout 300`
+  parametremin artefaktı — o süit F2'nin üç sayımında 562/571/564 s sürüp YEŞİL'di.
+- **Konak `make test`: EXIT=0, 3786 iddia + 633 kontrol** — F2 tabanıyla BİREBİR AYNI.
+  Beklenen: sertleştirilen iddia macOS'ta hiç koşmuyor (Seatbelt hep mevcut).
+- **`8b` tuzağı kurulmadı:** `signals_test.sh` **39/0**, tek iddia eklenmedi,
+  `reports/R7/accept.sh` bu fazda hiç değişmedi. Eşitlik gevşetilmedi, `>=` yapılmadı.
+- **KIRMIZI AD KÜMESİ BU FAZDA ÖLÇÜLEMEDİ.** `accept.sh` koşturulamadı (aşağı bak).
+  Büyüdüğü iddia edilmiyor; **ölçülmediği** yazılıyor.
+- **FAZI BLOKE EDEN YENİ KIRMIZI — rabadon kendi kökünde kendini kilitledi (FALSE REJECT):**
+  kapı `red-base` ile her komutu reddediyor, kırmızı sandığı çek `python3 -m pytest -q`.
+  Ölçüm: repoda `pytest.ini` YOK, `conftest.py` YOK, `test_*.py` YOK; pytest "no tests ran"
+  deyip **exit 5** dönüyor. Kök sebep `native/truth.cpp:336-337` — `s.py > 0` + herhangi bir
+  test dosyası görünce süiti "python" sayıyor. Bu kırmızı **temizlenemez**.
+  Reddedilenler arasında **`git status` (salt-okunur)**, **`npm test`**, ve **`make test`**
+  (yani ekranın "re-run that check" tavsiyesinin ta kendisi) var. Ayrıca ret komşu dizine
+  sızıyor, ve ilk segmenti çekin kendisi olan bileşik komutlar kapıdan geçiyor (delik
+  bildirildi, **kullanılmadı**). Ayrıntı ve kanıt: kartta CHALLENGE-1/2/3.
+- **Bu yüzden F1e-C kapı şartı KARŞILANMADI** (`docs_truth_test.sh` + `install_docs_test.sh`
+  + `version_test.sh` koşturulamadı) ve **faz kapanmadı**. Kart ve bu bölüm diskte;
+  **commit atılamadı**, git de reddedildi.
+- Not: `DURUM.md:36-37` kapının **watch (observe)** modda bırakıldığını yazıyor. Bugün
+  ölçülen davranış **deny**'dir. İkisinden biri güncel değil; ajan kapı durumunu
+  değiştirmedi.
+
 ## F1a'NIN DEĞİŞTİRDİĞİ ÖLÇÜMLER (yukarıdaki satırlar F0 ölçümüdür, bunlar günceldir)
 - **Test:** `make test` **3462**/0, `npm test` **64**/0 → **3526 yeşil / 0 kırmızı**.
   (F0'da 3502'ydi; hiçbir test silinmedi, +24 eklendi.)

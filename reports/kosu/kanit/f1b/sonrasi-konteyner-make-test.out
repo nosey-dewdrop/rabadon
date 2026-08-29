@@ -1,0 +1,62 @@
+make all EXIT=0
+rule families (each negative needs a live positive above it):
+  ok   baseline-force-push: 1 must-block (1 still blocking), 0 must-not-block
+  ok   baseline-rm-rf-outside: 1 must-block (1 still blocking), 2 must-not-block
+  ok   no-force-push-main: 3 must-block (3 still blocking), 10 must-not-block
+  ok   no-hard-reset-main: 1 must-block (1 still blocking), 1 must-not-block
+  ok   no-rm-rf-outside: 1 must-block (1 still blocking), 0 must-not-block
+  ok   no-rm-rf-outside-project: 1 must-block (1 still blocking), 9 must-not-block
+  ok   no-wrangler-deploy: 3 must-block (3 still blocking), 1 must-not-block
+canaries intact after judging 34 commands (judging is not running): ok
+
+PASS
+./native/site_claims_test.sh
+site claims — a number with no command behind it is a slogan
+
+1. the sources the site names
+  ok    native/rabadon-stats exists
+  ok    native/precision_fixture.jsonl exists
+  ok    site/measured.json: every entry names a script that exists
+
+2. the overview is built, not typed
+  ok    site/index.tmpl.html exists
+  ok    no measured number left in the template's headline stats
+  FAIL  site/build.py failed
+        Traceback (most recent call last):
+          File "/w/site/build.py", line 2003, in <module>
+            main()
+          File "/w/site/build.py", line 1937, in main
+            prs = pull_requests()
+                  ^^^^^^^^^^^^^^^
+          File "/w/site/build.py", line 277, in pull_requests
+            out = sh(["gh", "search", "prs", "--author", "@me", "--limit", "100", "--json",
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          File "/w/site/build.py", line 139, in sh
+            return subprocess.run(args, capture_output=True, text=True, check=False)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          File "/usr/lib/python3.11/subprocess.py", line 548, in run
+            with Popen(*popenargs, **kwargs) as process:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          File "/usr/lib/python3.11/subprocess.py", line 1024, in __init__
+            self._execute_child(args, executable, preexec_fn, close_fds,
+          File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child
+            raise child_exception_type(errno_num, err_msg, err_filename)
+        FileNotFoundError: [Errno 2] No such file or directory: 'gh'
+  FAIL  site/build.py produced no /tmp/tmp.MscYHfPKo4/index.html — the checks below would pass on an empty tree
+  ok    no unfilled placeholder in the rendered index.html
+
+3. two pages, one number
+Traceback (most recent call last):
+  File "<stdin>", line 37, in <module>
+  File "<stdin>", line 14, in first_stat
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmp.MscYHfPKo4/index.html'
+        
+  FAIL  the overview disagrees with the page built from the same source
+
+4. the README counts its own lines
+  ok    README says ~23k, native/ measures 23980 lines
+
+  pass 7   fail 3
+  site claims: RED
+make: *** [Makefile:198: test] Error 1
+make test EXIT=2
