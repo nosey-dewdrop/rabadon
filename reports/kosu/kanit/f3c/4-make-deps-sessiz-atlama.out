@@ -1,0 +1,24 @@
+=== card 4: the branch IS reachable — measured on a tree built only partially (only native/rabadon-gate) ===
+rabadon make dependency graph
+
+  ok   - every compile rule lists its whole include closure: checked 20 compile rule(s), 112 source->header edge(s)
+  ok   - removing one prerequisite is caught and named: MISSING native/gate_bench: gate_bench.cpp includes pathres.h but the rule does not list 
+  ok   - a header reached only through another header is still required
+  ok   - a Makefile with no compile rules is reported, not read as agreement
+  FAIL - make -q arm did NOT run: the tree is not built or is out of date, so the empirical half of this suite measured nothing — run `make all` and re-run this file
+  ok   - with the prerequisite removed, make really does answer 'up to date' after touching pathres.h — arm E can go red
+
+make deps: 5 passed, 1 failed
+
+=== after 'make all' — the same file, same code, green ===
+rabadon make dependency graph
+
+  ok   - every compile rule lists its whole include closure: checked 20 compile rule(s), 112 source->header edge(s)
+  ok   - removing one prerequisite is caught and named: MISSING native/gate_bench: gate_bench.cpp includes pathres.h but the rule does not list 
+  ok   - a header reached only through another header is still required
+  ok   - a Makefile with no compile rules is reported, not read as agreement
+  ok   - make rebuilds all 111 (binary, header) pairs across 24 headers when the header changes
+  ok   - the make arm left the tree exactly as it found it (header mtimes restored)
+  ok   - with the prerequisite removed, make really does answer 'up to date' after touching pathres.h — arm E can go red
+
+make deps: 7 passed, 0 failed

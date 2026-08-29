@@ -230,7 +230,22 @@ if mq "$ROOT" $ALLT; then
     bad "the make arm left the tree needing a rebuild"
   fi
 else
-  echo "  skip - make -q arm: the tree is not built (run make first); the textual arms above still held"
+  # A SKIP HERE IS THE SUITE GETTING QUIETLY SMALLER, so it is a failure.
+  #
+  # Measured, 2026-08-29 (F3b arbiter, §6 of reports/kosu/RAPOR/F3b-R.md): this
+  # branch is not entered under `make test`, because the `test:` target depends
+  # on `all`. Harmless today. But the day it IS entered — someone running this
+  # file directly on a fresh clone, or a tree left out of date by a failed
+  # build — arm E and its mutation proof simply stop running, the suite prints
+  # fewer `ok` lines than it did yesterday, and it still exits 0. That is the
+  # shape of the exact defect this file was written to catch: a green that came
+  # from a check that did not happen. §8.2 — a counter that can drop a suite is
+  # not a counter, and a suite that can shrink in silence is not a suite.
+  #
+  # Loud, not lenient (CLAUDE.md, Promise 1: if it cannot check, it says so —
+  # it never goes quiet). The message names the arm that did not run and the
+  # one command that fixes it.
+  bad "make -q arm did NOT run: the tree is not built or is out of date, so the empirical half of this suite measured nothing — run \`make all\` and re-run this file"
 fi
 
 # --- F: MUTATION PROOF for arm E. same procedure, throwaway tree, one
