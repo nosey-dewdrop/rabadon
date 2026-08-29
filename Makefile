@@ -805,6 +805,14 @@ test: all
 	./native/route_test.sh
 	./native/llm_proposer_test.sh
 	./native/truth_test.sh
+# truth_test.sh asks whether the ladder picked the STRONGEST truth. this one
+# asks a question one step earlier and it is the one that was answered wrong:
+# whose tests are these, and which tree is this verdict about. Three measured
+# defects (D6): site-packages was not skipped so a dependency's suite was read
+# as the project's, project_root() chose $HOME whenever $HOME held a .git, and
+# net.cpp's empty-run exemption was gated on exit 0 so pytest's exit 5 never
+# received it. All three produce FALSE REJECTS, which cost the same as a miss.
+	./native/discovery_scope_test.sh
 	./native/net_test.sh
 	./native/stats_test.sh
 	./native/trace_test.sh
