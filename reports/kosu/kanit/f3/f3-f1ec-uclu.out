@@ -1,0 +1,16 @@
+=== F1e-C triple, phase FINAL binary, HEAD de9c997
+--- docs_truth_test.sh
+  ok   - no file under the real ~/.rabadon was written by this suite
+
+docs truth: 42 ok / 0 fail
+docs_truth EXIT=0
+--- install_docs_test.sh
+  ok   - docs/threat-model.md: no typeable `npm i -g rabadon`
+  ok   - docs/uninstall.md: no typeable `npm i -g rabadon`
+38 ok / 0 fail
+install_docs EXIT=0
+--- version_test.sh
+  ok   - the arm left the tree exactly as it found it (version.h mtime restored)
+
+version: 13 passed, 0 failed
+version EXIT=0
