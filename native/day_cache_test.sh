@@ -45,7 +45,7 @@ pass "the probe compiles against the real gate (gate.cpp, main renamed)"
 AGREE=$(grep '^AGREE ' "$TMP/out")
 CHECKED=$(printf '%s' "$AGREE" | awk '{print $2}')
 MISMATCH=$(printf '%s' "$AGREE" | awk '{print $3}')
-[ "${CHECKED:-0}" -ge 4800 ] 2>/dev/null \
+[ "${CHECKED:-0}" -ge 64800 ] 2>/dev/null \
   && pass "the probe compared $CHECKED timestamps against the uncached computation" \
   || { fail "only ${CHECKED:-0} timestamps were compared — this run proves nothing"; }
 [ "${MISMATCH:-1}" = "0" ] \
@@ -73,6 +73,19 @@ else
   WITNESS2=$(date -u +%F)
   [ "$TODAY" = "$WITNESS2" ] && pass "the live call answers today's UTC date ($TODAY)" \
     || fail "the live call said '$TODAY', \`date -u +%F\` says '$WITNESS2'"
+fi
+
+# ---- CHEAP, AND FOR THE SHAPE THE USER ACTUALLY RUNS ----
+# The arms below this one measure a REPEAT call and a FORKED CHILD. Both are
+# the daemon's shape. The shipped `rabadon-gate` is one process per hook event
+# and gets neither: it pays the FIRST call, cold, on every action a developer
+# takes. That number was never asserted, so a 269-483 us timezone load sat on
+# the hot path this whole file is about while every arm here stayed green.
+COLD=$(grep '^COLD_FIRST_US ' "$TMP/out" | awk '{print $2}')
+if [ -n "${COLD:-}" ] && [ "$COLD" -lt 50 ] 2>/dev/null; then
+  pass "the FIRST call in a cold process cost ${COLD}us (<50us): the one-shot gate pays no timezone load"
+else
+  fail "the FIRST call in a cold process cost ${COLD:-?}us — every hook event pays it, and the gate is one process per event"
 fi
 
 # ---- CHEAP ----

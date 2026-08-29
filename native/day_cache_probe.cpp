@@ -28,6 +28,21 @@ static void uncached(time_t t, char out[16]) {
 int main() {
   char a[16], b[16];
 
+  // 0) COLD FIRST CALL — and it has to be first, before anything below warms
+  // anything. This is the number the SHIPPED gate actually pays. rabadon-gate
+  // is one process per hook event: it never gets a second call, so a cache
+  // "for the process" saves it nothing and the cold path is the ONLY path it
+  // ever walks. The existing arms below measure a repeat call and a forked
+  // child, which are the daemon's shape; neither of them is the shape a user's
+  // hook has. Measured 2026-08-29 with gmtime_r+strftime here: ~300 us on every
+  // single event, ~18% of the whole end-to-end 1641 us the R7 `2b` ceiling is
+  // about.
+  {
+    const long long z0 = micros();
+    rb_day_str_at(1700000000, a);
+    printf("COLD_FIRST_US %lld %s\n", micros() - z0, a);
+  }
+
   // 1) AGREEMENT. Every timestamp the cache is asked about must come back with
   // the string the uncached computation would have produced. The list walks
   // forward in one-hour steps for 200 days from a fixed epoch and includes the
@@ -64,6 +79,23 @@ int main() {
       printf("MISMATCH-EDGE %lld cached=%s uncached=%s\n", (long long)edges[i], a, b);
     }
   }
+  // A WIDE sweep as well, one call per day from the epoch to 2134, still
+  // against gmtime_r+strftime. The 200-day walk above is enough to catch a
+  // stale cache; it is NOT enough to catch a calendar computed some other way
+  // getting a century leap year wrong (1900, 2100) or drifting after a few
+  // decades. If this file ever stops calling gmtime_r on the cold path, this
+  // is the arm that says the replacement means the same thing.
+  for (long long d = 0; d < 60000; d++) {
+    const time_t t = d * 86400 + 43200;
+    rb_day_str_at(t, a);
+    uncached(t, b);
+    checked++;
+    if (strcmp(a, b) != 0) {
+      mismatch++;
+      if (mismatch <= 6) printf("MISMATCH-WIDE %lld cached=%s uncached=%s\n", (long long)t, a, b);
+    }
+  }
+
   // and the boundary walked backwards as well: a cache keyed on "have I been
   // asked before" rather than on WHICH day would pass the forward walk above
   // and fail here.
