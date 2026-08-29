@@ -1,0 +1,10 @@
+MAKE_TEST_EXIT=0
+native ok lines (GENIS): 3838
+PASS (N checks) total: 633
+npm test: pass 64 / fail 0
+TOTAL: 4535 green / 0 red   (base 4529, +6)
+
+--- suite delta vs card's 0-maketest-taban.out ---
+base suites 72 head suites 73
+GREW    guard lint 20 -> 22
+NEW     silent skip None -> 4

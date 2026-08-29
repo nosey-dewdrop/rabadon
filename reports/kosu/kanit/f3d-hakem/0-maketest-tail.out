@@ -1,0 +1,300 @@
+  ok    the write is refused on anything redaction did not reach
+3. the ledger extractor withholds by the same rule, from the same module
+  ok    2 of 3 records withheld: site/field.jsonl: 3 records in, 1 published, 2 withheld (2 sensitive project name)
+  ok    the re-emitted field file carries neither name nor home path
+field.withheld=2
+  ok    the count is published, not just applied
+4. an empty terms list matches NOTHING
+rules=4 withheld=0
+  ok    no terms file: every record published, nothing withheld
+  ok    home paths are still rewritten with no terms list at all
+5. a project key is an absolute path, and is redacted as one
+  ok    the encoded key is rewritten, refused when foreign, and matched against the terms
+  ok    the extractor publishes records labelled with an encoded key (exit 0)
+  ok    both records survive, relabelled (no project) and rabadon, with no account name left
+  ok    the scanner reads the key spelling too, and finds nothing
+6. the real site/ carries neither, and the page's claim is backed by a count
+  ok    every published artifact under /Users/damummyphus/damla_projects_2026/rabadon/site is clean (12 term(s) checked)
+  ok    the page claims records are dropped and counted, and both published files state the count
+7. a CI account name is a dictionary word, and is not a leak
+        (the account this runs as is 'runner', a generic CI account name that
+         occurs in ordinary prose. Counting it would report the word, not a
+         leak. The absolute-path and project-key checks below still hold, and
+         they are the ones that would catch a real operator path.)
+  ok    the word 'runner' in prose is not reported as an account name
+        (the account this runs as is 'runner', a generic CI account name that
+         occurs in ordinary prose. Counting it would report the word, not a
+         leak. The absolute-path and project-key checks below still hold, and
+         they are the ones that would catch a real operator path.)
+  ok    the absolute home path is still reported under a generic account
+  ok    and the file carrying it is still named
+  ok    a distinctive account name on its own is still a finding
+
+publish redaction: 28 passed, 0 failed
+./native/publish_test.sh
+publish — the deploy is not the publish; the alias is
+
+1. the alias is set to the same deployment id the deploy printed
+  ok    the first publish succeeded (exit 0)
+  ok    alias points at https://rabadon-dep1k7q-nosey-dewdrops-projects.vercel.app — the deployment this run created
+  ok    vercel alias set was called with that url and the domain
+  ok    the aliased deployment carries would_block=41
+
+1b. the same run with the alias step deleted must be caught
+  ok    the un-aliased publish is rejected (exit 1)
+  ok    it names the step that failed: verify
+  ok    the domain is provably still on the older deployment
+  ok    the failure is written to the log, not only to stdout
+
+2. a second run with an unchanged ledger does not deploy
+  ok    vercel was not invoked once (3 calls before and after)
+  ok    the no-op run still exits 0
+  ok    it says 'no change' rather than going quiet
+  ok    the skipped run is on the log too — silence is not an answer
+  ok    a non-field number changing under it does not trigger a deploy
+  ok    a note inside a field.* key changing does not trigger a deploy either
+  ok    the volatile note really is in the file the trigger reads (fixture is honest)
+
+2b. the census on the same page is inside the trigger, and its clock is not
+  ok    re-running the census and getting the same answer does not deploy
+  ok    the census answer moving from 411 to 425 does deploy
+
+3. a changed ledger does deploy
+  ok    vercel was invoked (2 calls: deploy and alias)
+  ok    the alias moved to the new deployment
+  ok    it reports the number it published (77)
+  ok    the log line carries the deployment url
+
+4. two concurrent runs, one publish
+  ok    a held lock stops the run before any deploy
+  ok    the blocked run exits 0 quietly, not as an error
+  ok    it says who is holding it
+  ok    two concurrent runs produced at most one deploy+alias pair (2 vercel calls)
+  ok    the loser says it stood down
+  ok    both exit 0 — losing a lock race is not a failure
+  ok    the lock is released when the run ends
+
+5. what it is allowed to commit
+  ok    it published with another session mid-edit (exit 0)
+  ok    the commit touches nothing outside site/ (site/field.html site/field.jsonl site/index.html site/measured.json )
+  ok    site/build.py is under site/ and was still left alone
+  ok    the other session's three edits are still uncommitted, where it left them
+  ok    the commit message names what it is (lowercase, no co-author line)
+  ok    no co-author trailer
+  ok    the commit reached origin (a normal push, no force)
+
+6. gh unreachable does not publish an empty pull-requests page
+  ok    the previous pull-requests page was kept rather than published empty
+  ok    and it said so in the log
+
+7. the log
+  ok    14 lines, one per run
+  ok    every line starts with an unambiguous utc timestamp
+  ok    published, no change and FAILED are all distinguishable in one file
+  ok    each published line carries the deployment url it aliased
+
+8. a push that fails does not stop the publish, and is not swallowed either
+  ok    the site was published anyway — the alias moved
+  ok    and the run still exits non-zero (exit 1)
+  ok    the line names the step that failed: push
+  ok    the log carries it too
+  ok    the commit is still in the local history, waiting for the next push
+
+  46 passed, 0 failed
+./native/field_census_test.sh
+field census — a rule that was written and is not there is not a rule
+
+OK   all three authoring events are still listed
+OK   rule-that-lives          live=True
+OK   rule-in-a-nested-repo    live=True
+OK   rule-that-never-landed   live=False
+OK   a guard two directories down was found and attributed
+OK   field.rules_live = 2 of 3
+OK   field.rules_written still counts every authoring event
+  ok    the census separates written from live
+
+  1 passed, 0 failed
+./native/claims_test.sh
+claims — every number is asked which run produced it
+
+  ok    the honest report passes (exit 0)
+  ok    it names the number it checked
+
+  ok    the fabricated twin is caught (exit 1)
+  ok    it names the command that never ran
+  ok    it names the number that has nothing behind it
+  ok    the backed number in the same file is still reported
+
+  ok    a number with no command at all is caught (exit 1)
+  ok    it names the unsourced number
+
+  ok    a command longer than the clip still matches its ledger line
+
+  ok    the verdict states the limit: output is not on the ledger
+  ok    --json reports the unbacked count and every claim
+
+7. a citation is the command, not the whole line the shell ran
+  ok    a citation that heads a longer ledger line is backed
+  ok    a bare program name does not match every line starting with it
+
+  13 passed, 0 failed
+./native/fd_dup_test.sh
+fd duplication — 2>&1 is a descriptor, not a file
+
+1. these must pass
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && git status 2>&1
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && make test 2>&1 | tail -5
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && ls >&2
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && ls &> /dev/null
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && ls 1>&2
+  ok    cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && ls 2>&-
+  ok    git -C /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other status 2>&1
+
+2. these must still be refused
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && > ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && echo x > ROADMAP.md
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && echo x > ./1
+  ok    refused: cd /Users/damummyphus/damla_projects_2026/rabadon/.fdtest-56516/other && echo x 2> ROADMAP.md
+
+  11 passed, 0 failed
+./native/sock_path_test.sh
+  ok   - (a) nothing is delivered to the truncated socket path
+  ok   - (b) the reason is on stderr — the caller can tell this from 'no watcher'
+  ok   - (c) the gate still ran and exited cleanly (rc=0) — spool-only, not dead
+
+sock_path_test: 3 ok
+./native/day_cache_test.sh
+day cache: one timezone load per process, still the right day
+  ok   - the probe compiles against the real gate (gate.cpp, main renamed)
+  ok   - the probe compared 64808 timestamps against the uncached computation
+  ok   - every one agreed with gmtime_r+strftime
+  ok   - midnight flips the string: 2024-12-31 -> 2025-01-01, asked in reverse order
+  ok   - the live call answers today's UTC date (2026-08-29), same as `date -u +%F`
+  ok   - the FIRST call in a cold process cost 27us (<50us): the one-shot gate pays no timezone load
+  ok   - 100k repeat calls cost 3025us total (<100000us): the timezone load happened once
+  ok   - a forked child's FIRST call cost 18us (<50us): it inherited the warm cache
+day cache: 8 passed, 0 failed
+./native/mode_wrong_test.sh
+mode + wrong refusal — the two events the ledger was not keeping
+
+1. switching supervision on and off is recorded
+  ok    three changes, three lines (and --status wrote none)
+  ok    each line carries what the mode was and what it became
+  ok    the command still says the mode out loud
+
+2. a refusal that was wrong can be written down
+  ok    rabadon wrong exits 0
+  ok    one wrong refusal, one line
+  ok    it names the rule and the reason it was wrong
+  ok    a rule with no reason is refused
+
+3. both are inside the tamper-evident chain
+  ok    every new line carries prev and seq like the rest of the ledger
+  ok    rabadon audit still verifies the spool
+
+  9 passed, 0 failed
+./native/guard_subdir_test.sh
+guard reach — a project's law holds in the whole project
+
+1. at the project root (this already held)
+  ok    refused at root: git add -A
+  ok    refused at root: wrangler deploy
+
+2. from a subdirectory, where an agent actually works
+  ok    refused in engine: git add -A
+  ok    refused in engine: wrangler deploy
+  ok    refused in engine/deep: git add -A
+  ok    refused in engine/deep: wrangler deploy
+  ok    refused in engine/deep/deeper: git add -A
+  ok    refused in engine/deep/deeper: wrangler deploy
+
+3. the file rules travel with it
+  ok    refused a generated file from a subdirectory
+
+4. the walk stops at the project
+  ok    a different repository does not inherit this project's rules
+
+5. the allow twins still pass, at the root and below
+  ok    honest work still passes in /
+  ok    honest work still passes in /engine/deep
+
+6. a project that is not a git repository at all
+  ok    refused in / of a non-git project
+  ok    refused in /sub of a non-git project
+  ok    refused in /sub/deeper of a non-git project
+  ok    the twin still passes in a non-git project
+
+  16 passed, 0 failed
+./native/rule_census_test.sh
+rule census — four ways a rule that lints can still never fire
+
+1. the pipe: a pattern that spells \| is matched against a surface a pipe cannot be in
+  ok   - the pipe rule fires on the line it was written for
+  ok   - the exit-code rule fires on the line it was written for
+  ok   - the left half alone is an ordinary command -> allowed
+  ok   - the right half alone is an ordinary command -> allowed
+
+2. redirections: does the surface a deny regex reads still carry > and >>?
+  ok   - a truncating redirect at the named file -> refused by no-truncating-write
+  ok   - an appending redirect at the named file -> refused by no-truncating-write
+  ok   - the tee spelling -> refused by no-truncating-write
+  ok   - an unrelated file -> allowed
+
+3. protectedPaths: the rule is written relative, the event carries absolute
+  ok   - the ^-anchored relative rule fires on the absolute path Claude Code sends
+  ok   - the absolute path is caught, by whichever rule is first
+  ok   - the ^-anchored rule DOES fire on a relative spelling (which nothing sends) -> refused by anchored-relative
+
+4. guard reach: a session standing one directory below the project root
+  ok   - at the project root the rule holds -> refused by reach-no-yarn
+  ok   - one directory down the rule still holds
+  ok   - two directories down the rule still holds
+
+5. judging is not running
+  ok   - the home canary survived
+  ok   - the delete fixture survived every probe above
+  ok   - the guards on disk are unmodified by judging
+
+  pass 17   fail 0
+  rule census: GREEN (no mechanism found)
+./native/identity_test.sh
+identity: a label is collapsed for an identity reason, or not at all
+  ok   - an ordinary project name is a project, unchanged
+  ok   - the :session suffix is a pipe spelling, not part of the name
+  ok   - an underscore is a real directory character and is NOT rewritten
+  ok   - a dot INSIDE a name is part of the name
+  ok   - a name that resembles nothing on any list survives as a name
+  ok   - an UNKNOWN label stays a project name: the fail-safe direction is 'in front of a human'
+  ok   - a space becomes a dash: two spellings of one project collapse
+  ok   - and the same for the second one
+  ok   - leading, trailing and repeated whitespace all normalise
+  ok   - the marker itself stays the marker
+  ok   - what a scrub left behind is residue, not a second project
+  ok   - wherever in the label the marker lands
+  ok   - (lab) re-resolves to itself
+  ok   - (no project) re-resolves to itself
+  ok   - a record with no project recorded says so
+  ok   - and so does an empty label
+  ok   - the home directory is not a project
+  ok   - and it is not one in the spelling an unhomed path leaves either
+  ok   - a dot-directory is configuration, not a project
+  ok   - including a dotted probe tree
+  ok   - the system scratch area is not a project
+  ok   - a probe tree with an mktemp suffix
+  ok   - and the other probe family
+  ok   - the bench harness's twelve scratch repos
+  ok   - mktemp's own spelling
+  ok   - the repair harness's scratch repository
+  ok   - the demo
+  ok   - a public repo visited to be measured keeps its name
+  ok   - a label the committed list speaks for, with its evidence beside it
+  ok   - a label resolves through the list it is actually given
+  ok   - and NOT through a list that does not name it — no rule is baked into the code
+  ok   - with an empty list every structural rule still holds and nothing else collapses
+  ok   - every line of site/non-projects.txt parses as <lab|none> <label>
+  ok   - the committed list is 4 entries — small enough that every one can be argued
+  ok   - every entry has its evidence written above it
+  ok   - a guard's identity is the directory it lives in, not the name it declares
+  ok   - five labels resolve to three identities — the module answers, it does not pass through
+identity: 37 passed, 0 failed
+MAKE_TEST_EXIT=0

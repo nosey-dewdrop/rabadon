@@ -1,0 +1,28 @@
+== arbiter's own ring read: psig is really the previous record's signature ==
+magic b'RBMV1\x00\x00\x00' count 876 nextSeq 876
+seq range 676 .. 875 n 200
+744 1788026890918 sig=8858b49ba555b376 err= "bash -c 'cd ~/damla_projects_2026/_f3d_temizklon && ./native/rabadon-g"
+745 1788026893552 sig=eb2c7ddc48212e3f err= 'bash -c \'cd ~/damla_projects_2026/_f3d_temizklon; printf "probe 3: doe'
+746 1788026897710 sig=83d003eefdf5f7eb err= "python3 - <<'PY'\nimport json\nlast=[]\nfor l in open('/Users/damummyphus"
+747 1788026903283 sig=eef5c36eb451d6c1 err= "sed -n '3262,3292p' native/gate.cpp"
+748 1788026909990 sig=d29f8a4e0da7fe41 err= "python3 - <<'PY'\nimport json\nlast=[]\nfor l in open('/Users/damummyphus"
+749 1788026937222 sig=5d2ffb90b624adce err=c827cdae109a188c 'ls -la ~/damla_projects_2026/_f3d_temizklon/native/rabadon-gate 2>&1; '
+750 1788026939526 sig=7577820618053015 err=2d94b260594f7751 'file ~/damla_projects_2026/_f3d_temizklon/native/rabadon-gate 2>&1; ls'
+751 1788026941794 sig=8a12e6a47161fb68 err=5e388021e8d3d3a0 "printf 'probe: is the gate binary present in the unbuilt clone?\\n'; ls"
+752 1788026945430 sig=474caf5152ab8dd8 err= "python3 - <<'PY'\nimport json\nlast=[]\nfor l in open('/Users/damummyphus"
+753 1788026949161 sig=68f72542b20375b9 err= 'grep -n "toolResponse" native/gate.cpp | head -20'
+754 1788026951172 sig=19863454840eb921 err= 'sed -n \'3080,3110p\' native/gate.cpp; echo "=== hookev toolResponse:"; '
+755 1788026973708 sig=53b8ec62a318f69e err=c827cdae109a188c 'command ls -la ~/damla_projects_2026/_f3d_temizklon/native/rabadon-gat'
+756 1788026975981 sig=1a37b823ede897e7 err=c827cdae109a188c 'env ls -la ~/damla_projects_2026/_f3d_temizklon/native/rabadon-gate 2>'
+757 1788026979952 sig=474caf5152ab8dd8 err= "python3 - <<'PY'\nimport json\nlast=[]\nfor l in open('/Users/damummyphus"
+758 1788026989922 sig=69f067c23b54e9ca err= "python3 - <<'PY'\nimport json\nout=[]\nfor l in open('/Users/damummyphus/"
+759 1788027001497 sig=17d91d99700f9995 err=8072d419d6c05ee4 "python3 - <<'PY' | tee reports/kosu/kanit/f3d/5-canli-b.out\nimport jso"
+
+== PostToolUse blind spot, measured by the arbiter ==
+STEP_START toolu_01RCs43FXi5ZmtdXc9roaEVn | bash: env ls -la /nonexistent-hakem-probe-ZZ1 2>&1
+STEP_START toolu_01WyX5NzR2pdu1ckTexK1AKM | bash: grep -c 'hakem-probe-ZZ1' ~/.rabadon/spool/2026-08-29.jsonl; gre
+STEP_OK toolu_01WyX5NzR2pdu1ckTexK1AKM | ran: grep -c 'hakem-probe-ZZ1' ~/.rabadon/spool/2026-08-29.jsonl; grep
+STEP_START toolu_01Xgcf9CMS3BvaDdKbojbzzp | bash: grep 'hakem-probe-ZZ2' ~/.rabadon/spool/2026-08-29.jsonl | grep 
+STEP_OK toolu_01Xgcf9CMS3BvaDdKbojbzzp | ran: grep 'hakem-probe-ZZ2' ~/.rabadon/spool/2026-08-29.jsonl | grep -
+STEP_START toolu_01Arn8GLSFwsjc4f6cpKgdEX | bash: grep -h 'hakem-probe' ~/.rabadon/spool/2026-08-29.jsonl | python
+STEP_OK toolu_01Arn8GLSFwsjc4f6cpKgdEX | ran: grep -h 'hakem-probe' ~/.rabadon/spool/2026-08-29.jsonl | python3

@@ -704,7 +704,112 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 ## SIRA
 
-### F3c HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+### F3d HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F3d: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F3d-R.md`'de. Beş açık kalem hükme bağlandı (`KARARLAR.md`,
+2026-08-29 · F3d · (a)–(e)).
+
+**KIRMIZI AD KÜMESİ, F3d SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı; `2b` satırı "median is 1282.2 us with
+the daemon up, ceiling is 1000 us"; tavan **oynatılmadı**, `accept.sh` fazın
+diff'inde **HİÇ YOK**).
+**DEVİR SAYILARI: 4535 yeşil / 0 kırmızı** (taban 4529, **+6**; native 3838
+iddia + 633 kontrol + npm 64/0). +6'nın kaynağını hakem ayırdı: `guard lint`
+**20 → 22** ve yeni `silent skip` **4**. Süit karşılaştırması: **72 → 73 süit,
+düşen / küçülen / kaybolan süit YOK.** Silinen dosya **0**; `*.sh` diff'indeki
+11 `-` satırının hepsi eski sessiz-skip echo'ları ve sayaç ilklendirmeleridir,
+hiçbiri bir iddia değil.
+
+**F3d'DE GERÇEKTEN OLAN, ÜÇ SATIR:**
+1. **CANLI (b): n = 0 → 1, GERÇEK — ama KIŞKIRTILMIŞ.** Defterdeki
+   `INJECT mseq=757 psig=1a37b823ede897e7` ve
+   `INJECT_ANSWER mseq=758 sig=69f067c23b54e9ca same=false` kayıtlarını hakem
+   **ikinci bir artefaktla** doğruladı: halka dosyasını (`RBMV1`) kendi
+   parser'ıyla açtı, hamle 756/757/758'in imzaları defterdekilerle **birebir**
+   tuttu; diff'te deftere yazan fikstür/seed YOK, tek satır C++ YOK, INJECT
+   commit'ten 42 sn önce doğdu, `pipe:"rabadon:session"` = ajan imzası
+   (§F3:142). **AMA** hamle 749/755/756 aynı komutun üç yazımıdır
+   (`ls`/`command ls`/`env ls`, hepsi `; true` ekli, hepsi aynı `err_sig`) —
+   ajan sinyali kendi eliyle üretti; ve taşıyıcı hamle 757'nin imzası hamle
+   752 ile aynı olduğu için `same=false` yapısal olarak garantiliydi.
+   **§F3 (b) LAFZEN 1, ÖZÜNDE HÂLÂ 0.**
+2. **SESSİZ SKIP SINIFI KAPANDI, ve altında ÖLÜ BİR KOL çıktı.** Bayat ağaç
+   artık kırmızı düşüyor (hakemin kendi mutasyonu: `version` taban 11/0 EXIT=0
+   ↔ HEAD 11+1 FAIL EXIT=1; `guard_lint` taban 20/0 EXIT=0 ↔ HEAD 20+1 FAIL),
+   ortam dalları adıyla ve sayısıyla ilan ediyor (`node` gizlendi →
+   `redbase_scope` "9 assertion(s) did NOT run"). Taban ağaçta yeni kilit
+   **3 passed / 1 failed, `sites=15 files=13`** (kartın "14 site" başlığı
+   düzeltildi). **`guard_lint_test.sh`'in ampirik kolu yazıldığından beri hiç
+   koşmamıştı** — tam kurulu ağaçta bile "the tree is not built" deyip skip'e
+   düşüyordu; +2 iddia bu yüzden gerçektir. `sandbox` ve `script_wrapper`
+   dallarını **hakem de zorlayamadı** → DOĞRULANMADI.
+3. **`2b` HIZLANMADI ve iddia edilmedi; ama iki ölçüm sonraki kararı
+   değiştirdi.** Hakemin kendi koşumu (N=400×6, eşli, alternatif): tam yol
+   **1602,1 µs**, `RABADON_OFF=1` **676,4 µs**, rabadon'un kendi işi
+   **925,7 µs 6+/0−** → **tavanın %68'i, bütün mantığa kalan 324 µs.**
+   A/A (N=500×8, gerçek fark SIFIR): ortalama **+117,2 µs**, aralık
+   **330,9 µs**, işaret **7+/1−**, tek koşu içinde 1472,5 → 2357,0 µs tek
+   yönlü sürükleniyor.
+
+**HAKEMİN İKİ DÜZELTMESİ (kartın cümlelerine karşı):**
+- Kartın *"%60'ı ürünün kontrolü dışındaki süreç başlatma"* cümlesi **YANLIŞ**:
+  betikte `null` = `/usr/bin/true` doğurma maliyeti **zaten çıkarılmış**, yani
+  o 676 µs `rabadon-gate` ikilisinin **kendi** yükleme maliyetidir (dyld, ikili
+  boyutu, statik başlatıcılar) ve **ürünün kendi kalemidir**. **Tavan 1000 µs
+  ölçmek istediğini ölçüyor ve OYNAMAZ (§3.8/4, §11);** düzeltilecek olan
+  **F3-S1'in HEDEFİDİR** — 324 µs'lik pencerede algoritmik kazanç tavana
+  ulaşmaz, hedef ikili yükleme maliyeti olmalıdır.
+- **F3b hakeminin "8/8 işareti ayrı ve geçerli bir kanıttır" hükmü SINIRDADIR:**
+  bu makinede sıfır gerçek farkta A/A **7+/1−** verdi. Bundan sonra eşli bir
+  iddia hem **|243 µs|**'yi aşmalı hem **8/8** olmalı, ve tek koşudan
+  alıntılanmamalıdır.
+
+**⚠ ÖLÇÜT DEĞİŞİKLİĞİ `eafa3e7` — HAKEM ONAYLADI (§3.8/1 incelendi).** Faz ajanı
+`native/silent_skip_test.sh`'in kabul kuralını değiştirdi (sayaç echo'nun kendi
+satırında olmak zorunda değil; pencere 3 yukarı / 1 aşağı). Onay gerekçesi:
+dosya §3.8/1'in mühürlediği kümede **değil** (`accept.sh` ve `ON-KAYIT.md`
+diff'i 0 satır), ölçüt **aynı fazda aynı ajanın doğurduğu** yeni bir kilittir,
+düzeltme bir gevşetme kadar bir **sertleşme** de taşıyor (`ok()` yardımcısını
+sayaç sanma deliği kapandı), ayrı commit + kodsuz + eski/yeni yazılı, ve
+**belirleyici olan: düzeltmeden sonra süit KIRMIZI kaldı (3 passed / 1 failed)**
+— yeşili onarım commit'i getirdi. **Aynı hareket devralınmış bir kapıya
+yapılsaydı REDDEDİLİRDİ.**
+
+**F4 KAPALI KALIR.** (c) negatif kontrolü ne kartta ne hakemde koşuldu
+(§F3:143 lafzen "bu ölçüm yapılmadan F4 açılmaz"). **(c)'nin sahibi F3e
+DEĞİL, F6'nın iki kollu aletidir** — ayrı bir alet mühürlü görev kümesini
+böler (§3.8/2). Doğru sıra: **F3e → F6-aletiyle-(c) → F4.**
+
+**SIRADAKİ FAZ: F3e. BLOKLAYAN İLK KARTI `err_sig`'İN KÖR NOKTASIDIR —
+hakem kendi eliyle ölçtü: ÇIKIŞI SIFIR OLMAYAN BİR BASH ÇAĞRISI İÇİN
+PostToolUse OLAYI HİÇ GELMİYOR.**
+Ölçüm, aynı oturumda iki komut:
+`toolu_01RCs43FXi5ZmtdXc9roaEVn` = `env ls -la /nonexistent-hakem-probe-ZZ1 2>&1`
+(**exit 1**) → defterde **STEP_START VAR, STEP_OK YOK**;
+`toolu_01Xgcf9CMS3BvaDdKbojbzzp` (sonu `; true`, **exit 0**) → **ikisi de VAR**.
+`err_sig` yalnız PostToolUse dalında atandığı için rabadon'un var olma sebebi
+olan "aynı hata üçüncü kez" sinyali **düz başarısız bir komutu göremiyor** —
+faz ajanı n=1'i ancak her komuta `; true` ekleyerek, yani kör noktayı **elle
+telafi ederek** üretebildi. Dört fazlık n=0'ı bu açıklıyor.
+1. **F3e KART 1 (BLOKLAYAN):** kök sebebi bul (harness olayı göndermiyor mu,
+   gate erken mi dönüyor — hakem **ölçemedi**, yalnız semptomu ölçtü) ve kapat:
+   ya olayın gelmediğini kanıtlayıp `err_sig`'i başka bir yüzeyden türet
+   (sonraki PreToolUse'un transcript'i / Stop hook), ya da gate'in erken
+   dönüşünü onar. **Kabul: mutasyon kanıtı + `; true`'suz, kışkırtılmamış
+   canlı bir n ≥ 1.** Bu kart kapanmadan F3e'nin başka kartı başlamaz.
+2. **F3e KART 2:** `2b` / F3-S1'in hedefini ikili yükleme maliyetine çevir
+   (324 µs pencere, yukarıdaki düzeltme). Tavan **oynatılamaz**.
+3. **AÇIK, SAHİPSİZ:** `baseline-truncating-redirect` **iki hakem oturumunda
+   üst üste yanlış pozitif verdi** (F1b ve F3d) — henüz var olmayan bir dosyaya
+   giden yönlendirmeyi "içerik siliniyor" diye reddediyor ve ret metni satırdaki
+   komutu göremiyor. **Yanlış pozitif sayacı bu turda +1.** Kartı yok.
+4. **AÇIK, SAHİPSİZ, YENİ:** canlı oturum durumu artık `~/.rabadon/sessions/`e
+   değil **projenin kendi** `.rabadon/sessions/`ına yazılıyor (o dizin 16:15'ten
+   beri hiç yazılmadı), ve `~/.rabadon/.rabadon/` diye üçüncü bir kök var.
+   Hangisinin kanonik olduğu belgede yazılı değil; "canlı defter =
+   `~/.rabadon/spool`" varsayımı **defter için doğru, halka için YANLIŞ**.
+
+### F3c HAKEM HÜKMÜ (2026-08-29) — *(SÜPERSEDE: yukarıdaki F3d bloğu daha günceldir; bu blok silinmiyor)*
 **`F3c: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
 `RAPOR/F3c-R.md`'de. Altı açık kalem hükme bağlandı (`KARARLAR.md`,
 2026-08-29 · F3c · (a)–(f)).
