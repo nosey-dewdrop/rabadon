@@ -196,6 +196,22 @@ test: all
 # gate never saw a fixture the negative is red, not green, which is the vacuity
 # bug moves_test.sh and reports/R2/accept.sh each shipped once.
 	./native/signals_test.sh
+# signals_test.sh proves the detectors FIRE. this one proves the injection they
+# produce is still JUDGEABLE tomorrow. Measured, not assumed: the ledger held 7
+# INJECT lines and 0 of them could be judged, because the INJECT line named the
+# move it rode on (mseq) and the move itself lived only in the 200-slot ring in
+# native/moves.h. 39 rings on that machine, 2 had rolled past CAP -- and both of
+# those two were the rings carrying an injection, 2 of 2. The loss is selective:
+# a signal is born in a long session and a long session is the one that rolls.
+# So the two facts layer (b) of KOSU §F3 needs -- the signature that was
+# repeating BEFORE the injection, and the signature of the first move AFTER it
+# -- stop living in the ring and go on the append-only spool as `psig` on INJECT
+# and as a new INJECT_ANSWER event. This suite drives a real oscillation to a
+# real delivery, then buries it under 210 further moves, proves from the ring
+# header that mseq has been evicted, and asks (b) again off the ledger alone. It
+# also drives the agent REPEATING itself and requires same=true, because a field
+# that is always false proves the field exists and nothing about the agent.
+	./native/inject_answer_test.sh
 # signals_test.sh proves the DETECTORS fire on a fixture. this one proves the
 # SCREEN the user reads when those detectors are replayed over their own move
 # rings -- `rabadon usage --signals`. Different claim, so a different file:
