@@ -1,0 +1,16 @@
+sanity: both binaries take the ALLOW path (exit 0) on the benchmarked event
+  rep 1: A=  3060.7  B=  2653.9  empty=  1591.5  B-A=  -406.7 us
+  rep 2: A=  3154.2  B=  2657.0  empty=  1225.8  B-A=  -497.2 us
+  rep 3: A=  3118.4  B=  2743.7  empty=  1663.9  B-A=  -374.7 us
+  rep 4: A=  3083.2  B=  2732.9  empty=  1251.5  B-A=  -350.3 us
+  rep 5: A=  3071.4  B=  2797.0  empty=  1209.0  B-A=  -274.4 us
+
+A (/Users/damummyphus/damla_projects_2026/_f3f_taban/native/rabadon-gate)
+B (/Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate)
+A end-to-end median            =   3083.2 us   attributable =   1831.8 us
+B end-to-end median            =   2732.9 us   attributable =   1481.5 us
+empty baseline median          =   1251.5 us
+paired B-A mean                =   -380.7 us   sign 0+/5-
+noise band (F3e arbiter, A/A)  =   439.0 us, and the sign must be one-sided
+VERDICT                        = INSIDE THE NOISE BAND — no claim may be made
+ceiling                        =  1000.0 us   (untouched)

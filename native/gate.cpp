@@ -2623,7 +2623,46 @@ static void rb_counter_compute(const string& spoolDir, const string& sid,
   }
 }
 
+// ---------- the profile probe (RABADON_PROFILE=1) ----------
+//
+// WHY THIS EXISTS AND NOT ANOTHER A/B. Three phases in a row picked the wrong
+// leg to blame, and each time the method was the same: run two different
+// binaries (or one binary twice with a switch) and subtract the medians. F3e's
+// arbiter buried that method with a number — the loading leg came back 524.6 /
+// 676.4 / 915.2 us on three runs of the SAME measurement, a 390 us spread
+// inside a 439 us noise band. A decomposition whose legs are noise cannot
+// choose a target, and choosing one anyway is how the last two phases each
+// blamed a leg that was not the cost.
+//
+// So the split is taken WITHIN ONE RUN instead of BETWEEN runs:
+//   t_ctor  the first static initializer to run — everything before it is
+//           kernel exec + dyld + the libc++/libSystem images
+//   t_main  the first line of main() — t_main - t_ctor is static init
+//   t_exit  just before the process ends — t_exit - t_main is rabadon's own
+//           logic, every rule, every file read, the whole hot path
+// and the harness records the wall time of the same process, so `wall - t_exit`
+// (plus t_ctor) is the pre-main cost of THAT run rather than of a different
+// one. Paired by construction; no subtraction of one population from another.
+//
+// Off unless RABADON_PROFILE=1, and the only cost on the shipped path is one
+// clock read at ctor time and one getenv at exit.
+static long long rb_prof_ns() {
+  struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+static long long g_prof_ctor = 0, g_prof_main = 0;
+namespace { struct RbProfInit { RbProfInit() { g_prof_ctor = rb_prof_ns(); } }; RbProfInit g_rb_prof_init; }
+static void rb_prof_report() {
+  const char* p = getenv("RABADON_PROFILE");
+  if (!p || p[0] != '1' || !g_prof_main) return;
+  const long long end = rb_prof_ns();
+  fprintf(stderr, "rbprof ctor_to_main_us=%.1f main_to_exit_us=%.1f ctor_abs_ns=%lld\n",
+          (g_prof_main - g_prof_ctor) / 1000.0, (end - g_prof_main) / 1000.0, g_prof_ctor);
+}
+
 int main(int argc, char** argv) {
+  g_prof_main = rb_prof_ns();
+  atexit(rb_prof_report);
   g_self = argv[0];
   // SECURITY, fail-CLOSED: the gate emits its verdict over a unix socket to any
   // live watcher BEFORE it reaches exit(2). If the watcher's end is closed, a

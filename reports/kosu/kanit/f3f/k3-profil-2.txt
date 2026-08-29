@@ -1,0 +1,11 @@
+sanity: benchmarked event is ALLOWED -> gate exit 0
+N = 150
+leg                                    median        min        p90
+wall (fork+exec+dyld+init+main)        2591.7     2400.3     2923.8
+pre_main (kernel exec + dyld)          1867.3     1704.7     2129.1
+ctor_to_main (static init)                2.0        1.0        2.0
+main_to_exit (rabadon's own logic)      735.0      648.0      852.0
+
+pre_main (kernel exec + dyld)       72.0% of wall
+ctor_to_main (static init)           0.1% of wall
+main_to_exit (rabadon's own logic)  28.4% of wall

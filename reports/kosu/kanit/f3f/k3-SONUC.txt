@@ -1,0 +1,54 @@
+== KART 3 -- `2b`. SONUC: BU FAZ DA HIZLANDIRMADI. (2026-08-29)
+
+1) ONCE PROFIL, TAHMIN DEGIL -- ve fark AYRISTIRMA YONTEMINDE.
+   Son uc fazin hepsi bacaklari IKI KOSUYU BIRBIRINDEN CIKARARAK buldu; F3e
+   hakemi bunu bir sayiyla gomdu (ayni olcumun yukleme bacagi uc kosuda
+   524,6 / 676,4 / 915,2 us = 390 us yayilim, 439 us bandin icinde).
+   Bu fazda ayristirma TEK KOSUNUN ICINDE aliniyor: ikili kendi monotonik
+   saatiyle ctor / main girisi / cikis anlarini basiyor (RABADON_PROFILE=1),
+   harness ayni surecin duvar saatini tutuyor. Bacaklar insaen esli.
+
+   native/rabadon-gate, allow yolu, iki BAGIMSIZ kosu (N=150):
+     bacak                              kosu 1        kosu 2
+     wall                              3119,9 us     2591,7 us
+     pre_main (kernel exec + dyld)     2256,3 us     1867,3 us   %72,3 / %72,0
+     ctor_to_main (statik init)            2,0 us        2,0 us   %0,1  / %0,1
+     main_to_exit (rabadon'un mantigi)  843,0 us      735,0 us   %27,0 / %28,4
+   Duvar saati %20 gezdi, PAY ise 0,3 puan oynadi. Differansiyel yontemin
+   ayni sorudaki yayilimi 390 us idi; bu yontemin payi kararli.
+
+   NE DEMEK: rabadon'un kendi mantigi ~735-843 us. Bos taban (/usr/bin/true,
+   ayni harness) 1209-1252 us. Yani atfedilebilir maliyetin KABACA YARISI
+   rabadon'un kendi kodu, kabaca yarisi bu ikilinin imaj yukleme fazlasi.
+   -> F3e hakeminin %49/%51 hukmu DOGRULANDI, ama differansiyel olcumle degil.
+   -> F3d'nin "hedef ikili yukleme maliyeti" yonlendirmesi (geri cekilmisti)
+      da, F3e'nin "%70 kural yolu" iddiasi da bu sayiyla tutmuyor: %50/%50.
+   -> Hicbir bacak tek basina ~800 us'yi vermiyor. Hakemin kisiti ayakta.
+
+2) HIZLANDI MI? HAYIR -- ve "yaklasti" YAZILMIYOR.
+   Esli, siralamasi her tekrarda degisen sweep (N=200, 5 tekrar, HEAD vs
+   F3f-oncesi=b482d40, ucuncu kol bos taban):
+     rep  B-A: -406,7 / -497,2 / -374,7 / -350,3 / -274,4 us
+     ortalama -380,7 us, isaret 0+/5-
+   Tek yanli, AMA |439 us| bandini ASMIYOR -> HUKUM: GURULTU, IDDIA YOK.
+   (Yon "HEAD daha hizli" cikiyor; bu fazin degisikligi bir atexit + bir ctor
+   saat okumasi, yani hizlandirmasi beklenmiyor. Tam da bu yuzden gurultu.)
+
+3) BUGUNUN AYAKTA KALAN SAYISI (kanonik alet, reports/kosu/kanit/f3/2b-uctan-uca.sh,
+   N=200, gate exit saglamlik kontrolu gecti):
+     gercek gate uctan uca            3107,5 us
+     bos taban                        1209,2 us
+     ATFEDILEBILIR                    1898,3 us
+     tavan                            1000,0 us   -- OYNATILMADI
+     atfedilebilir / tavan            1,90x
+   Esli kosudaki ayni HEAD ikilisi 1481,5 us atfedilebilir verdi; alet ~400 us
+   geziyor, bu yuzden tek bir sayi degil ARALIK yaziliyor: 1481-1898 us.
+   `reports/R7/accept.sh` -> "2b the gate's median is 1235,4 us, ceiling 1000"
+   (sureç-ici prob, ayri tanim). accept.sh bu fazin diff'inde HIC YOK.
+
+4) NE DEGISMEDI: tavan 1000 us, accept.sh, ON-KAYIT.md, claims.tsv, guard.json.
+   NE OLCEMEDIM: pre_main'in ICINDEKI dagilimi (kac us dyld, kac us kernel exec)
+   -- DYLD_PRINT_STATISTICS bu makinede hicbir sey basmiyor (SIP), ve process
+   disindan bolmek tam da elenen differansiyel yontem olurdu. OLCEMEDIM.
+   main_to_exit'in ICINDEKI dagilimi da olculmedi (hangi kural, hangi dosya
+   okumasi) -- F4/F3-S1 icin acik kalem.
