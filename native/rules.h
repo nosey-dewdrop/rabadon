@@ -451,6 +451,31 @@ inline bool rule_refuses(const string& pattern, const rbtext::Parsed& p, const s
     const std::vector<string> one(1, p.segs[i].surface);
     if (!rx_test_any(pattern, one)) continue;
     if (pathRule && all_targets_disposable(p.segs[i], cwds[i])) continue;
+    // A MENTION IS NOT A WRITE, and this rule's own neighbour wrote that
+    // sentence down on 2026-08-03: no-scripted-inplace-test-rewrite carries a
+    // `wrongWhy` reading "A rule about a write was matching a mention." The
+    // same defect was still live in the rule beside it, and it was reproduced
+    // against HEAD on 2026-08-30 rather than argued about:
+    //
+    //     grep -c rm .rabadon/guard.json      -> rc=2, REFUSED
+    //
+    // The pattern asks only that `rm` and the path appear on one line in some
+    // order, so a SEARCH for the word rm read as a delete of the file being
+    // searched. §4.3 counts that as the expensive kind of wrong: a refusal the
+    // operator knows is nonsense costs their belief in every other refusal.
+    //
+    // THIS NARROWS THE SCOPE, IT DOES NOT WEAKEN THE RULE — the precedent is
+    // F2-S12, where a pipe inside a quoted word stopped being a pipeline. A
+    // segment that writes NOTHING, anywhere, cannot be the subject of a rule
+    // about a path: no redirection opens a file, and the command word is a
+    // reader whose operands it only reads. The list behind that question is
+    // deliberately stingy and holds no interpreter (rbbase::is_pure_reader):
+    // `python3 x.py` writes whatever x.py writes, and waving it through here
+    // would silently kill no-blind-inplace-source-rewrite, whose whole subject
+    // is an interpreter writing into native/. The twin arms are in one suite,
+    // native/guard_delete_test.sh: ARM 1 keeps every real violation BLOCKED
+    // against the live rule, ARM 3 keeps the reads ALLOWED against the same one.
+    if (pathRule && rbbase::segment_writes_nothing(p.segs[i])) continue;
     return true;
   }
   return false;
@@ -554,6 +579,10 @@ inline Verdict judge_command(const string& guard, const string& cmd, const strin
         const std::vector<string> one(1, parsed.segs[i].surface);
         if (!rx_test_any(r.pattern, one)) continue;
         if (pattern_names_a_path(r.pattern) && all_targets_disposable(parsed.segs[i], cwds[i])) continue;
+        // the reached-guard walk is the same judgement one directory over, so
+        // the mention/write narrowing above has to hold here too or a `grep`
+        // becomes a refusal the moment the line names another repository.
+        if (pattern_names_a_path(r.pattern) && rbbase::segment_writes_nothing(parsed.segs[i])) continue;
         v.refused = true; v.id = r.id; v.why = r.why;
         v.detail = "command matched deny rule of the project it reaches into (" + root +
                    "): " + cmd.substr(0, 160);

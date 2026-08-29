@@ -474,7 +474,13 @@ inline bool mentions_acted_on(const string& cmd) {
   return mentions_word(cmd, "git") || mentions_word(cmd, "rm") || mentions_word(cmd, "shred") ||
          mentions_word(cmd, "trash") || mentions_word(cmd, "unlink") || mentions_word(cmd, "find") ||
          mentions_word(cmd, "rsync") || mentions_word(cmd, "truncate") || mentions_word(cmd, "dd") ||
-         cmd.find('>') != string::npos;
+         cmd.find('>') != string::npos ||
+         // the law-unmade law acts on three FILENAMES rather than on a verb, so
+         // its precondition is the names, not a verb list. Without this line the
+         // scan drops `chmod 000 .rabadon/guard.json` before any law sees it,
+         // which is the shred lesson two paragraphs up, spelled with a target.
+         cmd.find(".rabadon") != string::npos || cmd.find("guard.json") != string::npos ||
+         cmd.find("promise.json") != string::npos;
 }
 
 // a word the layers above this parser act on, rather than carry as data

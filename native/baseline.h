@@ -175,6 +175,183 @@ using rbpath::resolve_real;
 using rbpath::show_pattern;
 using rbpath::temp_roots;
 
+// ---------- the project's own copy of the law ----------
+// A GUARD THAT CAN BE UNMADE IS NOT A GUARD, and until 2026-08-30 this one
+// could be, nine ways. `<project>/.rabadon/guard.json` and `promise.json` were
+// protected by NAME, by one regex living inside the very file it was protecting
+// (`no-shell-rewrite-of-guard-or-promise`), and a name protects neither the
+// DIRECTORY that holds it nor the verbs that never spell it. Measured against
+// the shipped binary in a project sandbox under $HOME — deliberately not under
+// a machine temp root, because the scope law exempts one and an earlier reading
+// was inflated by exactly that (reports/kosu/kanit/f3g/k1-oncesi.txt):
+//
+//     rm -rf .rabadon                          rc=0    truncate -s 0 <law>   rc=0
+//     cp /dev/null <law>                       rc=0    chmod 000 <law>       rc=0
+//     ln -sf /dev/null <law>                   rc=0    install /dev/null <law> rc=0
+//     dd if=/dev/null of=<law>                 rc=0    find .rabadon -delete rc=0
+//
+// EIGHT SHAPES, ONE FAMILY, AND THE FAMILY IS THE POINT. The previous repair
+// closed `rm <law>` and left the other eight, because it reasoned about the
+// command's NAME. Naming verbs is how a list goes stale — `shred` sat in the
+// delete family for weeks and still walked, and cmdtext.h keeps that as its
+// standing lesson. So this law does not ask what the command is called. It asks
+// the one question that closes a family instead of a shape: AFTER THIS SEGMENT
+// RUNS, IS THE LAW STILL THERE, STILL WHOLE, STILL READABLE? Removed, emptied,
+// overwritten, renamed away, symlinked over, or chmod'ed out of reach are all
+// the same answer, and an unknown verb pointed at the law is refused rather
+// than waved through — the one place in this binary where a name list fails
+// CLOSED, because the subject is exactly three filenames and the cost of being
+// wrong is one visibly refused read with an id printed beside it.
+//
+// The READS are held from the other side, in the same suite, by
+// native/law_family_test.sh ARM 3: cat, grep (including `grep -c rm <law>`,
+// which is the mention the old regex read as a delete), head, tail, wc, ls,
+// git diff, git log, stat, diff, sed -n, an interpreter reading it, and
+// copying it OUT all stay allowed. ARM 4 holds ordinary destructive work in
+// the same project — rm -rf build, chmod, truncate, dd, mv, find -delete —
+// unchanged, so this is a law about the law and not a wall around the tree.
+//
+// NOT COVERED, measured and written down rather than implied: a path that
+// reaches the law only through a glob that does not spell it (`rm -rf .r*`), a
+// symlink planted earlier that points at it, and a script body handed to an
+// interpreter that is not a shell (`python3 -c "shutil.rmtree(...)"`) — the
+// parser re-reads a shell's -c string as a program and does not re-read
+// python's. Deleting the whole enclosing tree is a different family and belongs
+// to the recursive-delete laws, not this one.
+
+// The three paths, decided lexically so no stat() lands on the hot path: this
+// IS `<x>/.rabadon`, `<x>/.rabadon/guard.json`, or `<x>/.rabadon/promise.json`.
+inline bool is_project_law_path(const string& abs) {
+  const string a = norm_dir(abs);
+  const size_t s = a.rfind('/');
+  const string last = s == string::npos ? a : a.substr(s + 1);
+  if (last == ".rabadon") return true;
+  if (last != "guard.json" && last != "promise.json") return false;
+  if (s == string::npos) return false;
+  const string parent = a.substr(0, s);
+  const size_t p = parent.rfind('/');
+  return (p == string::npos ? parent : parent.substr(p + 1)) == ".rabadon";
+}
+
+// THE PRE-FILTER, and the reason the gate's published latency does not move: a
+// word that cannot possibly spell one of those three names never pays for a
+// resolve. It is a substring test, not a boundary test, because `.rabadonx` has
+// to reach the resolver above and be told no there — a filter that answered
+// that question itself would be a second answer to it.
+inline bool word_could_name_law(const string& raw) {
+  return raw.find(".rabadon") != string::npos || raw.find("guard.json") != string::npos ||
+         raw.find("promise.json") != string::npos;
+}
+
+// `of=<path>` is the spelling dd uses and `FOO=<path>` is the spelling a
+// prefix uses; the path is the half after the first `=`, and reading only the
+// whole word is how dd was the one shape in the supervision family that still
+// walked (see inside_supervision, which learned this the same way).
+inline bool word_names_law(const string& raw, const string& cwd) {
+  if (raw.empty()) return false;
+  if (word_could_name_law(raw) && is_project_law_path(lexical_abs(raw, cwd))) return true;
+  const size_t eq = raw.find('=');
+  if (eq == string::npos || eq + 1 >= raw.size()) return false;
+  const string val = raw.substr(eq + 1);
+  return word_could_name_law(val) && is_project_law_path(lexical_abs(val, cwd));
+}
+
+// ---------- reading is not writing ----------
+// Two lists, on purpose, because they answer to two different failure costs.
+//
+// is_pure_reader is the STINGY one. It is what rules.h consults before it
+// suppresses a project's OWN deny rule, and a suppression there disarms a law
+// somebody else wrote about a subject this file knows nothing about. An
+// interpreter is not on it: `python3 x.py` writes whatever x.py writes, and
+// waving it through would have silently killed no-blind-inplace-source-rewrite,
+// whose whole subject is an interpreter writing to native/.
+inline bool is_pure_reader(const string& b) {
+  return rbtext::name_is(b, "cat") || rbtext::name_is(b, "grep") || rbtext::name_is(b, "egrep") ||
+         rbtext::name_is(b, "fgrep") || rbtext::name_is(b, "rg") || rbtext::name_is(b, "ag") ||
+         rbtext::name_is(b, "head") || rbtext::name_is(b, "tail") || rbtext::name_is(b, "wc") ||
+         rbtext::name_is(b, "ls") || rbtext::name_is(b, "stat") || rbtext::name_is(b, "file") ||
+         rbtext::name_is(b, "diff") || rbtext::name_is(b, "cmp") || rbtext::name_is(b, "od") ||
+         rbtext::name_is(b, "xxd") || rbtext::name_is(b, "strings") || rbtext::name_is(b, "nl") ||
+         rbtext::name_is(b, "less") || rbtext::name_is(b, "more") || rbtext::name_is(b, "sort") ||
+         rbtext::name_is(b, "uniq") || rbtext::name_is(b, "cut") || rbtext::name_is(b, "jq") ||
+         rbtext::name_is(b, "basename") || rbtext::name_is(b, "dirname") ||
+         rbtext::name_is(b, "realpath") || rbtext::name_is(b, "readlink") ||
+         rbtext::name_is(b, "cksum") || rbtext::name_is(b, "du") ||
+         rbtext::name_is(b, "md5") || rbtext::name_is(b, "md5sum") ||
+         rbtext::name_is(b, "shasum") || rbtext::name_is(b, "sha1sum") ||
+         rbtext::name_is(b, "sha256sum") || rbtext::name_is(b, "echo") ||
+         rbtext::name_is(b, "printf") || rbtext::name_is(b, "true") ||
+         // MOVING THE SHELL IS NOT TOUCHING THE FILE. `cd <...>/.rabadon` was
+         // refused on 2026-08-30, by this law, against the session that wrote
+         // it: the operand names the directory and `cd` was on no list, so it
+         // fell through to "an unknown verb pointed at the law". cd, pushd,
+         // popd and test open nothing, create nothing and truncate nothing.
+         // This is the fail-closed list paying its first bill, in public and
+         // with an assertion, which is the deal the comment above makes.
+         rbtext::name_is(b, "cd") || rbtext::name_is(b, "pushd") ||
+         rbtext::name_is(b, "popd") || rbtext::name_is(b, "test") || b == "[";
+}
+
+// git's subcommand decides, not git: `git diff <law>` reads it and `git rm
+// <law>` is still an rm. Anything not on this list is treated as a write.
+inline bool git_reads_only(const vector<rbtext::Word>& t, size_t ci) {
+  size_t sub = 0;
+  if (!rbtext::git_subcommand(t, ci, sub)) return false;
+  const string& s = t[sub].text;
+  return s == "diff" || s == "log" || s == "show" || s == "status" || s == "blame" ||
+         s == "grep" || s == "cat-file" || s == "ls-files" || s == "ls-tree" ||
+         s == "rev-parse" || s == "describe" || s == "shortlog" || s == "annotate";
+}
+
+inline bool is_interpreter(const string& b) {
+  return rbtext::name_is(b, "sed") || rbtext::name_is(b, "awk") || rbtext::name_is(b, "perl") ||
+         rbtext::name_is(b, "ruby") || rbtext::name_is(b, "python") ||
+         rbtext::name_is(b, "python3") || rbtext::name_is(b, "node");
+}
+
+// `-i`, `-i.bak`, `--in-place`, and the clustered `-pi` perl spells. `sed -n`
+// carries no i and stays a read; that assertion is in law_family_test.sh.
+inline bool has_inplace_flag(const vector<rbtext::Word>& t, size_t ci) {
+  for (size_t i = ci + 1; i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s.size() < 2 || s[0] != '-') continue;
+    if (s.compare(0, 2, "--") == 0) { if (s.compare(0, 10, "--in-place") == 0) return true; continue; }
+    for (size_t k = 1; k < s.size(); k++) if (s[k] == 'i') return true;
+  }
+  return false;
+}
+
+// the GENEROUS list, and it may be generous because its subject is exactly
+// three filenames: an interpreter that carries no in-place flag is reading.
+inline bool segment_reads_the_law(const vector<rbtext::Word>& t, size_t ci) {
+  const string b = rbtext::base_of(t[ci].text);
+  if (rbtext::name_is(b, "git")) return git_reads_only(t, ci);
+  if (is_interpreter(b)) return !has_inplace_flag(t, ci);
+  return is_pure_reader(b);
+}
+
+// A segment that writes NOTHING, anywhere — the question rules.h asks before it
+// lets a path rule fire. A redirection is a write with no command word to read,
+// so it is asked first and separately.
+inline bool segment_writes_nothing(const rbtext::Seg& sg) {
+  for (size_t r = 0; r < sg.redirs.size(); r++) {
+    const rbtext::Redir& rd = sg.redirs[r];
+    if (rd.op.find('>') == string::npos) continue;
+    if (!rd.op.empty() && rd.op.back() == '&') {          // 2>&1 is a descriptor, not a file
+      bool fd = rd.target == "-";
+      if (!fd) { fd = true; for (char c : rd.target) if (c < '0' || c > '9') { fd = false; break; } }
+      if (fd) continue;
+    }
+    if (rd.target.compare(0, 5, "/dev/") == 0) continue;
+    return false;
+  }
+  const size_t ci = rbtext::command_index(sg.words);
+  if (ci >= sg.words.size()) return false;
+  const string b = rbtext::base_of(sg.words[ci].text);
+  if (rbtext::name_is(b, "git")) return git_reads_only(sg.words, ci);
+  return is_pure_reader(b);
+}
+
 
 // ---------- shared branches ----------
 // The branch a ref operand names, with every spelling git allows around it
@@ -609,10 +786,116 @@ inline Destroy destroy_of(const vector<rbtext::Word>& t) {
   return d;
 }
 
+// ---------- what a segment takes apart, by effect ----------
+// Only the operands that this verb WRITES. `cp <law> ./copy` reads the law and
+// writes the copy; `cp /dev/null <law>` is the other way round. Getting the
+// direction wrong in either direction is a bug: one way it is a hole, the other
+// way it refuses somebody backing the file up.
+inline bool dest_is_last_operand(const string& b) {
+  return rbtext::name_is(b, "cp") || rbtext::name_is(b, "install") ||
+         rbtext::name_is(b, "ln") || rbtext::name_is(b, "link") ||
+         rbtext::name_is(b, "rsync");
+}
+
+inline void law_written_operands(const vector<rbtext::Word>& t, size_t ci, const string& cwd,
+                                 vector<string>& out) {
+  const string b = rbtext::base_of(t[ci].text);
+
+  if (rbtext::name_is(b, "dd")) {                        // only of= is opened for writing
+    for (size_t i = ci + 1; i < t.size(); i++)
+      if (t[i].text.compare(0, 3, "of=") == 0 && word_names_law(t[i].text.substr(3), cwd))
+        out.push_back(t[i].text.substr(3));
+    return;
+  }
+
+  if (rbtext::name_is(b, "find")) {
+    const Destroy d = destroy_of(t);
+    if (!d.isDestroy) return;                            // a walk that only prints
+    for (size_t i = 0; i < d.targets.size(); i++)
+      if (word_names_law(d.targets[i], cwd)) out.push_back(d.targets[i]);
+    // AND the walk itself. `find . -name guard.json -delete` never spells the
+    // law as a path — it spells it as a pattern and lets the walk find it, so
+    // the root is `.` and no operand resolves anywhere near .rabadon.
+    for (size_t i = ci + 1; i + 1 < t.size(); i++) {
+      const string& f = t[i].text;
+      if (f != "-name" && f != "-iname" && f != "-path" && f != "-ipath" &&
+          f != "-wholename" && f != "-iwholename") continue;
+      const string& pat = t[i + 1].text;
+      if (pat.find("guard.json") != string::npos || pat.find("promise.json") != string::npos ||
+          pat.find(".rabadon") != string::npos)
+        out.push_back(pat);
+    }
+    return;
+  }
+
+  if (dest_is_last_operand(b)) {
+    string last;
+    for (size_t i = ci + 1; i < t.size(); i++) {
+      const string& s = t[i].text;
+      if (s.size() > 1 && s[0] == '-') continue;
+      last = s;
+    }
+    if (!last.empty() && word_names_law(last, cwd)) out.push_back(last);
+    return;
+  }
+
+  // EVERY OTHER VERB, INCLUDING THE ONES NOBODY HAS THOUGHT OF. rm, mv, rmdir,
+  // unlink, shred, truncate, chmod, chown, tee, an in-place editor, and the
+  // command this file has never heard of: if it names the law and it is not a
+  // read, the law does not survive the assumption that it is harmless.
+  for (size_t i = ci + 1; i < t.size(); i++) {
+    const string& s = t[i].text;
+    if (s.size() > 1 && s[0] == '-' && !word_could_name_law(s)) continue;
+    if (word_names_law(s, cwd)) out.push_back(s);
+  }
+}
+
+inline Hit law_hit(const string& shown, const string& how) {
+  return {"baseline-law-unmade",
+          "this takes apart the project's own copy of the law, which is the thing that "
+          "would have refused the next command",
+          how + " '" + shown + "' resolves onto .rabadon/guard.json, .rabadon/promise.json "
+          "or the directory holding them. Removing, emptying, overwriting, renaming or "
+          "chmod-ing that file disarms this project's guard for every session after it, "
+          "and nothing left behind says it happened. Read it with `cat`, change it with an "
+          "edit the guard can see, or silence baseline-law-unmade by id if this is really "
+          "what you meant."};
+}
+
+inline bool law_unmade(const rbtext::Seg& sg, const string& cwd, Hit& hit) {
+  // A redirection empties the file it points at before any command runs, and it
+  // does it with no command word to read. `>>` is here too: appending to a JSON
+  // document destroys it as surely as truncating it does.
+  for (size_t r = 0; r < sg.redirs.size(); r++) {
+    const rbtext::Redir& rd = sg.redirs[r];
+    if (rd.op.find('>') == string::npos) continue;
+    if (!rd.op.empty() && rd.op.back() == '&') continue;   // 2>&1 opens no file
+    if (!word_names_law(rd.target, cwd)) continue;
+    hit = law_hit(rd.target, "the redirection '" + rd.op + "' at");
+    return true;
+  }
+  const size_t ci = rbtext::command_index(sg.words);
+  if (ci >= sg.words.size()) return false;
+  if (segment_reads_the_law(sg.words, ci)) return false;
+  vector<string> written;
+  law_written_operands(sg.words, ci, cwd, written);
+  if (written.empty()) return false;
+  hit = law_hit(written[0], "`" + rbtext::base_of(sg.words[ci].text) + "` at");
+  return true;
+}
+
+
 inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const string& root,
                          const vector<string>& disabled, Hit& hit) {
   const vector<string> cwds = rbpath::segment_cwds(p, cwd0);
   for (size_t s = 0; s < p.segs.size(); s++) {
+    // THE LAW FIRST, and before the containment question. `.rabadon/guard.json`
+    // is inside the project BY CONSTRUCTION, so every test that asks "does this
+    // land inside the tree" answers yes for it and proves nothing — which is
+    // exactly how the rm arm of the rule written for it got suppressed, and how
+    // the other eight shapes never reached a law at all.
+    if (!disabled_has(disabled, "baseline-law-unmade") && law_unmade(p.segs[s], cwds[s], hit))
+      return true;
     // A redirection destroys a file with no command on the line at all.
     // `> ROADMAP.md` opens it for writing and truncates it before anything
     // runs, and the parser has always carried redirections separately from
@@ -1326,6 +1609,16 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd,
     if (!relevant && !disabled_has(disabled, "baseline-supervision-tamper"))
       for (size_t w = ci + 1; w < p.segs[s].words.size() && !relevant; w++)
         relevant = inside_supervision(p.segs[s].words[w].text, cwd);
+    // AND THE PROJECT'S OWN LAW MAKES A SEGMENT RELEVANT WHATEVER THE VERB IS,
+    // for the same reason and with the same shape: cp, ln, install, chmod,
+    // truncate and dd are not verbs any older law acts on, so eight measured
+    // ways of unmaking guard.json returned here without a law running. The
+    // precondition is the question itself — does any operand spell one of the
+    // three names — and it costs a substring scan on the segments the verb test
+    // already declined.
+    if (!relevant && !disabled_has(disabled, "baseline-law-unmade"))
+      for (size_t w = ci + 1; w < p.segs[s].words.size() && !relevant; w++)
+        relevant = word_could_name_law(p.segs[s].words[w].text);
   }
   if (!relevant) return false;
   const string root = project_root(cwd);
