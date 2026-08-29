@@ -183,6 +183,42 @@ function desiredHooks(gateCmd, driftCmd) {
   };
 }
 
+// WHICH SUBSCRIPTIONS THIS SETTINGS FILE IS MISSING, derived from desiredHooks
+// and from nothing else. `rabadon doctor` used to ask two questions about the
+// registered hooks — is the path dead, does it belong to another install — and
+// both were about WHERE the command points. Neither was about WHAT it is
+// registered for, so on 2026-08-29 doctor printed "global hooks healthy (1
+// rabadon command(s), all from this install)" and "all green" at a file that
+// had no PostToolUseFailure entry and therefore could not see a single failing
+// command. A green certificate on a blind install is worse than no check.
+//
+// Reported as "<event> -> <binary>" pairs because Stop carries two different
+// binaries and a set of event NAMES would have called that half-registered
+// event complete. Ownership is read the way installHooks writes it — the
+// command names a rabadon binary — so somebody else's hook is never counted as
+// ours and never as missing.
+export function missingSubscriptions(settingsPath, { gateCmd = GATE_BIN, driftCmd = DRIFT_BIN } = {}) {
+  let settings;
+  try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { return null; }
+  if (!settings || typeof settings !== 'object') return null;
+  const have = new Set();
+  for (const [ev, arr] of Object.entries(settings.hooks || {})) {
+    if (!Array.isArray(arr)) continue;
+    for (const entry of arr)
+      for (const h of (entry && entry.hooks) || [])
+        if (h && typeof h.command === 'string' && isOurs(h.command)) have.add(`${ev} ${path.basename(h.command.split(' ')[0])}`);
+  }
+  if (have.size === 0) return [];              // not an install of ours: nothing is "missing"
+  const missing = [];
+  for (const [ev, entries] of Object.entries(desiredHooks(gateCmd, driftCmd)))
+    for (const e of entries)
+      for (const h of e.hooks) {
+        const bin = path.basename(h.command.split(' ')[0]);
+        if (!have.has(`${ev} ${bin}`)) missing.push(`${ev} -> ${bin}`);
+      }
+  return missing;
+}
+
 function readSettings(settingsPath) {
   if (!fs.existsSync(settingsPath)) return { settings: {}, existed: false };
   // a corrupt file throws — caller decides, we never overwrite what we cannot read
@@ -371,4 +407,4 @@ export function removeHooks(dir) {
   return { settingsPath, changed: true, removed };
 }
 
-export default { installHooks, installCursorHooks, removeHooks, removeCursorHooks, GATE_BIN, DRIFT_BIN, NATIVE_DIR, GATE_PATH, BIN_PATH, RABADON_CMD_RE };
+export default { installHooks, installCursorHooks, removeHooks, removeCursorHooks, missingSubscriptions, GATE_BIN, DRIFT_BIN, NATIVE_DIR, GATE_PATH, BIN_PATH, RABADON_CMD_RE };

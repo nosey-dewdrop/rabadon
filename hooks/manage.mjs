@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installHooks, installCursorHooks, removeHooks, removeCursorHooks, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, NATIVE_DIRS, RABADON_CMD_RE } from './install.mjs';
+import { installHooks, installCursorHooks, removeHooks, removeCursorHooks, missingSubscriptions, GATE_BIN, DRIFT_BIN, nativeBin, missingCore, NATIVE_DIRS, RABADON_CMD_RE } from './install.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, '..');
@@ -417,7 +417,21 @@ function cmdDoctor() {
           const r = realOr(bin);
           if (!roots.some((root) => isUnder(r, root))) stale.push(bin);
         }
-        if (dead.length === 0 && stale.length === 0) ok(`global hooks healthy (${cmds.size} rabadon command(s), all from this install)`);
+        // ...and a third way, the one both of those miss: the paths are all
+        // current and the EVENT SET is old. Measured 2026-08-29 on this
+        // machine — the file was written 26 Aug, the binary had learned
+        // PostToolUseFailure that morning, and doctor said "all green" at an
+        // install that could not see a single failing command. `shipped but
+        // not installed` is invisible to any check that only follows paths.
+        const missingSubs = missingSubscriptions(gs) || [];
+        if (dead.length === 0 && stale.length === 0 && missingSubs.length === 0)
+          ok(`global hooks healthy (${cmds.size} rabadon command(s), all from this install)`);
+        if (missingSubs.length) {
+          warn(`${missingSubs.length} subscription(s) this install writes are NOT registered — the settings file is older than the binary`);
+          missingSubs.forEach((m) => console.log(`         ${m}`));
+          why('the agent only delivers events you are subscribed to, so anything rabadon learned since this file was written never reaches it — the repo is fixed and this machine is not');
+          run('rabadon init --global   (re-registers them; the file is backed up first, and a session start does it on its own)');
+        }
         if (dead.length) {
           warn(`${dead.length} global hook command(s) point at a path that does not exist — a removed install's leftovers`);
           dead.forEach((d) => console.log(`         ${d}`));

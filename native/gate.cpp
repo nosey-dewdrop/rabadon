@@ -1217,9 +1217,76 @@ static bool subscribed_to_failures(const string& cwd) {
   return false;
 }
 
+// ---------- THE UPGRADE PATH: shipped is not installed ----------
+//
+// A hook subscription is written once, at install time, and then never looked
+// at again. That makes "the binary is new, the subscription is old" a silent,
+// permanent state — and on 2026-08-29 it was measured on this very machine:
+// hooks/install.mjs had subscribed to PostToolUseFailure that morning, and
+// ~/.claude/settings.json (written 26 Aug 20:17) still listed five events, so
+// every command that exited non-zero was invisible here. Repo green, machine
+// blind. For a product whose users will overwhelmingly be ALREADY INSTALLED,
+// that is the most expensive defect class there is: nothing you repair ever
+// arrives.
+//
+// So the gate carries the upgrade itself. SessionStart fires on every install
+// that has ever existed (it is in the oldest event set too), which makes it the
+// one place an old install is guaranteed to reach new code. From there it
+// spawns hooks/refresh.mjs, which calls the SAME installHooks() the installer
+// calls: there is no second list of events to keep in sync, so an event added
+// to desiredHooks() tomorrow reaches every installed machine by this same path.
+//
+// Deliberately narrow:
+//   - only settings files that ALREADY have rabadon entries are touched
+//     (refresh.mjs enforces it): self-healing must not become self-installing.
+//   - rate-limited by a stamp file, and the stamp is written BEFORE the run, so
+//     a refresh that dies cannot become a spawn on every session.
+//   - RABADON_SELFHEAL=0 turns it off; a user who wants their settings.json
+//     frozen has one env var, not a fork.
+//   - if node or refresh.mjs is not there (prebuilt platform package with no
+//     JS beside it), it does nothing and the contract's blind-spot line still
+//     names `rabadon init`. Falling back to the honest sentence, never to
+//     silence.
+// Off the hot path in the strict sense: SessionStart only, once per interval.
+static bool refresh_hook_subscriptions(const string& cwd, const string& rdir, string& out) {
+  const char* off = getenv("RABADON_SELFHEAL");
+  if (off && string(off) == "0") return false;
+
+  long long everySec = 6 * 3600;
+  if (const char* iv = getenv("RABADON_SELFHEAL_SEC")) { long long v = atoll(iv); if (v >= 0) everySec = v; }
+  const string stamp = rdir + "/hooks-refresh.stamp";
+  struct stat sst;
+  if (stat(stamp.c_str(), &sst) == 0 && time(nullptr) - sst.st_mtime < everySec) return false;
+
+  // <pkg>/native/rabadon-gate -> <pkg>/hooks/refresh.mjs is the clone and the
+  // `npm i -g` layout both; a prebuilt platform package keeps its binaries one
+  // level deeper, so that shape is tried too rather than assumed absent.
+  string js = self_dir() + "/../hooks/refresh.mjs";
+  if (!file_exists(js)) js = self_dir() + "/../../../hooks/refresh.mjs";
+  if (!file_exists(js)) return false;
+
+  { FILE* f = fopen(stamp.c_str(), "w"); if (f) { fputs("1\n", f); fclose(f); } }
+
+  const string cmd = "node \"" + js + "\" \"" + cwd + "\" 2>/dev/null";
+  string res;
+  if (FILE* p = popen(cmd.c_str(), "r")) {
+    char buf[4096]; size_t n;
+    while ((n = fread(buf, 1, sizeof buf, p)) > 0) res.append(buf, n);
+    pclose(p);
+  }
+  if (res.empty()) return false;
+  out = res;
+  return true;
+}
+
+// failSub: 2 = subscribed to failed calls · 1 = was not, and was just
+// re-registered by the self-heal above · 0 = not subscribed and not repaired.
+// The value is read BEFORE the refresh runs, because a subscription written
+// this second does not reach an agent that loaded its hooks at startup: this
+// session is still blind and has to say so.
 static string contract_block(const string& cwd, const string& truthJson,
                              bool enforce, bool repairOn, bool cursorDialect,
-                             const string& guardRaw) {
+                             const string& guardRaw, int failSub) {
   const int level = (int)get_num(truthJson, "level");
   const string run = get_str(truthJson, "run");
   const string why = get_str(truthJson, "why");
@@ -1315,11 +1382,19 @@ static string contract_block(const string& cwd, const string& truthJson,
     // machines; only re-running `rabadon init` does. So it is declared here,
     // out loud, until it is true. Checked against BOTH settings files a hook
     // can live in, because either one subscribing is enough.
-    if (!subscribed_to_failures(cwd))
-      blind.push_back("this install does not subscribe to PostToolUseFailure, so a command "
+    // ...and fixing the binary did not fix those machines either, which is why
+    // the gate now re-registers the subscription itself at SessionStart. It
+    // still lands one session late — Claude Code read its hooks before this
+    // process existed — so the blind spot is reported for THIS session in both
+    // arms, and only the closing sentence differs.
+    if (failSub != 2)
+      blind.push_back(string("this install does not subscribe to PostToolUseFailure, so a command "
                       "that EXITS NON-ZERO is invisible to me here\n"
-                      "                 (no error signature, so no repeat is ever detected) "
-                      "— fix: `rabadon init`");
+                      "                 (no error signature, so no repeat is ever detected)")
+                      + (failSub == 1
+                         ? " — I just re-registered it;\n"
+                           "                 it is live from your NEXT session, this one stays blind"
+                         : " — fix: `rabadon init`"));
     o << "  blind spots:\n";
     for (const auto& b : blind) o << "               - " << b << "\n";
   }
@@ -4373,6 +4448,17 @@ int main(int argc, char** argv) {
     // this whole binary exists to refuse. If the helper is missing or slow the
     // block still prints, with the NONE FOUND arm, which is the truth in that
     // case too.
+    // The upgrade path runs HERE, and its answer is read BEFORE it runs: an
+    // install repaired this second is still an install this session's agent
+    // never saw. Both facts go on the screen, neither is rounded up.
+    string refreshMsg;
+    const bool subBefore = subscribed_to_failures(cwd);
+    const bool refreshed = refresh_hook_subscriptions(cwd, rdir, refreshMsg);
+    const int failSub = subBefore ? 2 : (refreshed && subscribed_to_failures(cwd) ? 1 : 0);
+    if (refreshed) {
+      fwrite(refreshMsg.data(), 1, refreshMsg.size(), stdout);
+      em.emit("HOOKS_REFRESHED", "\"subscribed_before\":" + string(subBefore ? "true" : "false"));
+    }
     {
       string truthJson;
       const string tbin = self_dir() + "/rabadon-truth";
@@ -4386,7 +4472,7 @@ int main(int argc, char** argv) {
       }
       const string block = contract_block(cwd, truthJson, g_mode == MODE_ENFORCE,
                                           llmOn, g_dialect == rbhook::DIALECT_CURSOR,
-                                          guardRaw);
+                                          guardRaw, failSub);
       // stdout: on Claude Code and Cursor a SessionStart hook's stdout becomes
       // session context, so the agent reads its own terms too — it is a
       // contract with both parties, not a banner at the user.
