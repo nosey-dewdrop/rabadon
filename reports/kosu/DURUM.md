@@ -704,7 +704,74 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 ## SIRA
 
-### F3 HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+### F3b HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F3b: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F3b-R.md`'de. Dört açık kalem hükme bağlandı (`KARARLAR.md`,
+2026-08-29 · F3b · (a)–(d)).
+
+**KIRMIZI AD KÜMESİ, F3b SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı, süreç-içi `2b` **1220,0 µs** — F3'te
+1237,5 idi, yükselmedi; tavan 1000 µs `accept.sh:122/203`'te oynatılmadı ve
+kapı dosyalarının diff'i **0 satır**).
+**DEVİR SAYILARI: 4513 yeşil / 0 kırmızı** (taban 4505, **+8**; native 3816
+iddia + 633 kontrol + npm 64/0). +8'in tamamı iki yeni kola ait:
+`make_deps_test.sh` **7** + `day_cache_test.sh` `COLD_FIRST_US` armı **1**.
+Silinen dosya YOK, silinen/atlanan iddia YOK.
+
+**F3b'DE GERÇEKTEN OLAN, ÜÇ SATIR:**
+- **D7 KAPANDI.** `Makefile`'ın **7** kuralı include kapanışını eksik sayıyordu;
+  hepsi hizalandı ve `native/make_deps_test.sh` (YENİ, `make test`'te, 7 iddia)
+  ile kilitlendi. Hakem doğruladı: faz öncesi ağaçta süit **5/2 KIRMIZI**;
+  `touch native/pathres.h && make all` sonrası `rabadon-net` mtime faz öncesinde
+  **DEĞİŞMİYOR**, HEAD'de **DEĞİŞİYOR**; hakemin kendi mutasyonu (tek önkoşul
+  çıkarıldı) süiti **7/0 → 5/2** düşürdü. **D7 fazın İLK iş commit'idir**, yani
+  bu fazın hiçbir yeşili bayat ikiliden gelmedi.
+- **F3-S1 ONARILDI AMA TAVANIN ALTINA İNMEDİ — NEGATİF SONUÇ.** Soğuk
+  `gmtime_r` timezone yüklemesi olay başına ödeniyordu (**582 µs**); UTC günü
+  tamsayı takvimiyle hesaplanıyor (**16 µs**, 64808 damgada 0 uyuşmazlık).
+  **Hakemin kendi 8 eşli tekrarı** (`kanit/f3/2b-uctan-uca.sh`, N=200,
+  BASE→HEAD sırayla): BASE ortalama **1848,5 µs**, HEAD ortalama **1475,4 µs**,
+  fark **−373,1 µs, 8/8 negatif**, HEAD medyanı 1638,0.
+  **BUGÜNÜN TEK GEÇERLİ SAYISI: atfedilebilir uçtan uca 1475,4 µs, tavana
+  kalan açık 475,4 µs = 1,48×.** Kartın "kalan açık ~330 µs"u bugün yeniden
+  ÜRETİLMEDİ; açık ~145 µs daha büyük (kart MEDYANI, aletin MEAN tanımlı
+  tavanına karşı koymuştu). Mutlak sayı ±%20 gürültü bandındadır ve
+  **tek koşudan alıntılanmamalıdır**; güvenilir olan eşli FARKtır.
+- **(b) VE (c) TESLİM EDİLMEDİ — ürün kapsamı ÜST ÜSTE İKİNCİ FAZDA %0.**
+  Faz diff'i `inject.h`/`signals.h`/`policy.h`'e hâlâ hiç dokunmuyor.
+
+**(b) NEDEN ÖLÇÜLEMİYOR — hakem ölçtü, ve sebep ürün kodu DEĞİL KANIT ALTYAPISI:**
+defterde **7 INJECT**, yargılanabilir **0**. `~/.rabadon/sessions/*.moves.bin`
+header'larından `count`: **39 halka, medyan count 3, yalnız 2'si `CAP=200`'ü
+aşmış (%5,1) — ama enjeksiyon taşıyan 2 halkanın 2'si de aşmış (%100)**.
+Kayıp rastgele değil **seçici**: sinyal uzun oturumda doğar, uzun oturum halkayı
+yuvarlar, kanıt tam doğduğu yerde silinir. Ve `grep -ln INJECT native/*_test.sh`
+→ **0**: enjeksiyonu uçtan uca süren tek fikstür bile yok. Aynı duvara bu
+dosyada üçüncü kez çarpılıyor (F1c: başlık 666 / diskte 527 · F2: LOSS 1.417 /
+başlık 1.944, kayıp %72,9).
+
+**D5/3'ÜN O5 TETİĞİ ÇALDI** (zincir 5: D1 · D6 · CHALLENGE-2 · D7 · `CAP=200`
+halkasının kanıtı yok etmesi). `UYANDIGINDA.md` · O5 güncellendi. **Ürün konumu
+operatörün kalemidir ve hakem onu DEĞİŞTİRMEDİ**; hakemin yaptığı tek şey
+§3.7 sıra değişikliğidir.
+
+**SIRADAKİ FAZ: F3c. BLOKLAYAN İLK KARTI ÜRÜN DEĞİL, KANIT KALICILIĞIDIR**
+(gerekçe: yargılanabilir n = **0/7**):
+1. **KANIT KALICILIĞI — BLOKLAYAN.** `INJECT` satırı enjeksiyon ÖNCESİ imzayı
+   taşısın; ilk sonuç veren hamlede `INJECT_ANSWER` yazılsın; böylece (b)
+   **yalnız defterden, `CAP=200` halkasından bağımsız** cevaplanır. Ve
+   enjeksiyonu uçtan uca süren **İLK fikstür süiti** açılsın (bugün 0),
+   ölçüt koddan önce + mutasyon kanıtıyla. **Bu kapanmadan F3c'nin başka
+   hiçbir kartı başlamaz.**
+2. **KOSU §F3'ün ürün kapsamı** (merdiven enjeksiyon→enjeksiyon→blok,
+   `rabadon mute <sinyal>`, gözlem modunda başlayan yeni sinyaller, (a)/(b)
+   üç katmanlı kabul).
+3. **(c) negatif kontrol.** **(c) ölçülmeden F4 AÇILMAZ** (`KOSU-RABADON-5.md`
+   §F3, aynen geçerli).
+4. **F3-S1 devam ediyor:** bugünkü taban **1475,4 µs**, tavana açık **475,4 µs**.
+   Tavan 1000 µs F3c'de de **oynatılamaz** (§11).
+
+### F3 HAKEM HÜKMÜ (2026-08-29) — bir önceki hüküm
 **`F3: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
 `RAPOR/F3-R.md`'de. Dört açık kalem hükme bağlandı (`KARARLAR.md`,
 2026-08-29 · F3 · (a)–(d)).
