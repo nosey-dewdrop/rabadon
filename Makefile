@@ -115,6 +115,11 @@ test: all
 # green measured on a binary that was never rebuilt. measured 2026-08-29,
 # before this line existed: rabadon-net did not rebuild when pathres.h changed.
 	./native/make_deps_test.sh
+# the two above prove a rule LISTS what it needs. this one proves the suites
+# themselves cannot get smaller in silence: measured 2026-08-29, a single
+# `touch native/gate.cpp` took version_test.sh from 13 assertions to 11 and it
+# still exited 0. 14 such branches in 13 files on the day this line was added.
+	./native/silent_skip_test.sh
 	./native/cli_test.sh
 # cli_test.sh asks whether the dispatcher's screens are well-formed. this one
 # asks whether they are TRUE: every claim `rabadon status`, `on` and `off` make
