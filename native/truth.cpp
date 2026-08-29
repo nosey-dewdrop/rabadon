@@ -62,10 +62,24 @@ static vector<string> list_dir(const string& d) {
 }
 
 // noise that is never the project's own source
+// `site-packages` / `dist-packages` are here because the dot was doing the work
+// and the dot is not always there. `.venv` and `venv` cover a venv in the tree;
+// `pip install --user` on macOS installs into
+// ~/Library/Python/3.9/lib/python/site-packages, which has no dot anywhere on
+// the path, so pytz's own tests were counted as the project's suite and a repo
+// with ZERO tests of its own was reported level 3 SUITE (measured 2026-08-29).
+// repair.cpp:487 and classify.h:82 already skipped it; this list had drifted
+// away from them. The two lists are still separate — they answer different
+// questions — and only this one is corrected here.
+//
+// The name `Library` is deliberately NOT here. It is an ordinary directory name
+// and `src/Library/` is a real project; skipping it would blind that project's
+// whole suite. Measured, and native/discovery_scope_test.sh holds it.
 static bool skip_dir(const string& n) {
   static const char* junk[] = {"node_modules", ".git", "build", "dist", ".next", "venv",
                                ".venv", "__pycache__", "target", "vendor", "Pods",
-                               "DerivedData", ".rabadon", "coverage", ".cache"};
+                               "DerivedData", ".rabadon", "coverage", ".cache",
+                               "site-packages", "dist-packages"};
   for (const char* j : junk) if (n == j) return true;
   return n.size() > 1 && n[0] == '.';
 }

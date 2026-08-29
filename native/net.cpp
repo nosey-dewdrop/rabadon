@@ -271,7 +271,15 @@ int main(int argc, char** argv) {
   // matters here and not only in the gate, because the gate now treats a net
   // green as verification: calling an empty run green would re-open, through
   // the net, exactly the door the push gate just closed.
-  if (rc == 0 && emptyRun) {
+  //
+  // rc 5 is here because the exemption was written for pytest and pytest never
+  // qualified for it: `python3 -m pytest -q` in a tree it collects nothing from
+  // exits 5, not 0, so an empty run was recorded RED and red-base then refused
+  // every action on evidence nobody had. Measured 2026-08-29 (D6). Only 0 and 5
+  // — a nonzero exit that is NOT pytest's "collected nothing" can be a genuine
+  // failure (an import error prints `collected 0 items` and exits 2), and
+  // waiving that would trade a false reject for a missed catch.
+  if ((rc == 0 || rc == 5) && emptyRun) {
     finish("inconclusive", rc, dur, "the check ran no tests: " + tail);
     return 0;
   }

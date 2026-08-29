@@ -413,16 +413,33 @@ inline vector<string> pattern_forms(const string& w) {
 }
 
 // the project tree: the git worktree containing cwd, else cwd itself
+//
+// $HOME IS NOT A PROJECT. The walk stops before it, and that is not a style
+// preference — a home directory that is itself a dotfiles repo (`~/.git`, which
+// this machine has) made every project under it that has no `.git` of its own
+// report $HOME as its root. Measured 2026-08-29: `rabadon-truth $HOME` counted
+// 20705 code files and 2850 test files as ONE project, and a red verdict
+// carrying root=$HOME governs every sibling directory beneath it, so one broken
+// repo refuses actions in all the others. A home is where projects live.
+//
+// Stopping is not the same as giving up: the loop only refuses $HOME itself, so
+// a real git root anywhere below it still wins. When nothing else is found the
+// answer is the directory itself, which governs no subtree — the same fallback
+// the caller already handled (gate.cpp:3561).
 inline string project_root(const string& cwd) {
-  string p = resolve_real(lexical_abs(cwd, "/"));
+  const string self = resolve_real(lexical_abs(cwd, "/"));
+  string home;
+  if (const char* h = getenv("HOME")) if (h[0]) home = resolve_real(lexical_abs(h, "/"));
+  string p = self;
   while (!p.empty()) {
+    if (!home.empty() && p == home) break;
     struct stat st;
     if (stat((p + "/.git").c_str(), &st) == 0) return p;
     const size_t s = p.rfind('/');
     if (s == string::npos || s == 0) break;
     p = p.substr(0, s);
   }
-  return resolve_real(lexical_abs(cwd, "/"));
+  return self;
 }
 
 // ---------- the variables that are not a guess ----------
