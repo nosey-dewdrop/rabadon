@@ -704,7 +704,87 @@ bugüne kadar hiç ölçülmemişlerdi.
 
 ## SIRA
 
-### F3b HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+### F3c HAKEM HÜKMÜ (2026-08-29) — EN GÜNCEL SATIR, ÖNCE BUNU OKU
+**`F3c: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
+`RAPOR/F3c-R.md`'de. Altı açık kalem hükme bağlandı (`KARARLAR.md`,
+2026-08-29 · F3c · (a)–(f)).
+
+**KIRMIZI AD KÜMESİ, F3c SONRASI: `{2b, 6e, 7b}` — BÜYÜMEDİ** (hakem koşturdu,
+`accept.sh` EXIT=1, 23 yeşil / 3 kırmızı; süreç-içi `2b` **1249,2 µs**; tavan
+1000 µs `accept.sh:122/203`'te oynatılmadı, mühürlü dörtlünün diff'i **0 satır**).
+**DEVİR SAYILARI: 4529 yeşil / 0 kırmızı** (taban 4513, **+16**; native 3832
+iddia + 633 kontrol + npm 64/0). +16'nın tamamı tek yeni süittir
+(`inject-answer: 16 passed`) ve hakem bunu süit-özeti `diff`'iyle doğruladı:
+**71 → 72 süit, düşen ya da küçülen süit YOK.** Silinen dosya **0**;
+`native/` diff'indeki tek `-` satırı bir `skip`'in `bad`'e dönmesidir.
+
+**F3c'DE GERÇEKTEN OLAN, ÜÇ SATIR:**
+- **KANIT KALICILIĞI KAPANDI (bloklayan kart).** `INJECT` artık `psig` taşıyor
+  ve teslimden sonraki ilk hamle `INJECT_ANSWER` olarak deftere yazılıyor;
+  (b) halkaya değil **iki defter satırına** sorulan bir soru oldu. Hakem
+  doğruladı: halka **218'e yuvarlandı, CAP 200, `mseq=6` tahliye** ve (b) o
+  hâlde hâlâ cevaplanıyor; boş yeşil turu `F3c-oncesi` ağacında **6 passed /
+  KIRMIZI**; **hakemin kendi üç mutasyonu** — `psig`'i teslim anında taşıyıcı
+  hamleden al → **14/1**, `injPendingPrevSig`'i serileştirme → **11 passed /
+  5 FAIL**, üçüncüsü (`injAnsAfterSeq` serileştirilmesin) **TUTMADI, yeşil
+  kaldı** (kart da farklı bir mutasyonun aynı alanda tutmadığını yazmıştı —
+  **aynı alanda iki bağımsız delik**, F3d'nin kanıt kartına iliştirildi).
+  `CAP` **büyütülmedi** (erteleme değil), korpus silinmedi (39 halka),
+  snapshot `dr-xr-xr-x` / 26 Ağu 06:48, dokunulmadı.
+- **(b) HÂLÂ KARŞILANMADI — ÖLÇÜLEBİLİR OLDU, ÖLÇÜLMEDİ.** Canlı defter:
+  **INJECT 7, `psig` taşıyan 0, INJECT_ANSWER 0 → n=0.** Fikstürdeki n=1'in
+  "sonraki hamlesi" testin kendi olayıdır; §F3 satır 142 ajanın hamlesini
+  istiyor. **(c) yine koşulmadı → F4 KAPALI KALIR.** Ürün kapsamı teslimi
+  **dört ardışık fazdır %0**.
+- **`2b`: BU FAZIN KATKISI GÜRÜLTÜ.** Hakemin eşli koşusu (N=500 × 6, gate exit
+  sağlamlık kontrolü 14/14 geçti): HEAD **1378,9 µs**, taban **1401,9 µs**, fark
+  **−23,0 µs, 3 artı / 3 eksi**. **BUGÜNÜN TEK GEÇERLİ SAYISI: atfedilebilir
+  uçtan uca 1378,9 µs, tavana kalan açık 378,9 µs = 1,38×.** Aynı taban ikilisi
+  F3b hakeminde 1475,4 / kartta 1304,6 ve 1374,2 / hakemde 1401,9 verdi — alet
+  ~170 µs geziyor, yani **1475,4 → 1424,1 → 1378,9 serisinin son iki adımı
+  gürültü bandındadır; "üç fazdır düşüyor" cümlesi kurulamaz.** Gerçek olan tek
+  adım F3b'nin eşli `1641,2 → 1287,1` kazancıdır.
+
+**KÂTİP ŞARTI (F1e-C) ÇIKTI:** `docs/agent-contract.md` bu fazda gerçekten
+değişti (yeni `INJECT_ANSWER` zarfı, örnek JSON ile), commit `087e559` fazın
+**3.** commit'i — sonuncusu değil. Üçlü nihai ikiliye karşı **42/0 · 38/0 ·
+13/0**. İki fazlık boşluk kapandı.
+
+**§3.12:** tahmin `59a32e6` **19:48**, ilk kart commit'i `d9a4907` **19:50** —
+tahmin gerçekten ÖNCE commit'lenmiş; 4 kart < 8, **tetik çalmadı**. *(Ölçüldü,
+sorulmadı: faz 19:48→20:18 = **30 dakika**, tahmin ~5,2 saat. İhlal değil, ama
+tahmin kalibrasyonu 10× kaymış ve §3.12 bu haliyle pratikte hiç çalmayacak.)*
+
+**YENİ BULGU — KART 4 BİR ÖRNEĞİ KAPATTI, SINIFI DEĞİL.** Hakem ölçtü:
+`make all` sonrası `native/version_test.sh` **13 passed**; tek bir kaynağa
+`touch native/gate.cpp` sonrası **11 passed, EXIT=0**. Yani **F1e-C kapı
+üçlüsünün bir bacağı bir dosyaya dokunmakla sessizce 2 iddia küçülüyor.**
+Sınıfın kalanı: `grep -c 'echo "  skip'` → **8 dosyada 9 satır**
+(`blind_switch`, `discovery_scope`, `guard_lint`×2, `redbase_scope`, `sandbox`,
+`script_wrapper`, `unknown_wrapper`, **`version`**). Bu, O5 zincirinin gerçek
+beşinci halkasıdır (D6 kendi hükmüyle zincirden çıktı → F3b'nin saydığı 5
+aslında 4'tü; `KARARLAR.md` F3c (e)).
+
+**SIRADAKİ FAZ: F3d. BLOKLAYAN İLK KARTI KANIT DEĞİL, ÜRÜN OLGUSUDUR —
+CANLI (b).**
+1. **CANLI (b) — BLOKLAYAN.** Gerçek bir ajan oturumunda defterde `psig`
+   taşıyan en az bir `INJECT` **ve** onu cevaplayan bir `INJECT_ANSWER`.
+   Bugün **n=0**; hedef **n≥1**, ve `same` alanı **ne çıkarsa yayınlanır**
+   (CLAUDE.md 8 — `same=true` çıkarsa negatif sonuç olarak yazılır, olumluya
+   çevrilmez). Mekanizmanın varlığı kanıt değildir; sayılan, ajanın sonraki
+   hamlesinin imzasıdır. Bu kart kapanmadan F3d'nin başka kartı başlamaz.
+   **§F3'ün "iki koşuda üst üste KIRMIZI" kanal-yeniden-tasarım sayacı bugün
+   0'dır** (F3/F3b/F3c'de (b) kırmızı düşmedi, ÖLÇÜLEMEDİ); **F3d birinci
+   koşudur.**
+2. **9 SESSİZ `skip` DALI**, `version_test.sh`'ten başlayarak — kart 4'ün
+   `make_deps_test.sh`'e uyguladığı kalıbın aynısı: `skip` → `bad`, mesaj
+   koşmayan armın adını ve tek onarım komutunu söylesin.
+3. **F3-S1 kalanı:** açık **378,9 µs**. Tavan **oynatılamaz** (§3.8/4).
+   Ölçüm N=500'ün altında yapılmaz — N=200 bu makinede çözmüyor (fark −66,8 µs,
+   4 artı / 4 eksi).
+4. **(c) ve F4:** (c) ölçülmeden **F4 AÇILMAZ** (§F3 satır 143, lafzen).
+
+### F3b HAKEM HÜKMÜ (2026-08-29) — *(SÜPERSEDE: yukarıdaki F3c bloğu daha günceldir; bu blok silinmiyor)*
 **`F3b: GEÇTİ`.** Gerekçe ve sayılar `KAPI.md`'nin ilk satırında, ayrıntı
 `RAPOR/F3b-R.md`'de. Dört açık kalem hükme bağlandı (`KARARLAR.md`,
 2026-08-29 · F3b · (a)–(d)).
