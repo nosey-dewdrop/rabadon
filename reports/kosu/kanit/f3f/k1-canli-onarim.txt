@@ -1,0 +1,27 @@
+== KART 1 CANLI ONARIM -- 2026-08-29 23:18:25
+-- ONARIM SONRASI kayitli rabadon kancalari (~/.claude/settings.json):
+    UserPromptSubmit |matcher= None |timeout= None | rabadon-gate
+    Stop |matcher= None |timeout= None | rabadon-gate
+    Stop |matcher= None |timeout= None | rabadon-drift
+    PreToolUse |matcher= * |timeout= 960 | rabadon-gate
+    PostToolUse |matcher= * |timeout= 120 | rabadon-gate
+    PostToolUseFailure |matcher= * |timeout= 120 | rabadon-gate
+    SessionStart |matcher= None |timeout= None | rabadon-gate
+   statusLine  = /Users/damummyphus/damla_projects_2026/orkestra/src/bar.py
+   yabanci kancalar korundu mu (orkestra tick.py sayisi): 11
+-- yedek: ~/.claude/settings.json.bak-rabadon (5536 bayt, onceki hal)
+-- doctor, onarim sonrasi: 0 stale-abonelik uyarisi
+
+== CANLI KANIT -- makine artik goruyor (2026-08-29 23:18, KENDI oturumum, '; true' YOK)
+-- 1. cikisi 0 OLMAYAN bir Bash: 'ls -la /nonexistent-f3f-live-probe-QQ8' (Exit code 1)
+-- ham defter (~/.rabadon/spool/2026-08-29.jsonl):
+   {"v":1,"seq":1,"ts":1788034725730,"run":"ng-34725728-72537","pipe":"rabadon:session","ev":"STEP_START","call":"toolu_011Dbz6SGtjq9CWLp2Rs1ra9","sess":"5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e","step":"bash: ls -la /nonexistent-f3f-live-probe-QQ8","prev":"4667af77a11df89c263e551177a3d150aa7f775f037cadc7b8904a54dbc50a05"}
+   {"v":1,"seq":1,"ts":1788034725773,"run":"ng-34725769-72542","pipe":"rabadon:session","ev":"STEP_OK","call":"toolu_011Dbz6SGtjq9CWLp2Rs1ra9","sess":"5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e","step":"ran: ls -la /nonexistent-f3f-live-probe-QQ8","rc":1,"prev":"4b6c77be9fcca6601f009e35e0ecf81b2ad4f030f8c23e066049345640565a65"}
+   {"v":1,"seq":1,"ts":1788034727758,"run":"ng-34727755-72558","pipe":"rabadon:session","ev":"STEP_OK","call":"toolu_01CZDUSCsXKQW2EtpvVt9ejk","sess":"5fa2e187-e9fe-4bfc-98e9-2f3ecfcf729e","step":"ran: grep -h \"QQ8\" ~/.rabadon/spool/$(date -u +%Y-%m-%d).jsonl | grep -v '\"step\":\"bas","prev":"ac64e594926c825c3101cab90c5aa95f0a195edb5a2641b42240e719b84f1295"}
+-- ham hamle kaydi (rabadon-audit --export):
+   {"seq":1217,"ts":1788034725729,"tool":"Bash","path":"","sig":"14d23bfa65f31f8e","raw":"ls -la /nonexistent-f3f-live-probe-QQ8","claimed_rc":1,"err_sig":"d7ffaf70c389a21a","suite":-1,"asserts":-1,"prev":"19dd25c5dedf1752"}
+
+   F3e hakeminin olctugu hal: STEP_START VAR, STEP_OK YOK.
+   BUGUN: STEP_OK VAR, rc=1 VAR, err_sig=d7ffaf70c389a21a VAR. Kor nokta CANLIDA kapandi.
+   NOT: onarim ayni oturumda etkili oldu -- harness settings.json'i sicak okudu.
+        Urun bunu VAAT ETMIYOR; ekran 'bu oturum kor kalir, gelecek oturumdan itibaren canli' diyor.
