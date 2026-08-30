@@ -1,0 +1,27 @@
+PASS  1a rabadon-gated exists and is executable
+PASS  1b native/gated.cpp binds and listens on a unix socket (a daemon, not a one-shot)
+PASS  1c a thin client path referencing the daemon socket exists (native/gated_client.h)
+PASS  2a the daemon started and its socket is listening
+FAIL  2b the gate's median is 2009.0 us with the daemon up, ceiling is 1000 us
+PASS  2c the residual length dependence is re-measured (4.89%) and written to reports/R7/LENGTH.md
+PASS  3-[echo hello world] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  3-[rm -rf /] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  3-[git commit --no-verify -m x] chain INTACT in both arms; exit code, ledger lines and refusal text are byte-identical with the daemon down
+PASS  4a reports/R7/ exists
+PASS  4b the harness is named by full repo: SWE-bench/SWE-smith
+PASS  4c the harness commit hash is pinned (40 hex)
+PASS  4d the Cursor preparation is recorded: .git cleaned, egress closed, labelled best-effort
+PASS  5a raw JSONL is under reports/R7/ and is not empty (ab_run.jsonl)
+PASS  5b both arms are present per-task in the raw records (A:4 tasks, B:4 tasks)
+PASS  5c bench/reproduce.sh re-runs the two-armed run
+PASS  6a real fix rate from a HELD-OUT test: A 75.0000% / B 75.0000% (4.0000+4.0000 judged)
+PASS  6b tokens spent: A 35620.0000 / B 33221.0000
+PASS  6c human interventions: A 0.0000 / B 0.0000
+PASS  6d false positive rate: A 0.0000% / B 0.0000%
+FAIL  6e counter validation impossible: no 'estimated_saved' total on arm B, or no per-arm total_cost_usd
+PASS  7a falsification 1 evaluated: arm B improves on fix rate or net tokens — the injection thesis stands
+FAIL  7b falsification 2 is UNCHECKABLE — no deviation could be computed
+PASS  8a native/moves_test.sh 22/0
+PASS  8b native/signals_test.sh 39/0
+PASS  8c reports/R2/accept.sh 19 green, 0 red
+EXIT=1

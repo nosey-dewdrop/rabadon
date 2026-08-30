@@ -1,0 +1,21 @@
+cd .. && mv proj proj.gone
+cd .. && rm -rf "$PWD"/proj
+cd .. && rm -rf ./proj
+cd .. && rm -rf proj
+cd ..; rm -rf proj
+find . -delete
+find . -depth -delete
+find . -exec rm -rf {} +
+find . -mindepth 1 -delete
+find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+find . -name '*' -delete
+find . -not -name . -delete
+find . -not -newer . -delete
+find . -not -path . -delete
+find . -not -type l -delete
+find . -type d -exec rm -rf {} +
+ls -A | xargs rm -rf
+ls -a | xargs -I{} rm -rf {}
+ls -a | xargs rm -rf
+printf '%s\n' .* * | xargs rm -rf
+rm -rf "$PWD"

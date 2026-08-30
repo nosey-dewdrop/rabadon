@@ -1,0 +1,36 @@
+ALLOW   GONE   find . -delete
+ALLOW   GONE   find . -not -name . -delete
+ALLOW   GONE   find . -not -path . -delete
+ALLOW   GONE   find . -not -type l -delete
+ALLOW   GONE   find . -not -newer . -delete
+ALLOW   GONE   ls -a | xargs rm -rf
+ALLOW   GONE   cd .. && rm -rf proj
+ALLOW   GONE   find . -mindepth 1 -delete
+ALLOW   GONE   find . -depth -delete
+ALLOW   GONE   find . -name '*' -delete
+ALLOW   THERE  find . -newer README.md -delete
+ALLOW   GONE   find . -exec rm -rf {} +
+ALLOW   GONE   find . -type d -exec rm -rf {} +
+ALLOW   GONE   find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+ALLOW   GONE   ls -A | xargs rm -rf
+ALLOW   GONE   ls -a | xargs -I{} rm -rf {}
+ALLOW   GONE   printf '%s\n' .* * | xargs rm -rf
+REFUSE  GONE   for f in .* *; do rm -rf "$f"; done
+ALLOW   GONE   cd ..; rm -rf proj
+ALLOW   GONE   cd .. && rm -rf ./proj
+ALLOW   GONE   cd .. && mv proj proj.gone
+ALLOW   GONE   cd .. && rm -rf "$PWD"/proj
+ALLOW   GONE   rm -rf "$PWD"
+ALLOW   THERE  rm -rf .
+REFUSE  GONE   git clean -xdff
+REFUSE  GONE   git clean -xdff .
+REFUSE  GONE   git clean -xdf -e '' .
+REFUSE  GONE   rm -rf .rabadon
+REFUSE  GONE   rm .rabadon/guard.json
+REFUSE  GONE   rm -rf ./.rabadon/
+REFUSE  GONE   find . -path '*/.rabadon/*' -delete
+REFUSE  THERE  mv .rabadon /tmp/gone
+REFUSE  GONE   truncate -s 0 .rabadon/guard.json
+ALLOW   THERE  rm -rf build
+ALLOW   THERE  rm -rf ./src
+ALLOW   THERE  rm README.md
