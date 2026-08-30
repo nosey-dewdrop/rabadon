@@ -32,8 +32,16 @@ Süit sayısı bundan sonra **kaynaktan** okunur:
     awk '/^test:/{f=1} f&&/^$/{exit} f' Makefile \
       | grep -oE 'native/[a-zA-Z0-9_.-]+\.sh' | sort -u | wc -l
 
-`F3h-oncesi` → **116** · HEAD → **117**. (Aynı şey logdan sayılınca 115/116
-çıkıyor — bu yüzden log regex'i emekli.)
+`F3h-oncesi` → **116** · `F3i-oncesi` → **117** · HEAD (`c9c7887`) → **119**.
+(Aynı şey logdan sayılınca 115/116 çıkıyor — bu yüzden log regex'i emekli.)
+
+**F3i hakemi, 2026-08-30, hepsini kendi koşturdu — GÜNCEL SAYAÇ SATIRI BUDUR:**
+`make test` **EXIT=0** · native **4045** + `PASS (N checks)` **633** + `npm test` **64/0**
+= **4742 yeşil / 0 kırmızı**. Taban `c48c0e4` de kendi worktree'sinde koşuldu
+(`$HOME` altında, `/tmp` değil): **4022 + 633 + 64 = 4719**, yani **+23**, ve +23'ün
+tamamı süit-diff'iyle ayrıldı (`brake_persist` yok→**13**, `law_blind` yok→**10**;
+**küçülen 0 · kaybolan 0**). `accept.sh` **EXIT=1, 23 yeşil / 3 kırmızı**, ad kümesi
+**`{2b, 6e, 7b}` büyümedi**.
 
 ## KÖK VE DAL
 - **Tek kök: `/Users/damummyphus/damla_projects_2026/rabadon`. Tek dal: `main`.**
@@ -64,8 +72,32 @@ iptal notu. Silinmedi. `PROJECT.md` artık koşu 5'i gösteriyor.
 - **Landing:** eski ürünü satıyor — başlık "guardrails and a verifiable record",
   kurulum `git clone && make`, komutlar `watch/on/usage/repair/audit`.
   "compound error" ve "injection" sayfada **0 kez** geçiyor.
-- **⚠ KAPI BUGÜN (2026-08-30, F3h hakemi ölçtü — GÜNCEL SATIR BUDUR, aşağıdaki
-  2026-08-29 satırı ARTIK YANLIŞ, silinmiyor):** mod **WATCH**, `enabled` YOK,
+- **⚠⚠ KAPI BUGÜN (2026-08-30 04:12, F3i hakemi ölçtü — GÜNCEL SATIR BUDUR;
+  aşağıdaki F3h satırı da 2026-08-29 satırı da ARTIK EKSİK, silinmiyor):**
+  mod **WATCH**, `enabled` **YOK** (mtime 30 Ağu 03:22) — operatörün kalemi,
+  hakem **dokunmadı**. **AMA ASIL BULGU MODDA DEĞİLDİ:** sevk edilen
+  `native/rabadon-gate` ikilisi **17 baytlık bir `#!/bin/sh` + `exit 0` PUÇU**
+  idi (gerçek ikili `rabadon-gate.gercek` olarak yana alınmış, ikisinin de mtime
+  **30 Ağu 03:48**), ve `~/.claude/settings.json`'ın **altı** kancası da o yolu
+  çağırıyor → **03:48→04:12 arası rabadon bu makinede her çağrıda sessizce
+  `exit 0` verdi**: kurulu görünen, hiçbir şey görmeyen guard (Promise 1 ihlali,
+  `exit 126`'dan beter). Aynı sha'lı puçun ikizi (`306c6ca740756034`)
+  `_hakem_f3g_base/native/rabadon-drift`'e de konmuştu. **`make` bunu onarmıyor**
+  (mtime kaynaklardan yeni → "up to date"); yakalayan **`version_test.sh`** oldu
+  (`DRIFT rabadon-gate --version says ""`, EXIT=2, ilk 3 saniye). Hakem gerçek
+  ikiliyi geri yazdı ve kaynaktan yeniden derleyip **bayt bayt aynı** olduğunu
+  doğruladı (`a2ffd11c371447b1`). **Kim puçladı ÖLÇÜLEMEDİ.**
+  Hüküm: `KARARLAR.md` · 2026-08-30 · F3i · (2).
+- **`~/.claude/settings.json` (2026-08-30, F3i hakemi):** zehirli yol **0** —
+  her `command` yolu tek tek varlık kontrolünden geçti, üçü de mevcut
+  (`orkestra/src/tick.py` yabancı kancalar · `orkestra/src/bar.py` paylaşımlı
+  statusLine · altı girdide kanonik `…/rabadon/native/rabadon-gate`); makinedeki
+  **41** `settings*.json` tarandı, canlı `_hakem_` referansı **0**. Dosya hakemin
+  **dört** `make test` koşusunun dördünde de **bayt bayt aynı** kaldı
+  (`adcb41a93f858d6b`) — kök klon ×2, taban worktree'si ×1. **Kök sebep yine de
+  ürün tarafındadır ve F3j'nin ilk kartıdır:** self-heal koşan ikilinin MUTLAK
+  yolunu yazıyor (`KARARLAR.md` · F3i · (3)).
+- **KAPI 2026-08-30'da (F3h hakemi ölçtü — artık eksik, yukarıya bak):** mod **WATCH**, `enabled` YOK,
   yani **kullanıcının freni KAPALI.** Üç yoldan ölçüldü: `cat ~/.rabadon/mode`
   → `watch`; `ls ~/.rabadon/enabled` → yok; sevk edilen ikiliye gerçek
   `PreToolUse` (`git push --force origin main`) → *"rabadon (watch) would have
