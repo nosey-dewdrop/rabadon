@@ -1,0 +1,3 @@
+docs_truth     docs truth: 42 ok / 0 fail
+install_docs   38 ok / 0 fail
+version        version: 13 passed, 0 failed
