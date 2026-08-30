@@ -39,7 +39,8 @@
 # MEASURED, 2026-08-30 (F3i): 7 shapes, 2 classes, all seven ALLOW + GONE.
 #   bash reports/kosu/kanit/f3i/probe-exec.sh   (the same two-column reading)
 # RE-MEASURED, 2026-08-30 (F3j), over the corpus, same two-column reading:
-#   36 candidate shapes -> 21 ALLOW + GONE, 11 REFUSED, 4 allowed but harmless.
+#   36 candidate shapes -> 21 ALLOW + GONE, 10 REFUSED, 5 allowed but harmless.
+#   raw reading: reports/kosu/kanit/f3j-k3-korpus-olcum.out
 #   The 7 above are a SUBSET of the 21. The old number is not deleted; it was
 #   right about what it looked at and wrong about how much it looked at.
 set -u

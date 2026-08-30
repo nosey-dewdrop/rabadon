@@ -1,0 +1,17 @@
+law_blind: the blind-spots screen must equal what the binary really allows
+  ok   - the binary declares 21 blind shapes (>=21; an empty table would make every arm below vacuous)
+  ok   - and 4 distinct classes (>=4: the walk that never names the law, the tree removed from outside, the tree moved away, the root deleted by its own name)
+  ok   - all 21 declared rows were read back with a class beside them
+  ok   - every declared shape is really ALLOW and really leaves .rabadon/guard.json GONE
+  ok   - control: three shapes that the gate really refuses were exercised
+  ok   - and none of them appears on the blind list — the count is not padded with refused shapes
+  ok   - the corpus offers 36 candidate shapes to measure (>=30)
+  ok   - and it is genuinely mixed: 10 of them the gate REFUSES, 5 are allowed but leave the law standing
+  ok   - all 21 shapes measured ALLOW+GONE are declared — the screen is not under-counting
+  ok   - every declared shape is in the corpus, so every declared shape is re-measured each run
+  ok   - DECLARED == MEASURED-BLIND over the corpus (21 shapes) — the announcement is the behaviour
+  ok   - the session screen still prints a `blind spots:` block
+  ok   - the screen says 21 shapes and the binary declares 21 — same number, one source
+  ok   - every declared class is named on the screen, not just counted
+  ok   - and the screen answers the third question every refusal owes: what the user does next
+law_blind: 15 passed, 0 failed

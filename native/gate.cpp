@@ -266,15 +266,60 @@ static const SilencerSource kSilencers[SIL_COUNT] = {
 // instead of trusting a sentence somebody typed. The day a shape here starts
 // being refused, or one is added that the binary does not actually let through,
 // that suite is the thing that goes red.
+// RE-MEASURED, 2026-08-30 (F3j), AND THE COUNT ABOVE WAS WRONG BY FOURTEEN.
+// Seven was true about the three shapes somebody thought to try; it was never a
+// measurement of the class. The arbiter produced eight more ALLOW + GONE shapes
+// on the same day and native/law_blind_test.sh stayed 10 passed / 0 failed,
+// because all three of its arms asked only whether the DECLARED shapes are
+// really blind — none of them could see a blind shape that was not declared.
+//
+// The reading is now taken over a committed corpus, same two columns, same
+// shipped binary: native/lawblind_corpus.txt, 36 candidate shapes ->
+//
+//     21 ALLOW + GONE      the table below
+//     10 REFUSE            every shape that names .rabadon, and `git clean
+//                          -xdff`, which the gate already catches
+//      5 ALLOW + THERE     destructive but the law survives (`rm -rf build`;
+//                          and `rm -rf .`, which rm itself refuses)
+//
+//   raw reading: reports/kosu/kanit/f3j-k3-korpus-olcum.out
+//
+// The old seven are a SUBSET of the twenty-one and none of them is deleted.
+// What is corrected is the SIZE of the confession, not its content: the
+// decision not to close these stands for exactly the reason written above, and
+// the user is now told the true number instead of a third of it. The suite
+// holds declared == measured-blind in BOTH directions, so the next time this
+// number is wrong it goes red instead of waiting for an arbiter.
 struct LawBlindShape { const char* shape; const char* klass; };
 static const LawBlindShape kLawBlind[] = {
-  {"find . -delete",              "a walk that never spells the law's name"},
-  {"find . -not -name . -delete", "a walk that never spells the law's name"},
-  {"find . -not -path . -delete", "a walk that never spells the law's name"},
-  {"find . -not -type l -delete", "a walk that never spells the law's name"},
-  {"find . -not -newer . -delete","a walk that never spells the law's name"},
-  {"ls -a | xargs rm -rf",        "a walk that never spells the law's name"},
-  {"cd .. && rm -rf proj",        "the tree deleted from outside, law and all"},
+  // A walk of the project's own contents: `.rabadon` is swept up as one entry
+  // among many and is never named, so there is no operand for the rule to judge.
+  {"find . -delete",                             "a walk that never spells the law's name"},
+  {"find . -not -name . -delete",                "a walk that never spells the law's name"},
+  {"find . -not -path . -delete",                "a walk that never spells the law's name"},
+  {"find . -not -type l -delete",                "a walk that never spells the law's name"},
+  {"find . -not -newer . -delete",               "a walk that never spells the law's name"},
+  {"find . -mindepth 1 -delete",                 "a walk that never spells the law's name"},
+  {"find . -depth -delete",                      "a walk that never spells the law's name"},
+  {"find . -name '*' -delete",                   "a walk that never spells the law's name"},
+  {"find . -exec rm -rf {} +",                   "a walk that never spells the law's name"},
+  {"find . -type d -exec rm -rf {} +",           "a walk that never spells the law's name"},
+  {"find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +", "a walk that never spells the law's name"},
+  {"ls -a | xargs rm -rf",                       "a walk that never spells the law's name"},
+  {"ls -A | xargs rm -rf",                       "a walk that never spells the law's name"},
+  {"ls -a | xargs -I{} rm -rf {}",               "a walk that never spells the law's name"},
+  {"printf '%s\\n' .* * | xargs rm -rf",         "a walk that never spells the law's name"},
+  // The project deleted as a whole, from its parent. The operand is the
+  // project, not the law; refusing it would refuse `rm -rf ./old-project`.
+  {"cd .. && rm -rf proj",                       "the tree deleted from outside, law and all"},
+  {"cd ..; rm -rf proj",                         "the tree deleted from outside, law and all"},
+  {"cd .. && rm -rf ./proj",                     "the tree deleted from outside, law and all"},
+  {"cd .. && rm -rf \"$PWD\"/proj",              "the tree deleted from outside, law and all"},
+  // NOTHING IS DELETED AT ALL — the law simply stops being where the law lives.
+  // A third class, and the reason a count is not a substitute for a reading.
+  {"cd .. && mv proj proj.gone",                 "the tree moved away, law and all"},
+  // From inside, naming the root instead of the law.
+  {"rm -rf \"$PWD\"",                            "the project root deleted by its own name"},
 };
 static const int kLawBlindCount = (int)(sizeof(kLawBlind) / sizeof(kLawBlind[0]));
 

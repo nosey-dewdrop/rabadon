@@ -74,21 +74,54 @@ then the same shape actually run in a fresh sandbox and the law looked for:
     ALLOW   GONE   ls -a | xargs rm -rf
     ALLOW   GONE   cd .. && rm -rf proj            <- the tree deleted from outside, law and all
 
-**They are not being closed, and that is a decision.** The second class *is*
-`rm -rf ./old-project`, which the section below promises will pass; the first is
-every recursive walk of a directory you own. A cut wide enough to catch them
-fences you inside your own project, which is worse than one hole named out loud.
+#### Correction, same day: it is **twenty-one shapes and four classes**, not seven and two
+
+The heading above is not deleted, because it was honest about what it looked at.
+It was wrong about **how much** it looked at. Seven was the count of the shapes
+somebody thought to type; it was never a measurement of the class, and nothing in
+the product could tell the difference — `native/law_blind_test.sh` checked only
+that every **declared** shape is really blind, which is the one direction that
+cannot see a blind shape you failed to declare. The arbiter produced eight more
+`ALLOW + GONE` shapes on 2026-08-30 and the suite stayed 10 passed / 0 failed.
+
+Re-measured the same day, same two-column reading, over a committed corpus
+instead of a memory — `native/lawblind_corpus.txt`, 36 candidate shapes:
+
+    ./native/law_blind_test.sh                    # the reading is an arm of the suite now
+    reports/kosu/kanit/f3j-k3-korpus-olcum.out    # the raw 36 rows
+
+    21  ALLOW + GONE     blind: declared, and listed by `rabadon-gate --law-blind`
+    10  REFUSE           every shape that names .rabadon — and `git clean -xdff`
+     5  ALLOW + THERE    destructive, but the law survives (`rm -rf build`)
+
+Two classes became four, and the two new ones are why a count is no substitute
+for a reading:
+
+    ALLOW   GONE   cd .. && mv proj proj.gone     <- the tree moved away, law and all
+    ALLOW   GONE   rm -rf "$PWD"                  <- the project root deleted by its own name
+
+The first deletes **nothing at all**; the law simply stops being where the law
+lives. No rule about destruction was ever going to see it.
+
+**They are still not being closed, and that is still a decision.** The second
+class *is* `rm -rf ./old-project`, which the section below promises will pass;
+the first is every recursive walk of a directory you own. A cut wide enough to
+catch them fences you inside your own project, which is worse than a hole named
+out loud — but the hole has to be named at its real size, and for a while it was
+named at a third of it.
 
 So the hole is **announced by the product rather than by this page**: the
-`blind spots:` block on the session screen prints the count, both class names,
+`blind spots:` block on the session screen prints the count, every class name,
 one shape per class, and what to do about it. The number there is not typed —
 it comes off the same compiled table as `rabadon-gate --law-blind`, and
 `native/law_blind_test.sh` runs every declared shape for real and goes red if
 one of them is actually refused, if the screen's number drifts from the table,
-or if the list is padded with shapes the gate does refuse.
+if the list is padded with shapes the gate does refuse — and now, the arm that
+was missing, **if the corpus turns up a shape that is blind and undeclared, or a
+declared row the corpus never re-measures.** The two sets have to be the same set.
 
-**What to do:** commit `.rabadon/` to git. That copy survives all seven, and
-`git checkout .rabadon` puts the law back. Under `rabadon exec` a
+**What to do:** commit `.rabadon/` to git. That copy survives all twenty-one,
+and `git checkout .rabadon` puts the law back. Under `rabadon exec` a
 `protectedPaths` entry is additionally fenced by the kernel.
 
 An earlier phase published `ls | xargs rm -rf` as the example of this class.
