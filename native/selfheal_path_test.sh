@@ -258,7 +258,16 @@ esac
 # The card's own blind-spot block already contains the words "PostToolUseFailure"
 # and "refuse", so an assertion against the full screen passes without the
 # self-heal path saying anything at all — measured while writing this file.
-heal_line() { printf '%s\n' "$1" | grep -a '^rabadon: this install' || true; }
+# The self-heal message is a BLOCK: a headline plus indented continuation lines
+# (where the backup path and the next command live). Taking only the headline
+# would let "names the command the human runs next" fail on a message that says
+# it perfectly well one line down.
+heal_line() {
+  printf '%s\n' "$1" | awk '
+    /^rabadon: this install/ { inblk = 1; print; next }
+    inblk && /^        / { print; next }
+    { inblk = 0 }'
+}
 
 H3="$T/h3"; mkhome "$H3" "/nonexistent/elsewhere/native/rabadon-gate"
 OUT3="$(session_start "$GATE" "$H3" c2)"
