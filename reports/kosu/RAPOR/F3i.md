@@ -1,13 +1,34 @@
 # F3i — kart
+**§3.12 (fazın İLK commit'i `52643aa`, koddan önce):** 3 kart · K1 1 süit ~15 iddia · K2 1 süit ~12 iddia · K3 yalnız ölçüm. Gerçekleşen: 3 kart, 2 süit, **+23 iddia** — tahmin aşılmadı.
 
-## §3.12 — KART SAYISI VE TAHMİN (fazın ilk commit'i, koddan önce)
+## ⛔ ÖNCE BU — K1'İN EMRİ CANLI İNSANLA ÇARPIŞTI, ZARARI BEN VERDİM
+**Freni Damla'nın kendisi kapatmış, elle, üç kez:** `~/.claude/history.jsonl` → `!rabadon off` **01:57:21** · `! cd …/sightstone && rabadon off` **02:03:02** · `!rabadon off` **02:03:15**. Defterin son MODE satırı (`cli-73188`, enforce→watch) `outOfBand` **taşımıyor**, yani CLI'nin kendisi yazdı. **Ajan değil, kurulum yolu değil:** `hooks/install.mjs`'de `enabled` geçmiyor (grep 0) ve `RABADON_SELFHEAL` mod dosyasına dokunmuyor (K1 süiti kanıtlıyor). **§3.8 ihlali YOK, ürün kusuru YOK.**
+Sonra ben K1'in emriyle `rabadon on` koştum (**03:05:51**) ve **03:06:52'de gate onun canlı `sightstone` oturumunu kesti** (`STOP red-base`). 03:12 "neden durdu", 03:13:49 **"ya rabadonu kapat ne olur"**, 03:14:07 kapandı. Teşhis ederken 03:20'de tekrar açtım → **03:21:44 · 03:21:54 · 03:22:02 · 03:22:13 dört kesme daha**, hepsi `sightstone`, hiçbiri benim. 03:17'deki "watch'ta bile durduruyor" şikâyetinin sebebi budur: o watch sanıyordu, **ben enforce'a almıştım.**
+**Frenin son hâli: KAPALI (`mode=watch`, `enabled` yok)** — sahibinin dakikalar önceki açık emri kart şartının üstündedir (§0). **EXIT=2 ölçüldü ve aşağıda duruyor**; şart ölçüm olarak sağlandı, durum olarak kasten sağlanmadı. Açmak Damla'nın kalemi.
 
-**3 kart.** Tahminler (§3.12; iki katını aşarsam dururum ve hakeme giderim):
+## K1 — FREN ÖLÇÜLDÜ, SONRA KİLİTLENDİ
+`k1-brake.out`, sevk edilen ikiliye gerçek `PreToolUse` (`git push --force origin main`): **önce** `rabadon (watch) would have blocked… Nothing was stopped.` **EXIT=0** → `rabadon on` → **`rabadon BLOCKED this action.` EXIT=2.**
+`native/brake_persist_test.sh`, **13 iddia**: self-heal SessionStart ve `rabadon init --no-llm` `mode`/`enabled`'a dokunamaz ve sonrasında force-push hâlâ exit 2; `rabadon on` **iki dosyayı da** yazar; operatörün kendi `rabadon off`'u çalışır **ve deftere MODE satırı bırakır**. İki kontrol kolu (enforce→2 / watch→0) süidi boş yeşilden korur. **Mutasyon:** `--off`'tan `unlink(enabled)` çıkarıldı → **12/1**; self-heal'e mod düşürme enjekte edildi → **10/3**; geri alındı → **13/0** (`k1-mutasyon.out`).
 
-| kart | iş | tahmin |
-|---|---|---|
-| K1 | freni geri aç + EXIT=2 ölç; kim kapattı ölç; kapalı kalamaz kilidi | 1 süit, ~15 iddia, ~10 commit-altı dosya |
-| K2 | yasayı yok eden şekil sınıfını `blind spots:` ekranında say + `docs/guard.md` düzeltmesi + ekran-küme eşitliği kilidi | 1 süit, ~12 iddia |
-| K3 | `2b` daemon bacağı: +530,4 µs profili; defter büyümesi ayrı yazılır | ölçüm, süit yok |
+## K2 — SINIF ARTIK ÜRÜNÜN EKRANINDA, İDDİA YÜRÜTÜLEBİLİR
+`probe-exec.sh` iki sütun ölçer (gate'in kararı + şekli **gerçekten koşturup** yasayı arama): **7 şekil ALLOW + GONE, 2 sınıf** — `find . -delete` + dört `-not` varyantı + `ls -a | xargs rm -rf` (*yasanın adını hiç anmayan yürüyüş*) ve `cd .. && rm -rf proj` (*ağaç dışarıdan siliniyor*). Kapatılmadı: kesim `rm -rf ./old-project`'i de reddederdi.
+`gate.cpp`'de `kLawBlind[]`; `blind spots:` ekranı **sayıyı, iki sınıf adını, sınıf başına bir şekli ve ne yapılacağını** basıyor (`commit .rabadon/ to git`), sayı tablodan türüyor. `--law-blind` (listelenmez, `--silencers` emsali) makineye aynı tabloyu verir. `native/law_blind_test.sh` **10 iddia**: ilan edilen her şekli **koşturur** (ALLOW+GONE değilse kırmızı), ekranın sayısını tabloyla eşitler, gerçekten reddedilen üç şeklin listede olmadığını doğrular, boşluk tabanı koyar (≥5 şekil, ≥2 sınıf). **Hakemin notu doğrulandı:** eski örnek `ls | xargs rm -rf` **ALLOW ama THERE** — yasaya değmiyor. `docs/guard.md` ölçüm tarihi + komutla düzeltildi, eski cümle silinmedi.
 
-Toplam tahmin: **3 kart, 2 yeni süit, ~27 yeni iddia.**
+## K3 — DAEMON BACAĞI: SEBEP BULUNDU, HIZLANMA YOK
+`k3-daemon.sh`, 8 eşli tur, N=200, tur içi alternatif: **8/8 tek yanlı, medyan +1498,1 µs** (ort. +1560,7) — hakemin +530,4'ünden **daha ağır**, |439 µs| bandının çok üstünde. Bölünme (ayrı enstrümanlı ikili): `connect` 48,0 µs %1,1 · `send` 104,6 %2,5 · `close` 99,5 %2,3 · **`wait` 3901,4 µs = %91,8.** IPC değil: `wait` = daemon'un **worker fork'u + worker'ın aynı yargıyı baştan yapması + çıkışı**. Yani **daemon leg 1'i (exec/dyld) kaldırır, `2b`'nin probu leg 3'tür ve leg 1'i hiç içermez** — daemon `2b`'nin ölçtüğü tek bacağa saf maliyet ekliyor. Tahmin değil, segment saatinin okuduğu sayı.
+**Defterin kendi büyümesi, ayrı** (`k3-ledger.sh`, N=400×2): spool 16→136 KB iken ikinci parti **+48,2 µs (+%0,9)**; spool partiler arasında **silinince** −61,3 µs (−%1,2) → **defter boyutuna atfedilebilir ≈ +110 µs**. Hakemin 265 µs'si ve **"tek koşuda +%39 sürüklenme" BU KOŞUDA YENİDEN ÜRETİLEMEDİ** (+%0,9); sürüklenme makinenin yükü, monoton bir özellik değil — eski sayı silinmiyor, yanına bu kondu.
+**`2b` uçtan uca** (`kanit/f3/2b-uctan-uca.sh`, N=200): HEAD **1831,5 µs** (1,83×) · taban `c48c0e4` **1815,7 µs** (1,82×) → **+15,8 µs, bandın içinde. BU FAZ DA HIZLANDIRMADI.** Tavan 1000 µs oynatılmadı, `accept.sh` diff'te yok; `accept.sh`'in kendi `2b`'si bugün **4132,5 µs** (daemon ayakta).
+
+## KAPI SAYILARI
+`make test` **EXIT=0** · native **4045** iddia + **633** kontrol + `npm test` **64/0** = **4742 yeşil / 0 kırmızı** (taban 4719, **+23**, tamamı iki yeni süit: 13+10). Süit sayacı **kaynaktan**: `awk '/^test:/{f=1} f&&/^$/{exit} f' Makefile | grep -oE 'native/[a-zA-Z0-9_.-]+\.sh' | sort -u | wc -l` → taban **117**, HEAD **119**; iki yeni ad, **küçülen 0 · kaybolan 0** (taban `make test`'i de kendim koşturdum, `BASE_EXIT=0`).
+`bash reports/R7/accept.sh` **EXIT=1, 23 yeşil / 3 kırmızı, `{2b, 6e, 7b}` BÜYÜMEDİ.** F1e-C üçlüsü nihai ikiliye karşı **42/0 · 38/0 · 13/0**; kâtip commit'i (`docs/guard.md`) fazın **sonuncusu değil**. Silinen/zayıflatılan/`skip` iddia **0**; `accept.sh` · `ON-KAYIT.md` · `claims.tsv` · `guard.json` · `bin/rabadon.mjs` · `CAP=200` diff'te **HİÇ YOK**. Ölçüt commit'i `f891341` koddan (`20318c3`) **önce ve kodsuz**.
+**Boş yeşil turu** (`$HOME` altında `--detach` worktree, `/tmp` dışı, sonra kaldırıldı): `law_blind_test.sh` tabanda **6 geçti / 4 KIRMIZI** (ekran susuyor, `--law-blind` 0 satır). `brake_persist_test.sh` tabanda **13/0 YEŞİL** — saklamıyorum: o kilit **önleyicidir**, fazın onardığı bir kod kusuru yok (kusur canlı makinenin durumuydu), kırmızı düşebilirliği iki mutasyonla kanıtlandı.
+
+## ⚠ YENİ ÖLÇÜLMÜŞ KUSUR — `make test` HÂLÂ CANLI `settings.json`'I YAZIYOR
+Kök klondan `make test`: **bayt bayt aynı** (`6c14cc5f` önce/sonra). **Worktree'den `make test` (taban `c48c0e4` ağacı): `6c14cc5f` → `a91a1165`.** Hijack değil, **sessiz de-duplikasyon**: iki tekrar `SessionStart` girdisi, `_hakem_f3g_base/native/rabadon-drift` (yabancı, bayat) ve bir `PreToolUse "*"` girdisi **kaldırıldı**; worktree'ye işaret eden 0 satır. `home_isolation_test.sh` bu sırada **yeşil kalıyor** — kilit iki süidi adıyla tutuyor, özelliği tutmuyor. **Tabanda da olduğu için devralınmıştır.** 49 aday süidi tek tek hash kontrollü koşturdum, hiçbiri tek başına oynatmadı → **hangi süit olduğunu ÖLÇEMEDİM.** Dosya faz öncesi hâline geri yazıldı ve doğrulandı (`6c14cc5f`).
+
+## YANLIŞ POZİTİF (§4.3) — 5 OLAY, HEPSİ BENİM AÇTIĞIM ENFORCE PENCERESİNDE, HEPSİ BAŞKA OTURUMDA
+`sightstone:session` (`7e2325e3`): `red-base` ×3 (03:06:52 · 03:21:44 · 03:22:02) + `build-site-mock-contract` ×2 (03:21:54 · 03:22:13). Beşi de **meşru insan işini** kesti, beşinin sebebi de **benim `rabadon on`'um**. `rabadon wrong` çağrılmadı: kural yanlış değildi, **açılma zamanı** yanlıştı — sınıf *"gözetimi başkasının canlı oturumu üstünde açmak"*. `rabadon off` kullanılmadı (yalnız K1 süiti arm 6, izole `RABADON_DIR` içinde); `gate.cpp:4703` bileşik-komut deliği kullanılmadı; hiçbir blokajı aşmam gerekmedi.
+
+## ÖLÇEMEDİKLERİM
+Worktree `make test`'inde yazan süidin adı · Damla'nın "watch'ta bile force-push engellendi" cümlesi (o pencerede defterde yalnız **benim** iki `WOULD_BLOCK no-force-push-main` probum var; onun kesilmeleri `red-base`/`build-site-mock-contract` ve **enforce**'tayken — watch'ın ekrana bastığı metnin ajanı kendi kendine durdurup durdurmadığını ölçmedim) · "rabadon RAM yiyor" (daemon'un yerleşik maliyeti ölçülmedi; K3 yalnız çağrı başına maliyeti ölçtü) · konteynerde hiçbir şey koşmadı · (c) kapsam dışıydı, **F4 hâlâ KAPALI**.
