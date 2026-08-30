@@ -108,6 +108,18 @@ bench: native/rabadon-gate native/gate_bench
 # suites run 16, so a clean checkout ran `make test` straight into a missing
 # binary. the dependency is 'everything this repo builds'.
 test: all
+# FIRST AND LAST LINE OF THIS TARGET, and they are one gate. This run damaged
+# the operator's live machine three times and `make test` was green through all
+# three: the shipped gate lost its execute bit (every hook exited 126), the
+# shipped gate became a seventeen-byte `exit 0` stub with all six of her hooks
+# pointing at it, and self-heal wrote a deleted worktree's path into her GLOBAL
+# ~/.claude/settings.json. Three subjects, measured before the suites and again
+# after them: the twenty shipped artifacts (mode, size, hash, AND that each is a
+# real executable rather than a stub wearing the right name), her shared
+# settings.json byte for byte, and the brake exactly as she left it. The verify
+# arm is RED when it finds no baseline, so deleting the record line below
+# retires nothing quietly.
+	./native/machine_intact_test.sh record
 	./native/version_test.sh
 # version_test.sh holds ONE header (version.h) from both ends. this holds the
 # WHOLE include graph the same way: a rule whose source includes a header it
@@ -1105,6 +1117,14 @@ test: all
 # not allowlisted-by-default, and no name was added to the allowlist to shrink
 # the number. It fails the build in its own job, on both platforms, on every
 # push. Only the wiring changed.
+#
+# LAST LINE OF THE TARGET, ON PURPOSE — the other half of the gate at the top.
+# Every suite above has now run, so this is the moment that can answer "what did
+# this run do to the operator's other sessions". If a shipped artifact moved,
+# her shared ~/.claude/settings.json moved, or her brake moved, the run is RED
+# even when every suite above was green: a green run that disarms the machine it
+# was built on is the most expensive thing this project can ship.
+	./native/machine_intact_test.sh
 
 # THE SCOREBOARD. Not part of `make test`, and the reason is not squeamishness:
 # it asserts promises that are not built yet, so it is RED on purpose, and a red
