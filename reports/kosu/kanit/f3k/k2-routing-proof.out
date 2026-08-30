@@ -1,0 +1,5 @@
+== arm A (no socket): real gate judges locally ==
+   exit=2 (expect 2 = BLOCK)
+== arm B (null daemon on the default path) ==
+   exit=0 (0 = the client REACHED the socket; 2 = it judged locally)
+/tmp/k2route.sh: line 16: 25755 Terminated: 15          /tmp/k2nulld "$SOCK" 2> "$X/n.log"

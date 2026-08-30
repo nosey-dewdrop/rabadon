@@ -1,0 +1,17 @@
+N=200 per arm, 3 pairs. A=shipped(in-process)  F=NULL daemon (0 forks, 0 judging) = the FLOOR
+/tmp/k2floor.sh: line 22: printf: 2455.35: invalid number
+/tmp/k2floor.sh: line 22: printf: 596.8: invalid number
+pair 1: A=0,0 us   FLOOR=0,0 us   FLOOR-A = -1858.5 us
+/tmp/k2floor.sh: line 22: printf: 4046.2999999999997: invalid number
+/tmp/k2floor.sh: line 22: printf: 586.3: invalid number
+pair 2: A=0,0 us   FLOOR=0,0 us   FLOOR-A = -3460.0 us
+/tmp/k2floor.sh: line 22: printf: 3980.7999999999997: invalid number
+/tmp/k2floor.sh: line 22: printf: 3169.05: invalid number
+pair 3: A=0,0 us   FLOOR=0,0 us   FLOOR-A = -811.7 us
+---
+mean A (shipped, judges in-process) = 3494.1 us
+mean FLOOR (0 forks, 0 judging)     = 1450.7 us
+FLOOR - A = -2043.4 us   sign: 0/3 pairs slower
+
+READ: FLOOR is the least any daemon design can cost, including a perfect
+one-fork rewrite. If FLOOR > A, no fork-count optimisation can win.

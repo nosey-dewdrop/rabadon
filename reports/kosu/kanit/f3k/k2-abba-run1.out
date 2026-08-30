@@ -1,0 +1,14 @@
+k2-abba: N=200 per arm, 3 ABBA pairs, tool=2b-uctan-uca.sh
+A = shipped (no daemon, socket absent)   B = rabadon-gated live
+sanity: daemon bound /Users/damummyphus/.rbk2.R5LuDH/rabadon-501.sock and logged: rabadon-gated 0.2.3 listening on /Users/damummyphus/.rbk2.R5LuDH/rabadon-501.sock
+reports/kosu/kanit/f3k/k2-abba.sh: line 55: 29866 Terminated: 15          RABADON_GATED_SOCK="$SOCK" "$GATED" > "$X/d.log" 2>&1
+reports/kosu/kanit/f3k/k2-abba.sh: line 55: 31331 Terminated: 15          RABADON_GATED_SOCK="$SOCK" "$GATED" > "$X/d.log" 2>&1
+pair 1: A=2387.9,1675.8 us  B=2874.4,3803.8 us   B-A = 1307.3 us
+reports/kosu/kanit/f3k/k2-abba.sh: line 55: 37351 Terminated: 15          RABADON_GATED_SOCK="$SOCK" "$GATED" > "$X/d.log" 2>&1
+pair 2: A=3395.7,2455.8 us  B=6939.7,8367.7 us   B-A = 4728.0 us
+reports/kosu/kanit/f3k/k2-abba.sh: line 55: 43421 Terminated: 15          RABADON_GATED_SOCK="$SOCK" "$GATED" > "$X/d.log" 2>&1
+pair 3: A=2348.9,3679.5 us  B=3172.2,6657.5 us   B-A = 1900.7 us
+---
+mean B-A over 3 pairs = 2645.3 us   (sign: 3 slower / 0 faster)
+VERDICT: the daemon is 2645.3 us SLOWER than the shipped path.
+band is |439| us; this difference is OUTSIDE the band.

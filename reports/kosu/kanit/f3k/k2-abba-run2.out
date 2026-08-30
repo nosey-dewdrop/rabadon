@@ -1,0 +1,11 @@
+k2-abba: N=200 per arm, 4 ABBA pairs, tool=2b-uctan-uca.sh
+A = shipped (no daemon, socket absent)   B = rabadon-gated live
+sanity: daemon bound /Users/damummyphus/.rbk2.GLfYck/rabadon-501.sock and logged: rabadon-gated 0.2.3 listening on /Users/damummyphus/.rbk2.GLfYck/rabadon-501.sock
+pair 1: A=4090.1,12740.6 us  B=19170.1,6726.2 us   B-A = 4532.8 us
+pair 2: A=6353.7,5033.2 us  B=12143.5,13053.4 us   B-A = 6905.0 us
+pair 3: A=3251.3,1934.3 us  B=3426.2,4769.0 us   B-A = 1504.8 us
+pair 4: A=2472.7,2254.7 us  B=1761.8,4007.5 us   B-A = 521.0 us
+---
+mean B-A over 4 pairs = 3365.9 us   (sign: 4 slower / 0 faster)
+VERDICT: the daemon is 3365.9 us SLOWER than the shipped path.
+band is |439| us; this difference is OUTSIDE the band.

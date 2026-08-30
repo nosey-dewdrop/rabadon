@@ -1,0 +1,77 @@
+F3k KART 2 — rabadon-gated: DAEMON HÂLÂ YAVAŞ. HIZLANDIRAMADIM, ÖLÇTÜM VE İLAN EDİYORUM.
+tarih: 2026-08-30
+
+SONUÇ, TEK CÜMLE: daemon sevk edilen yoldan +2645,3 µs (3 çift) ve +3365,9 µs
+(4 çift) YAVAŞ. Yedi çiftin YEDİSİ de yavaş yönde (7 artı / 0 eksi). Bant |439| µs;
+fark bandın 6-8 katı. "Yaklaştı" demiyorum — DÜŞÜREMEDİM.
+
+ÖLÇÜM DÜZENİ (eşli, ABBA, tek oturum, kol başına N=200, zorunlu alet
+kanit/f3/2b-uctan-uca.sh, değiştirilmedi):
+  A = sevk edilen yol: daemon YOK, varsayılan soket YOK -> istemci bir stat() ödeyip
+      süreç içinde yargılıyor. Sahibinin kurulumunun bugün yaptığı şey budur.
+  B = aynı istemci ikilisi, aynı olay, varsayılan yolda CANLI rabadon-gated.
+  Her iki kolda da XDG_RUNTIME_DIR özel bir dizine bakıyor: sahibinin makinesindeki
+  ölü /tmp/rabadon-501.sock'a (24 Ağu'dan kalma) DOKUNMADIM, ve A kolunun ona
+  başarısız bir connect() ödemesine izin vermedim — o makinenin kusuru, ürünün değil.
+
+KOL AYRIMI GERÇEK, KANITLANDI (k2-routing-proof.out): gate'in BLOKLADIĞI bir olay
+(`rm -rf /`, RABADON_DIR mode=block) sokete giden kolda 0, süreç-içi kolda 2 döndü.
+Yani B gerçekten soketten geçiyor; "sessizce bağlanamamış bir kol" değil.
+
+TEŞHİS — VE KARTIN DAYANDIĞI MEKANİZMA ARTIK YOK:
+Kart, gate.cpp:538'e dayanarak her taze işçinin gmtime_r'ın 269-483 µs'lik soğuk
+timezone yüklemesini yeniden ödediğini söylüyor. ÖLÇMEDEN ÖNCE KAYNAĞI OKUDUM:
+gate.cpp:551-591'de rb_day_str ARTIK gmtime_r ÇAĞIRMIYOR — Hinnant'ın tamsayı
+takvimi + güne anahtarlı statik önbellek. Timezone yükü şevk edilen koddan ZATEN
+kalkmış; :538'deki cümle o önbelleğin NEDEN var olduğunu anlatan geçmiş zamandır.
+Yani +705/+2645/+3366 µs'nin sebebi timezone DEĞİL. Kartın mekanizması ölü.
+
+O HÂLDE NE? TABAN ÖLÇÜMÜ CEVAPLADI (k2-floor.out).
+kanit/f3k/k2-null-daemon.c: SIFIR fork, SIFIR yargı yapan bir ölçüm aleti (ürün
+değil, kurulmaz, her şeye ALLOW der — yalnız alt sınır için). Aynı ABBA:
+  A     (sevk edilen, süreç içi yargı)      = 3494,1 µs
+  TABAN (0 fork, 0 yargı, sadece IPC)       = 1450,7 µs
+  TABAN - A = -2043,4 µs  (3/3 çiftte daha HIZLI)
+=> IPC UCUZ. Soket gidiş-dönüşü sorun DEĞİL; sevk edilen yoldan 2 ms daha ucuz.
+Bütün ceza daemon'un istek başına yaptığı işte: İKİ fork + işçinin yargıyı
+BAŞTAN yapması (tasarım gereği hiçbir şey önbelleklenmiyor).
+
+TÜRETİLMİŞ AYRIŞTIRMA (⚠ DOĞRULANMADI — gürültülü ortalamalar üstünde aritmetik,
+doğrudan ölçüm değil):
+  B ≈ A + 2645..3366        = 6139..6860 µs
+  B - TABAN                 = 4688..5409 µs  = (2 fork + işçinin yargısı)
+  işçinin yargısı ≈ A - TABAN = 2043 µs
+  => 2 fork ≈ 2645..3366 µs, yani fork başına ~1300..1700 µs
+  => BİR fork kaldırılırsa daemon ~1000..1900 µs HÂLÂ YAVAŞ kalır.
+
+NEDEN KALDIRILAMIYOR (kartın kendi kısıtları):
+  - waitpid verdict kanalının kendisidir (işçinin çıkış kodu = yargı); kaldırmak
+    doğruluğu bozar, kart yasaklıyor.
+  - Yargı rb_gate_main üstünden gelmek zorunda (tek kaynak ilkesi); kuralların
+    kopyası yasak.
+  - Bu ikisi birlikte İKİ SÜREÇ'i yapısal olarak zorunlu kılıyor: biri yargıyla
+    çıkacak, biri bekleyip verdict'i sokete yazacak. Accept döngüsünde
+    serileştirme gated.cpp:23'te açıkça reddedilmiş (bir yavaş proje makinedeki
+    her ajanı bloklar).
+
+MİMARİNİN ASIL YANILGISI (gated.cpp:11-17 kendi gerekçesini yazıyor):
+"işçi, o 2,3 ms'lik fork/exec/dyld'i ZATEN ödemiş bir süreçten fork ediliyor."
+Bu, sevk edilen çağrı yolunda GEÇERSİZ: çağıran, hook olarak başlatılan
+rabadon-gate'in KENDİSİ ve o 2,3 ms'i her hâlükârda kendisi ödüyor — daemon'a
+sormadan ÖNCE. Daemon, istemcinin başlangıç maliyetinden hiçbir şey kurtarmıyor;
+üstüne IPC + 2 fork + aynı yargının tekrarı ekliyor. Bu yüzden bu karşılaştırmada
+yapısal olarak kazanamaz. Daemon ancak çağıran UCUZ bir ince istemci olsaydı
+kazanırdı; bugün çağıran koca ikilinin ta kendisi.
+
+NE YAPMADIM (dürüstlük):
+  - Tek-fork'lu bir daemon YAZMADIM. Dolayısıyla "tek-fork'lu daemon da yavaş
+    kalır" cümlesi TÜRETİLMİŞTİR, ÖLÇÜLMÜŞ DEĞİLDİR.
+  - gated.cpp'ye DOKUNMADIM. accept.sh'e DOKUNMADIM. 1000 µs tavanı OYNAMADI.
+  - Makine yüklüydü: A kolu 1675-12740 µs arası okudu. Büyüklükler gürültülü;
+    GÜVENDİĞİM ŞEY İŞARETTİR — 7 çiftte 7 kez aynı yön.
+  - Ölü /tmp/rabadon-501.sock'un µs maliyetini yine ÖLÇEMEDİM (kapsam dışı bıraktım).
+
+R7 `2b`'YE DAİR: hakemin F3k'ye attığı iki şıktan hiçbirini TEK BAŞIMA KAPATMIYORUM.
+Ölçüm şunu söylüyor: "daemon açıkken" şartı, sevk edilmeyen VE sevk edilse bile
+YAVAŞ olan bir kola bağlıdır. Şıkkı seçmek kapı tanımını değiştirmek demektir ve
+§3.8/1 gereği bu faz ajanının yetkisi değildir -> HAKEME BIRAKIYORUM.
