@@ -229,6 +229,16 @@ test: all
 # both of them against a decoy home, with a control arm so the lock cannot go
 # vacuous the day the mechanism moves.
 	./native/home_isolation_test.sh
+# selfheal_path_test.sh — home_isolation holds the SUITE off the operator's
+# file; this one holds the PRODUCT off her install. Measured 2026-08-30 by the
+# arbiter, deterministically: a rabadon-gate built in a throwaway worktree,
+# given one SessionStart against a settings.json that already named the
+# canonical install, moved six hook entries AND rabadon-drift to its own
+# absolute paths -- then the worktree went away and the brake pointed at
+# nothing, silently, for days. The law this pins: an upgrade is about EVENTS,
+# so a live command is carried through byte for byte; the one case that must
+# write an address writes a DURABLE one and announces both the old and the new.
+	./native/selfheal_path_test.sh
 # brake_persist_test.sh — the other half of the same lesson. home_isolation
 # holds the SETTINGS file against the suite; this one holds the SWITCH against
 # the install. On 2026-08-30 this machine sat in watch with `enabled` gone and a

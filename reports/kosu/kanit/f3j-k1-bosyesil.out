@@ -1,0 +1,24 @@
+selfheal_path: an upgrade may not move a working install
+  ok   - the staged copy is the same binary at a different absolute path
+  FAIL - a worktree binary wrote its own path into the home settings — B2 reproduces
+  FAIL - the install was relocated: [/Users/damummyphus/damla_projects_2026/rabadon/native] -> [/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/wt/native]
+  FAIL - the command the operator had registered is gone: [/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/wt/native/rabadon-drift
+/private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/wt/native/rabadon-gate]
+  ok   - the event subscription still caught up (PostToolUseFailure arrived)
+  ok   - rabadon-drift was registered too, at the canonical address
+  FAIL - rabadon-drift was registered at the worktree address
+  ok   - the foreign statusLine and unrelated keys were left alone
+  ok   - the canonical binary left the install where it was
+  ok   - the canonical binary left the registered gate command in place
+  ok   - the canonical binary performed the event upgrade
+  ok   - a DEAD registered path is repaired to the running canonical install
+  FAIL - the address changed and the old one was never printed: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/h3/.claude/settings.json]
+  FAIL - the address changed and the new one was never printed: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/h3/.claude/settings.json]
+  ok   - the same line reports the event upgrade as well — both halves, not one
+  FAIL - a worktree address was written into a settings file — the ten-hour defect, second door
+  FAIL - self-heal declined to repair and said nothing about it: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/h4/.claude/settings.json]
+  FAIL - the refusal never says which address was rejected: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/h4/.claude/settings.json]
+  FAIL - the refusal leaves the user with a dead install and no next step: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.7a65uI/h4/.claude/settings.json]
+  ok   - every rabadon command self-heal left behind names a binary that exists
+  ok   - a second session from the same copy changes nothing
+selfheal_path: 11 passed, 10 failed
