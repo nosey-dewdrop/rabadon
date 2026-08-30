@@ -1,0 +1,23 @@
+=== MUTATION M1: gate --off no longer removes the enabled flag (unlink dropped) ===
+rebuilt
+  ok   - rabadon on writes BOTH mode=enforce and the enabled flag
+  ok   - and the very next force-push is refused (exit 2)
+  FAIL - rabadon off did not reach watch
+  ok   - and the lowering is written on the ledger as a MODE line
+  ok   - after the operator's own off, the event is allowed again (exit 0)
+brake_persist: 12 passed, 1 failed
+
+=== MUTATION M2: SessionStart self-heal lowers the mode to watch ===
+rebuilt
+  ok   - rabadon init leaves the enabled flag in place
+  ok   - after rabadon init the force-push is still refused (exit 2)
+  ok   - rabadon on writes BOTH mode=enforce and the enabled flag
+  ok   - and the very next force-push is refused (exit 2)
+  ok   - rabadon off still lowers the brake — the exit door is not welded shut
+  ok   - and the lowering is written on the ledger as a MODE line
+  ok   - after the operator's own off, the event is allowed again (exit 0)
+brake_persist: 10 passed, 3 failed
+
+=== REVERTED ===
+  ok   - after the operator's own off, the event is allowed again (exit 0)
+brake_persist: 13 passed, 0 failed

@@ -229,6 +229,15 @@ test: all
 # both of them against a decoy home, with a control arm so the lock cannot go
 # vacuous the day the mechanism moves.
 	./native/home_isolation_test.sh
+# brake_persist_test.sh — the other half of the same lesson. home_isolation
+# holds the SETTINGS file against the suite; this one holds the SWITCH against
+# the install. On 2026-08-30 this machine sat in watch with `enabled` gone and a
+# real force-push returning 0; the ledger and ~/.claude/history.jsonl name the
+# cause (the operator typed `rabadon off` three times by hand), so the deliberate
+# command keeps working here on purpose -- what is locked is that `rabadon init`
+# and the self-healing SessionStart cannot reach the switch, with two control
+# arms so the lock cannot pass on a gate that refuses nothing.
+	./native/brake_persist_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an

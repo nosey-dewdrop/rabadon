@@ -1,0 +1,22 @@
+=== BEFORE ===
+mode: watch
+enabled file: ABSENT
+rabadon (watch) would have blocked this.
+Rule: no-force-push-main — baseline: force-pushing a shared branch destroys history
+command matched deny rule: git push --force origin main
+Nothing was stopped. `rabadon on` makes this a real refusal.
+EXIT=0
+
+=== TURN BRAKE ON ===
+rabadon: ON — the arbiter acts: refuses, repairs, proves
+on-exit=0
+mode: enforce
+enabled file: /Users/damummyphus/.rabadon/enabled
+
+=== AFTER: real PreToolUse, real shipped binary ===
+rabadon BLOCKED this action.
+Rule: no-force-push-main — baseline: force-pushing a shared branch destroys history
+command matched deny rule: git push --force origin main
+Adjust the approach instead of retrying the same action.
+(user override: add "no-force-push-main" to disabled[] in .rabadon/guard.json, or `rabadon off` to pause supervision)
+EXIT=2
