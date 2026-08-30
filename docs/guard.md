@@ -47,6 +47,56 @@ project's own copy spelled absolute). **The rule was not weakened; its subject
 was narrowed to what this row always said it was.** Another tree's `.rabadon` is
 `baseline-rm-rf-outside`'s business, under that rule's own id.
 
+### What this rule cannot see, measured 2026-08-30 — seven shapes, two classes
+
+The row above says the law is judged "by **effect**, not by verb name." That is
+true of the verb and false of the **operand**: the rule asks whether a command
+names `.rabadon/guard.json`, `.rabadon/promise.json` or `.rabadon`, and a command
+that destroys all three without naming any of them is invisible to it. **Seven
+such shapes were measured on 2026-08-30** — verdict read from the shipped binary,
+then the same shape actually run in a fresh sandbox and the law looked for:
+
+    bash reports/kosu/kanit/f3i/probe-exec.sh <<'EOF'
+    find . -delete
+    find . -not -name . -delete
+    find . -not -path . -delete
+    find . -not -type l -delete
+    find . -not -newer . -delete
+    ls -a | xargs rm -rf
+    cd .. && rm -rf proj
+    EOF
+
+    ALLOW   GONE   find . -delete                  <- a walk that never spells the law's name
+    ALLOW   GONE   find . -not -name . -delete
+    ALLOW   GONE   find . -not -path . -delete
+    ALLOW   GONE   find . -not -type l -delete
+    ALLOW   GONE   find . -not -newer . -delete
+    ALLOW   GONE   ls -a | xargs rm -rf
+    ALLOW   GONE   cd .. && rm -rf proj            <- the tree deleted from outside, law and all
+
+**They are not being closed, and that is a decision.** The second class *is*
+`rm -rf ./old-project`, which the section below promises will pass; the first is
+every recursive walk of a directory you own. A cut wide enough to catch them
+fences you inside your own project, which is worse than one hole named out loud.
+
+So the hole is **announced by the product rather than by this page**: the
+`blind spots:` block on the session screen prints the count, both class names,
+one shape per class, and what to do about it. The number there is not typed —
+it comes off the same compiled table as `rabadon-gate --law-blind`, and
+`native/law_blind_test.sh` runs every declared shape for real and goes red if
+one of them is actually refused, if the screen's number drifts from the table,
+or if the list is padded with shapes the gate does refuse.
+
+**What to do:** commit `.rabadon/` to git. That copy survives all seven, and
+`git checkout .rabadon` puts the law back. Under `rabadon exec` a
+`protectedPaths` entry is additionally fenced by the kernel.
+
+An earlier phase published `ls | xargs rm -rf` as the example of this class.
+That was wrong and the sentence is corrected rather than deleted: `ls` without
+`-a` does not list a dotted name, so the shape is `ALLOW` but leaves the law
+`THERE` — measured on the same run above. The shapes on this page are the ones
+that really reach it.
+
 ### The way out?
 
 A guard with no way out is a trap, so here is the way out, measured on
