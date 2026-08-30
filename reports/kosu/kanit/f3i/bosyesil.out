@@ -1,0 +1,11 @@
+=== BOS YESIL TURU — the two new locks against the F3i-oncesi artefact (c48c0e4) ===
+--- law_blind_test.sh vs the BASE binary (no kLawBlind, no --law-blind, no screen line)
+  FAIL - the screen says 'nothing' and --law-blind declares 0 — the count is typed twice
+  ok   - every declared class is named on the screen, not just counted
+  FAIL - the screen names the hole and gives the user nothing to do about it
+law_blind: 6 passed, 4 failed
+
+--- brake_persist_test.sh vs the BASE binary
+  ok   - and the lowering is written on the ledger as a MODE line
+  ok   - after the operator's own off, the event is allowed again (exit 0)
+brake_persist: 13 passed, 0 failed

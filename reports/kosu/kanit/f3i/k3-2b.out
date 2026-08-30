@@ -1,0 +1,17 @@
+--- HEAD binary
+binary                                = native/rabadon-gate
+N (mean, not median)                  = 200
+REAL gate, end to end                 = 3319.5 us
+empty baseline /usr/bin/true, same    = 1488.0 us
+cost ATTRIBUTABLE to rabadon          = 1831.5 us
+ceiling (R7 2b)                       = 1000.0 us
+attributable / ceiling                = 1.83x
+
+--- F3i-oncesi (c48c0e4) binary, same tool, same N
+binary                                = /Users/damummyphus/.rb-f3i-wt/native/rabadon-gate
+N (mean, not median)                  = 200
+REAL gate, end to end                 = 3617.5 us
+empty baseline /usr/bin/true, same    = 1801.8 us
+cost ATTRIBUTABLE to rabadon          = 1815.7 us
+ceiling (R7 2b)                       = 1000.0 us
+attributable / ceiling                = 1.82x

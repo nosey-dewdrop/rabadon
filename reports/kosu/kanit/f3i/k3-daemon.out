@@ -1,0 +1,25 @@
+k3-daemon: N=200 per arm, 8 paired rounds, warm=60, -O2, accept.sh's probe recipe
+
+--- 1. paired rounds, no segment clock (magnitude + sign test)
+  round 1   daemon UP   3988.2 us   DOWN   1950.6 us   delta +2037.6 us
+  round 2   daemon UP   3930.6 us   DOWN   2184.6 us   delta +1746.0 us
+  round 3   daemon UP   4464.6 us   DOWN   2302.9 us   delta +2161.7 us
+  round 4   daemon UP   3520.9 us   DOWN   2245.8 us   delta +1275.1 us
+  round 5   daemon UP   3488.6 us   DOWN   2352.4 us   delta +1136.2 us
+  round 6   daemon UP   4150.3 us   DOWN   2956.0 us   delta +1194.3 us
+reports/kosu/kanit/f3i/k3-daemon.sh: line 122: 71203 Terminated: 15          env HOME="$H" RABADON_DIR="$H/.rabadon" RABADON_GATED_SOCK="$SOCK" "$GATED" > "$W/gated.log" 2>&1
+  round 7   daemon UP   4605.3 us   DOWN   2884.2 us   delta +1721.1 us
+  round 8   daemon UP   4453.6 us   DOWN   3240.0 us   delta +1213.6 us
+  sign test: 8 rounds slower with the daemon, 0 faster (out of 8)
+  median delta = +1498.1 us   mean = +1560.7 us   band = |439| us
+  VERDICT: the daemon COSTS leg 3 time, one-sided, outside the band
+
+--- 2. the split (instrumented binary -- totals inflated on purpose, see header)
+  connect        48.0 us     1.1% of the round trip   (n=200)
+  send          104.6 us     2.5% of the round trip   (n=200)
+  wait         3901.4 us    91.8% of the round trip   (n=200)
+  close          99.5 us     2.3% of the round trip   (n=200)
+  ROUND TRIP   4249.7 us  100.0%
+
+  instrumented leg 3 4354.1 us vs clean leg 3 4450.6 us -> the segment clock itself costs -96.4 us
+  so the round trip in the CLEAN binary is at most 4346.1 us

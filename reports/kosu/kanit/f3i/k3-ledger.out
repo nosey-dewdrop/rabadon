@@ -1,0 +1,14 @@
+k3-ledger: same binary, same event, N=400 per batch -- only the spool differs
+
+  spool    16 KB -> first  400 calls:   5474.9 us/call
+  spool   136 KB -> second 400 calls:   5523.1 us/call
+  spool   200 KB after
+  drift within one uninterrupted run, no code change: +48.2 us  (+0.9%)
+
+  control, spool WIPED between the two batches:
+    first  400 calls:   5116.5 us/call
+    second 400 calls:   5055.2 us/call
+    drift with the ledger reset: -61.3 us  (-1.2%)
+
+  ATTRIBUTABLE TO LEDGER SIZE = (grown drift) - (reset drift) = +109.5 us
+  (a positive number here is the spool; what is left over is the machine)
