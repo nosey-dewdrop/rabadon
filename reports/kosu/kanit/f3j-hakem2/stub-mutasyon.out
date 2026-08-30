@@ -1,0 +1,51 @@
+# HAKEM 2, 2026-08-30 — CARD 2 (B3 triple gate) MUTATED BY HAND.
+# Question asked: does the 17-byte `exit 0` stub actually go red?
+
+$ ./native/machine_intact_test.sh record
+  ok   - record: the shipped rabadon-gate answers --version (rabadon-gate 0.2.3)
+  ok   - record: the machine baseline is on disk (23 subjects)
+machine_intact [record]: 6 passed, 0 failed
+
+$ printf '#!/bin/sh\nexit 0\n' > native/rabadon-net; chmod 755 native/rabadon-net
+stub size: 17 bytes
+
+$ ./native/machine_intact_test.sh          # the verify arm
+  FAIL - verify: 1 shipped artifact(s) are stub-sized
+  FAIL - verify: 1 shipped artifact(s) are not what they claim to be
+  ok   - verify: the shipped rabadon-gate answers --version (rabadon-gate 0.2.3)
+  FAIL - verify: a shipped artifact changed during the run - mode/size/hash moved
+       < bin	rabadon-net	755	155096	f1b3f7b008d947528027734ee85544fe32466b031ba807372b2c1a0056e74790
+       > bin	rabadon-net	755	17	306c6ca7407560340797866e077e053627ad409277d1b9da58106fce4cf717cb
+  ok   - verify: $HOME/.claude/settings.json is byte for byte what it was before the run
+  ok   - verify: the live brake is exactly as the operator left it (brake-mode watch;brake-enabled ABSENT)
+  ok   - verify: the diff above is the complete list of what moved
+machine_intact [verify]: 6 passed, 3 failed     EXIT=1
+
+VERDICT: all THREE legs fired independently - the 1024-byte size floor, the
+Mach-O magic-number check, and the recorded sha256. The card's claim holds.
+Two extra assertions I did not expect and that matter: the suite ALSO certified
+that my mutation did not touch the operator's settings.json or her brake, and it
+printed the complete list of what moved. That is the B3 damage class closed.
+
+$ cp <backup> native/rabadon-net; chmod 755
+$ shasum -a 256 native/rabadon-net
+f1b3f7b008d947528027734ee85544fe32466b031ba807372b2c1a0056e74790  native/rabadon-net
+  == the pre-mutation baseline, byte for byte. RESTORED.
+
+FOLLOW-UP I MEASURED WITHOUT BEING ASKED: a second `verify` with no fresh
+`record` is RED - "no baseline at .../rabadon-machine-intact-<key>.tsv - the
+record arm never ran, so this gate measured NOTHING". The verify arm CONSUMES
+the manifest. That is by design (machine_intact_test.sh:155-159) and it is the
+right design, but it means the suite is only meaningful inside one `make test`.
+
+WHERE THE GATE SITS, AND THE HONEST LIMIT OF IT (asked in the brief):
+`make test` runs it FIRST (`record`, Makefile:122) and LAST (`verify`,
+Makefile:1127). So it answers "what did THIS RUN do to the operator's machine".
+It does NOT and CANNOT answer "is the operator's machine healthy right now",
+because nothing runs it outside `make test`. B1 (the lost execute bit) and B3
+(the stub) were both inflicted BY a run, so the gate is in the right place for
+the damage it was built for. Damage inflicted by anything else - a failed build,
+a manual copy, a crashed editor - is still invisible until someone types
+`make test`. The point-in-time arm (machine_intact_test.sh:88 `point_in_time`,
+which needs no baseline) would answer that question today if it had a caller.
+It has none. RECORDED AS THE GAP, not as a failure of the card.

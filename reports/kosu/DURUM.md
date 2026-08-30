@@ -4,7 +4,88 @@ Koşunun kısa ve KANITLI durumu. Her satır bir ölçümden okundu.
 Ayrıntı ve komutlar: `reports/kosu/ENVANTER.md`.
 Koşu 3'ün DURUM'u `reports/kosu/arsiv/DURUM-kosu3.md`'de, iptal notuyla duruyor.
 
-## SON HÜKÜM — F3h: **KALDI** (2026-08-30, `KAPI.md`)
+## SON HÜKÜM — F3j: **GEÇTİ** (2026-08-30, `KAPI.md`)
+
+**Bu, F3j'nin İKİNCİ hakem oturumudur:** birincisi 103 çağrı ölçüm yapıp hükmünü
+yazamadan oturum limitine takıldı; ham çıktısı `750f6e7` ile
+`kanit/f3j-hakem/`'e indi ve dört kalem oradan **kaynak gösterilerek** alındı
+(`accept.sh` 23/3 · `2b` daemon'lu 2009,0 µs · `blind spots:` 21=21 küme
+eşitliği · korpusta 21 `ALLOW+GONE`). Geri kalanı ikinci hakem ölçtü.
+
+`make test` **EXIT=0**, hiçbir süitte `failed` yok, hiçbir yerde `skip` yok.
+Süit sayacı **kaynaktan**: `F3j-oncesi` **119** → HEAD **121**, fark tam olarak
+iki yeni süit (`machine_intact_test.sh`, `selfheal_path_test.sh`).
+Kartın **+41 ayrıştırması hakemin kendi koşusunda birebir**: `selfheal_path`
+**21** · `machine_intact` **6+9=15** · `law_blind` **15** (+5) = **41**.
+`PASS (N checks)` **633**. `accept.sh` **EXIT=1, 23/3, `{2b, 6e, 7b}` BÜYÜMEDİ**.
+Silinen dosya **0** · yeni skip **0** · mühürlü set ve `bin/rabadon.mjs` (O3)
+diff'te **YOK**.
+
+> ⚠ **MUTLAK NATIVE SAYACI ARTIK GÜVENİLİR DEĞİL.** Hakem **4034** saydı, kart
+> **4086**, F3i tabanı **4045** — fark **atfedilemedi ("ölçemedim")**. İki aday:
+> `make test` koşarken `reports/` altına dosya yazılması, ve süitlerin bir
+> kısmının gerçek `PATH`'i taraması (`unknown wrappers: 63`, `wrappers: 64`),
+> yani sayaç **kabuğa bağlı** olabilir ve hakem oturumları arasında
+> karşılaştırılamayabilir. **F3k'nin bakması gereken kalem.** Hüküm bu sayaca
+> dayandırılmadı; §3.8'in sorduğu üç soruya (silindi/zayıflatıldı/atlandı)
+> ayrı ayrı **HAYIR** ölçüldü.
+
+**GEÇEN:** K1 (self-heal canlı komutu bayt bayt taşıyor; worktree şekli **sesli
+reddediliyor** ve settings değişmiyor; her repoint eski+yeni adresle ilan
+ediliyor; mutasyon 21/0 → 18/3 → 21/0) · K2 (17 baytlık stub'ı **üç bacak da
+ayrı ayrı** yakalıyor: boyut tabanı + Mach-O sihirli sayısı + sha256) ·
+K3 (ilan = ölçüm, **21 = 21**, eşitlik kilidi tutuyor) · K4 (kart haklı).
+
+### `2b` — SEKİZ FAZLIK TEŞHİS HATASI KAPANDI
+
+**Kart haklıydı, ölçüt değil.** `accept.sh:132` daemon'u **kendisi** başlatıyor;
+sevk edilen kurulumda `settings.json` **5 olayda `rabadon-gate`** kayıtlı,
+**`rabadon-gated` 0 olayda**, launchd plist'i yok, koşan daemon yok — daemon'u
+yalnız `rabadon dev gated` başlatıyor. Yani **`2b` kullanıcının yaşamadığı bir
+yolu ölçüyor**, ve **F3h (+530,4 µs) ile F3i (+538,0 µs) ölçümleri de sevk
+edilmeyen o yolu ölçmüştür**.
+
+Zorunlu aletle, iki ölçüm:
+
+- **Sevk edilen yol medyanı (boş makine): 766,3 µs** — p90 861,0 · min 664,5.
+  **Tavan 1000 µs, ALTINDA.** Üstelik makinenin bugünkü bozukluğunu
+  (`/tmp/rabadon-501.sock` 24 Ağu'dan beri dinleyicisiz) **ödeyerek**.
+- **Eşli, ABBA, tek oturum, 400 örnek/kol, 3 tekrar: daemon +705,0 µs,
+  işaret 3/0.** (+638,2 / +782,1 / +694,6)
+
+**Daemon hızlanma değil, `2b`'nin başarısızlığındaki en büyük tek terim — ve
+sevk edilmeyen bir bileşen.** Mekanizma `gate.cpp:538`'de yazılı:
+`rabadon-gated` **istek başına iki `fork()`** yapıyor (`gated.cpp:269,294`) ve
+her taze işçi `gmtime_r`'ın 269–483 µs'lik soğuk timezone yüklemesini yeniden
+ödüyor. **Tavan gevşetilmedi, `accept.sh`'e dokunulmadı.**
+
+### KAPATMAYAN / AÇIK KALAN
+
+- **`refresh.mjs:92` tmp deliği:** `notDurable` yalnız `os.tmpdir()` (`$TMPDIR`)
+  altını reddediyor; `/tmp` ve `/private/tmp` **kapsam dışı** ve hakem oradan
+  ölü bir girdiyi **repoint ettirebildi**. (Kartın kendi metni `os.tmpdir()`
+  diyor, yani **over-claim yok** — bu **yeni bulgu**.) Gizil ikinci kalem:
+  `notDurable(p)` worktree kolunu `PKG_DIR`'e karşı sınıyor, **parametresini
+  yok sayıyor**.
+- **B3 kapısının sorusu dar:** `make test`'in ilk/son satırı olduğu için
+  "**bu koşu** makineye ne yaptı" sorusunu tam cevaplıyor (B1 ve B3 zaten birer
+  koşu zararıydı, yani doğru yerde), ama "makine **şu an** sağlam mı" sorusunu
+  kimse sormuyor — `machine_intact_test.sh:88`'deki `point_in_time()` kolu bunu
+  tabana ihtiyaç duymadan cevaplardı, **çağıranı yok**.
+- **Ölü `/tmp/rabadon-501.sock`'un maliyeti ÖLÇÜLEMEDİ** (hakemin denemesi ABBA
+  olmadığı için sıra artefaktı verdi). Kart da ölçememişti.
+
+**SIRADAKİ FAZ: F3k. İLK BLOKLAYAN KART: `rabadon-gated`'in istek başına
+`fork()` modeli** — ya kaldırılıp daemon **sevk edilir** (o zaman `2b`'nin
+ölçtüğü yol gerçek yol olur), ya da R7'nin "daemon açıkken" şartının **sevk
+edilmeyen bir kola bağlı olduğu** ölçüyle yazılıp `2b` KAPI dışına alınır ve
+yerine sevk edilen yolun medyanı (**766,3 µs**) konur.
+**F4 (c) ölçülmeden AÇILMAZ** ((c) F6'nın aletiyle koşar, F3d hükmü).
+Ayrıntı: `reports/kosu/RAPOR/F3j-R.md` · ham ölçüm: `kanit/f3j-hakem2/`.
+
+---
+
+## ÖNCEKİ HÜKÜM — F3h: **KALDI** (2026-08-30, `KAPI.md`)
 
 Kapı sayıları kartla **birebir** ve hakem tarafından yeniden koşturuldu:
 `make test` **EXIT=0** · native **4022** iddia + **633** kontrol + `npm test`

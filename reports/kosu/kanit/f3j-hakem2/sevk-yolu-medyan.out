@@ -1,0 +1,72 @@
+# HAKEM 2, 2026-08-30 — THE SHIPPED PATH'S OWN MEDIAN, WHICH 2b HAS NEVER MEASURED.
+#
+# Instrument: the SAME R1.3 in-process probe reports/R7/accept.sh mandates
+# (a copy of native/gate.cpp patched under /tmp with steady_clock at the top of
+# main() + atexit dump, compiled there; native/ untouched). Same event, same
+# warmup (60) and same sample count (300) as accept.sh's 2b arm.
+#
+# THE ONLY DIFFERENCE FROM 2b: no daemon, and RABADON_GATED_SOCK unset.
+# That is the configuration every hook on the operator's machine runs in:
+#   ~/.claude/settings.json registers native/rabadon-gate on 5 events.
+#   It registers rabadon-gated on ZERO events.
+#   No launchd plist, no running rabadon-gated process.
+#   gated_client.h:69 resolve_sock() -> $XDG_RUNTIME_DIR or /tmp + rabadon-<uid>.sock
+#   /tmp/rabadon-501.sock EXISTS (24 Aug 15:29) with NO listener, so this
+#   measurement INCLUDES the dead connect() the operator pays today.
+
+SHIPPED-PATH (no daemon) n=300 median=766.3 us  p90=861.0  min=664.5  max=2436.1
+
+CEILING = 1000 us.  766.3 < 1000.  The path the user actually runs is UNDER it.
+
+For comparison, from the first arbiter's run (kanit/f3j-hakem/hakem-accept.out):
+  FAIL 2b the gate's median is 2009.0 us with the daemon up, ceiling is 1000 us
+
+  daemon up   : 2009.0 us
+  daemon absent:  766.3 us
+  the daemon COSTS +1242.7 us, i.e. 2.62x. It is not a speedup, it is the defect.
+
+MECHANISM, from the tree's own words (native/gate.cpp:538):
+  "rabadon-gated forks a worker per request, so every request paid the cold
+   price again"
+  native/gated.cpp:269 and :294 — two fork() calls per served request.
+
+# ---------------------------------------------------------------------------
+# THE PAIRED VERSION, BECAUSE THE NUMBER ABOVE IS CROSS-SESSION AND THAT IS THE
+# EXACT SIN THREE ARBITERS BEFORE ME WERE CALLED OUT FOR.
+# Same probe, same event, ABBA ordering (D,N,N,D per rep) so the machine's
+# monotonic drift cancels instead of loading one arm. 400 samples per arm per
+# rep, both arms in ONE sitting, daemon started in a sandbox HOME with an
+# explicit short socket and killed after; the socket was removed.
+
+rep1 (n=400/arm): daemon UP 1661.3 us | daemon DOWN 1023.1 us | daemon costs  +638.2
+rep2 (n=400/arm): daemon UP 1924.5 us | daemon DOWN 1142.3 us | daemon costs  +782.1
+rep3 (n=400/arm): daemon UP 1977.2 us | daemon DOWN 1282.7 us | daemon costs  +694.6
+
+mean = +705.0 us, sign 3 plus / 0 minus.
+
+VERDICT: the daemon is a REGRESSION of about +705 us, measured paired, and the
+sign is unanimous. It is not "not yet fast enough" - it is the single largest
+term in 2b's failure, and it is a component NOTHING SHIPS.
+
+LOAD CAVEAT, STATED HONESTLY: these absolute numbers are higher than the 766.3
+us at the top because the machine was busy with this session's own work by then
+(the daemon-DOWN arm reads 1023-1283 us here vs 766.3 idle). The 766.3 us figure
+is the idle one and it is the one to compare against the 1000 us ceiling; the
++705 us figure is the load-controlled one and it is the one to compare against
+zero. Both point the same way. I did NOT re-run the idle measurement under load
+control, so the single number "766.3" carries an idle-machine assumption.
+
+# ---------------------------------------------------------------------------
+# WHAT I COULD NOT MEASURE: the stale socket's cost (the card's open item #1).
+# /tmp/rabadon-501.sock has existed with no listener since 24 Aug, so every gate
+# call stats it, connects, and is refused. I tried to size it by comparing the
+# stale socket VISIBLE against XDG_RUNTIME_DIR pointed at an empty directory:
+#   rep1 786.2 vs 1066.8 | rep2 945.0 vs 1000.4 | rep3 996.4 vs 1046.1 | rep4 1103.8 vs 1134.5
+#   mean -104.1 us, 0 plus / 4 minus -- i.e. "removing the dead socket makes it
+#   SLOWER", which is physically absurd.
+# The artifact is visible in the data: within a single arm the medians climb
+# monotonically (786 -> 945 -> 996 -> 1104), the machine was drifting, and I ran
+# A-then-B in every rep so B always landed later. NOT AN ABBA DESIGN. The result
+# is an ordering artifact, not a measurement.
+# I DID NOT MEASURE THE STALE SOCKET'S COST. Same as the card. I did not delete
+# the socket either - it is the operator's file.

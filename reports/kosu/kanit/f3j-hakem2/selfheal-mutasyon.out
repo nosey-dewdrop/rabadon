@@ -1,0 +1,55 @@
+# HAKEM 2, 2026-08-30 — CARD 1 (B2 self-heal) MEASURED BY HAND, 3 SCENARIOS + 1 MUTATION.
+# Every run against a DECOY HOME. ~/.claude/settings.json sha256 re-measured
+# after each: adcb41a93f858d6befca4086c42c50d271a8906513acd1fa29c68ffb6dee5681
+# BEFORE and AFTER all of it. The operator's file never moved.
+#
+# NOTE: my first fixtures were VACUOUS and I caught it. hooks/refresh.mjs runs its
+# body only when import.meta.url == file://$argv[1]; /tmp is a symlink to
+# /private/tmp on macOS, so the body never ran and both scenarios "passed" in
+# silence. Re-run under /private/tmp. The card names this same trap as a side
+# finding; I hit it independently, which is a second measurement of it.
+
+=== A2 — stale subscriptions, the REGISTERED gate is ALIVE and canonical ===
+running install: /private/tmp/hakem2-fake  (NOT canonical)
+rabadon: this install was older than the binary - subscribed to PostToolUse,
+  PostToolUseFailure, SessionStart, UserPromptSubmit in .../settings.json
+addresses written:
+  /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-drift
+  /Users/damummyphus/damla_projects_2026/rabadon/native/rabadon-gate
+VERDICT: the live command was carried BYTE FOR BYTE. The running copy's own
+  /private/tmp path was NOT written. The subscription half was announced.
+  THE CARD IS RIGHT ON THIS ARM. This is exactly the B2 damage, and it is gone.
+
+=== C — registered gate DEAD, running install is a WORKTREE (.git is a FILE) ===
+rabadon: this install points at a binary that is gone
+  (/private/tmp/gone-xyz/native/rabadon-gate) and I will NOT repoint it to
+  /Users/.../\_hakem2_wt/native/rabadon-gate - it is inside a git worktree,
+  which goes away when the work does.
+  Nothing was changed in .../settings.json. Fix it from your real install: `rabadon init`
+settings.json sha256 UNCHANGED.
+VERDICT: THE EXACT SHAPE THAT DID THE DAMAGE IS REFUSED, OUT LOUD, AND NOTHING
+  IS WRITTEN. No real worktree was created; the marker shape was reproduced.
+
+=== B — registered gate DEAD, running install under /private/tmp ===  *** HOLE ***
+rabadon: this install was older than the binary - subscribed to ...;
+  REPOINTED rabadon-gate from /private/tmp/gone-worktree-xyz/native/rabadon-gate
+  TO /private/tmp/hakem2-fake/native/rabadon-gate in .../settings.json
+settings.json *** MUTATED ***
+VERDICT: NO REFUSAL. The card says a "tmp" path is refused out loud. It is not.
+ROOT CAUSE, read from the source (hooks/refresh.mjs:92):
+  const tmp = real(os.tmpdir());
+  node -e os.tmpdir() on this machine = /var/folders/5b/.../T
+  So the tmp arm covers ONLY $TMPDIR. /tmp and /private/tmp - the classic
+  scratch directories, and ones macOS periodic actually sweeps - are NOT covered.
+SECOND, LATENT: notDurable(p) takes a candidate path `p`, but its worktree arm
+  tests fs.statSync(path.join(PKG_DIR, '.git')) - PKG_DIR, the RUNNING module's
+  directory, not `p`. Today they coincide because GATE_BIN is a sibling; the
+  parameter is nonetheless ignored. NOT a live defect, recorded as latent.
+
+=== MUTATION — break the protection, see red, restore ===
+mutant: `function notDurable(p) { return null; ...`   (always durable)
+  ./native/selfheal_path_test.sh -> EXIT=1, selfheal_path: 18 passed, 3 failed
+restored:
+  ./native/selfheal_path_test.sh -> EXIT=0, selfheal_path: 21 passed, 0 failed
+  git diff --stat hooks/refresh.mjs -> empty
+VERDICT: the gate can be broken and it goes red. It is a gate.
