@@ -1551,3 +1551,29 @@ hangisinin okunduğu tutanağa yazılır. Ekran kaybı da ilan eder (F2-S4).
 F1n (npm yayını) **UYKUDA KOŞMAZ** (§13): operatör kararı, `UYANDIGINDA.md`'de.
 Sonraki şef bu dosyayı ve `ENVANTER.md`'yi okur; `KOSU-RABADON-5.md` §6'nın sayılarına
 DEĞİL, ölçümlere güvenir. F1a'nın ölçümleri ENVANTER'in F0 sayılarını GÜNCELLER.
+
+---
+
+## F3k SONRASI TABAN (2026-08-30, HAKEM kendi koşturdu, AYNI ÜÇ KOMUT)
+
+| ölçü | F3j sonrası | **F3k sonrası (hakem)** |
+|---|---|---|
+| `make test` exit | 0 | **0** |
+| native iddia (GENİŞ `^[[:space:]]*ok\b`) | 4086 | **4096** |
+| native `PASS (N checks)` | 633 | **633** |
+| `npm test` | 64/0 | **64/0** |
+| **TOPLAM** | 4783 | **4793 yeşil / 0 kırmızı** (+10) |
+| sıfırdan büyük `failed` | 0 | **0** |
+| sessiz `skip` / `xfail` | 0 | **0** |
+| adlı süit (küçülen / kaybolan) | — | **53 / 0 küçülen / 0 kaybolan** |
+| `reports/R7/accept.sh` | 23 yeşil / 3 kırmızı | **23 / 3, `{2b, 6e, 7b}` — BÜYÜMEDİ** |
+
+**DAR regex bugün 4044** (GENİŞ 4096 − 52). Selefinin 4034'ü **emekli DAR** sayaçtı; fark tam 52 ve `ok`'u sütun 0'dan basan iki süide ait. **Kayıp iddia yok.** Emekli sayı silinmez, gerekçesiyle burada durur.
+
+**⚠ ÖLÇEMEDİM:** kartın "süit 121" sayısını üretebileceğim komut `DURUM.md`'nin üç komutunda yok; kendi kalıbım (`^ad: N passed, M failed`) **53** adlı süit sayıyor ve ikisi kıyaslanamaz. 121'i **doğrulamadım da yalanlamadım da.**
+
+**`2b` HÜKMÜ (2026-08-30, F3k hakemi, şık B):** ölçüt DEĞİŞMEZ, `2b` **kalıcı §1 hedef ihlali** olarak yayımlanır. Tavan **1000 µs gevşetilmedi**, `accept.sh` diff'te YOK. `rabadon-gated` sevk EDİLMEZ; istek başına iki-fork modeli ölçülmüş açık kusurdur (+2645,3/+3365,9 µs, 7/7 çift). Gerekçe: `KARARLAR.md` · 2026-08-30 · F3k.
+
+**SAHİBİNİN MAKİNESİ (2026-08-30, F3k hakemi, dört ölçüm):** `~/.claude/settings.json` sha256 **`adcb41a9…`** oturum başında, self-heal probundan sonra, mutasyondan sonra ve `make test`'ten sonra — **DÖRDÜ DE AYNI**. `~/.rabadon/mode` = `watch`, `~/.rabadon/enabled` **YOK** (sahibinin kalemi, DOKUNMADIM). `git worktree list` **tek satır — worktree AÇMADIM**. Kapı bu oturumda beni **hiç kesmedi** (mod `watch`; bu, kapının enforce altında çalıştığının kanıtı DEĞİLDİR). §4.3 yanlış pozitif adayı: **1**, self-heal kolunda — `KARARLAR.md` · 2026-08-30 · F3k.
+
+**SIRADAKİ FAZ: `F3l` — İLK BLOKLAYAN KART `(c)` negatif kontrolü, F6'nın aletiyle.** `F4` bu ölçüm yapılmadan AÇILMAZ (değişmedi). `(c)` dokuz fazdır erteleniyor; F3l onu ölçmeden kapanmaz.
