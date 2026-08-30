@@ -1,0 +1,27 @@
+F3k KART 1 — notDurable: ŞEKİL -> AİLE. MUTASYON KANITI
+tarih: 2026-08-30 13:09
+
+BOŞ YEŞİL TURU (kapı şartı): ölçüt commit'i 2935489'daki hooks/refresh.mjs,
+F3k-oncesi (07d10e9) ile BAYT BAYT AYNI (git diff = 0 satır), ve o kod üstünde
+yeni süit KIRMIZI: 25 passed / 6 failed, EXIT=1. Yani kapı tabanda kırmızı düşüyor.
+
+ÜÇ KÖK, HİÇBİRİ ÜRÜNÜN LİSTESİNDE DEĞİL (kod yalnız TMPDIR/TMP/TEMP'i ADLANDIRIR):
+  /private/tmp          - yapısal (1777) yakaladı
+  /private/var/tmp      - yapısal (1777) yakaladı
+  $HOME/<rastgele>/nowhere-named-this - süidin 1777 ile KENDİ kurduğu kök,
+                          adı hiçbir kaynak dosyada geçmiyor - yapısal yakaladı
+
+MUTASYON (§3.8/3): arm 2 (sticky+world-writable yürüyüşü) 'false &&' ile devre dışı
+  31 passed / 0 failed   ->   25 passed / 6 failed (EXIT=1)   ->   geri alındı -> 31 passed / 0 failed
+  git diff hooks/refresh.mjs = BOŞ (aşağıda)
+
+KİLİT (aşırı-uyum önleyici): 'durable-install' kolu, $HOME altındaki KALICI bir
+kopyanın HÂLÂ KABUL EDİLDİĞİNİ ölçüyor. 'her şeyi reddet' mutasyonu bu iki iddiada
+kırmızı düşer, yani kapı İKİ YÖNDE de kırılabilir.
+
+GİZİL KALEM DE KAPANDI: arm 3 artık PKG_DIR'i değil PARAMETRESİNİ (p) soruyor;
+en yakın .git'i arayıp FILE ise worktree diyor. PKG_DIR tamamen kalktı (ölü değişken).
+
+SÜİT: selfheal_path 21 -> 31 iddia (+10). Hiçbir iddia silinmedi/zayıflatılmadı.
+ hooks/refresh.mjs | 80 ++++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 64 insertions(+), 16 deletions(-)

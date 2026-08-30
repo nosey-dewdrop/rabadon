@@ -74,28 +74,76 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { installHooks, RABADON_CMD_RE, GATE_BIN, DRIFT_BIN } from './install.mjs';
 
-const PKG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
 // WHY A PATH MAY NOT BE WRITTEN INTO SOMEBODY'S SETTINGS, or null if it may.
-// Two shapes, both of them measured on this run:
-//   - a git worktree marks itself by making `.git` a FILE (`gitdir: ...`)
-//     instead of a directory. That is the shape that did the damage.
-//   - anything under the temp directory is by definition swept.
-// A plain clone and an `npm i -g` tree are neither, so the ordinary user is
-// unaffected. Deliberately NOT a heuristic on the name: a directory called
-// "worktree" is fine, and a real worktree called "rabadon" is not.
+//
+// THIS CHECK USED TO BE A SHAPE AND IT HAD TO BECOME A FAMILY. It tested one
+// string — os.tmpdir() — and on 2026-08-30 the arbiter walked straight past it:
+// os.tmpdir() reads $TMPDIR, which on macOS is /var/folders/<...>/T, so /tmp,
+// /private/tmp and /var/tmp — the directories the system ACTUALLY empties —
+// were all outside the check, and a copy staged there wrote itself into a
+// settings file. Same damage as the ten-hour defect, through a second door.
+// Matching one more name would have left a third door, so what follows tests
+// the PROPERTY, not the list:
+//
+//   1. the per-user scratch roots only the environment can name. $TMPDIR is
+//      0700 and owned by the user, so no permission test can find it; it has
+//      to be asked for.
+//   2. any ancestor that is world-writable AND sticky (mode 1777). That is
+//      what /tmp, /private/tmp, /var/tmp and /dev/shm all are, and what an
+//      install directory never is — a clone is 0755, $HOME here is 0750, an
+//      `npm i -g` tree is 0755. This arm catches scratch roots this file has
+//      never heard of, including one the operator invented, which is the whole
+//      point: the defect was a family, not a shape.
+//   3. a git worktree, which marks itself by making `.git` a FILE
+//      (`gitdir: ...`) instead of a directory. That is the shape that did the
+//      original damage.
+//
+// Everything is compared AFTER realpath, so /tmp and /private/tmp are one
+// answer rather than two and a symlink cannot launder an ephemeral path into a
+// durable-looking one.
+//
+// Arm 3 now asks about the CANDIDATE. It used to test PKG_DIR and ignore its
+// own parameter — the two coincide today, so it was latent rather than live,
+// but a check that ignores its argument answers the wrong question the first
+// time somebody passes it a different one.
 function notDurable(p) {
   const real = (x) => { try { return fs.realpathSync(x); } catch { return path.resolve(x); } };
-  const tmp = real(os.tmpdir());
   const rp = real(p);
-  if (rp === tmp || rp.startsWith(tmp + path.sep)) return `it is under the temp directory (${tmp})`;
-  try {
-    if (fs.statSync(path.join(PKG_DIR, '.git')).isFile())
-      return 'it is inside a git worktree, which goes away when the work does';
-  } catch { /* no .git at all: an npm install, which is durable */ }
+  const under = (root) => {
+    const r = real(root);
+    return rp === r || rp.startsWith(r + path.sep);
+  };
+
+  // 1. named scratch roots: only the environment knows these.
+  for (const root of [os.tmpdir(), process.env.TMPDIR, process.env.TMP, process.env.TEMP])
+    if (root && under(root)) return `it is under a temporary directory (${real(root)})`;
+
+  // 2. measured scratch roots: world-writable + sticky, at any depth above us.
+  for (let d = rp; ;) {
+    let st;
+    try { st = fs.statSync(d); } catch { break; }
+    if (st.isDirectory() && (st.mode & 0o1000) && (st.mode & 0o0002))
+      return `it is under ${d}, a world-writable scratch directory that the system sweeps`;
+    const up = path.dirname(d);
+    if (up === d) break;
+    d = up;
+  }
+
+  // 3. the nearest enclosing .git decides: a FILE means worktree. Stop at the
+  //    first one found, because that is the repository this path belongs to.
+  for (let d = rp; ;) {
+    let st = null;
+    try { st = fs.statSync(path.join(d, '.git')); } catch { /* keep walking up */ }
+    if (st) {
+      if (st.isFile()) return 'it is inside a git worktree, which goes away when the work does';
+      break;                                  // a real .git directory: durable
+    }
+    const up = path.dirname(d);
+    if (up === d) break;                      // no .git anywhere: an npm install
+    d = up;
+  }
   return null;
 }
 
