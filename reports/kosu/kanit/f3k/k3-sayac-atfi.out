@@ -1,0 +1,24 @@
+F3k KART 3 — MUTLAK NATIVE SAYACININ 52'LİK FARKI: ATFEDİLDİ (hipotez değil, aynı log)
+tarih: 2026-08-30 13:04  log: /tmp/f3k-baseline.log (HEAD=3ee5023, make test EXIT=0)
+
+TEK LOG, İKİ REGEX:
+  GENİŞ  grep -cE '^[[:space:]]*ok'  = 4086   <- DURUM.md:752 TEK GEÇERLİ SAYAÇ  == KARTIN SAYISI (4086)
+  DAR    grep -c '^  ok'                = 4034   <- DURUM.md:739 EMEKLİ            == HAKEMİN SAYISI (4034)
+  fark = 52
+
+F3j hakemi ortamı/sırayı değil, EMEKLİ REGEX'İ kullanmış. Kayıp iddia YOK.
+
+52 NEREDE — 'ok'u sütun 0'dan basan İKİ süit (satır no'ları logdan):
+  38 iddia: usage --signals süiti (log 1157, 1197-1233)
+  14 iddia: rabadon-lens süiti      (log 4655-4669)
+  38 + 14 = 52
+
+DURUM.md:739-741 bu kusuru ZATEN yazmıştı ('sütun 0'dan basan bir süidin 14 gerçek
+iddiasını sessizce düşürüyor') — o gün 14'tü, bugün ikinci bir süit katıldı ve 52 oldu.
+Yani DAR sayaç süit düşürüyor; §8.2 gereği emekli, ve hüküm ona dayandırılamaz.
+
+BU FAZIN TABANI (TEK GEÇERLİ SAYAÇLA, kendi koşum):
+  make test EXIT=0 · native 4086 + PASS 633 + npm 64/0 = 4783 yeşil / 0 kırmızı
+  süit (kaynaktan) = 121  · '0 failed' basan satır 76 · sıfırdan büyük 'failed' YOK
+
+DURUM.md'nin ÜÇ KOMUTU DEĞİŞMEDİ. CHALLENGE YOK — sayaç doğruydu, kullanılmamıştı.
