@@ -238,6 +238,13 @@ test: all
 # and the self-healing SessionStart cannot reach the switch, with two control
 # arms so the lock cannot pass on a gate that refuses nothing.
 	./native/brake_persist_test.sh
+# law_blind_test.sh -- the ANNOUNCEMENT held equal to the BEHAVIOUR. Seven shapes
+# destroy <project>/.rabadon/guard.json and the gate allows all seven; two phases
+# declared that on a card while the product's own screen said nothing. The table
+# is compiled in, printed on `blind spots:`, and printable as `--law-blind`; this
+# suite runs every declared shape for real and refuses a declaration that is
+# padded, shrunk, or out of step with the number the user reads.
+	./native/law_blind_test.sh
 # moves_test.sh guards R1's record. Nothing in this target guarded what READS
 # that record: R2's five detectors (native/signals.h) and R3's tier-1
 # fingerprint (native/semantic.h) had only their own reports/*/accept.sh, and an
