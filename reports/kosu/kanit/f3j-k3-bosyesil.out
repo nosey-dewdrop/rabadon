@@ -1,0 +1,50 @@
+law_blind: the blind-spots screen must equal what the binary really allows
+  FAIL - only 7 shapes declared — 21 were measured ALLOW+GONE on 2026-08-30, so this is a shrink, not a fix
+  FAIL - only 2 class(es) declared, expected at least 4
+  ok   - all 7 declared rows were read back with a class beside them
+  ok   - every declared shape is really ALLOW and really leaves .rabadon/guard.json GONE
+  ok   - control: three shapes that the gate really refuses were exercised
+  ok   - and none of them appears on the blind list — the count is not padded with refused shapes
+  ok   - the corpus offers 36 candidate shapes to measure (>=30)
+  ok   - and it is genuinely mixed: 10 of them the gate REFUSES, 5 are allowed but leave the law standing
+  FAIL - measured ALLOW+GONE and NOT declared — the user is told a smaller number than the truth:
+    find . -mindepth 1 -delete
+    find . -depth -delete
+    find . -name '*' -delete
+    find . -exec rm -rf {} +
+    find . -type d -exec rm -rf {} +
+    find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    ls -A | xargs rm -rf
+    ls -a | xargs -I{} rm -rf {}
+    printf '%s\n' .* * | xargs rm -rf
+    cd ..; rm -rf proj
+    cd .. && rm -rf ./proj
+    cd .. && mv proj proj.gone
+    cd .. && rm -rf "$PWD"/proj
+    rm -rf "$PWD"
+  ok   - every declared shape is in the corpus, so every declared shape is re-measured each run
+  FAIL - DECLARED != MEASURED-BLIND:
+       1,3d0
+       < cd .. && mv proj proj.gone
+       < cd .. && rm -rf "$PWD"/proj
+       < cd .. && rm -rf ./proj
+       5d1
+       < cd ..; rm -rf proj
+       7,11d2
+       < find . -depth -delete
+       < find . -exec rm -rf {} +
+       < find . -mindepth 1 -delete
+       < find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+       < find . -name '*' -delete
+       16,18d6
+       < find . -type d -exec rm -rf {} +
+       < ls -A | xargs rm -rf
+       < ls -a | xargs -I{} rm -rf {}
+       20,21d7
+       < printf '%s\n' .* * | xargs rm -rf
+       < rm -rf "$PWD"
+  ok   - the session screen still prints a `blind spots:` block
+  ok   - the screen says 7 shapes and the binary declares 7 — same number, one source
+  ok   - every declared class is named on the screen, not just counted
+  ok   - and the screen answers the third question every refusal owes: what the user does next
+law_blind: 11 passed, 4 failed

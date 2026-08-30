@@ -1,0 +1,70 @@
+# lawblind_corpus.txt — THE SHAPES THE EQUALITY LOCK IS MEASURED OVER.
+#
+# native/law_blind_test.sh used to check one direction only: every shape the
+# binary DECLARES blind must really be ALLOW + law-GONE. That arm cannot see the
+# failure that actually happened. On 2026-08-30 the arbiter produced EIGHT more
+# shapes that are ALLOW + GONE and are not on the list, and the suite stayed
+# 10 passed / 0 failed — the same class F2-S14 closed for the silencers, back
+# again on a different table.
+#
+# The declared set has to EQUAL the blind set. The blind set of all shell is not
+# enumerable, so the equality is taken over THIS corpus: for every line below,
+# the shipped binary is asked for a verdict and the shape is then actually run
+# in a throwaway project. Whatever comes back ALLOW + GONE must be declared, and
+# whatever is declared must be in here. Both directions, both able to go red.
+#
+# The corpus is deliberately wider than the answer: shapes that turn out REFUSED
+# or harmless are the control that keeps the lock from being a restatement of
+# the table. Adding a line is free; the suite re-measures it every run and the
+# day a rule changes, the equality moves and somebody has to look.
+#
+# One shape per line. Blank lines and # lines ignored. Each is run with the
+# throwaway project as the working directory and its basename is `proj`.
+
+# ---- the seven measured on 2026-08-30 (F3i), for the reverse containment ----
+find . -delete
+find . -not -name . -delete
+find . -not -path . -delete
+find . -not -type l -delete
+find . -not -newer . -delete
+ls -a | xargs rm -rf
+cd .. && rm -rf proj
+
+# ---- other walks that never spell the law's name ----
+find . -mindepth 1 -delete
+find . -depth -delete
+find . -name '*' -delete
+find . -newer README.md -delete
+find . -exec rm -rf {} +
+find . -type d -exec rm -rf {} +
+find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+ls -A | xargs rm -rf
+ls -a | xargs -I{} rm -rf {}
+printf '%s\n' .* * | xargs rm -rf
+for f in .* *; do rm -rf "$f"; done
+
+# ---- the tree removed, moved or emptied from outside ----
+cd ..; rm -rf proj
+cd .. && rm -rf ./proj
+cd .. && mv proj proj.gone
+cd .. && rm -rf "$PWD"/proj
+rm -rf "$PWD"
+rm -rf .
+
+# ---- the version-control eraser: nothing here names .rabadon either ----
+git clean -xdff
+git clean -xdff .
+git clean -xdf -e '' .
+
+# ---- CONTROL: shapes that name the law and must stay refused ----
+rm -rf .rabadon
+rm .rabadon/guard.json
+rm -rf ./.rabadon/
+find . -path '*/.rabadon/*' -delete
+mv .rabadon /tmp/gone
+truncate -s 0 .rabadon/guard.json
+
+# ---- CONTROL: destructive but the law survives, so not blind at all ----
+rm -rf build
+rm -rf ./src
+rm README.md
