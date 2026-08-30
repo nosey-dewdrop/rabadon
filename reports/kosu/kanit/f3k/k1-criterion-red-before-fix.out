@@ -1,0 +1,36 @@
+selfheal_path: an upgrade may not move a working install
+  ok   - the staged copy is the same binary at a different absolute path
+  ok   - a worktree binary did not write its own path into the home settings
+  ok   - the install still points at exactly the directory it pointed at before
+  ok   - the registered gate command survived byte for byte
+  ok   - the event subscription still caught up (PostToolUseFailure arrived)
+  ok   - rabadon-drift was registered too, at the canonical address
+  ok   - no worktree address reached rabadon-drift either
+  ok   - the foreign statusLine and unrelated keys were left alone
+  ok   - the canonical binary left the install where it was
+  ok   - the canonical binary left the registered gate command in place
+  ok   - the canonical binary performed the event upgrade
+  ok   - a DEAD registered path is repaired to the running canonical install
+  ok   - the announcement names the OLD address
+  ok   - the announcement names the NEW address
+  ok   - the same line reports the event upgrade as well — both halves, not one
+  ok   - no worktree address was written even when the registered one was dead
+  ok   - the refusal is spoken, not silent (Promise 1)
+  ok   - the refusal names the address it refused to write
+  ok   - the refusal names the one command the human runs next (CLAUDE.md quality bar)
+  ok   - every rabadon command self-heal left behind names a binary that exists
+  ok   - a second session from the same copy changes nothing
+  ok   - the machine presents 2 world-writable sticky scratch root(s) to test against
+  ok   - an unlisted scratch root was constructed under $HOME with the same 1777 property
+  FAIL - an address under /private/tmp was written into settings — the swept-root door is open
+  FAIL - self-heal declined to repoint from /private/tmp and said nothing: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure; repointed rabadon-gate from /nonexistent/elsewhere/native/rabadon-gate to /private/tmp/rbshp-pkg-43565-1/native/rabadon-gate in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.tPN549/h9-1/.claude/settings.json
+        (your previous settings are in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.tPN549/h9-1/.claude/settings.json.bak-rabadon; the new events take effect in your NEXT session)]
+  FAIL - an address under /private/var/tmp was written into settings — the swept-root door is open
+  FAIL - self-heal declined to repoint from /private/var/tmp and said nothing: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure; repointed rabadon-gate from /nonexistent/elsewhere/native/rabadon-gate to /private/var/tmp/rbshp-pkg-43565-2/native/rabadon-gate in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.tPN549/h9-2/.claude/settings.json
+        (your previous settings are in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.tPN549/h9-2/.claude/settings.json.bak-rabadon; the new events take effect in your NEXT session)]
+  FAIL - an address under /Users/damummyphus/.rbshp-dur.3qETE3/nowhere-named-this was written into settings — the swept-root door is open
+  FAIL - self-heal declined to repoint from /Users/damummyphus/.rbshp-dur.3qETE3/nowhere-named-this and said nothing: [rabadon: this install was older than the binary — subscribed to PostToolUseFailure; repointed rabadon-gate from /nonexistent/elsewhere/native/rabadon-gate to /Users/damummyphus/.rbshp-dur.3qETE3/nowhere-named-this/rbshp-pkg-43565-3/native/rabadon-gate in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.tPN549/h9-3/.claude/settings.json
+        (your previous settings are in /private/var/folders/5b/s4fb775925l775xmnt2zt_mr0000gn/T/rbshp.tPN549/h9-3/.claude/settings.json.bak-rabadon; the new events take effect in your NEXT session)]
+  ok   - a DURABLE copy outside the repo IS accepted — the repair still works
+  ok   - no refusal was printed for the durable copy
+selfheal_path: 25 passed, 6 failed

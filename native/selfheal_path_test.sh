@@ -351,5 +351,124 @@ cmp -s "$H/.claude/settings.json" "$T/h1.snap" \
   && ok "a second session from the same copy changes nothing" \
   || bad "the second session rewrote settings.json again"
 
+# ---------------------------------------------------------------------------
+# CLAIM 9 — NOT-DURABLE IS A FAMILY, NOT A SHAPE.
+#
+# WHAT WAS MEASURED, 2026-08-30 (reports/kosu/KARARLAR.md · F3j · AÇIK SORU 2).
+# The arbiter took CLAIM 6's protection, staged the running copy under
+# /private/tmp instead of under a worktree, and self-heal REPOINTED — it wrote
+# an address into a settings file that macOS sweeps. Root cause: notDurable()
+# tested exactly one string, os.tmpdir(), which on this machine resolves to
+# /var/folders/<...>/T. So /tmp, /private/tmp and /var/tmp — the directories the
+# system actually empties — were all outside the check. That is the same class
+# of damage as the ten-hour defect, through a second door.
+#
+# CLAIM 6 could not have caught it: its worktree fixture lives under $TMPDIR, so
+# BOTH arms fired at once and neither was isolated. Every fixture below is
+# deliberately staged with NO .git at all, so the worktree arm cannot answer for
+# the durability arm.
+#
+# THE LAW THIS PINS IS THE PROPERTY, NOT THE LIST. A system scratch directory
+# marks itself in the filesystem — world-writable plus the sticky bit, mode
+# 1777 — and no install directory is ever that. The roots below are discovered
+# by MEASURING that property on the machine the suite runs on, not by reciting
+# names, and one of them is built by this suite specifically so that it appears
+# in no list anywhere in the product. A protection that only holds for the roots
+# somebody remembered to type is a shape; this one has to hold for a root it has
+# never seen.
+#
+# CLAIM 9d is the lock that keeps the fix honest: a DURABLE copy must still be
+# accepted. Without it, "refuse everything" would pass every assertion above
+# while quietly deleting the repair CLAIM 5 exists for.
+
+DUR="$(mktemp -d "$HOME/.rbshp-dur.XXXXXX")"   # durable: $HOME is not swept
+STAGED=""                                       # every dir created outside $T
+trap 'rm -rf "$T" "$DUR"; for d in $STAGED; do rm -rf "$d"; done' EXIT
+
+# A package directory that is a faithful second address of the shipped install:
+# native/ + hooks/, and NO .git, so only the durability arm can speak.
+stage_pkg() { # stage_pkg <dir>  -> prints the gate path
+  rm -rf "$1"; mkdir -p "$1/native" "$1/hooks"
+  cp "$HERE/rabadon-gate" "$HERE/rabadon-drift" "$1/native/"
+  cp "$ROOTDIR/hooks/refresh.mjs" "$ROOTDIR/hooks/install.mjs" "$1/hooks/"
+  printf '%s/native/rabadon-gate\n' "$1"
+}
+
+# The scratch roots THIS MACHINE presents, measured. Nothing is assumed to
+# exist: a platform without /var/tmp simply contributes fewer roots, and the
+# count assertion below is what keeps that from becoming a silent skip.
+SYS_SCRATCH="$(python3 -c '
+import os
+seen, out = set(), []
+for c in ("/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/dev/shm"):
+    try: rp = os.path.realpath(c)
+    except OSError: continue
+    if rp in seen or not os.path.isdir(rp): continue
+    try: m = os.stat(rp).st_mode
+    except OSError: continue
+    if (m & 0o1000) and (m & 0o0002):   # sticky AND world-writable
+        seen.add(rp); out.append(rp)
+print("\n".join(out))')"
+N_SCRATCH="$(printf '%s' "$SYS_SCRATCH" | grep -c . || true)"
+
+if [ "$N_SCRATCH" -ge 2 ]; then
+  ok "the machine presents $N_SCRATCH world-writable sticky scratch root(s) to test against"
+else
+  bad "found $N_SCRATCH sticky scratch roots — this suite cannot prove the family on this platform"
+fi
+
+# A scratch root THE PRODUCT HAS NEVER HEARD OF: same filesystem property, a
+# name that appears in no source file, and located under $HOME so that no
+# ancestor of it is a temp directory. If the fix is a list, this one gets past.
+UNLISTED="$DUR/nowhere-named-this"
+mkdir -p "$UNLISTED" && chmod 1777 "$UNLISTED"
+if python3 -c '
+import os, sys
+m = os.stat(sys.argv[1]).st_mode
+sys.exit(0 if (m & 0o1000) and (m & 0o0002) else 1)' "$UNLISTED"; then
+  ok "an unlisted scratch root was constructed under \$HOME with the same 1777 property"
+else
+  bad "could not construct the unlisted scratch root — its arm below proves nothing"
+fi
+
+# --- every scratch root refuses, out loud, one assertion each ----------------
+i=0
+for R in $SYS_SCRATCH "$UNLISTED"; do
+  [ -n "$R" ] || continue
+  i=$((i+1))
+  PKG="$R/rbshp-pkg-$$-$i"
+  STAGED="$STAGED $PKG"
+  G="$(stage_pkg "$PKG")"
+  [ -x "$G" ] || { bad "could not stage a copy under $R"; continue; }
+  HN="$T/h9-$i"; mkhome "$HN" "/nonexistent/elsewhere/native/rabadon-gate"
+  O="$(session_start "$G" "$HN" "s9$i")"
+  L="$(heal_line "$O")"
+  A="$(rabadon_cmds "$HN/.claude/settings.json")"
+  case "$A" in
+    *"$PKG"*) bad "an address under $R was written into settings — the swept-root door is open" ;;
+    *)        ok  "no address under $R was written into settings" ;;
+  esac
+  case "$L" in
+    *"will NOT repoint"*) ok "the refusal for $R is spoken, not silent (Promise 1)" ;;
+    *) bad "self-heal declined to repoint from $R and said nothing: [$L]" ;;
+  esac
+done
+
+# --- THE LOCK. A DURABLE copy is still accepted. ----------------------------
+DPKG="$DUR/durable-install"
+DG="$(stage_pkg "$DPKG")"
+H9="$T/h9d"; mkhome "$H9" "/nonexistent/elsewhere/native/rabadon-gate"
+O9="$(session_start "$DG" "$H9" s9d)"
+L9="$(heal_line "$O9")"
+A9="$(rabadon_cmds "$H9/.claude/settings.json")"
+case "$A9" in
+  *"$DPKG/native/rabadon-gate"*) ok "a DURABLE copy outside the repo IS accepted — the repair still works" ;;
+  *) bad "a durable install was refused: self-heal now protects the address by deleting the fix: [$A9]" ;;
+esac
+case "$L9" in
+  *"will NOT repoint"*) bad "a durable address was announced as refused: [$L9]" ;;
+  *) ok "no refusal was printed for the durable copy" ;;
+esac
+
 printf 'selfheal_path: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" = "0" ] || exit 1
