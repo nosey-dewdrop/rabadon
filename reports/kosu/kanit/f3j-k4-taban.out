@@ -1,0 +1,8 @@
+sanity: the benchmarked event is ALLOWED -> gate exit 0 (must be 0)
+binary                                = native/rabadon-gate
+N (mean, not median)                  = 200
+REAL gate, end to end                 = 5840.0 us
+empty baseline /usr/bin/true, same    = 2596.0 us
+cost ATTRIBUTABLE to rabadon          = 3244.0 us
+ceiling (R7 2b)                       = 1000.0 us
+attributable / ceiling                = 3.24x
