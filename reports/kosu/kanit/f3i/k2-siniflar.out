@@ -1,0 +1,14 @@
+ALLOW   GONE   ls -a | xargs rm -rf
+ALLOW   GONE   find . -delete
+ALLOW   GONE   find . -not -name . -delete
+ALLOW   GONE   find . -not -path . -delete
+ALLOW   GONE   find . -not -type l -delete
+ALLOW   GONE   find . -not -newer . -delete
+ALLOW   GONE   cd .. && rm -rf proj
+ALLOW   THERE  ls | xargs rm -rf
+ALLOW   THERE  rm -rf build
+ALLOW   THERE  git status
+REFUSE  GONE   rm -rf .rabadon
+REFUSE  GONE   rm .rabadon/guard.json
+REFUSE  GONE   find . -path '*/.rabadon/*' -delete
+ALLOW   THERE  mv . ../renamed

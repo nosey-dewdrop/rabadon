@@ -233,6 +233,51 @@ static const SilencerSource kSilencers[SIL_COUNT] = {
   {"mode = silent",          "$RABADON_DIR/mode",       "rabadon off"},
 };
 
+// ---------- THE SHAPES THAT REACH THE LAW ANYWAY: ONE TABLE, ON THE SCREEN ----
+// `baseline-law-unmade` judges the OPERANDS of a command. Every shape below
+// destroys <project>/.rabadon/guard.json without an operand that names it, so
+// nothing in that rule can see them, and every one of them is ALLOWED.
+//
+// MEASURED, 2026-08-30 (F3i), against the shipped binary, in a project sandbox
+// under $HOME with an empty bash[] — verdict read from the gate, then the same
+// shape RUN in a fresh copy and the law looked for:
+//
+//     bash reports/kosu/kanit/f3i/probe-exec.sh <<'EOF'
+//     ls -a | xargs rm -rf
+//     find . -delete
+//     cd .. && rm -rf proj
+//     EOF
+//     ALLOW   GONE   ls -a | xargs rm -rf
+//     ALLOW   GONE   find . -delete
+//     ALLOW   GONE   cd .. && rm -rf proj
+//
+// THEY ARE NOT BEING CLOSED, and that is a decision rather than an omission.
+// The second class IS `rm -rf ./old-project`, which docs/guard.md promises will
+// pass — "the subject of this rule is the law, not the tree around it" — and the
+// first class is every recursive walk of a directory the user owns. Refusing
+// them would fence a user inside their own project, which is a worse product
+// than one hole honestly named.
+//
+// So the obligation this table discharges is Promise 1: rabadon does not go
+// quiet about what it cannot check. It is on the `blind spots:` screen, and it
+// is also printable on its own (`rabadon-gate --law-blind`, unlisted, for the
+// same reason `--silencers` is unlisted: a machine reads it, not a person), so
+// native/law_blind_test.sh can hold the ANNOUNCEMENT equal to the BEHAVIOUR
+// instead of trusting a sentence somebody typed. The day a shape here starts
+// being refused, or one is added that the binary does not actually let through,
+// that suite is the thing that goes red.
+struct LawBlindShape { const char* shape; const char* klass; };
+static const LawBlindShape kLawBlind[] = {
+  {"find . -delete",              "a walk that never spells the law's name"},
+  {"find . -not -name . -delete", "a walk that never spells the law's name"},
+  {"find . -not -path . -delete", "a walk that never spells the law's name"},
+  {"find . -not -type l -delete", "a walk that never spells the law's name"},
+  {"find . -not -newer . -delete","a walk that never spells the law's name"},
+  {"ls -a | xargs rm -rf",        "a walk that never spells the law's name"},
+  {"cd .. && rm -rf proj",        "the tree deleted from outside, law and all"},
+};
+static const int kLawBlindCount = (int)(sizeof(kLawBlind) / sizeof(kLawBlind[0]));
+
 static string sil_fill(const char* tpl, const string& dir, const string& rhome) {
   string s(tpl);
   for (size_t p = s.find("<project>"); p != string::npos; p = s.find("<project>", p + dir.size()))
@@ -1395,6 +1440,36 @@ static string contract_block(const string& cwd, const string& truthJson,
                          ? " — I just re-registered it;\n"
                            "                 it is live from your NEXT session, this one stays blind"
                          : " — fix: `rabadon init`"));
+    // THE HOLE IN THE LAW ITSELF, counted and classed rather than described.
+    // Two earlier phases wrote "declared" on a card while this screen said
+    // nothing, and a declaration nobody's product ever prints is not a
+    // declaration. The number and the classes come off kLawBlind, so this line
+    // cannot say seven while the table says eight.
+    {
+      std::vector<string> classes;
+      for (int i = 0; i < kLawBlindCount; i++) {
+        bool seen = false;
+        for (const auto& c : classes) if (c == kLawBlind[i].klass) seen = true;
+        if (!seen) classes.push_back(kLawBlind[i].klass);
+      }
+      string line = std::to_string(kLawBlindCount) +
+        " measured shapes DESTROY this project's .rabadon/guard.json and I allow every one";
+      for (size_t c = 0; c < classes.size(); c++) {
+        line += "\n                 . " + string(classes[c]) + ":";
+        for (int i = 0; i < kLawBlindCount; i++)
+          if (classes[c] == kLawBlind[i].klass) { line += string("  `") + kLawBlind[i].shape + "`"; break; }
+        int more = 0;
+        for (int i = 0; i < kLawBlindCount; i++) if (classes[c] == kLawBlind[i].klass) more++;
+        if (more > 1) line += " and " + std::to_string(more - 1) + " more";
+      }
+      line += "\n                 I judge a command's operands; none of these name the law, so I never"
+              "\n                 see them. Not closing them is deliberate: the cut would also refuse"
+              "\n                 `rm -rf ./old-project`, i.e. fence you inside your own tree."
+              "\n                 what to do: commit .rabadon/ to git — that copy survives all "
+              + std::to_string(kLawBlindCount) + ","
+              "\n                 and `git checkout .rabadon` puts the law back";
+      blind.push_back(line);
+    }
     o << "  blind spots:\n";
     for (const auto& b : blind) o << "               - " << b << "\n";
   }
@@ -2689,7 +2764,7 @@ int main(int argc, char** argv) {
   if (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
     static const char* kKnownFlags[] = {"--version", "--lint", "--statusline",
                                         "--on", "--off", "--toggle", "--status", "--silent", "--wrong",
-                                        "--silencers"};
+                                        "--silencers", "--law-blind"};
     bool recognised = false;
     for (const char* k : kKnownFlags) if (strcmp(argv[1], k) == 0) recognised = true;
     if (!recognised) {
@@ -2720,6 +2795,17 @@ int main(int argc, char** argv) {
   if (argc > 1 && string(argv[1]) == "--silencers") {
     for (int i = 0; i < SIL_COUNT; i++)
       printf("%s\t%s\t%s\n", kSilencers[i].name, kSilencers[i].where, kSilencers[i].next);
+    return 0;
+  }
+
+  // --law-blind — this binary's own declaration of the shapes that destroy
+  // <project>/.rabadon/guard.json and are allowed anyway, one row per shape,
+  // tab separated: shape, class. Same reason as --silencers: the `blind spots:`
+  // screen is for a person, and this is for the suite that has to check the
+  // screen is telling the truth. Reads no project, no env, no file.
+  if (argc > 1 && string(argv[1]) == "--law-blind") {
+    for (int i = 0; i < kLawBlindCount; i++)
+      printf("%s\t%s\n", kLawBlind[i].shape, kLawBlind[i].klass);
     return 0;
   }
 
