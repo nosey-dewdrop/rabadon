@@ -83,8 +83,14 @@ inline bool speaks(const string& name, const string& why) {
       name == "semantic_repeat") return true;
   if (name == "green_redefined")
     return why.find("only the test side") != string::npos;
-  // KOSU v9 §5 tetik yamasi
+  // A repeat that is repeating THE SAME FAILURE is the compounding case itself.
   if (name == "repeat") return why.find("same failure") != string::npos;
+  // The contrast trigger speaks on the FIRST failure after a green, because by
+  // then the ledger already holds something the agent does not: which files
+  // moved between the last green and this red. Nothing in it is a count, which
+  // is the point — waiting for a third identical attempt is what made `repeat`
+  // silent on every real session measured.
+  if (name == "regression_contrast") return true;
   return false;
 }
 
@@ -179,6 +185,11 @@ struct Ctx {
   string greenCmd;    // the newest move after which the suite was green
   string redCmd;      // the newest move after which it was not
   bool   redIsSuite = false;  // was that move a suite run, or just a failure
+  // The files edited between the last green suite and this failure, newest
+  // first, comma-joined. This is the whole payload of the contrast trigger:
+  // the agent knows what it just ran, it does not necessarily know what has
+  // moved since the last time this suite was known good.
+  string changed;
 };
 
 // The order of the sentences is the order they are worth: what this is, where
@@ -186,7 +197,17 @@ struct Ctx {
 // if the 400-character clip ever bites, the clause is the sentence the agent
 // can most afford to lose.
 inline string build(const Ctx& c) {
-  string s = "rabadon: attempt " + std::to_string(c.attempt) + " on the same failure.";
+  // The opening sentence states what this IS, and the two triggers are not the
+  // same thing: one is "you have been here before", the other is "this used to
+  // work". Saying "attempt 1 on the same failure" for a first failure would be
+  // false on its face, and a paragraph that opens with something the agent can
+  // see is wrong is a paragraph it is right to discard.
+  const bool contrast = c.signal == "regression_contrast";
+  string s = contrast
+    ? string("rabadon: this suite was green earlier in this session.")
+    : "rabadon: attempt " + std::to_string(c.attempt) + " on the same failure.";
+  if (contrast && !c.changed.empty())
+    s += " Changed since that green: " + c.changed + ".";
   if (!c.file.empty()) s += " The file last edited is " + c.file + ".";
   if (!c.err.empty())  s += " The previous attempt ended with: " + c.err + ".";
   if (!c.greenCmd.empty() && !c.redCmd.empty())

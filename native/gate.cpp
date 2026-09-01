@@ -3570,7 +3570,20 @@ int main(int argc, char** argv) {
     }
 
     if (hook == "PostToolUse") {
-      open_move->err_sig = rbmoves::err_sig(toolResponse, cwd);
+      // AN EDIT'S RESPONSE IS NOT PROGRAM OUTPUT. It is a file path and the
+      // strings that were swapped, and reading it for an error signature makes
+      // the vocabulary of the FILE into evidence about the RUN. Measured
+      // 2026-09-02, on this repo, while editing this very function: the edit
+      // carried the words `failed` and `error` in its own new text, rabadon
+      // recorded an error that never happened, and the next injection told the
+      // agent "the previous attempt ended with" a fragment of the diff. Any
+      // session editing a test file, an error handler, or a log message would
+      // have produced the same false line.
+      //
+      // Only a command produces output that can carry a failure. PostToolUse
+      // for a successful edit therefore contributes no signature; a genuine
+      // tool failure arrives on PostToolUseFailure, which is handled elsewhere.
+      open_move->err_sig = toolName == "Bash" ? rbmoves::err_sig(toolResponse, cwd) : string();
       // R4: keep the READABLE line beside the signature. The ring stores a hash
       // (Rec is fixed-width and its layout is asserted byte for byte), and a
       // hash is not something an agent can be told. One line, clipped, in the
@@ -3666,6 +3679,27 @@ int main(int argc, char** argv) {
         if (rbsig::is_edit(ms.moves[i]) && !ms.moves[i].path.empty()) { c.file = ms.moves[i].path; break; }
       for (size_t i = ms.moves.size(); i-- > 0;)
         if (ms.moves[i].suite == 1 && !ms.moves[i].raw.empty()) { c.greenCmd = ms.moves[i].raw; break; }
+      // the contrast trigger's payload: which files moved between the last
+      // green suite and now. Deduplicated and capped at four names — the point
+      // is to hand over a short list the agent can act on, and a paragraph that
+      // lists twenty files is one the 400-character clip eats anyway.
+      {
+        size_t greenAt = (size_t)-1;
+        for (size_t i = ms.moves.size(); i-- > 0;)
+          if (ms.moves[i].suite == 1) { greenAt = i; break; }
+        if (greenAt != (size_t)-1) {
+          std::vector<string> names;
+          for (size_t i = ms.moves.size(); i-- > greenAt + 1 && names.size() < 4;) {
+            const string& p = ms.moves[i].path;
+            if (!rbsig::is_edit(ms.moves[i]) || p.empty()) continue;
+            bool dup = false;
+            for (const auto& q : names) if (q == p) { dup = true; break; }
+            if (!dup) names.push_back(p);
+          }
+          for (size_t i = 0; i < names.size(); i++)
+            c.changed += (i ? ", " : "") + names[i];
+        }
+      }
       // the red half of Law 3's pair: the NEWEST move that did not work,
       // whether that was the suite going red or a command coming back with the
       // error. Newest, because the pair is only worth something if the failing
@@ -4208,7 +4242,28 @@ int main(int argc, char** argv) {
       if (!guardRaw.empty() && guardRaw.find("\"testCommand\"") != string::npos)
         isTest = rx_test(get_str(guardRaw, "testCommand"), command);
       else
-        isTest = rx_test("ctest|--test|npm test", command);
+        // THE DEFAULT VOCABULARY WAS THREE PATTERNS AND TWO ECOSYSTEMS.
+        // Measured 2026-09-02: `python3 -m pytest -q` is not a test run to
+        // this line, so on a Python repo with no configured testCommand no
+        // move was ever stamped green or red, `lastTestVerified` stayed 0, and
+        // every contrast the injection can draw — all of which are anchored on
+        // "the suite was green earlier" — was unreachable by construction.
+        // The product was silent for the default install of the most common
+        // language it would meet, and nothing in the ledger said so, because a
+        // test run that is not recognised looks exactly like any other command.
+        //
+        // Each alternative below is anchored on the runner's own name next to
+        // a word that means "run the tests", not on the bare word `test`,
+        // which appears in `git commit -m "add test"` and in every path under
+        // tests/. The cost of a false positive here is a verdict stamped on a
+        // move that was not a suite, so the list stays literal and boring.
+        isTest = rx_test(
+            "ctest|--test|\\bnpm (run )?test\\b|\\byarn test\\b|\\bpnpm (run )?test\\b|"
+            "\\bpytest\\b|python[0-9.]* -m (pytest|unittest)\\b|"
+            "\\bgo test\\b|\\bcargo test\\b|\\bjest\\b|\\bvitest\\b|\\bmocha\\b|"
+            "\\bmake test\\b|\\brspec\\b|\\bphpunit\\b|dotnet test\\b|"
+            "\\bmvn (-\\S+ )*test\\b|gradle(w)? (\\S+ )*test\\b|\\bbun test\\b",
+            command);
 
       if (!isTest) {
         em.emit("STEP_OK", "\"step\":\"ran: " + json_escape(utf8_clip(command, 80)) + "\"" + rcField);
@@ -4223,10 +4278,58 @@ int main(int argc, char** argv) {
       if (!guardRaw.empty() && guardRaw.find("\"testPassPattern\"") != string::npos) {
         passed = rx_test(get_str(guardRaw, "testPassPattern"), out);
       } else {
+        // A PASS COUNT IS A GREEN ONLY WHEN NOTHING FAILED IN THE SAME BREATH,
+        // and "nothing failed" is decided on WORDS, not on a count with a word
+        // boundary in front of it. Measured 2026-09-02, twice in one hour:
+        //   - `1 failed, 2 passed` was stamped GREEN, because the failure count
+        //     is written number-first and the `fail: N` form below never sees
+        //     it;
+        //   - `FAILED tests/x.py::test_a\n1 failed, 5 passed` survived even a
+        //     number-first guard, because when the escape sequence is still two
+        //     characters the `1` is preceded by the letter `n` and `\b` finds no
+        //     boundary there. That is the same trap this file already documents
+        //     for the red half; it applies to the green half identically.
+        // So the zero-counts are stripped first (a green run that prints
+        // `0 failed` must stay green) and then any surviving failure vocabulary
+        // disqualifies the pass count entirely.
+        string greenEvid = out;
+        try {
+          static const std::regex zc(
+              "\\b0+\\s*(fail(ed|ure|ures|s|ing)?|errors?)\\b|"
+              "(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*0+\\b",
+              std::regex::ECMAScript | std::regex::icase);
+          greenEvid = std::regex_replace(out, zc, " ");
+        } catch (...) { greenEvid = out; }
+        const bool anyFailureWord = rx_test(
+            "fail(ed|ure|ures|s|ing)?|errors?|traceback|assert(ion)?|"
+            "\\bnot ok\\b|panic:|segmentation fault", greenEvid);
+        const bool passCount =
+            !anyFailureWord && rx_test("[1-9][0-9]*\\s+(passed|passing)\\b", out);
         std::smatch m;
         std::regex fc("\\bfail(?:ed|ures)?\\s*[:= ]\\s*(\\d+)", std::regex::ECMAScript | std::regex::icase);
         if (std::regex_search(out, m, fc)) passed = (atoll(m[1].str().c_str()) == 0);
-        else passed = rx_test("100% tests passed|0 failed|all tests passed", out);
+        else passed = rx_test("100% tests passed|0 failed|all tests passed", out) ||
+                      // A PASS COUNT WITH NO FAILURE COUNT IS THE SHAPE MOST
+                      // RUNNERS ACTUALLY PRINT, and until 2026-09-02 rabadon
+                      // could not read any of them. `2 passed in 0.02s` is
+                      // pytest's entire green line; jest prints `Tests: 3
+                      // passed`; go prints `ok  pkg 0.01s`. None matches the
+                      // three phrases above, so on a Python repo — the most
+                      // common case there is — no move was ever stamped green.
+                      //
+                      // That is not a cosmetic gap. Every contrast the product
+                      // draws is anchored on "the suite was green earlier",
+                      // so a runner whose green cannot be read is a runner on
+                      // which the injection can never have anything to say.
+                      // Measured the same day: two live sessions, 0 SIGNAL.
+                      //
+                      // The count must be non-zero (`0 passed` is not a green)
+                      // and the red half below still demands its own evidence,
+                      // so this widens what can be seen as green without
+                      // weakening what it takes to call something red.
+                      passCount ||
+                      (!anyFailureWord &&
+                       rx_test("^ok\\s+\\S+|\\bok\\s+\\S+\\s+[0-9.]+s\\b", out));
       }
 
       // "the pattern did not match" and "the suite failed" are different

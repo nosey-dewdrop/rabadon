@@ -130,6 +130,53 @@ inline vector<Hit> detect(const vector<rbmoves::Move>& m) {
                       std::to_string(failed) + " of them with the same failure" });
   }
 
+  // ---- 1b. regression_contrast --------------------------------------------
+  // THE FIRST FAILURE IS ALREADY WORTH SPEAKING ABOUT, when the ledger holds
+  // something the agent does not: this suite was GREEN earlier in the session,
+  // and a known set of files changed between then and now. That is a fact
+  // about the run's own history, not a count of attempts, so it does not have
+  // to wait for a third try to be true — and waiting is what made `repeat`
+  // worthless in practice. Measured 2026-09-02: two live Claude Code sessions
+  // on real compounding bugs produced 0 SIGNAL, because a competent agent
+  // fixes-and-moves-on rather than running the same command three times.
+  //
+  // The conservative direction here is the OPPOSITE of repeat's: repeat risks
+  // nagging someone running a linter, this risks saying nothing. So it demands
+  // three things and none of them is a count — a green on record, a failure
+  // now, and at least one edit in between. No green means no contrast to draw
+  // and it stays silent; that is Law 1 preserved, not weakened.
+  {
+    // A FAILURE IS A RUN THAT FAILED, NOT A RUN THAT SAID THE WORD. An error
+    // signature is derived from output text, so `grep -r error`, a passing test
+    // whose name contains "failure", and a command that prints someone else's
+    // log all carry one. Measured 2026-09-02 in a live session: a command whose
+    // stdout merely quoted an assertion message fired this trigger, and the
+    // injection then told the agent "the previous attempt ended with" that
+    // quote. The rate matters more than the miss here — a supervisor that
+    // speaks on every command mentioning an error is noise, and noise is
+    // uninstalled. So the condition is the suite going red, or the move itself
+    // claiming a non-zero status; the signature stays as the payload, not as
+    // the trigger.
+    const bool failedNow = last.suite == 0 || last.claimed_rc == 1;
+    if (failedNow) {
+      size_t greenAt = (size_t)-1;
+      for (size_t i = n; i-- > 0;)
+        if (m[i].suite == 1) { greenAt = i; break; }
+      if (greenAt != (size_t)-1 && greenAt + 1 < n) {
+        vector<long long> seqs; seqs.push_back(m[greenAt].seq);
+        int edits = 0;
+        for (size_t i = greenAt + 1; i < n; i++)
+          if (is_edit(m[i]) && !m[i].path.empty()) { edits++; seqs.push_back(m[i].seq); }
+        if (edits > 0) {
+          seqs.push_back(last.seq);
+          out.push_back({ "regression_contrast", 0.7, seqs,
+                          "the suite was green earlier this session and " +
+                          std::to_string(edits) + " edit(s) landed before this failure" });
+        }
+      }
+    }
+  }
+
   // ---- 2. oscillation -----------------------------------------------------
   // Edits to ONE path, alternating between two contents. `lint, build, lint,
   // build` is two commands doing their jobs; rewriting one file back and forth
