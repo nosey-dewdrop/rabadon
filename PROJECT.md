@@ -289,6 +289,73 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 — the second cause: the refusal arm was eating the repair arm
+
+Line 338 of this file left it open: *"whether a correctly bound native gate
+actually produces INJECT in this harness is **not** established."* It is
+established now, and the answer has a second cause the tur-16 diagnosis did
+not reach. Tur 16 was right that arm B bound `gate.mjs`, which cannot speak.
+It is not the whole story: the native gate, correctly bound, also did not
+speak — for a different reason, in the exact scenario the product exists for.
+
+DONE — **measured, on this machine, against `native/rabadon-gate` built from
+`7d7f805`.** Driving the gate directly with a repeating-failure scenario
+(same `pytest -q`, no edit between, PreToolUse + PostToolUseFailure pairs):
+`repeat` fires 8 times and **0 INJECT** are delivered. Two links were broken,
+independently, and each one alone is sufficient:
+
+1. `inject.h speaks()` did not speak for `repeat` — the comment at
+   `inject.h:70` parks it in the "weak → ledger only" arm. The most frequent
+   signal in the product was wired to the block arm and never to the
+   injection arm.
+2. `gate.cpp` `loop-stop` calls `block()`, which `exit()`s. The delivery site
+   ("R4: deliver the diagnosis") sits **below** every refusal by deliberate
+   design — its own comment says *"HERE, AND NOWHERE EARLIER … an injection
+   cannot move a verdict."* So the moment a loop is detected, the process
+   leaves before the diagnosis it just assembled is handed over.
+
+Proof that the mechanism itself was never the problem: with `loop-stop`
+unable to fire (command varied so `cmdRepeat` never reaches 3) and `speaks()`
+patched, the same scenario delivers **2 INJECT + 2 INJECT_ANSWER**, with real
+text on stdout — `rabadon: attempt 3 on the same failure … Contrast: no green
+move is on record this session`. The channel works. The ordering was the wall.
+
+DONE — **fixed, per the operator's ruling (2026-09-02), in `8c99e69`.** Rule:
+*non-sealed behavioural rules produce no refusal while an injection is
+pending; the diagnosis is delivered and the call is allowed. For sealed rules
+the ordering does not change: an injection may not move a security decision.*
+Implemented at the top of `block()` so both the enforce and watch arms are
+covered from one place, with a new `RULE_YIELDED` ledger event so a stand-down
+is never silent. Same loop scenario, before → after: INJECT 0 → 2,
+INJECT_ANSWER 0 → 2, WOULD_BLOCK 3 → 1. The surviving WOULD_BLOCK is correct —
+nothing was pending at the first detection, so the rule spoke.
+
+DONE — **suite: 119 pass, 4 fail** (`for t in native/*_test.sh`). The four
+(`machine_intact`, `make_deps`, `promises`, `stdin_program`) were re-run on
+the stashed, unmodified tree and fail there too: pre-existing, not caused by
+this change. `loop_test`, `loop_body_test`, `inject_answer_test` and
+`signals_test` all pass with the change in.
+
+NOT VERIFIED — **the agent's half.** Everything above drives the gate with
+synthesised hook JSON; no Claude Code session was run, so whether a real agent
+reads the paragraph and changes its next move is still unmeasured, and that is
+the product thesis. Also unmeasured: the latency cost of the extra
+`injPending` check on the hot path; whether standing a rule down can let
+through an action a user wanted refused (the false-negative direction this
+trade opens, by design); the four pre-existing reds were not diagnosed; and
+`RULE_YIELDED` has no test yet. The KOŞU v9 document's Appendix B figures
+("24/24 red, then 15/24 after the trigger patch") were checked against a real
+run and do **not** reproduce — the trigger patch alone leaves 0/24, because
+the scenario in that test puts an edit between each command, and with an edit
+as the newest move `repeat` never fires at all. That document also freezes
+`0/24` as its acceptance bar while its own `e4` assertion is hardcoded
+`false`, so the bar is unreachable by construction.
+
+NEXT — bind the fixed binary into a real Claude Code session and measure
+whether `INJECT` is followed by a changed move: the (b) layer, on live
+traffic, with the transcript checked for the injected text rather than the
+agent asked about it.
+
 ### 2026-08-24 (koşu tur 16) — arm B was never rabadon: it binds the LEGACY JS gate, on one event
 
 START: the PARKED item from `reports/R7/DENEMELER.md` — "arm B may be a rabadon
