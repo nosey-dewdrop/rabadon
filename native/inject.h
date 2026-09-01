@@ -83,6 +83,8 @@ inline bool speaks(const string& name, const string& why) {
       name == "semantic_repeat") return true;
   if (name == "green_redefined")
     return why.find("only the test side") != string::npos;
+  // KOSU v9 §5 tetik yamasi
+  if (name == "repeat") return why.find("same failure") != string::npos;
   return false;
 }
 

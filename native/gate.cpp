@@ -4782,6 +4782,26 @@ int main(int argc, char** argv) {
   }
 
   auto block = [&](const string& ruleId, const string& why, const string& detail) {
+    // REPAIR OUTRANKS REFUSAL, EXCEPT WHERE A SEAL SAYS OTHERWISE. A pending
+    // diagnosis is an answer to the same event this rule is about to refuse,
+    // and the product's first law is that a run is repaired, not stopped. So a
+    // behavioural rule stands down and lets the paragraph through; the call is
+    // allowed and the diagnosis is delivered below.
+    //
+    // Sealed rules keep the old ordering exactly: they are security decisions,
+    // and an injection must never be able to move one.
+    //
+    // Measured 2026-09-02: loop-stop reached exit() before the delivery site
+    // (this file, "R4: deliver the diagnosis"), so in the one scenario the
+    // injection exists for — the same failure repeating — the diagnosis was
+    // assembled, queued, and never handed over. That is why 29 days of ledger
+    // carry a single INJECT_ANSWER.
+    if (!sealed_rule(ruleId) && rbinject::enabled() && !ss.injPending.empty()) {
+      em.emit("RULE_YIELDED", "\"rule\":\"" + json_escape(ruleId) +
+              "\",\"to\":\"" + json_escape(ss.injPendingSignal) +
+              "\",\"detail\":\"" + json_escape(detail) + "\"");
+      return;
+    }
     em.emit("CHECK_FAIL", "\"step\":\"" + json_escape(toolName) + "\",\"mode\":\"" + mode_tag() +
             "\",\"fails\":[{\"check\":\"" + json_escape(ruleId) + "\",\"why\":\"" + json_escape(detail + " — " + why) + "\"}]");
     if (g_mode == MODE_ENFORCE) {
