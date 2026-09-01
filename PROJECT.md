@@ -351,10 +351,41 @@ as the newest move `repeat` never fires at all. That document also freezes
 `0/24` as its acceptance bar while its own `e4` assertion is hardcoded
 `false`, so the bar is unreachable by construction.
 
-NEXT — bind the fixed binary into a real Claude Code session and measure
-whether `INJECT` is followed by a changed move: the (b) layer, on live
-traffic, with the transcript checked for the injected text rather than the
-agent asked about it.
+DONE — **live, twice, and the result is negative in a way that matters.** The
+fixed binary was bound as PreToolUse/PostToolUse/PostToolUseFailure hooks in
+two throwaway projects and driven by a real `claude -p` session (Claude Code
+2.1.257, `--permission-mode bypassPermissions`, `--max-turns 40`). Scenario 1:
+`calc.py` correct but shadowed by a `calc/` package whose `add` was wrong.
+Scenario 2: order-dependent mutable-default bug — `test_b` passes alone, fails
+in the suite. Both are genuine compounding-error shapes, neither is staged for
+a detector. The agent solved **each one in a single pass**, named the real
+cause, and re-ran the suite to verify.
+
+Ledger for both sessions: **0 SIGNAL, 0 INJECT, 0 INJECT_ANSWER.** (The
+`WOULD_BLOCK` lines in the spool for that window are the operator's own shell,
+not the measured agent.) So the delivery fix above is real but it was never
+exercised live: `repeat` needs the same command three times with no edit in
+between, and a competent agent on a small, well-scoped task does not do that.
+
+**The bottleneck is the trigger, not the channel.** The channel is fixed and
+proven in simulation; the condition that opens it is too rare to be worth
+anything. This is the same shape as the ledger's own history — one
+`INJECT_ANSWER` in 29 days is what a count-based trigger produces, not what a
+broken channel produces. The KOŞU v9 document already reached the right
+conclusion here and its wording stands: *"tetik — bilgiye bağlı, sayıya
+değil"*, with T0 (the move touches ground the goal never named), T1 (contrast
+against the last green), and T2 (this error signature was closed before, in an
+earlier session). The code implements none of those; it implements counting.
+
+NOT VERIFIED — whether the agent acts on the paragraph, still. Two live runs
+produced no injection to act on, so layer (b) remains unmeasured on real
+traffic and the product thesis is untested. Also unmeasured: whether a long
+run (hours, not 40 turns) produces loops that a short one does not — the whole
+premise is about long runs, and both measurements here were short.
+
+NEXT — implement the information-based triggers (T0/T1/T2) so the injection
+has a reason to fire that does not depend on the agent repeating itself, then
+re-run this same live protocol. `RULE_YIELDED` also has no test yet.
 
 ### 2026-08-24 (koşu tur 16) — arm B was never rabadon: it binds the LEGACY JS gate, on one event
 
