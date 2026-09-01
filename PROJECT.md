@@ -383,9 +383,58 @@ traffic and the product thesis is untested. Also unmeasured: whether a long
 run (hours, not 40 turns) produces loops that a short one does not — the whole
 premise is about long runs, and both measurements here were short.
 
-NEXT — implement the information-based triggers (T0/T1/T2) so the injection
-has a reason to fire that does not depend on the agent repeating itself, then
-re-run this same live protocol. `RULE_YIELDED` also has no test yet.
+DONE — **the trigger is information-based now, and the reason it was silent was
+one layer below it** (`31420dd`). Chasing "why does no signal fire" by running
+the gate instead of reading it landed on `gate.cpp`'s default test vocabulary:
+`ctest|--test|npm test`. `python3 -m pytest -q` is not a test run to that
+line. With no `testCommand` in guard.json — the default install — no move on a
+Python repo was ever stamped green or red, `lastTestVerified` stayed 0, and
+every contrast the injection can draw is anchored on "the suite was green
+earlier". The product was structurally silent for the default install of the
+most common language it meets, and nothing in the ledger said so, because an
+unrecognised test run looks exactly like any other command.
+
+Four changes, each measured before and after:
+- the vocabulary now covers pytest/unittest, go, cargo, jest, vitest, mocha,
+  `make test`, rspec, phpunit, dotnet, maven, gradle, bun — anchored on runner
+  names, never on the bare word `test`.
+- a pass count with no failure vocabulary beside it now reads as green, so
+  `2 passed in 0.02s` finally is one. This produced **two false greens during
+  the work and both were caught by running it**: `1 failed, 2 passed` (the
+  failure count is number-first, which the `fail: N` form never sees) and the
+  same line with an unexpanded `\n` gluing the count to a letter so `\b` found
+  no boundary — the trap this file already documents for the red half. Fixed
+  by deciding on words after stripping zero-counts, not on a bounded digit.
+- `regression_contrast` (signals.h): fires on the FIRST failure after a green
+  when edits landed in between, and carries the changed files. No counting.
+- it triggers on a red suite or a non-zero claimed rc, never on an error
+  signature alone; and an Edit's response no longer yields a signature at all.
+  Both were live false positives: editing a file containing the word `failed`
+  recorded an error that never happened, and the injection quoted the diff back
+  to the agent as "the previous attempt ended with".
+
+What the agent receives on a first red, verbatim from the run:
+> rabadon: this suite was green earlier in this session. Changed since that
+> green: test_b.py, store.py. The file last edited is test_b.py. The previous
+> attempt ended with: FAILED test_b.py::test_x - AssertionError: assert 2 == 1.
+
+Suite: **119 pass, 4 fail** — the same four that are red on the unmodified
+tree. `postuse_test` broke twice during this work (BR13) and is green again,
+88 ok / 0 fail.
+
+NOT VERIFIED — the live loop was **not** closed. Every measurement above drives
+the gate with synthesised hook JSON or observes it inside the operator's own
+session; no `claude -p` run has yet been observed producing `INJECT` followed
+by a changed move, because each fixed layer revealed the next one underneath.
+False-positive rate is unquantified: two were found by inspection, in one
+afternoon, in one session — that is not a rate. The four pre-existing reds are
+still undiagnosed, `RULE_YIELDED` and `regression_contrast` have no tests, and
+the latency cost of the new work on the hot path was never measured.
+
+NEXT — re-run the live protocol end to end on the current binary: green suite,
+agent edit, first red, and check the transcript for the injected text and the
+move that follows it. That is layer (b), and it is the only thing left between
+this and a verdict on the thesis.
 
 ### 2026-08-24 (koşu tur 16) — arm B was never rabadon: it binds the LEGACY JS gate, on one event
 
