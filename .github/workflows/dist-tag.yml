@@ -1,0 +1,48 @@
+name: dist-tag
+
+# NPM MAKES THE FIRST PUBLISH `latest`, WHATEVER `--tag` SAYS.
+# Measured 2026-09-02: v0.2.3-rc.1 published with `--tag next` and the registry
+# answered `{ next: '0.2.3-rc.1', latest: '0.2.3-rc.1' }` — because a package
+# with no versions has no latest, so npm points latest at whatever lands first
+# and ignores the flag. A pre-release then installs for anyone typing
+# `npm i -g rabadon`, which is exactly what publishing an rc was meant to avoid.
+#
+# This workflow moves a dist-tag by hand, from the same token the release uses.
+# `npm dist-tag rm <pkg> latest` is what unsets it; there is no way to have no
+# latest at publish time.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "version the tag should point at (e.g. 0.2.3-rc.1)"
+        required: true
+      tag:
+        description: "dist-tag to set (next / latest)"
+        required: true
+        default: "next"
+      remove_latest:
+        description: "also remove the `latest` tag from every package"
+        required: false
+        default: "false"
+
+jobs:
+  retag:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Move the tag
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          V: ${{ inputs.version }}
+          T: ${{ inputs.tag }}
+          RM: ${{ inputs.remove_latest }}
+        run: |
+          set -euo pipefail
+          for p in rabadon @rabadon/darwin-arm64 @rabadon/darwin-x64 @rabadon/linux-x64 @rabadon/linux-arm64; do
+            npm dist-tag add "$p@$V" "$T"
+            if [ "$RM" = "true" ]; then npm dist-tag rm "$p" latest || echo "no latest on $p"; fi
+            echo "--- $p"; npm dist-tag ls "$p"
+          done
