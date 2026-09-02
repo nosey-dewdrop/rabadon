@@ -76,15 +76,20 @@ jobs:
           make all CXXFLAGS="-std=c++17 -O2 -Wall -Wextra $EXTRA"
           make test
       - name: Stage binaries into the platform package
+        # THE MANIFEST IS THE LIST. This step used to name 17 binaries by hand
+        # while every npm/<target>/package.json `files` array named 19
+        # (rabadon-gated and rabadon-run were never copied), so every package
+        # that would have shipped was missing the persistent gate and the
+        # `rabadon run` surface V1's GATE requires. Reading the manifest means a
+        # binary added to `files` and not built fails HERE, loudly, instead of
+        # being published as a hole.
         run: |
           set -euo pipefail
-          cp native/rabadon-gate native/rabadon-stats native/rabadon-drift \
-             native/rabadon-trace native/rabadon-verify native/rabadon-pipeline \
-             native/rabadon-do native/rabadon-budget native/rabadon-lens \
-             native/rabadon-net native/rabadon-truth native/rabadon-serve \
-             native/rabadon-audit native/rabadon-claims native/rabadon-repair native/rabadon-sandbox \
-             native/rabadon-export \
-             npm/${{ matrix.target }}/
+          for f in $(node -p "require('./npm/${{ matrix.target }}/package.json').files.join(' ')"); do
+            test -x "native/$f" || { echo "manifest names $f but native/$f is not an executable" >&2; exit 1; }
+            cp "native/$f" "npm/${{ matrix.target }}/"
+          done
+          ls -la npm/${{ matrix.target }}/
       - uses: actions/upload-artifact@v4
         with:
           name: pkg-${{ matrix.target }}
