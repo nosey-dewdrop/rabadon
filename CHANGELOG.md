@@ -2,6 +2,11 @@
 
 All notable changes to rabadon. Dates are the day the tag was pushed.
 
+## 0.2.5 — 2026-09-02
+
+- **The injection budget is charged per failure, not per session.** It was two paragraphs per signal per session, and the reasoning ("a supervisor that repeats itself is one you learn to skim") was right about repetition and wrong about the unit: a session on a real machine runs sixteen hours across unrelated problems. Measured on one real session: 43 contrast signals, both paragraphs spent by 15:42, then 41 capped and 140 further failures with the trigger mute for 3.4 hours — the afternoon's second bug got nothing because the morning's had spent the budget. The cap key now carries the error signature, so a NEW failure gets its own two paragraphs and the SAME failure still gets exactly two. Nothing else moved: the limit is still 2, the character budget is still 400, and a signal with no error signature behaves exactly as before.
+- CI now fetches tags. `install_docs_test.sh` decides whether `npm i -g rabadon` is a live command by reading `git tag --list` — offline by design, no registry call on the test path — and the default checkout fetches none, so four jobs went red claiming a published command was dead while the same suite was green locally and in a container. The clone was wrong, not the check.
+
 ## 0.2.4 — 2026-09-02
 
 The first release anyone can install. 0.2.3-rc.1 published the same day and is
