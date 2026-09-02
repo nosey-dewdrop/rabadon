@@ -179,6 +179,58 @@ node/native parity held, stitchu is the largest real signal, and repairs-held is
 
 ---
 
+## 3b. False rejects — the number that decides whether a guard survives  `[proven]`
+
+Latency says the gate is cheap. The ledger says how much it did. Neither
+answers the question a stranger actually asks — *will it get in my way* — and
+that question decides whether a guard is still installed on day two. A tool
+that refuses honest work once a day is uninstalled by lunch, however correct it
+is the rest of the time.
+
+rabadon records both halves of the answer without being asked to. A `STOP` is a
+refusal that happened. `rabadon wrong <rule> "<why>"` writes a `WRONG_REFUSAL` —
+the operator, after the fact, saying that refusal should not have fired. The
+false-reject rate is one divided by the other, and it needs no survey, no
+instrumentation and no memory of what happened.
+
+| window | refusals | declared wrong | rate |
+|--------|----------|----------------|------|
+| all 27 days with traffic (2026-08-04 → 09-02) | 521 | 70 | 13 % |
+| since 2026-08-28 | 126 | 1 | **0.8 %** |
+
+Both rows are real and the difference between them is the whole story: **69 of
+the 70 wrong refusals happened on two days, 26 and 27 August.** That is what
+tuning a rule against real work looks like — the rules that were wrong were
+`ctest-tail-hides-verdict` (37 wrong of 152), `red-suite-test-write` (7 of 17)
+and `red-base` (10 of 65), each argued down with a written reason on the ledger.
+In the 126 refusals since, one was called wrong.
+
+What those 126 stopped, in the operator's own repos: 34 `git commit -m "wip"`
+against a project whose guard demands a real message, 34 actions on a red test
+base, 9 recursive deletes outside the project, 7 truncating redirects onto a
+tracked file, 6 blind in-place source rewrites, 5 attempts to take apart a
+project's own `.rabadon/` law, 2 force-pushes to `main`, and one edit that would
+have put `red-base` into `disabled[]`.
+
+Reproduce, on your own ledger, offline:
+
+```sh
+python3 bench/precision.py                     # every day on record
+python3 bench/precision.py --since 2026-08-28  # one window
+```
+
+It reads `~/.rabadon/spool/*.jsonl` and nothing else. On a machine that has
+never refused anything it prints that, rather than a rate computed from zero.
+
+**What this number is not.** It is one operator, one machine, 148 projects, and
+the same person who wrote the rules is the one judging them — a stranger's
+false-reject rate on a codebase rabadon has never seen is unmeasured, and no
+amount of local traffic can stand in for it. The honest claim is narrow: on the
+work this machine actually does, the gate now refuses about one honest action in
+a hundred and twenty-six.
+
+---
+
 ## 4. Where rabadon sits (only repo-backed claims)
 
 | tool                | integration        | can stop a bad call?                     | can repair it? | scope              |

@@ -96,6 +96,8 @@ Plus your own laws, authored into `.rabadon/guard.json` (deny rules, protected p
 
 ## What it costs to run
 
+**It refuses about one honest action in 126.** A guard that gets in the way is uninstalled by lunch, so the number is published either way: 126 refusals since 28 August, 1 of them called wrong by the operator with `rabadon wrong` — 0.8 %. Over all 27 days on record it is 521 and 70, or 13 %, and 69 of those 70 fell on two days in August while three rules were being tuned against real work. Reproduce on your own ledger, offline: `python3 bench/precision.py`. What it is not: one operator, one machine — a stranger's rate on a codebase rabadon has never seen is unmeasured. Detail: [BENCHMARK.md §3b](BENCHMARK.md).
+
 **By default, nothing calls a model.** Every law above is deterministic C++: pattern matching, path resolution, exit codes, hashes. The gate adds ~2.8 ms to a tool call and, when it refuses, a short sentence to the agent's context — measured across this machine's entire ledger, 2,789 refusal texts totalling 410,342 characters, a median of 68 each. Roughly 5k tokens a day.
 
 That was not always true, and it is worth saying plainly, because a supervision tool doing this quietly is the thing it exists to prevent. Until this release, installing rabadon signed you up for two `claude -p` calls on your own account from inside a hook: a drift judge every 12th action, and an incident diagnosis the moment your suite went red — up to 30 and 90 seconds of wall clock with your agent stopped dead, waiting, and a second bill beside the one you were already paying. Nothing announced either.
