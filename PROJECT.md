@@ -289,6 +289,78 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (3) — three live runs, no red; the ledger's (b) is answered by a metric that cannot say no
+
+Two more throwaway repos, driven by real `claude -p` (Claude Code 2.1.257,
+bypassPermissions, max-turns 40), with the binary from `38a600e` bound through
+the operator's global hooks:
+
+- **live1** — `collect(item, bucket=[])`, task: add `collect_many` on top of
+  it. The agent read the file before running anything, named the mutable
+  default, fixed it in the same heredoc that added the feature. 4 turns,
+  green → green. Ledger: 2× `tests: GREEN`, 0 SIGNAL.
+- **live2** — 10 modules, task: sort `render()` keys; a golden test two
+  directories away depends on key order. The agent grepped every caller, read
+  the golden, checked the order in Python before editing. 12 turns,
+  green → green. (The trap was also miscut — `id;name;region;score` is already
+  alphabetical — my error; the agent caught that too.)
+
+With last session's two, that is **four live runs on small repos and zero
+green→red transitions.** A competent agent reads before it writes, and on a
+repo it can read entirely it does not break what it cannot see. The contrast
+trigger's precondition is a change whose blast radius exceeds what the agent
+read — a long session in a large tree. The venue for measuring this product is
+not a synthetic repo; it is the operator's own sessions, which is where every
+INJECT today actually happened.
+
+**Today's ledger (real traffic, this machine, watch mode):** 323 SIGNAL
+(236 scope_drift, 42 green_redefined, 40 regression_contrast, 5
+root_migration), **10 INJECT, 8 INJECT_ANSWER — all `same=false`**,
+35 INJECT_CAPPED, 2 RULE_YIELDED, 139 CHECK_FAIL.
+
+CHALLENGE — **(b) as written cannot come back false.** `INJECT_ANSWER.same`
+compares the next move's signature with the one that was repeating before the
+injection. For a contrast injection there was no repeating move — the "before"
+is whatever command last ran — and a competent agent's next command is always
+a different one. 8 of 8 `same=false` is what the metric produces regardless of
+whether the paragraph was read. The devir's acceptance ("INJECT_ANSWER +
+causal:true") names a field that does not exist in the code. What would
+answer (b): the next move touches a file the injection NAMED and the agent had
+not touched before it, or the agent's next text quotes it. Not implemented;
+not in PROJECT.md; proposal only.
+
+CHALLENGE — **the trigger still runs on vocabulary through `claimed_rc`.**
+signals.h says the contrast condition is "the suite going red, or the move
+claiming a non-zero status", not the error signature. But on PostToolUse
+`claimed_rc = (E.failed || !err_sig.empty())`, and err_sig is the vocabulary.
+Measured live at 1788355899210 and again while writing this entry: a `python3`
+that PRINTED ledger lines containing "attempt 4 on the same failure" and "not
+found" fired regression_contrast and the injection quoted that printout as
+"the previous attempt ended with". Two false positives in one afternoon, both
+this shape. INJECT_CAPPED=35 is the other face of it: two of these spend the
+session's budget for that signal and the trigger is mute for the rest of a
+long session — the exact session it is for.
+
+Fixed on the way, small: a redirect target still holding a shell variable
+(`> app/stage$i.py`, named live at 1788355899210) is no longer recorded as a
+file. `inject_payload_test.sh` section 3b; suite 13 passed, 0 failed.
+
+DONE: `./native/inject_payload_test.sh` 13/0, `./native/signals_test.sh` 39/0;
+full `make test` exit 0, 122 suite scripts, no failing line. Transcripts and
+ledgers for live1/live2 are under the session scratchpad, not the repo.
+
+NOT VERIFIED: layer (b) — still. Not because the channel is dark (10 INJECT
+today on real traffic) but because the yardstick cannot fail. False positive
+RATE: two found, still not a rate. Doubled lines: RUN_START appears twice per
+live run; STEP lines once — narrower than "every event twice", cause unknown.
+
+NEXT: (1) define (b) so it can be false — the next move names a file the
+injection named — and record it beside `same`; (2) stop `claimed_rc` from
+inheriting the vocabulary on PostToolUse when the command is not a test and
+the harness reported no failure, or cut the contrast trigger to `suite == 0`
+only and measure what that loses; (3) then read a week of the operator's own
+ledger, not a synthetic repo.
+
 ### 2026-09-02 (2) — the payload told the truth only when the runner spoke its vocabulary
 
 The previous entry left the trigger firing live and the text it delivered
