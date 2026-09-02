@@ -431,10 +431,54 @@ afternoon, in one session — that is not a rate. The four pre-existing reds are
 still undiagnosed, `RULE_YIELDED` and `regression_contrast` have no tests, and
 the latency cost of the new work on the hot path was never measured.
 
-NEXT — re-run the live protocol end to end on the current binary: green suite,
-agent edit, first red, and check the transcript for the injected text and the
-move that follows it. That is layer (b), and it is the only thing left between
-this and a verdict on the thesis.
+DONE — **the trigger fires on live traffic, for the first time** (`72e036e`).
+Four `claude -p` sessions were run against the current binary, each one
+exposing the next layer:
+
+- Run 3 caught a **false red the previous commit introduced**: the agent ran
+  `python3 -m pytest -q 2>&1 | tail -5; ls; cat *.py`, the `cat` printed test
+  sources containing `assert`, and a suite that had just reported `2 passed`
+  was stamped RED. Before that commit the same run was merely unrecognised, so
+  the change turned silence into a wrong verdict — the direction this file
+  already calls the expensive one. Fixed the way the repo fixed it once
+  before, in the other direction: **only a count may answer a count.** A pass
+  count is disqualified by a failure COUNT, never by loose vocabulary, and
+  `declaredPassCount` now suppresses a bare failure word exactly as
+  `declaredZeroFailures` does. Both failure-count reads drop the leading `\b`
+  — with an unexpanded `\n` the digit is preceded by the letter `n` and no
+  boundary exists. That single detail broke `postuse_test` BR13 twice.
+- Run 4 caught the trigger's own blind spot: `regression_contrast` required a
+  counted Edit move between green and red, and the agent created the failing
+  file with `cat > test_b.py <<EOF` inside a Bash command. Nothing the ring
+  calls an edit ever landed. Writing files through the shell is normal agent
+  behaviour, so **the transition is now the evidence** and the file list is a
+  payload — named when the ring knows it, omitted when it does not.
+
+With both fixed, the live ledger shows `SIGNAL regression_contrast` →
+`INJECT` delivered on the next PreToolUse, landing immediately before the
+agent's root-cause fix. Suite: 119 pass, 4 fail (the same four).
+
+NOT VERIFIED — **layer (b) is still open, and the payload is wrong.** No
+`INJECT_ANSWER` was recorded in that run, so "the agent read it and moved
+differently" remains unmeasured; the injection arriving before the fix is
+sequence, not causation. And the text it delivered was poor:
+
+> rabadon: this suite was green earlier in this session. The previous attempt
+> ended with: {"stdout":"def collect(item, bucket=[]):\n bucket.append(item)…
+
+`readable_error` took the compound command's stdout — a file dump from `cat` —
+instead of the assertion. A paragraph whose "previous attempt" quotes a source
+listing is worth little to the agent, and it names no changed files because
+the shell writes are invisible to the ring. Also still unmeasured: the
+false-positive rate, the hot-path cost of this work, and tests for
+`RULE_YIELDED` and `regression_contrast`. Every event in these runs appears
+**twice** in the spool, which is unexplained and was not investigated.
+
+NEXT — make the payload true before anything else: `readable_error` must
+prefer the failing assertion over arbitrary stdout, and the changed-file list
+must see shell writes (`>`, `>>`, `tee`, `sed -i`, heredoc) as edits. Then
+re-run this protocol and require `INJECT_ANSWER` with `causal:true` in the
+ledger, which is layer (b) and the actual verdict on the thesis.
 
 ### 2026-08-24 (koşu tur 16) — arm B was never rabadon: it binds the LEGACY JS gate, on one event
 
