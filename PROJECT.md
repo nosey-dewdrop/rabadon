@@ -289,6 +289,46 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (7) — first publish, as a pre-release under `next`
+
+The operator asked for the release decision to be made, not asked about.
+Made: **`v0.2.3-rc.1`, published under dist-tag `next`, never `latest`.**
+
+Why not a plain `v0.2.3` today: the false positive rate of the contrast
+trigger was 65 % on this machine before this afternoon's cuts (entry 5) and is
+UNMEASURED after them; injection is on by default for anyone who installs;
+the first stranger who gets noise does not install twice. Why not nothing:
+the pipeline has died three times at the same step and only a real run
+answers whether it dies a fourth; `rabadon` is free on the registry (E404 for
+the name and for `@rabadon/darwin-arm64`, checked 14:35 UTC) and a free name
+does not stay free. The pre-release gets both: the hat runs end to end, the
+name is taken, `npm i -g rabadon` still resolves to nothing.
+
+Changes:
+- `.github/workflows/release.yml`: a `dist` step reads the tag; a version with
+  a `-` publishes every package `--tag next`, a plain one `--tag latest`. The
+  smoke job already installs by exact version, so it exercises the rc.
+- `node scripts/prepare-release.mjs 0.2.3-rc.1`: package.json, version.h,
+  four platform manifests, four optionalDependencies pins. `rabadon-gate
+  --version` → `rabadon-gate 0.2.3-rc.1`; `--check` → all agree;
+  version_test 13/0.
+
+Unknowns the run will answer, in the order they can kill it: whether
+`make test` passes on the macos-15 runner with pytest installed by the step
+added 2026-08-05 (never executed); whether the `@rabadon` scope exists under
+the NPM_TOKEN's account (local npm is not logged in, `npm whoami` →
+ENEEDAUTH, so it cannot be checked from here); whether the smoke job's
+hand-written guard refuses on a fresh machine.
+
+DONE: version set and agreed (commands above). Full `make test` at the rc
+version: exit 0, 122 suite scripts. CI on the push: recorded below the tag. The tag is pushed
+only after CI is green on that commit.
+
+NOT VERIFIED: everything past the tag push — by construction.
+
+NEXT: push, CI green, `git tag v0.2.3-rc.1 && git push origin v0.2.3-rc.1`,
+then read the release run job by job and write what died or did not.
+
 ### 2026-09-02 (6) — CI was red on ubuntu since `db113ab`: a lambda held a dead stack slot, and mac hid it
 
 Entry (4)'s commit turned the ubuntu CI jobs red (run 33638704419, node20 and
