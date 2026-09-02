@@ -289,6 +289,50 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (9) — rabadon is on npm; and `latest` points at the rc, which cannot be undone
+
+**The release ran end to end for the first time.** Run 33660629381, tag
+`v0.2.3-rc.1` on `147d5cd`: four builds green (darwin-arm64, darwin-x64,
+linux-x64, linux-arm64), publish green, and BOTH smoke jobs green — a stranger's
+install path (`npm i -g rabadon@0.2.3-rc.1`, then the installed binary refusing
+a real command) works on ubuntu-22.04 and macos-15. Every unknown named in
+entry (7) is now answered: pytest on the macOS runner is fixed, the `@rabadon`
+scope exists under the NPM_TOKEN account, the hand-written smoke guard refuses.
+
+On the registry: `rabadon@0.2.3-rc.1` and all four `@rabadon/<platform>`
+packages. The script(1) fix worked — linux builds that hung 2h23m finished
+normally.
+
+**And the pre-release plan half-failed, in a way I did not know and should
+have checked before tagging.** npm points `latest` at the FIRST version
+published to a package, ignoring `--tag`: a package with no versions has no
+latest, so the flag is moot. The registry answers
+`{ next: '0.2.3-rc.1', latest: '0.2.3-rc.1' }`. So `npm i -g rabadon` installs
+the rc today, which is exactly what publishing under `next` was meant to
+prevent.
+
+It cannot be undone: `npm dist-tag rm rabadon latest` returns **403 Forbidden**
+(same for each scoped package) — the registry requires every package to have a
+`latest`. A dist-tag can only be MOVED, and there is one version to move it to.
+`.github/workflows/dist-tag.yml` was added to do the moving from CI (local npm
+is not authenticated); it did its job and reported the 403 honestly.
+
+So the practical state is: **rabadon is installable by anyone, today, at a
+version whose false positive rate has not been read off real traffic.** The
+mitigation is not a tag, it is the next publish: cutting `0.2.4` moves `latest`
+off the rc automatically. Until then the risk stands and is stated here rather
+than smoothed over.
+
+DONE: release run 33660629381 all green; `npm view rabadon@0.2.3-rc.1 version`
+→ 0.2.3-rc.1; all four platform packages present; smoke on two OSes.
+
+NOT VERIFIED: nothing about the rc's behaviour on a stranger's machine beyond
+the smoke job's single refusal.
+
+NEXT: read a few days of the operator's own ledger under this binary
+(regression_contrast SIGNAL vs INJECT_CAPPED, `named=true` count), then cut
+0.2.4 — which both ships those numbers' verdict and takes `latest` off the rc.
+
 ### 2026-09-02 (8) — the release hung for 2h23m in a test that runs a real script(1)
 
 `v0.2.3-rc.1` was tagged and the release workflow ran. **Both darwin builds
