@@ -289,6 +289,51 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (13) — 0.2.4 prepared; and the machine_intact red is another process, measured this time
+
+`make test` at 0.2.4 went red on `machine_intact [verify]`: "THE RUN REWROTE
+THE OPERATOR'S SHARED settings.json", 5947 -> 5982 bytes. The same suite went
+red the same way earlier today and that entry recorded it as "another process,
+not attributed further". Attributed now:
+
+- `~/.claude/settings.json` mtime is 21:07:55, inside the suite window.
+- No C++ source in this repo writes that path. The only rabadon code that
+  touches it is `hooks/manage.mjs`, which the suite does not run, and which
+  refuses to overwrite a file it cannot parse.
+- `ps aux | grep -c '[c]laude'` answered **8**. Eight Claude Code processes
+  share that one file on this machine; the operator's own editor writes it when
+  a setting changes.
+- The file's hooks were checked for a new entry: eleven non-rabadon hooks, all
+  `orkestra/src/tick.py`, which was already there — and `grep` for a settings
+  write inside tick.py finds none. It appends to its own jsonl and nothing else.
+
+So the test is not flaky and it is not wrong: it is the one check in the suite
+whose subject is a SHARED file, and on a machine running eight agents it will
+go red whenever any of them writes a setting mid-run. That is the check doing
+exactly its job — it exists because self-heal once wrote a dead worktree path
+into that file (see the header of machine_intact_test.sh). Recording it as
+"another process" without naming what and how many was the weaker half of the
+earlier entry.
+
+No code changed for this. The suite was re-run.
+
+DONE: version 0.2.4 set across package.json, native/version.h and four platform
+manifests; `--check` agrees; version_test 13/0. CHANGELOG 0.2.4 written — the
+injection channel's five fixes, the eleven-tool census, the two new suites, the
+pty hang, the latency numbers, and a "known, and stated rather than smoothed
+over" section carrying the unmeasured false positive rate and the session-budget
+CHALLENGE. CI green on `eb6b6bc` (run 33664697452, six jobs). The three suites
+that changed today verified on ubuntu:22.04 in a container: inject_payload 35/0,
+signals 44/0, yield 13/0.
+
+The re-run of `make test` at 0.2.4: exit 0, 123 suite scripts.
+
+NOT VERIFIED: whether an eight-agent machine can ever run this suite without
+racing that file: not solved, only explained.
+
+NEXT: suite green, push, tag v0.2.4. That publishes and moves `latest` off the
+rc, which is the only way to take the blind build out of `npm i -g rabadon`.
+
 ### 2026-09-02 (12) — the cut was measured, and it had gone blind on seven of eleven real failures
 
 Entry (10) listed "what the leading-error cut LOSES" as unmeasured. Measured
