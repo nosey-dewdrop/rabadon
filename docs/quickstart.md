@@ -12,19 +12,26 @@ catch something, turn it on, work normally, read the ledger.
 
 - macOS or Linux (no Windows).
 - Node >= 18.
-- A C++ compiler (`clang++` or `g++`). The install below builds the native core
-  from source, so the compiler is required today, not optional. (Prebuilt
-  `@rabadon/<platform>` binaries are built for `darwin-arm64`, `darwin-x64`,
-  `linux-x64` and `linux-arm64`, and they are what removes this requirement —
-  once published; see below.)
+- A C++ compiler (`clang++` or `g++`) only if you install from source, or if no
+  prebuilt binary matches your platform. `npm i -g rabadon` ships prebuilt
+  `@rabadon/<platform>` binaries for `darwin-arm64`, `darwin-x64`, `linux-x64`
+  and `linux-arm64`, so on those four the compiler is not needed.
 - Claude Code CLI (`claude`) is **optional** — needed only for guard authoring
   (`rabadon init` without `--no-llm`) and for `rabadon repair`. Deny rules work
   without it.
 
 ## 1. Install
 
-Not on npm yet — install from source. This is the same path README.md
-documents, and it is the only one that works today.
+```sh
+npm i -g rabadon
+```
+
+That is the whole install on the four prebuilt platforms — the release
+pipeline's own smoke job installs exactly this way on ubuntu and macOS and
+then makes the installed binary refuse a real command, so the path is
+measured, not assumed.
+
+From source instead (any other platform, or to build it yourself):
 
 ```sh
 git clone https://github.com/nosey-dewdrop/rabadon && cd rabadon

@@ -16,13 +16,9 @@ Everything is local, by law: events append to `~/.rabadon/spool/` on your machin
 
 ## Install
 
-Not on npm yet — install from source. (The package is built and the release
-workflow is wired; publishing is its own step, and until it happens this page
-will not print a command that cannot work.)
-
 ```sh
-git clone https://github.com/nosey-dewdrop/rabadon && cd rabadon
-npm install && npm link   # builds the native core with clang++/g++, puts `rabadon` on your PATH
+npm i -g rabadon          # prebuilt binary for your platform; no compiler needed
+                          # (from source instead: git clone … && npm install && npm link)
 
 cd your-project
 rabadon init              # authors guard rules from your law files (CLAUDE.md / RULES.md),
