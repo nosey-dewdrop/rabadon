@@ -159,7 +159,7 @@ claude
 ```
 
 Nothing changes in how you use Claude Code. The gate runs on every tool action
-in single-digit milliseconds — 3.1 ms at the median, measured, see
+in single-digit milliseconds — 2.8 ms at the median, measured, see
 [BENCHMARK.md](../BENCHMARK.md). If
 the agent tries something the guard forbids, the action is refused (exit 2) and
 the reason is written back to the agent so it self-corrects.

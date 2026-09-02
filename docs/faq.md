@@ -53,8 +53,8 @@ rule id so you always know which one to add.
 
 ## Will it slow my session?
 
-No meaningfully. The gate is deterministic native C++ and decides in **3.1 ms**
-at the median (3.14 ms allow, 3.20 ms deny, n=40); the hook timeout it runs
+No meaningfully. The gate is deterministic native C++ and decides in **2.8 ms**
+at the median (2.78 ms allow, 3.70 ms deny, n=40); the hook timeout it runs
 inside is measured in seconds. The hot path never calls a model. Reproduce the
 number with `make bench` — it prints the table BENCHMARK.md is built from.
 

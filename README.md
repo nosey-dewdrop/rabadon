@@ -100,7 +100,7 @@ Plus your own laws, authored into `.rabadon/guard.json` (deny rules, protected p
 
 ## What it costs to run
 
-**By default, nothing calls a model.** Every law above is deterministic C++: pattern matching, path resolution, exit codes, hashes. The gate adds ~3.1 ms to a tool call and, when it refuses, a short sentence to the agent's context — measured across this machine's entire ledger, 2,789 refusal texts totalling 410,342 characters, a median of 68 each. Roughly 5k tokens a day.
+**By default, nothing calls a model.** Every law above is deterministic C++: pattern matching, path resolution, exit codes, hashes. The gate adds ~2.8 ms to a tool call and, when it refuses, a short sentence to the agent's context — measured across this machine's entire ledger, 2,789 refusal texts totalling 410,342 characters, a median of 68 each. Roughly 5k tokens a day.
 
 That was not always true, and it is worth saying plainly, because a supervision tool doing this quietly is the thing it exists to prevent. Until this release, installing rabadon signed you up for two `claude -p` calls on your own account from inside a hook: a drift judge every 12th action, and an incident diagnosis the moment your suite went red — up to 30 and 90 seconds of wall clock with your agent stopped dead, waiting, and a second bill beside the one you were already paying. Nothing announced either.
 

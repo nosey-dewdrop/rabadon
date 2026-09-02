@@ -38,15 +38,30 @@ it unset is timing a gate nobody runs.
 
 | gate   | case  | median    | p95       | n  |
 |--------|-------|-----------|-----------|----|
-| native | allow | 3.14 ms   | 3.87 ms   | 40 |
-| native | deny  | 3.20 ms   | 3.44 ms   | 40 |
-| node   | allow | 100.27 ms | 107.32 ms | 40 |
-| node   | deny  | 101.25 ms | 111.79 ms | 40 |
+| native | allow | 2.78 ms   | 5.26 ms   | 40 |
+| native | deny  | 3.70 ms   | 8.60 ms   | 40 |
+| node   | allow | 101.44 ms | 126.54 ms | 40 |
+| node   | deny  | 101.20 ms | 103.27 ms | 40 |
 
-Measured 2026-08-16 with `RABADON_NOTIFY=0 make bench`. Median hook tax drops
-from ~100 ms (node process startup dominates) to 3.1 ms (native), about 32x at
+Measured 2026-09-02 with `RABADON_NOTIFY=0 make bench`. Median hook tax drops
+from ~100 ms (node process startup dominates) to 2.8 ms (native), about 36x at
 the median. The native p95 is noisier on a laptop (scheduler / spawn jitter), so
 the median is the robust number.
+
+Re-measured on 2026-09-02 because the gate gained a whole mechanism since the
+August table: the move ring, five detectors, and the injection channel all run
+on this path now. The allow median did not move (3.14 → 2.78 ms, inside this
+machine's run-to-run spread). A separate two-arm measurement isolates the new
+work rather than inferring it — same binary, 40 samples, one sandbox each:
+
+| session state                                    | median  | p95     |
+|--------------------------------------------------|---------|---------|
+| cold: no moves recorded, nothing queued           | 2.84 ms | 3.54 ms |
+| armed: a full move ring and a diagnosis pending   | 2.88 ms | 3.27 ms |
+
+0.04 ms between them. Recording every move and carrying an undelivered
+diagnosis is free at this resolution; what the hook costs is process startup,
+which is what the native rewrite bought back.
 
 This table read 2.29 ms on 31 July. The honest reading of the difference is that
 it is a different binary on a different day and not a regression anybody
@@ -59,7 +74,7 @@ Judging alone, with the process cost taken out: **245.3 µs** median, p95 361.5
 `./native/gate_bench.sh`, which refuses to print any number unless the
 in-process judge and the shipped binary first agree on all 34 verdicts.
 
-One path is deliberately not 3.1 ms: a `git push` after code changed since the
+One path is deliberately not 2.8 ms: a `git push` after code changed since the
 last green test run makes the gate run the project's suite inside that same
 hook call. That is bounded by `pushGate.timeoutSec` (default 900 s), and the
 installed hook ceiling sits above it at 960 s on purpose — if the outer timeout
@@ -177,7 +192,7 @@ Passive tracers (Langfuse, Braintrust) wrap the client and watch; they cannot
 stop a bad call and cannot repair it. Galileo's inline gate CAN stop a call
 (block or canned override) but does not repair. rabadon is inline, fail-closed,
 pre-spend on real projects (61 real catches in 30 days: stitchu 43, rabadon 12,
-drills excluded), overhead is deterministic C++ at 3.1 ms. The repair loop is
+drills excluded), overhead is deterministic C++ at 2.8 ms. The repair loop is
 proven in the test suite and has held 2 hash-locked repairs on planned breakage
 (expressjs/express, its own suite as arbiter); on unplanned breakage it has held
 0 so far.
@@ -213,7 +228,7 @@ is what `native/drill.h` rule 5 was written to catch and now does.
 RABADON_NOTIFY=0 bench/reproduce.sh
 ```
 
-Numbers vary slightly with machine load. The reproducible facts: 3.1 ms native
+Numbers vary slightly with machine load. The reproducible facts: 2.8 ms native
 gate median, 44x median gap over node, 13/13 node==native parity + 53/0 and
 9/0 native suites, 55 real catches on stitchu+rabadon in 30 days (drills
 excluded), and repairs-held = 2 on planned breakage, 0 on unplanned breakage.
