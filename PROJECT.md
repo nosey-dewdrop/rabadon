@@ -289,6 +289,69 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (2) — the payload told the truth only when the runner spoke its vocabulary
+
+The previous entry left the trigger firing live and the text it delivered
+wrong: `The previous attempt ended with: {"stdout":"def collect(item,
+bucket=[]):`. Three causes, each found by driving the binary, each with a
+fixture now:
+
+1. **The envelope was read as the output.** Claude Code delivers a Bash result
+   as `{"stdout":..,"stderr":..}`; the suite verdict un-escaped it once before
+   judging, the move record did not. `err_sig` and `readable_error` saw ONE
+   line — the whole object — and quoted its first 120 characters, which were a
+   file the agent had cat'ed. `response_text()` (gate.cpp) now hands both
+   readers stdout+stderr. `readable_error` also prefers the line that IS the
+   error (`E AssertionError`, `FAILED x::y`, `NameError:`) over a line that
+   mentions one, and skips the `Traceback` header.
+2. **A heredoc was not a change.** `cat > tests/test_b.py <<EOF` left "Changed
+   since that green" empty. `shell_write_target()` asks the existing redirect
+   parser for `>`/`>>` targets and reads `tee` and `sed -i`; `/dev/null` and
+   `&1` name nothing. `rbsig::is_write` = Edit tool OR a Bash move with a path;
+   only the contrast trigger and the payload use it — oscillation and the
+   assertion-count rule stay on `is_edit` (a shell write has no text to read).
+3. **The detectors ran before the verdict existed.** The move is recorded and
+   tier 0 runs near the top of the event; the suite verdict is stamped 800
+   lines later. So `suite` read -1 at detection time and the trigger really
+   asked "did the output contain an error word". `Tests: 1 failed, 2 passed`
+   after a green: CHECK_FAIL on the ledger, suite stamped 0, NO SIGNAL. The
+   verdict block now calls back after stamping a red; the pass re-emits
+   nothing it already said (set keyed name+why+seqs) and recomposes the queued
+   text so the contrast sentence reads "it was red" instead of "it failed with
+   that error". Two crashes on the way there, both measured (CHECK_FAIL vanished
+   from the ledger): the callback captured block-local lambdas and strings by
+   reference from a frame that had closed. `ms` is hoisted to event scope, the
+   queued args live behind a shared_ptr, the lambda chain is captured by value.
+
+Live, unplanned: while this session ran its own suite, rabadon in watch mode
+injected into THIS session's PreToolUse —
+`rabadon: this suite was green earlier in this session. The file last edited
+is native/inject_payload_test.sh. The previous attempt ended with:
+inject-payload: 10 passed, SOME FAILED. Contrast: after \`…python3 - <<'PY'…\`
+the suite was green; after …` — the trigger fires on real traffic, the file
+named was the right one, the quoted line was the run's own summary. The green
+command it names is a python heredoc clipped mid-line: the `raw` field is
+96 bytes and a long compound command reads as noise there. NOT fixed.
+
+DONE: `native/inject_payload_test.sh` 11 passed, 0 failed (wired into `make
+test` after inject_answer_test.sh); moves 22/0, signals 39/0, signals_screen
+38/0, inject_answer 16/0, postuse 88/0 — unchanged by this work. Proof:
+`./native/inject_payload_test.sh && ./native/signals_test.sh`.
+
+Full `make test`: exit 0, 122 suite scripts ran, no failing line in the log
+(the previous entry's "119/4" was a different runner's count; not reconciled).
+
+NOT VERIFIED: Layer (b) — did the agent's next move change
+because of the injection — still has no INJECT_ANSWER with `causal:true` in
+any live run; the self-injection above is delivery, not causation. False
+positive RATE still unmeasured. The doubled ledger lines from live runs
+(previous entry, D) not investigated. `raw` at 96 bytes makes the contrast
+sentence unreadable for compound commands (above).
+
+NEXT: run `claude -p` on the synthetic green→heredoc→red repo again with this
+binary and read the delivered text end to end; then chase INJECT_ANSWER
+causal:true, which is the product's thesis and is still unmeasured.
+
 ### 2026-09-02 — the second cause: the refusal arm was eating the repair arm
 
 Line 338 of this file left it open: *"whether a correctly bound native gate
