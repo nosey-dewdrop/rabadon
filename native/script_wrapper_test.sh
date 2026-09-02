@@ -107,16 +107,40 @@ done
 # script(1) refuses to run when stdin is not a terminal, and a test harness has
 # no terminal. python3's pty.spawn gives it one; if that is not available here
 # the premise is unmeasurable and says so instead of pretending.
+#
+# AND IT MUST NOT BE ABLE TO HANG THE BUILD. Measured 2026-09-02: the release
+# workflow's two linux jobs sat in `make test` for 2h23m on ubuntu-22.04 until
+# they were cancelled, and the runner named the orphans it killed —
+# script_wrapper_test.sh, python3, sh, script. util-linux's script(1) can keep
+# the pty open after its child exits, and pty.spawn then waits forever. The
+# suites on ubuntu-latest never showed it. So every real script(1) invocation
+# below is fenced with a wall clock: a probe that does not answer in 10s means
+# PTY_OK=0 (the section reports NOT MEASURED, as it already does where python3
+# has no pty), and a case that does not answer in 20s fails as itself rather
+# than stopping the release. `timeout` is coreutils and is already required by
+# other suites in this Makefile.
+# `env VAR=... pty_run ...` cannot work — env execs a PROGRAM and a shell
+# function is not one (it answers "env: pty_run: Permission denied", the whole
+# case silently runs nothing). So the PATH override lives inside.
+pty_run() { # pty_run <seconds> <path-prefix-or-empty> <command>
+  local secs="$1" extra="$2"; shift 2
+  if [ -n "$extra" ]; then
+    PATH="$extra:$PATH" timeout -s KILL "$secs" \
+      python3 -c 'import pty,sys;pty.spawn(["/bin/sh","-c",sys.argv[1]])' "$1"
+  else
+    timeout -s KILL "$secs" \
+      python3 -c 'import pty,sys;pty.spawn(["/bin/sh","-c",sys.argv[1]])' "$1"
+  fi
+}
 PTY_OK=0
 : > "$LAB/argv.log"
-( cd "$LAB/sandbox" && python3 -c 'import pty,sys;pty.spawn(["/bin/sh","-c",sys.argv[1]])' \
-    'script -q /dev/null /bin/echo RAN-script' ) 2>/dev/null | grep -q 'RAN-script' && PTY_OK=1
+( cd "$LAB/sandbox" && pty_run 10 "" 'script -q /dev/null /bin/echo RAN-script' ) 2>/dev/null \
+    | grep -q 'RAN-script' && PTY_OK=1
 rm -f "$LAB/sandbox/typescript"
 
 ran() { # ran <label> <command> <expected argv line>
   : > "$LAB/argv.log"
-  ( cd "$LAB/sandbox" && env PATH="$LAB/fakebin:$PATH" \
-      python3 -c 'import pty,sys;pty.spawn(["/bin/sh","-c",sys.argv[1]])' "$2" ) >/dev/null 2>&1
+  ( cd "$LAB/sandbox" && pty_run 20 "$LAB/fakebin" "$2" ) >/dev/null 2>&1
   if grep -qxF "$3" "$LAB/argv.log" 2>/dev/null; then
     pass "the recorder runs it: $1"
   else
@@ -125,8 +149,7 @@ ran() { # ran <label> <command> <expected argv line>
 }
 notran() { # notran <label> <command>
   : > "$LAB/argv.log"
-  ( cd "$LAB/sandbox" && env PATH="$LAB/fakebin:$PATH" \
-      python3 -c 'import pty,sys;pty.spawn(["/bin/sh","-c",sys.argv[1]])' "$2" ) >/dev/null 2>&1
+  ( cd "$LAB/sandbox" && pty_run 20 "$LAB/fakebin" "$2" ) >/dev/null 2>&1
   if [ ! -s "$LAB/argv.log" ]; then
     pass "the recorder runs nothing here: $1"
   else
