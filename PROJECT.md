@@ -289,6 +289,45 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (14) — 0.2.4 is on npm, `npm i -g rabadon` works, and the docs stop saying it does not
+
+Release run 33666806818, tag `v0.2.4`: four builds, publish, and both smoke
+jobs green. The registry now answers `{ next: '0.2.3-rc.1', latest: '0.2.4' }`
+— `latest` is off the rc, which entry (9) said only a second publish could do.
+All four `@rabadon/<platform>` packages are at 0.2.4.
+
+**Verified as a stranger, not by reading the workflow.** `npm i rabadon@0.2.4`
+into an empty directory pulled the prebuilt `@rabadon/darwin-arm64` binary (no
+compiler ran), `rabadon --version` answered `rabadon 0.2.4` and named the core
+it resolved. Then two questions the smoke job does not ask, put to the SHIPPED
+binary in a throwaway project:
+
+    rm -f .rabadon/guard.json   ->  REFUSED (exit 2)
+    green, edit, `make` printing
+    `src/x.c:12:5: error: ...`  ->  regression_contrast FIRES
+
+The second is the one that mattered: the rc on the registry was blind to gcc,
+clang, tsc, go, eslint, make and npm. The published 0.2.4 is not.
+
+Docs corrected in the same commit, because they were now lying in the other
+direction: README and docs/quickstart both said "Not on npm yet — install from
+source". README's install is one line; quickstart leads with `npm i -g rabadon`
+and keeps the source build for other platforms. The compiler is no longer
+listed as required on the four prebuilt platforms. install_docs 22/0,
+docs_truth 42/0.
+
+DONE: release 33666806818 (7 jobs green); registry state as quoted above;
+stranger install and the two behavioural checks above, run against the
+downloaded binary rather than the local build.
+
+NOT VERIFIED: the same install on linux by hand — the release's smoke job does
+it on ubuntu-22.04 and passed, but I did not repeat it in a container. Nothing
+about how the trigger behaves on a stranger's real work.
+
+NEXT: the false positive rate under this build, which is the last open item and
+needs days of traffic rather than another commit. The session-budget CHALLENGE
+in entry (11) still awaits a ruling.
+
 ### 2026-09-02 (13) — 0.2.4 prepared; and the machine_intact red is another process, measured this time
 
 `make test` at 0.2.4 went red on `machine_intact [verify]`: "THE RUN REWROTE
