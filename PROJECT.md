@@ -289,6 +289,57 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (11) — CHALLENGE: the injection budget is per SESSION, and a session is 16 hours
+
+Measured while reading the day's INJECT_CAPPED count (50, of which 48 are
+regression_contrast). One session, `f888faaf`, accounts for 41 of them. Its
+shape:
+
+    3,593 events, 03:14 -> 19:03
+    43  regression_contrast SIGNAL
+     2  INJECT delivered (15:35 and 15:42)
+    41  INJECT_CAPPED
+    140 CHECK_FAIL after the budget was spent
+    3.4 hours mute with real reds still arriving
+
+`inject.h` sets `CAP_PER_SIGNAL = 2` and the comment justifies it: "a
+supervisor that says the same paragraph every turn is one the operator learns
+to skim, and every repetition is billed." That reasoning is right and the unit
+is wrong. The cap is charged per SIGNAL NAME per SESSION, and the plan was
+written when a session meant one task. A Claude Code session on this machine
+runs sixteen hours across a dozen unrelated problems: the two paragraphs were
+spent on a bug at 15:35, and a different failure at 18:50 got nothing.
+
+This is not a bug in the code — the code does what the plan says. It is the
+plan's unit being wrong, so per CLAUDE.md ("If PROJECT.md itself is wrong") it
+is a CHALLENGE and not a diff. Proposed, for human approval, NOT applied:
+
+    the cap resets when the SUBJECT changes, not when the process exits.
+    Concretely: charge the cap against (signal name, err_sig) rather than
+    (signal name), so a new failure gets its own two paragraphs and a repeat
+    of the SAME failure still gets exactly two. Nothing about the wording,
+    the budget, or the character limit changes.
+
+Why that pairing and not a timer: `err_sig` is already the ledger's answer to
+"is this the same error", it is already carried on every move, and it needs no
+new state. A clock would make the supervisor's behaviour depend on wall time,
+which is not something the operator can reason about.
+
+What it would cost, honestly: a session that hits four DIFFERENT failures now
+gets up to eight paragraphs instead of two. At the measured 68 characters
+median that is under 600 characters a day.
+
+DONE: nothing changed in the code. The measurement above is the deliverable,
+with the exact ledger it came from
+(`~/.rabadon/spool/2026-09-02.jsonl`, session f888faaf).
+
+NOT VERIFIED: whether the pairing actually reduces the mute window — that needs
+the change, which needs approval. Also unmeasured: how many of those 140
+CHECK_FAILs were distinct failures rather than one failure re-run.
+
+NEXT: the operator rules on the CHALLENGE. Until then the trigger path stays
+frozen, as entry (10) already said.
+
 ### 2026-09-02 (10) — the two untested mechanisms get fixtures, and the hot path gets a number
 
 Three of the four open items from entry (9)'s list, closed by running.
