@@ -120,18 +120,30 @@ jobs:
           done
       - name: Version sanity — every manifest matches the tag
         run: node scripts/prepare-release.mjs --check "${GITHUB_REF_NAME#v}"
+      # A PRE-RELEASE NEVER BECOMES `latest`. `v0.2.3-rc.1` publishes under the
+      # dist-tag `next`, so `npm i -g rabadon` keeps resolving to nothing until
+      # a plain version is cut; only `npm i -g rabadon@0.2.3-rc.1` (the smoke
+      # job below) gets it. The pipeline is exercised end to end and the name
+      # is on the registry, without a stranger installing a build whose false
+      # positive rate has not been read off real traffic yet (PROJECT.md,
+      # session log 2026-09-02).
+      - name: Pick the dist-tag from the version
+        id: dist
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          case "$V" in *-*) echo "tag=next" >> "$GITHUB_OUTPUT" ;; *) echo "tag=latest" >> "$GITHUB_OUTPUT" ;; esac
       - name: Publish platform packages (with provenance)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           for t in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
-            npm publish --access public --provenance ./npm/$t
+            npm publish --access public --provenance --tag "${{ steps.dist.outputs.tag }}" ./npm/$t
           done
       - name: Publish the main package (with provenance)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --tag "${{ steps.dist.outputs.tag }}"
 
   smoke:
     name: install from the registry on ${{ matrix.os }}
