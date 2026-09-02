@@ -50,6 +50,15 @@ jobs:
         node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
+        # TAGS, BECAUSE A SUITE READS THEM. install_docs_test.sh decides whether
+        # `npm i -g rabadon` is a live command by asking `git tag --list` for
+        # v<package.json version> — deliberately offline, no `npm view` on the
+        # test path. checkout@v4 fetches no tags by default, so on 2026-09-02
+        # the four build jobs went red saying a published command was dead while
+        # the same suite was green locally and in a container. The clone was
+        # wrong, not the check.
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
