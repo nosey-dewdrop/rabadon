@@ -2806,6 +2806,22 @@ static void rb_prof_report() {
 // already un-escapes once before judging (the `out` below in the post-run
 // block); the move record did not, and this is the one place both readers of
 // error text now come for their input.
+// THE CAP'S KEY: the signal, plus the failure it is about when there is one.
+// Kept in one function because three places ask for it — the charge, the check,
+// and the repair arm's "how much did R4 spend" — and three spellings of one key
+// is three chances for the budget to leak.
+// The separator is a PRINTABLE character. injSeen serialises as "<key>=<count>"
+// through json_escape, and a 0x01 byte does not survive that round trip — it
+// came back as '?', every key compared unequal to itself, and the budget was
+// never spent (measured: 8 injections where 2 were wanted, three identical
+// keys sitting side by side in injSeen). '#' cannot appear in a signal name
+// (they are C identifiers) nor in an err_sig (16 hex characters).
+static string capkey_of(const string& name, const Sess& sess) {
+  for (size_t i = sess.moves.size(); i-- > 0;)
+    if (!sess.moves[i].err_sig.empty()) return name + "#" + sess.moves[i].err_sig;
+  return name;
+}
+
 static string response_text(const string& toolResponse) {
   if (toolResponse.size() < 2 || toolResponse[0] != '{') return toolResponse;
   const string so = get_str(toolResponse, "stdout"), se = get_str(toolResponse, "stderr");
@@ -3831,10 +3847,30 @@ int main(int argc, char** argv) {
         ss.injMuteSignal = name;
         ss.injMuteFromSeq = ss.moves.empty() ? ss.nextSeq : ss.moves.back().seq;
       };
-      // the cap, charged by NAME, per session (the plan's fifth decision).
+      // THE CAP IS CHARGED PER FAILURE, NOT PER SESSION. The plan's fifth
+      // decision said two paragraphs per signal name per session, and the
+      // reasoning behind it is right: "a supervisor that says the same
+      // paragraph every turn is one the operator learns to skim". The UNIT was
+      // wrong. The plan was written when a session meant one task; a session
+      // on a real machine runs sixteen hours across a dozen unrelated
+      // problems. Measured 2026-09-02 on the operator's own ledger, session
+      // f888faaf: 43 contrast signals, 2 injections delivered by 15:42, then
+      // 41 INJECT_CAPPED and 140 further CHECK_FAILs with the trigger mute for
+      // 3.4 hours. The second bug of the day got nothing because the first had
+      // spent the budget.
+      //
+      // So the key carries the failure it is about: err_sig, which the ledger
+      // already computes and already means "is this the same error". A new
+      // failure gets its own two paragraphs; the SAME failure still gets
+      // exactly two, which is the repetition the cap exists to stop. No timer
+      // — a supervisor whose behaviour depends on wall time is one nobody can
+      // reason about. A signal with no error signature (a contrast on a suite
+      // that printed nothing quotable) keeps the bare name, so it behaves
+      // exactly as before rather than getting a fresh budget per event.
+      const string capKey = capkey_of(name, ms);
       int* seen = nullptr;
       for (size_t i = 0; i < ms.injNames.size(); i++)
-        if (ms.injNames[i] == name && i < ms.injCounts.size()) { seen = &ms.injCounts[i]; break; }
+        if (ms.injNames[i] == capKey && i < ms.injCounts.size()) { seen = &ms.injCounts[i]; break; }
       if (seen && *seen >= rbinject::CAP_PER_SIGNAL) {
         // THE THIRD ONE IS NOT A MUTE, IT IS A HAND-OFF. It goes to the ledger
         // because R5's repair arm triggers on exactly this: the same signal, a
@@ -3903,9 +3939,14 @@ int main(int argc, char** argv) {
       if (es.empty()) return;
       // (b) R4 has answered this signal with everything it had, and at least
       // one of those answers reached the agent.
+      // R4's spend on THIS signal, whatever failure each paragraph was about:
+      // the arm's question is "did the free remedy get its chances", and a key
+      // is now name+err_sig, so it sums every key that begins with the name.
       int spent = 0;
       for (size_t i = 0; i < ss.injNames.size(); i++)
-        if (ss.injNames[i] == name && i < ss.injCounts.size()) { spent = ss.injCounts[i]; break; }
+        if (i < ss.injCounts.size() && ss.injNames[i].compare(0, name.size(), name) == 0 &&
+            (ss.injNames[i].size() == name.size() || ss.injNames[i][name.size()] == '#'))
+          spent += ss.injCounts[i];
       if (spent < 1) return;
       if (ss.injMuteFromSeq < 0 || ss.injMuteSignal != name) return;
       // (a) a third different move, SINCE that moment, with the same error
@@ -5767,10 +5808,12 @@ int main(int argc, char** argv) {
     const string name = ss.injPendingSignal;
     ss.injPending.clear();
     ss.injPendingSignal.clear();
+    // charged against the same key the check used, or the budget leaks
+    const string capKey = capkey_of(name, ss);
     bool counted = false;
     for (size_t i = 0; i < ss.injNames.size(); i++)
-      if (ss.injNames[i] == name && i < ss.injCounts.size()) { ss.injCounts[i]++; counted = true; break; }
-    if (!counted) { ss.injNames.push_back(name); ss.injCounts.push_back(1); }
+      if (ss.injNames[i] == capKey && i < ss.injCounts.size()) { ss.injCounts[i]++; counted = true; break; }
+    if (!counted) { ss.injNames.push_back(capKey); ss.injCounts.push_back(1); }
     printf("{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"%s\"}}\n",
            json_escape(text).c_str());
     fflush(stdout);

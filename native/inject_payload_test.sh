@@ -217,5 +217,67 @@ pre "git status"
 pre "cat README.md"
 [ "$(ledger INJECT_ANSWER named)" = "" ] && [ "$(ledger INJECT_ANSWER same)" = "False" ] && pass "no named field when the paragraph named no file — an unanswerable question is not a no" || fail "named: '$(ledger INJECT_ANSWER named)' same: '$(ledger INJECT_ANSWER same)'"
 
+printf 'inject-payload: 9. the budget is per failure, not per session\n'
+# MEASURED, THEN CHANGED. Session f888faaf on 2026-09-02: 43 contrast signals,
+# 2 injections delivered by 15:42, then 41 INJECT_CAPPED and 140 further
+# CHECK_FAILs with the trigger mute for 3.4 hours. Two paragraphs per signal
+# per session is right about repetition and wrong about the unit — a real
+# session runs sixteen hours across unrelated problems, and the second bug got
+# nothing because the first had spent the budget. The key now carries err_sig.
+#
+# Both halves are asserted here, and the second is the one that must not
+# regress: a NEW failure gets its own two, the SAME failure still gets exactly
+# two and no more.
+inject_count() { cat "$H"/.rabadon/spool/*.jsonl 2>/dev/null | python3 -c 'import json,sys
+print(sum(1 for l in sys.stdin if l.strip() and json.loads(l).get("ev")=="INJECT"))'; }
+capped_count() { cat "$H"/.rabadon/spool/*.jsonl 2>/dev/null | python3 -c 'import json,sys
+print(sum(1 for l in sys.stdin if l.strip() and json.loads(l).get("ev")=="INJECT_CAPPED"))'; }
+# one failure, driven five times: green -> edit -> red, over and over
+fail_cycle() { # fail_cycle <error line>
+  run "pytest -q" $'2 passed in 0.01s\n'
+  run "sed -i s/a/b/ src/x.py" ""
+  run "pytest -q" "$1"
+  run "git status" ""      # a carrier for the delivery
+}
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+for i in 1 2 3 4 5; do fail_cycle $'F.\nE       AssertionError: assert 2 == 1\n1 failed, 1 passed in 0.02s\n'; done
+# PER SIGNAL, per failure — the cap was always per signal NAME and only the
+# session half is being replaced. Five cycles of one failure wake two different
+# detectors (the contrast on each red, and `repeat` once the same command comes
+# back with the same error), so the ledger's own count is the assertion: no
+# signal exceeds two for one failure.
+per_signal() { cat "$H"/.rabadon/spool/*.jsonl 2>/dev/null | python3 -c 'import json,sys,collections
+c=collections.Counter()
+for l in sys.stdin:
+    if not l.strip(): continue
+    d=json.loads(l)
+    if d.get("ev")=="INJECT": c[d.get("signal")]+=1
+print(max(c.values()) if c else 0)'; }
+N_SAME="$(inject_count)"
+[ "$(per_signal)" = "2" ] && pass "one failure repeated five times: no signal exceeds two paragraphs" \
+                          || fail "a signal was injected $(per_signal) times for one failure (want 2)"
+[ "$(capped_count)" -gt 0 ] && pass "the extra attempts are capped and say so on the ledger" \
+                            || fail "no INJECT_CAPPED after the budget was spent"
+# now a DIFFERENT failure in the same session: it must get its own budget
+for i in 1 2; do fail_cycle $'F.\nE       TypeError: unsupported operand type\n1 failed, 1 passed in 0.02s\n'; done
+N_TOTAL="$(inject_count)"
+[ "$N_TOTAL" -gt "$N_SAME" ] && pass "a different failure in the same session gets its own paragraphs ($N_SAME -> $N_TOTAL)" \
+                             || fail "a new failure got nothing: still $N_TOTAL injections — the budget is still per session"
+# The ledger's own record of the budget: injSeen holds one "<signal>#<err_sig>=<n>"
+# per (signal, failure) pair. THAT is the invariant — no pair above two — and it
+# is what distinguishes "a new failure got its own budget" from "the cap leaked".
+worst_pair() { python3 -c 'import json,glob,sys
+f=glob.glob(sys.argv[1]+"/.rabadon/sessions/*.json")
+d=json.load(open(f[0])) if f else {}
+print(max((int(e.rsplit("=",1)[1]) for e in d.get("injSeen",[])), default=0))' "$P"; }
+pairs() { python3 -c 'import json,glob,sys
+f=glob.glob(sys.argv[1]+"/.rabadon/sessions/*.json")
+d=json.load(open(f[0])) if f else {}
+print(len(d.get("injSeen",[])))' "$P"; }
+[ "$(worst_pair)" = "2" ] && pass "no (signal, failure) pair exceeds two paragraphs — the cap holds" \
+                          || fail "a (signal, failure) pair reached $(worst_pair)"
+[ "$(pairs)" -ge 3 ] && pass "the second failure opened its own budget lines ($(pairs) pairs on the ledger)" \
+                     || fail "only $(pairs) budget line(s) — the key is not carrying the failure"
+
 printf 'inject-payload: %s passed, %s\n' "$PASSN" "$([ $FAIL = 0 ] && echo '0 failed' || echo 'SOME FAILED')"
 exit $FAIL
