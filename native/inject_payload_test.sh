@@ -160,6 +160,38 @@ run "python3 store.py" "" $'Traceback (most recent call last):\n  File "store.py
 N="$(signals | grep -c '^regression_contrast$')"
 [ "$N" = "1" ] && pass "a runtime error that LEADS its line still claims the failure" || fail "Traceback no longer counts as a failure: count=$N"
 
+printf 'inject-payload: 7b. eleven real failure lines, and three that only mention one\n'
+# THE CUT WAS MEASURED, NOT ASSUMED. Making a failure claim itself only from a
+# line whose mark stands at column zero kept 4 of these 11 and dropped 7 — gcc,
+# clang, tsc, go, eslint, make and npm all put the PLACE first. That is not a
+# tightening, it is going blind on most compiled languages, so error_leads()
+# also reads the line from after a leading `path:line:col:`, `path(line,col):`,
+# `tool:` or `tool ERR!`. The three NOISE cases are the reason the strict rule
+# existed at all and they must stay silent: a cat'ed source file, a dumped
+# ledger line, and a grep hit that merely contains a colon and a number.
+check_line() { # check_line <label> <output> <FIRES|silent>
+  sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+  run "pytest -q" $'2 passed in 0.01s\n'
+  run "sed -i s/a/b/ src/x.c" ""
+  run "build" "$2"
+  local got="silent"; [ -n "$(signals | grep '^regression_contrast$')" ] && got="FIRES"
+  [ "$got" = "$3" ] && pass "$1: $3" || fail "$1: expected $3, got $got"
+}
+check_line "gcc"      'src/x.c:12:5: error: expected   before } token'                    FIRES
+check_line "clang"    "main.cpp:44:9: error: no member named 'foo' in 'Bar'"              FIRES
+check_line "tsc"      "src/app.ts(31,7): error TS2345: Argument of type 'string'"         FIRES
+check_line "go"       './main.go:18:2: undefined: doThing'                                FIRES
+check_line "rustc"    'error[E0308]: mismatched types'                                    FIRES
+check_line "pytest"   'FAILED tests/test_a.py::test_x - AssertionError: assert 2 == 1'    FIRES
+check_line "python"   "NameError: name 'x' is not defined"                                FIRES
+check_line "eslint"   "  12:5  error  'x' is assigned but never used  no-unused-vars"     FIRES
+check_line "make"     'make: *** [Makefile:12: all] Error 1'                              FIRES
+check_line "cargo"    'error: could not compile `app` due to 2 previous errors'           FIRES
+check_line "npm"      'npm ERR! code ELIFECYCLE'                                          FIRES
+check_line "a cat'ed source file"  $'try:\n    load()\nexcept ImportError:\n    raise ValueError("nope")'  silent
+check_line "a dumped ledger line"  '{"ev":"INJECT","text":"attempt 4 on the same failure ... not found"}' silent
+check_line "a grep hit"            'docs/faq.md:56:the gate decides in 2.8 ms, no error here'             silent
+
 printf 'inject-payload: 8. (b) that can be false — did the next move go where the paragraph pointed?\n'
 sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
 run "pytest -q" $'2 passed in 0.01s\n'

@@ -209,6 +209,51 @@ inline bool error_leads(const string& l) {
   while (i < l.size() && (l[i] == ' ' || l[i] == '\t')) i++;
   if (i + 1 < l.size() && l[i] == 'E' && l[i + 1] == ' ') { i += 2; while (i < l.size() && l[i] == ' ') i++; }
   if (l.compare(i, 9, "Traceback") == 0) return false;
+  // A COMPILER PUTS THE PLACE FIRST. `src/x.c:12:5: error: ...`,
+  // `src/app.ts(31,7): error TS2345`, `./main.go:18:2: undefined: x`,
+  // `make: *** [Makefile:12: all] Error 1`, `npm ERR! code ELIFECYCLE`:
+  // the mark is real and it stands after a location, not at column zero.
+  // Measured 2026-09-02 against 11 real failure lines from gcc, clang, tsc,
+  // go, rustc, pytest, python, eslint, make, cargo and npm: a strict prefix
+  // rule kept 4 and dropped 7, which is not a tightening, it is going blind on
+  // most compiled languages. So the line is also read from AFTER its leading
+  // location — `path:line:col:`, `path(line,col):`, `tool:`, `tool ERR!` —
+  // and the mark must lead what is left. A cat'ed source file has no such
+  // prefix, so `raise ValueError("...")` is still silent (the last fixture in
+  // that measurement, and section 7 of inject_payload_test.sh).
+  {
+    size_t j = i, guard = 0;
+    while (j < l.size() && guard++ < 4) {
+      // step over one leading location or tool name, then re-test
+      size_t k = j;
+      while (k < l.size() && l[k] != ':' && l[k] != ' ') k++;
+      if (k < l.size() && l[k] == ':') {
+        size_t m = k + 1;
+        while (m < l.size() && (is_dig(l[m]) || l[m] == ':' || l[m] == ' ')) m++;
+        if (m > k + 1 || (m < l.size() && l[m] != '\0')) {
+          for (const char* mk : {"error", "Error", "ERROR", "undefined", "FAILED", "fatal"})
+            if (l.compare(m, strlen(mk), mk) == 0) return true;
+        }
+      }
+      // `path(line,col): error TS...`
+      size_t par = l.find("): ", j);
+      if (par != string::npos && par < j + 80) {
+        for (const char* mk : {"error", "Error", "ERROR"})
+          if (l.compare(par + 3, strlen(mk), mk) == 0) return true;
+      }
+      // `npm ERR!`, `make: *** [..] Error 1`
+      if (l.find("ERR!", j) != string::npos && l.find("ERR!", j) < j + 40) return true;
+      if (l.find("] Error ", j) != string::npos) return true;
+      // eslint: `  12:5  error  msg`
+      { size_t d = j;
+        while (d < l.size() && (is_dig(l[d]) || l[d] == ':')) d++;
+        if (d > j && d < l.size()) {
+          size_t e2 = d; while (e2 < l.size() && l[e2] == ' ') e2++;
+          if (e2 > d && l.compare(e2, 5, "error") == 0) return true;
+        } }
+      break;
+    }
+  }
   // the mark is the PREFIX, not merely early: `raise ValueError("...")` in a
   // cat'ed source file has the mark in its first 24 characters and is not an
   // error that happened.
