@@ -289,6 +289,89 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (10) — the two untested mechanisms get fixtures, and the hot path gets a number
+
+Three of the four open items from entry (9)'s list, closed by running.
+
+**1. `RULE_YIELDED` had no test — and it turns refusals OFF.** `block()` lets a
+non-sealed rule stand down when a diagnosis is waiting, so the call runs and
+the paragraph is delivered instead. Two live events existed in the operator's
+ledger and no fixture had ever driven one. `native/yield_test.sh`, 13 passed,
+0 failed, four sections: a behavioural rule yields (RULE_YIELDED names the rule
+AND the signal, no STOP is written, and the INJECT really goes out — standing
+down without delivering would be the worst of both); the same rule refuses with
+an empty queue; a SEALED rule (guard-weaken) refuses with a diagnosis pending
+and never appears in a RULE_YIELDED; and an edit to guard.json that removes no
+rule is ordinary work and passes.
+
+Three false starts, each caught by running it, each now a comment in the file:
+`loop-stop` cannot be the vehicle (it needs three consecutive identical
+commands, and arming the diagnosis in between resets the count while delivering
+it empties the queue — both live yields came from single-call rules instead);
+changing `testCommand` is not a weakening, so it proved nothing about seals;
+and matching `'"rule":"baseline-law-unmade"'` against a line python had
+re-serialised with a space after the colon reported a missing event that was
+printed in the failure dump two lines above. The suite now asks the ledger for
+a FIELD by name.
+
+**2. `regression_contrast` had no test — and it is the loudest detector.** It
+fired 40 times in one day, more than anything but scope_drift, and
+`grep regression_contrast native/signals_test.sh` answered nothing.
+signals_test.sh section 1b: green→shell-write→red fires; a jest summary with no
+error vocabulary fires (the case that was structurally silent until the verdict
+was allowed to re-run the detectors); a first red with no green stays silent; a
+green after a green stays silent; and — the expensive one — a command that
+merely PRINTS error words after a green stays silent, which is the shape of 28
+of the 43 signals measured today. signals 39 → 44 passed, 0 failed.
+
+**3. The hot path was never measured with this machinery in it.** Now it is,
+40 samples each, same binary, one sandbox per arm:
+
+    allow, cold session          median 2.84 ms   p95 3.54 ms
+    allow, diagnosis pending     median 2.88 ms   p95 3.27 ms
+
+0.04 ms between a session carrying a queued diagnosis and a full move ring and
+one carrying nothing. The injection machinery is free on the hot path, and both
+numbers sit under BENCHMARK.md's published 3.14 ms.
+
+DONE: `./native/yield_test.sh` 13/0 on mac AND on ubuntu:22.04 in a container;
+`./native/signals_test.sh` 44/0; latency table above (`python3` harness in the
+session scratchpad, two arms, 40 samples). yield_test.sh wired into `make test`.
+
+Full `make test`: exit 0, 123 suite scripts (was 122; yield_test.sh is the new one). The latency numbers are this machine only, and BENCHMARK.md
+is NOT updated: its table is a published claim with its own reproduce script,
+and editing it belongs in its own commit with a run of that script.
+
+**4. BENCHMARK.md re-run, and the number refreshed everywhere it is quoted.**
+`RABADON_NOTIFY=0 make bench`, the page's own harness: parity held (native ==
+node on both verdicts), native allow 2.78 ms median / 5.26 p95, deny 3.70 /
+8.60, node ~101 ms. The August table said 3.14 ms allow, measured before the
+move ring, the detectors and the injection channel existed on this path; the
+median did not move. The two-arm table above is written into the page beside
+it, so the claim "recording every move is free" is on the page with its
+measurement rather than in a session log. The old figure was quoted in four
+other files (README, docs/faq, docs/how-it-works, docs/quickstart) and three
+more times inside BENCHMARK.md itself; all seven now say 2.8 ms. docs_truth
+42/0.
+
+**5. First real `named` data — and it works.** Since the field shipped at
+17:35 local, every INJECT_ANSWER on this machine carries it:
+
+    15:36 – 16:34   9 answers, no `named` field   (binary predates it)
+    20:39 – 20:40   2 answers, named=true         (both)
+
+Two is not a rate. But layer (b) is no longer unmeasurable: the ledger now says
+whether the agent's next move went where the paragraph pointed, and it said yes
+twice on real traffic. The 9 blanks are explained and not a defect — they are
+older events, confirmed against the binary's build time rather than assumed.
+A fixture drove the same path end to end (queue → delivery → answer) to prove
+the blanks were not a live bug.
+
+NEXT: the last open item — false positive rate after the cuts. 2026-09-01 saw 6
+contrast signals; 2026-09-02 saw 56 with 50 INJECT_CAPPED, but most of that day
+ran the pre-cut binary. Only days of traffic under this build answer it, and
+nothing in the trigger path should move until they do.
+
 ### 2026-09-02 (9) — rabadon is on npm; and `latest` points at the rc, which cannot be undone
 
 **The release ran end to end for the first time.** Run 33660629381, tag
