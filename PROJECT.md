@@ -289,6 +289,53 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 — the false-reject rate, measured from 27 days of real work
+
+The last open item in this log ("needs days of real traffic") turned out to be
+already answered — 79 MB of ledger, 27 days with traffic, 148 projects. Nobody
+had asked it the question.
+
+    all 27 days   521 refusals, 70 declared wrong   13 %
+    since 08-28   126 refusals,  1 declared wrong   0.8 %
+
+Both rows are real and the gap is the finding: **69 of the 70 wrong refusals
+fell on 26 and 27 August**, while three rules were argued down against real
+work — `ctest-tail-hides-verdict` (37 wrong of 152), `red-base` (10 of 65),
+`red-suite-test-write` (7 of 17). Each carries the operator's written reason on
+the ledger. Since then, one.
+
+No survey and no instrumentation was needed: a `STOP` is a refusal that
+happened and `rabadon wrong` writes a `WRONG_REFUSAL`, so the rate is a
+quotient of two events the product already records. That is worth stating on
+its own — the measurement exists because the ledger was built to be read, not
+because anyone planned this number.
+
+What the 126 stopped, in the operator's own repos: 34 `git commit -m "wip"`
+where the guard demands a real message, 34 actions on a red base, 9 recursive
+deletes outside a project, 7 truncating redirects onto tracked files, 6 blind
+in-place source rewrites, 5 attempts to take apart a project's own `.rabadon/`
+law, 2 force-pushes to `main`, and one edit that would have added `red-base` to
+`disabled[]`.
+
+`bench/precision.py` computes it from `~/.rabadon/spool/*.jsonl` alone —
+offline, no arguments, `--since` for a window, and on a machine that never
+refused anything it says so rather than dividing by zero. Published in
+BENCHMARK.md §3b with the caveat spelled out, and one line in README so nobody
+has to go looking.
+
+**What it is not, and this is the thing standing between rabadon and a real
+claim:** one operator, one machine, and the person who wrote the rules is the
+one judging them. A stranger's false-reject rate on a codebase rabadon has
+never seen is unmeasured, and no amount of local traffic substitutes for it.
+
+DONE: `bench/precision.py` added; BENCHMARK.md §3b and one README paragraph.
+docs_truth 42/0, install_docs 22/0, full `make test` exit 0, 123 suite scripts.
+
+NOT VERIFIED: everything about a machine that is not this one.
+
+NEXT: the only measurement left that changes what can honestly be claimed is
+one stranger, one unfamiliar codebase, one week. That is not a commit.
+
 ### 2026-09-02 (16) — 0.2.5: the budget fix ships, and a red CI turned out to be a wrong clone
 
 The budget change from entry (15) reaches users only through a release, so
