@@ -3612,7 +3612,7 @@ int main(int argc, char** argv) {
       m.tool = toolName;
       m.path = isBash ? shell_write_target(command, cwd) : relPath;
       m.sig = sig;
-      m.raw = rbmoves::clip(isBash ? command : relPath);
+      m.raw = rbmoves::clip(isBash ? rbmoves::strip_cd(command) : relPath);
       if (!isBash) {
         const string& txt = E.newString.empty() ? E.content : E.newString;
         if (!txt.empty()) m.asserts = rbmoves::count_asserts(txt);
@@ -3758,7 +3758,11 @@ int main(int argc, char** argv) {
     // came back with an empty signal name and the tool response as its why).
     struct Queued { string name, why, named; size_t n = 0; };
     auto q = std::make_shared<Queued>();
-    auto compose = [&](const string& name, const string& why, size_t nseqs) -> string {
+    // `q` by VALUE. Measured with AddressSanitizer 2026-09-02: captured by
+    // reference it is a stack-use-after-scope the moment the verdict block
+    // calls compose again — the gate died between SIGNAL and CHECK_FAIL on
+    // every ubuntu run (CI red, 6 fixtures) and survived by stack luck on mac.
+    auto compose = [&, q](const string& name, const string& why, size_t nseqs) -> string {
       rbinject::Ctx c;
       c.signal = name; c.why = why; c.attempt = (int)nseqs;
       c.err = ms.lastErrText;

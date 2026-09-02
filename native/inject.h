@@ -203,6 +203,27 @@ struct Ctx {
 // it is, what broke, the contrast, and the detector's own clause last — because
 // if the 400-character clip ever bites, the clause is the sentence the agent
 // can most afford to lose.
+// THE COMMAND AS A HUMAN WOULD NAME IT. The ring keeps 96 bytes of the raw
+// command, and an agent's command is `cd /Users/x/proj && python3 -m pytest -q
+// 2>&1 | tail -40` or a python heredoc; quoting the 96 bytes verbatim gave
+// contrast sentences like "after `cd ~/damla_projects_2026/rabadon && python3 -
+// <<'PY' p='native/gate.cpp'; s=open(p).read() star` the suite was green"
+// (measured 2026-09-02, injected into the operator's own session). So: first
+// line only, the leading `cd … &&` dropped, the first pipeline stage kept, and
+// a hard cap — the sentence names the command, it does not reproduce it.
+inline string command_head(const string& raw) {
+  string s = rbmoves::strip_cd(raw);
+  s = s.substr(0, s.find('\n'));
+  size_t cut = s.size();
+  for (const char* sep : {" && ", " | ", "; ", " || "}) {
+    size_t k = s.find(sep);
+    if (k != string::npos && k > 0 && k < cut) cut = k;
+  }
+  s = rbmoves::squeeze(s.substr(0, cut));
+  if (nchars(s) > 48) s = clip_chars(s, 47) + "\u2026";
+  return s;
+}
+
 inline string build(const Ctx& c) {
   // The opening sentence states what this IS, and the two triggers are not the
   // same thing: one is "you have been here before", the other is "this used to
@@ -217,13 +238,14 @@ inline string build(const Ctx& c) {
     s += " Changed since that green: " + c.changed + ".";
   if (!c.file.empty()) s += " The file last edited is " + c.file + ".";
   if (!c.err.empty())  s += " The previous attempt ended with: " + c.err + ".";
-  if (!c.greenCmd.empty() && !c.redCmd.empty())
-    s += " Contrast: after `" + c.greenCmd + "` the suite was green; after `" + c.redCmd +
+  const string g = command_head(c.greenCmd), r = command_head(c.redCmd);
+  if (!g.empty() && !r.empty())
+    s += " Contrast: after `" + g + "` the suite was green; after `" + r +
          (c.redIsSuite ? "` it was red." : "` it failed with that error.");
-  else if (!c.greenCmd.empty())
-    s += " Contrast: after `" + c.greenCmd + "` the suite was green, and nothing has been green since.";
-  else if (!c.redCmd.empty())
-    s += " Contrast: no green move is on record this session; after `" + c.redCmd + "` it failed.";
+  else if (!g.empty())
+    s += " Contrast: after `" + g + "` the suite was green, and nothing has been green since.";
+  else if (!r.empty())
+    s += " Contrast: no green move is on record this session; after `" + r + "` it failed.";
   if (!c.why.empty()) s += " Signal " + c.signal + ": " + c.why + ".";
   return clip_chars(scrub(s), MAX_CHARS);
 }

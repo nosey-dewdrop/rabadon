@@ -296,6 +296,27 @@ inline int count_asserts(const string& s) {
   return n;
 }
 
+// A LEADING `cd … &&` IS WHERE THE COMMAND IS, NOT WHAT IT IS. Agents prefix
+// nearly every command with the project path, the ring keeps 96 bytes, and a
+// scratch path alone is longer than that: the record held `cd /private/tmp/…/
+// scratchpad/live2 && python3 -m pytes` and the contrast sentence quoted it
+// (measured 2026-09-02). The cwd is already on the event; the prefix carries
+// nothing the record does not have.
+inline string strip_cd(const string& cmd) {
+  string s = cmd;
+  for (;;) {
+    size_t i = 0;
+    while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) i++;
+    if (s.compare(i, 3, "cd ") != 0) return s;
+    size_t j = s.find("&&", i);
+    if (j == string::npos) return s;
+    s = s.substr(j + 2);
+    size_t k = 0;
+    while (k < s.size() && s[k] == ' ') k++;
+    s = s.substr(k);
+  }
+}
+
 inline string clip(const string& s) {
   return s.size() <= RAW_CLIP ? s : s.substr(0, RAW_CLIP);
 }

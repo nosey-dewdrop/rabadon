@@ -20,7 +20,24 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GATE="${RABADON_GATE:-$HERE/rabadon-gate}"
 FAIL=0; PASSN=0
 pass() { printf '  ok   - %s\n' "$1"; PASSN=$((PASSN + 1)); }
-fail() { printf '  FAIL - %s\n' "$1"; FAIL=1; }
+# A FAILURE PRINTS THE EVIDENCE. This suite went red on ubuntu CI and green on
+# the developer's mac with the same source; a bare FAIL line could not say why.
+# So every failure dumps the sandbox's ledger and session file — the two things
+# a reader needs to tell "the detector did not fire" from "it fired and the
+# queue dropped it".
+fail() {
+  printf '  FAIL - %s\n' "$1"; FAIL=1
+  if [ -n "${H:-}" ]; then
+    printf '    ledger:\n'; cat "$H"/.rabadon/spool/*.jsonl 2>/dev/null | python3 -c 'import json,sys
+for l in sys.stdin:
+    if not l.strip(): continue
+    d=json.loads(l); print("     ", d.get("ev"), d.get("signal",""), str(d.get("step",""))[:50].replace("\n","⏎"), str(d.get("why",""))[:60])'
+    printf '    session:\n'; python3 -c 'import json,glob,sys
+for f in glob.glob(sys.argv[1]+"/.rabadon/sessions/*.json"):
+    d=json.load(open(f)); print("     ", {k:str(d.get(k))[:80] for k in ("injPending","injPendingSignal","injSeen","injAnsSignal","lastErrText")})
+    for m in d.get("moves",[]): print("      move", m.get("seq"), m.get("tool"), m.get("path"), "suite", m.get("suite"), "rc", m.get("claimed_rc"), str(m.get("raw",""))[:30].replace("\n","⏎"))' "$P"
+  fi
+}
 [ -x "$GATE" ] || { printf 'inject-payload: no gate binary at %s — run make first\n' "$GATE" >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { printf 'inject-payload: python3 required\n' >&2; exit 1; }
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/rbinjp.XXXXXX")"
@@ -122,6 +139,15 @@ e = {"hook_event_name": "PreToolUse", "session_id": sid, "cwd": P, "tool_name": 
 subprocess.run([G], input=json.dumps(e), capture_output=True, text=True)
 PY2
 }
+
+printf 'inject-payload: 6b. the contrast names the command, it does not reproduce it\n'
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+run "cd $P && python3 -m pytest -q 2>&1 | tail -40" $'2 passed in 0.01s\n'
+run $'cat > tests/test_b.py <<\'EOF\'\ndef test_x():\n    assert 2 == 1\nEOF' ""
+run "cd $P && python3 -m pytest -q 2>&1 | tail -40" $'F.\nE       AssertionError: assert 2 == 1\n1 failed, 1 passed in 0.02s\n'
+INJ="$(field injPending)"
+case "$INJ" in *'after `python3 -m pytest -q 2>&1` the suite was green; after `python3 -m pytest -q 2>&1` it was red.'*) pass "cd-prefix and tail stage dropped: the sentence names the test command";; *) fail "contrast wording: $INJ";; esac
+case "$INJ" in *"$P"*) fail "the project path leaked into the sentence";; *) pass "no absolute path in the sentence";; esac
 
 printf 'inject-payload: 7. a command that PRINTS error words is not a failed command\n'
 sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
