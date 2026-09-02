@@ -289,6 +289,59 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (12) — the cut was measured, and it had gone blind on seven of eleven real failures
+
+Entry (10) listed "what the leading-error cut LOSES" as unmeasured. Measured
+now, against eleven real failure lines taken from the tools this product runs
+under, each driven through the binary as green -> edit -> that output:
+
+    BEFORE (strict prefix)          AFTER (this commit)
+    gcc          silent             FIRES
+    clang        silent             FIRES
+    tsc          silent             FIRES
+    go build     silent             FIRES
+    eslint       silent             FIRES
+    make         silent             FIRES
+    npm          silent             FIRES
+    rustc        FIRES              FIRES
+    pytest       FIRES              FIRES
+    python       FIRES              FIRES
+    cargo        FIRES              FIRES
+
+**4 of 11 caught, 7 dropped.** Every dropped one is a tool that writes the
+PLACE before the mark — `src/x.c:12:5: error:`, `src/app.ts(31,7): error TS…`,
+`./main.go:18:2: undefined:`, `make: *** [Makefile:12: all] Error 1`,
+`npm ERR!`, eslint's `12:5  error`. That is not a tightening. It is the
+detector going blind on most compiled languages, shipped in `db113ab` and
+published in the rc, and it would have looked like "rabadon never says
+anything" to a C, TypeScript, or Go user.
+
+`rbmoves::error_leads` now also reads the line from AFTER one leading location
+— `path:line:col:`, `path(line,col):`, `tool:`, `tool ERR!` — and requires the
+mark to lead what remains. The three noise shapes that motivated the strict
+rule stay silent, which is the half that must not regress: a cat'ed source file
+carrying `raise ValueError(...)`, a dumped ledger line containing "the same
+failure ... not found", and a grep hit that merely has a colon and a number
+in it.
+
+    real failures caught: 11/11    noise correctly silent: 3/3
+
+All fourteen are fixtures now, in `inject_payload_test.sh` section 7b, driven
+end to end rather than unit-testing the predicate — the thing that matters is
+whether the trigger fires, not whether a function returns true.
+
+DONE: `./native/inject_payload_test.sh` 21 -> 35 passed, 0 failed. CI green on
+the previous head (run 33663775110, six jobs). Full `make test`: exit 0, 123
+suite scripts. signals 44/0, yield 13/0, moves 22/0, postuse 88/0.
+
+NOT VERIFIED: whether more tool dialects put something else in front of the
+mark. Eleven is what this machine could produce honestly; it is a floor, not a
+census. The rc on npm carries the BLIND version — one more reason 0.2.4 is the
+next release and not an optional one.
+
+NEXT: full suite green, push, then cut 0.2.4 — it ships the un-blinding and
+takes `latest` off the rc in the same move.
+
 ### 2026-09-02 (11) — CHALLENGE: the injection budget is per SESSION, and a session is 16 hours
 
 Measured while reading the day's INJECT_CAPPED count (50, of which 48 are
