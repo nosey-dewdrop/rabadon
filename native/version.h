@@ -22,4 +22,4 @@
 // it answers a version bump with "up to date". version_test.sh asserts that
 // both textually and by asking `make -q` after touching this file.
 #pragma once
-#define RABADON_VERSION "0.2.3-rc.1"
+#define RABADON_VERSION "0.2.4"
