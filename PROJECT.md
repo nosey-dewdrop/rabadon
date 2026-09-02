@@ -330,8 +330,8 @@ ubuntu:24.04 container: inject_payload 21/0 twice, signals 39/0, inject_answer
 16/0. Full local `make test`: exit 0, 122 suite scripts (machine_intact green
 on the rerun).
 
-NOT VERIFIED: CI itself — the proof that matters is the ubuntu job on the
-push that follows.
+CI on `d8481e8`, run 33641585246: all six jobs green (ubuntu node20/22,
+macos-15 node20/22, disclosure ×2). Red since `db113ab`, green again here.
 
 NEXT: watch that CI run to green before anything else; then the release
 items (entry 5's NEXT), starting with the 17-vs-19 binary copy in release.yml.
