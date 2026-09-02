@@ -289,6 +289,109 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (6) — CI was red on ubuntu since `db113ab`: a lambda held a dead stack slot, and mac hid it
+
+Entry (4)'s commit turned the ubuntu CI jobs red (run 33638704419, node20 and
+node22; macos-15 green). Same source, 6 fixtures of inject_payload_test.sh
+failing on linux and passing on mac. Not seen at the time because entry (4)
+was written off the local run — CLAUDE.md rule 4 was followed in letter (the
+command is in the log) and missed in substance (the verdict came from the
+builder's own machine, on which the bug does not show).
+
+Found by running, not by reading:
+- gcc:13 (debian 12) container: 21/0. ubuntu:24.04 container, same g++ 13.3:
+  11/21, three runs, identical. So not the compiler, not the platform — the
+  stack.
+- The test now dumps the sandbox ledger and session file on every FAIL. The
+  dump on ubuntu: `SIGNAL regression_contrast` written, then NOTHING — no
+  CHECK_FAIL, no session save. The gate died between the detector and the
+  verdict.
+- `-fsanitize=address` on mac, one scenario: `stack-use-after-scope
+  gate.cpp:3800 in compose(...)`, called from the verdict block. The
+  `compose` lambda captured `q` (the queued-args holder, a block-local
+  shared_ptr) by reference through `[&]`; the verdict block calls compose
+  after that block has closed. On mac the slot happened to still hold the
+  pointer; on ubuntu it did not. Entry (2) had already met this exact bug
+  twice and hoisted `ms` and the lambda chain for it — and left one `[&]`.
+
+Fix: `[&, q]`. ASan run of inject_payload (21/0) and signals (39/0) clean
+with `detect_stack_use_after_return=1`.
+
+Also in this window: local `make test` went red ONCE on
+`machine_intact [verify]`: "THE RUN REWROTE THE OPERATOR'S SHARED
+settings.json" (5970 → 5982 bytes). rabadon's own code does not write that
+file on this path; another Claude Code process on the machine did, during the
+8-minute run. Recorded as observed; not attributed further; the rerun below
+is the check.
+
+DONE: `native/inject_payload_test.sh` 21/0 under ASan and native;
+`signals_test.sh` 39/0 under ASan; inject_answer 16/0, postuse 88/0.
+ubuntu:24.04 container: inject_payload 21/0 twice, signals 39/0, inject_answer
+16/0. Full local `make test`: exit 0, 122 suite scripts (machine_intact green
+on the rerun).
+
+NOT VERIFIED: CI itself — the proof that matters is the ubuntu job on the
+push that follows.
+
+NEXT: watch that CI run to green before anything else; then the release
+items (entry 5's NEXT), starting with the 17-vs-19 binary copy in release.yml.
+
+### 2026-09-02 (5) — the false positive RATE, from today's own ledger; the sentence names the command
+
+The operator's standing instruction this afternoon: do not end a turn on a
+NEXT list, do the NEXT. Entry (4)'s NEXT was "read the ledger after a week".
+Today's ledger is 4,500 lines and already answers the question, so it was read
+now instead.
+
+**False positive rate of regression_contrast, pre-fix binary, 2026-09-02, this
+machine, 12 sessions:** 43 SIGNAL. Classified by the event that closed the
+same hook call:
+
+    28  the command was NOT a test run (STEP_OK "ran: …") — fired on vocabulary
+    13  CHECK_FAIL — a real red
+     1  TEST_EVIDENCE_MISSING (output redirected)
+     1  STEP_OK "tests: GREEN" — fired, then the verdict came back green
+
+**28 of 43 = 65 % false**, and every one of the 28 is `cd …/stitchu && ls|grep|
+sed|head|node|awk …` — commands that PRINT paths and words, on a repo whose
+suite had been green earlier in the session. Those 28 are the exact shape
+entry (4) cut (`claimed_rc` from a LEADING error line only). Whether the cut
+lands is not proven by this number: the ledger holds no tool output, so the 28
+cannot be replayed through the new binary. It IS proven that the budget was
+being spent on them — INJECT_CAPPED 35 for the day — which is why the trigger
+was mute by the time the 13 real reds came.
+
+The "fired then GREEN" line is a real defect, not noise: the contrast fired on
+a run whose verdict was green. `claimed_rc` had said 1 from vocabulary while
+the suite verdict said pass. Cut by the same change, un-fixtured as a shape;
+noted here so a reader of the old ledger does not count it as a red.
+
+Also settled: **the doubled RUN_START is two starts, not one written twice.**
+gate.cpp emits one on SessionStart (`guard: N rules`) and one on
+UserPromptSubmit (`goal: …`) — different bodies, different hooks. Not a bug.
+Closed.
+
+Fixed, payload only, trigger untouched: **the contrast sentence names the
+command.** The ring's 96 raw bytes were `cd /private/tmp/…/live2 && python3 -m
+pytes`, so the sentence quoted a scratch path and half a word. `strip_cd()`
+drops the leading `cd … &&` before the record is clipped (the cwd is already on
+the event), and `command_head()` in inject.h keeps the first line, the first
+pipeline stage, 48 characters: `after \`python3 -m pytest -q 2>&1\` the suite
+was green; after \`python3 -m pytest -q 2>&1\` it was red.`
+
+DONE: inject_payload_test.sh 21/0 (6b new); moves 22/0, signals 39/0,
+signals_screen 38/0, inject_answer 16/0, postuse 88/0. Full `make test`: in
+the commit after this entry.
+
+NOT VERIFIED: the post-fix rate. Needs tool output the ledger does not keep,
+or the next days of real traffic under the new binary. `named` still has zero
+live events.
+
+NEXT: the trigger path stays frozen until real traffic under this binary is
+read. Work moves to what blocks anyone else from running this at all: the
+PARKED release items (never published to npm; `rabadon-run` missing from
+every platform package's `files`; darwin runner without pytest).
+
 ### 2026-09-02 (4) — the claim stops inheriting the vocabulary; (b) gets a question that can be answered no
 
 Both NEXT items from entry (3), done and fixtured. No PROJECT.md step is
