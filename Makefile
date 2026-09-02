@@ -309,6 +309,11 @@ test: all
 # envelope, a heredoc counts as a changed file, and a red that uses no error
 # words still fires the contrast trigger (2026-09-02, all three measured live).
 	./native/inject_payload_test.sh
+# inject_payload_test.sh proves the paragraph is TRUE. this one proves the most
+# dangerous branch in the binary — block() standing down so a diagnosis can be
+# delivered — still tells a behavioural rule from a sealed one. Two live
+# RULE_YIELDED events existed and no fixture had ever driven one (2026-09-02).
+	./native/yield_test.sh
 # signals_test.sh proves the DETECTORS fire on a fixture. this one proves the
 # SCREEN the user reads when those detectors are replayed over their own move
 # rings -- `rabadon usage --signals`. Different claim, so a different file:

@@ -244,6 +244,76 @@ for i in 1 2; do ran_bad s-two 'npm run build' 'Error: cannot find module x'; do
 expect_silent repeat "a second attempt at a failing command is debugging, not a repeat"
 
 # ===========================================================================
+head_ "1b. regression_contrast — the first red after a green, no counting"
+
+# WHY THIS SECTION IS HERE. regression_contrast fired 40 times in one day on
+# the operator's own machine — more than every other detector except
+# scope_drift — and `grep regression_contrast native/signals_test.sh` answered
+# nothing on 2026-09-02. The detector that speaks most often had no fixture.
+#
+# Its condition is deliberately NOT a count: a green suite on record, a
+# failure now, and the ledger holding what changed in between. So the negatives
+# below are the ones that can actually break it — a first red with no green
+# before it (nothing to contrast), and a green after a green (no failure).
+
+# POSITIVE. green -> a file written through the shell -> red.
+sandbox
+ran_ok  s-rc "pytest -q" "2 passed in 0.01s"
+ran_ok  s-rc "cat > tests/test_b.py <<'EOF'
+def test_x():
+    assert 2 == 1
+EOF" ""
+ran_bad s-rc "pytest -q" "F.
+E       AssertionError: assert 2 == 1
+1 failed, 1 passed in 0.02s"
+expect_fires regression_contrast "a suite that was green and is now red"
+
+# POSITIVE. The same transition where the runner's summary carries NO error
+# vocabulary at all — jest's `Tests: 1 failed, 2 passed`. This is the shape
+# that produced CHECK_FAIL and no SIGNAL until the verdict was allowed to
+# re-run the detectors (2026-09-02).
+sandbox
+ran_ok  s-rc2 "npm test" "Tests: 3 passed, 3 total"
+ran_ok  s-rc2 "cat > tests/b.test.js <<'EOF'
+test('x', () => expect(2).toBe(1))
+EOF" ""
+ran_bad s-rc2 "npm test" "  ● x
+
+    expect(received).toBe(expected)
+
+Tests: 1 failed, 2 passed, 3 total"
+expect_fires regression_contrast "a red whose summary never says the word error"
+
+# NEGATIVE. A first red with no green on record. There is no contrast to draw,
+# and a detector that speaks here is a detector that speaks on every failing
+# session from its first command.
+sandbox
+ran_bad s-rc3 "pytest -q" "F.
+E       AssertionError: assert 2 == 1
+1 failed, 1 passed in 0.02s"
+expect_silent regression_contrast "a first red with no green before it"
+
+# NEGATIVE. green -> a file written -> green. Nothing failed, so nothing to say.
+sandbox
+ran_ok s-rc4 "pytest -q" "2 passed in 0.01s"
+ran_ok s-rc4 "echo note >> notes.md" ""
+ran_ok s-rc4 "pytest -q" "2 passed in 0.01s"
+expect_silent regression_contrast "a green after a green is not a regression"
+
+# NEGATIVE, AND THE EXPENSIVE ONE. After a green, a command that merely PRINTS
+# error words — a cat of an error handler, a tail of a ledger. 28 of the 43
+# contrast signals measured on 2026-09-02 were exactly this, and they spent the
+# session's injection budget before any real red arrived.
+sandbox
+ran_ok s-rc5 "pytest -q" "2 passed in 0.01s"
+ran_ok s-rc5 "cat handlers.py" "try:
+    load()
+except ImportError:
+    raise ValueError('config not found')"
+ran_ok s-rc5 "tail -2 ledger.jsonl" '{"ev":"INJECT","text":"attempt 4 on the same failure ... not found"}'
+expect_silent regression_contrast "a command that prints error words is not a failure"
+
+# ===========================================================================
 head_ "2. oscillation — one file rewritten back and forth, not two commands taking turns"
 
 # POSITIVE. A-B-A-B-A-B edits to ONE path. Every move differs from the one
