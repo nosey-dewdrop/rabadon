@@ -2,6 +2,35 @@
 
 All notable changes to rabadon. Dates are the day the tag was pushed.
 
+## 0.2.4 — 2026-09-02
+
+The first release anyone can install. 0.2.3-rc.1 published the same day and is
+on the registry under `next`; this is the version `npm i -g rabadon` resolves
+to. Everything below was measured by running the binary, not by reading it.
+
+### The injection channel, which had never worked end to end
+
+- A diagnosis is delivered even when a rule would have refused the call. `block()` used to reach `exit()` before the delivery site, so in the one scenario an injection exists for — a failure repeating — the paragraph was assembled, queued, and never handed over. Non-sealed rules now stand down and emit `RULE_YIELDED`; the three sealed rules (promise-tamper, promise-anti-path, guard-weaken) refuse exactly as before, so an injection can never move a security decision.
+- The paragraph quotes the run, not the envelope. A Bash result arrives as `{"stdout":…}` and the move record read that object as one line, so the agent was told "the previous attempt ended with" the first 120 characters of a file it had `cat`ed. Both readers now get the un-escaped text, and the quoted line is the one that IS the error rather than one that mentions it.
+- A file written through the shell counts as a change. Agents write with `cat > x.py <<EOF`, `>>`, `tee` and `sed -i`; none of it was an edit, so "changed since that green" came out empty in exactly the sessions that needed it.
+- The trigger sees the verdict. Detectors ran before the suite verdict was stamped, so the contrast trigger really asked "did the output contain an error word" — `Tests: 1 failed, 2 passed` produced a red on the ledger and no signal at all.
+- A failure is claimed by a leading error line, not by vocabulary. A `cat` of an error handler or a dumped log used to claim a failed command; 28 of 43 signals measured on one real day were that shape. **And the first cut of this rule was too strict**: measured against eleven real failure lines, it caught four. gcc, clang, tsc, go, eslint, make and npm all write the place before the mark, so the check now reads past one leading location. 11/11 real failures caught, 3/3 noise shapes still silent.
+
+### What the ledger can now answer
+
+- `INJECT_ANSWER` carries `named`: did the agent's next move go to a file the paragraph pointed at. `same` could not come back false for a competent agent, so layer (b) was unmeasurable. First real traffic: two answers, both `named=true`.
+
+### Test suites, and what they cost
+
+- `yield_test.sh` (13 cases) covers the branch that turns refusals off. `signals_test.sh` gains a section for `regression_contrast`, which fired more than any other detector and had no fixture. `inject_payload_test.sh` (35 cases) holds the payload's truthfulness and the eleven-tool failure census.
+- The release pipeline hung for 2h23m on ubuntu-22.04 in a test that runs a real `script(1)` under a pty: util-linux 2.37 keeps the pty open after the child exits. Every real `script(1)` call is now fenced with a wall clock.
+- Hook latency re-measured on this binary: 2.78 ms median to allow (was 3.14 ms in August, before any of this existed). A session carrying a full move ring and an undelivered diagnosis costs 2.88 ms against 2.84 ms cold — the machinery is free on the hot path.
+
+### Known, and stated rather than smoothed over
+
+- The false positive rate of the contrast trigger after these cuts is NOT measured. Before them it was 28 false of 43 on one machine over one day. It needs days of real traffic under this build.
+- The injection budget is two paragraphs per signal per session, and a session on a real machine can run sixteen hours. Measured: one session spent both by 15:42 and stayed mute through 140 later failures. A proposal to charge the budget per failure instead is written up in PROJECT.md and awaits a decision; nothing in the trigger path moved for it.
+
 ## 0.2.2 — 2026-08-05
 
 - The lock's python cases assumed pytest was on the machine. On a runner without it the arbiter went red for a missing interpreter, four graded verdicts collapsed into no verdict at all, and the suite reported failures it had never measured. Each case now checks for the toolchain it needs, says which cases it did not judge, and refuses to print GREEN when it judged nothing.
