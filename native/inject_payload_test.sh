@@ -76,6 +76,15 @@ case "$INJ" in *"Changed since that green: tests/test_b.py."*) pass "heredoc tar
 case "$INJ" in *"/dev/null"*) fail "/dev/null counted as a written file";; *) pass "a redirect to /dev/null is not a file";; esac
 case "$INJ" in *"it was red."*) pass "the red half of the contrast is stated as a suite verdict";; *) fail "contrast sentence: $INJ";; esac
 
+printf 'inject-payload: 3b. a redirect target the shell had not expanded is not a file\n'
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+run "pytest -q" $'2 passed in 0.01s\n'
+run 'for i in 01 02; do echo x > app/stage$i.py; done' ""
+run "pytest -q" $'F.\nE       AssertionError: assert 2 == 1\n1 failed, 1 passed in 0.02s\n'
+INJ="$(field injPending)"
+case "$INJ" in *'$i'*) fail "an unexpanded shell variable was recorded as a file: $INJ";; *) pass "a target still holding a \$variable is not named";; esac
+case "$INJ" in *"green earlier"*) pass "the contrast still fires without a file to name";; *) fail "no injection: $INJ";; esac
+
 printf 'inject-payload: 4. a red with no error words still fires the contrast\n'
 sandbox "npm test"; export HOME="$H" RABADON_DIR="$H/.rabadon"
 run "npm test" $'Tests: 3 passed, 3 total\n'

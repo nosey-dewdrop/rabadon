@@ -2814,8 +2814,12 @@ static string response_text(const string& toolResponse) {
 // path per move.
 static string shell_write_target(const string& command, const string& cwd) {
   rbtext::Parsed sp = rbtext::parse(command);
+  // A target with a `$` in it is a name the shell had not finished writing
+  // (`> app/stage$i.py`, measured live 2026-09-02 on the operator's own loop);
+  // the ring would record a file that does not exist. Left unnamed.
   auto plausible = [](const string& t) {
-    return !t.empty() && t[0] != '&' && t[0] != '$' && t.rfind("/dev/", 0) != 0 && t != "-";
+    return !t.empty() && t[0] != '&' && t.find('$') == string::npos &&
+           t.rfind("/dev/", 0) != 0 && t != "-";
   };
   for (const auto& seg : sp.segs) {
     for (const auto& r : seg.redirs)
