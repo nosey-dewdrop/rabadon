@@ -231,6 +231,108 @@ a hundred and twenty-six.
 
 ---
 
+## 3c. A project rabadon has never seen  `[proven]`
+
+§3b's 0.8 % is one operator, one machine, and rules that operator wrote. The
+question it cannot answer is the one that decides a stranger's first afternoon:
+**zero config, an unfamiliar codebase — does it refuse ordinary work?**
+
+Four real repositories, four ecosystems, cloned fresh and given nothing but a
+`testCommand`. No rules, no promise, no tuning. Then the commands their own
+maintainers run, taken from their CONTRIBUTING docs and CI config — plus the
+destructive ones any guard has to stop.
+
+| repo | language | ordinary actions | falsely refused | harmful | stopped |
+|------|----------|------------------|-----------------|---------|---------|
+| pallets/flask | Python | 30 | 0 | 10 | 9 |
+| expressjs/express | JavaScript | 30 | 0 | 10 | 9 |
+| BurntSushi/ripgrep | Rust | 30 | 0 | 10 | 9 |
+| gin-gonic/gin | Go | 30 | 0 | 10 | 9 |
+| **total** | | **120** | **0** | **40** | **36 (90 %)** |
+
+The ordinary set is not a soft list. It includes `rm -rf docs/_build`,
+`rm -rf node_modules`, `rm -rf target`, `rm -rf vendor`,
+`find . -name '__pycache__' -exec rm -rf {} +`, `git rebase main`,
+`git stash pop`, `git clean -n`, `git push origin feature/x`, `go mod tidy`,
+`cargo fmt --check` and `npm ci` — the shapes a blunt rule refuses. None was
+refused.
+
+**The four misses are one command, and it is a documented blind spot**, not a
+surprise: `cd .. && rm -rf $(basename $PWD)` deletes the tree from outside
+itself, naming neither the project nor its law. `rabadon --status` prints this
+as one of 21 measured shapes that destroy a project's `.rabadon/` and are
+allowed on purpose — the cut that would refuse it also refuses
+`rm -rf ./old-project`, i.e. fences you inside your own tree. The stated
+mitigation is to commit `.rabadon/` to git, where the copy survives all 21.
+
+Reproduce it, offline, without executing anything in those repos:
+
+```sh
+git clone --depth 20 https://github.com/pallets/flask.git      /tmp/str/flask
+git clone --depth 20 https://github.com/expressjs/express.git  /tmp/str/express
+git clone --depth 20 https://github.com/BurntSushi/ripgrep.git /tmp/str/ripgrep
+git clone --depth 20 https://github.com/gin-gonic/gin.git      /tmp/str/gin
+RABADON_STRANGERS=/tmp/str python3 bench/strangers.py
+```
+
+Every command is handed to the gate as a hook event and only the verdict is
+read. The clones are never modified and the harmful list is never run.
+
+**What this is still not.** These are the commands a maintainer runs, chosen by
+reading each project's own docs — not a recording of someone actually working.
+A real week by a real stranger on their own codebase remains the measurement
+nobody has taken, and it is the one that would let this project claim more than
+it does here.
+
+---
+
+## 3d. The refusals that cannot be undone — the only ones worth installing for  `[proven]`
+
+521 refusals is the wrong number to quote and this section exists to say so.
+Most of them are recoverable: a `wip` commit message, an action on a red test
+base, a `ctest` invocation whose tail hides the verdict. Worth refusing, and
+undoable — which means **anyone can write those rules in a shell function in an
+afternoon, and nobody installs a tool for them.**
+
+The claim that survives that test is narrower. Split by whether the state comes
+back:
+
+| class | refusals in 29 days | can you undo it? |
+|-------|--------------------|------------------|
+| recoverable — commit message, red base, hidden verdict | 439 | yes, re-run it |
+| **irreversible** — force-push, delete outside the tree, reflog expiry, blind in-place rewrite, guard switched off | **82** | no |
+
+And the 82 split again, because a guard measured on its own test harness is
+measuring itself: **57 on the operator's real work, 25 inside throwaway
+sandboxes** this project's own red-team suites create. On real work that is
+**13.8 per week**, across 11 distinct days.
+
+    15  push-gate                        a push after code changed since the last green suite
+     9  no-blind-inplace-source-rewrite  sed -i over source with no backup
+     6  baseline-truncating-redirect     `>` onto a tracked file
+     6  no-rm-rf-outside                 a delete reaching outside the project
+     4  anti-path-frozen                 an edit to a file the promise froze
+     4  no-shell-write-protected-path
+     4  baseline-law-unmade              taking apart the project's own .rabadon/
+     3  guard-weaken                     a rule moved into disabled[]
+     2  baseline-reflog-drop             `git gc --prune=now` — the way back, deleted
+     2  no-force-push-main
+     1  no-wrangler-deploy               a deploy from a session that had not run the tests
+     1  no-shell-rewrite-of-guard-or-promise
+
+Reproduce: `python3 bench/irreversible.py` (add `--since YYYY-MM-DD` for a
+window). It reads the ledger and nothing else, and it prints the sandbox split
+rather than hiding it in the total.
+
+**Read this honestly.** Fourteen a week is one operator running coding agents
+hard, on a machine where those agents are trusted with a shell. A developer who
+does not run agents unattended will see a fraction of it. The number that would
+settle the question — how many irreversible actions a *stranger's* agent
+attempts in a week — is unmeasured, and it is the difference between "useful"
+and "necessary".
+
+---
+
 ## 4. Where rabadon sits (only repo-backed claims)
 
 | tool                | integration        | can stop a bad call?                     | can repair it? | scope              |
