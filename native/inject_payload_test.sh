@@ -110,5 +110,54 @@ run "echo x >> notes.md" ""
 run "pytest -q" $'2 passed in 0.01s\n'
 [ -z "$(signals)" ] && pass "no SIGNAL on green -> write -> green" || fail "fired on a green: $(signals | tr '\n' ' ')"
 
+ledger() { cat "$H"/.rabadon/spool/*.jsonl 2>/dev/null | python3 -c 'import json,sys; ev=sys.argv[1]; f=sys.argv[2]
+for l in sys.stdin:
+    if not l.strip(): continue
+    d=json.loads(l)
+    if d.get("ev")==ev: print(d.get(f,""))' "$1" "$2"; }
+pre() { python3 - "$GATE" "$P" "$SID" "$1" <<'PY2'
+import json, subprocess, sys
+G, P, sid, cmd = sys.argv[1:5]
+e = {"hook_event_name": "PreToolUse", "session_id": sid, "cwd": P, "tool_name": "Bash", "tool_input": {"command": cmd}}
+subprocess.run([G], input=json.dumps(e), capture_output=True, text=True)
+PY2
+}
+
+printf 'inject-payload: 7. a command that PRINTS error words is not a failed command\n'
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+run "pytest -q" $'2 passed in 0.01s\n'
+run "echo x >> notes.md" ""
+run "cat handlers.py" $'try:\n    load()\nexcept ImportError:\n    raise ValueError("config not found")\n'
+run "tail -3 ledger.jsonl" $'{"ev":"INJECT","text":"attempt 4 on the same failure ... not found"}\n'
+[ -z "$(signals)" ] && pass "cat of a handler and a ledger dump after a green: no SIGNAL" || fail "fired on printed vocabulary: $(signals | tr '\n' ' ')"
+run "python3 store.py" "" $'Traceback (most recent call last):\n  File "store.py", line 3, in <module>\nNameError: name x is not defined\n'
+N="$(signals | grep -c '^regression_contrast$')"
+[ "$N" = "1" ] && pass "a runtime error that LEADS its line still claims the failure" || fail "Traceback no longer counts as a failure: count=$N"
+
+printf 'inject-payload: 8. (b) that can be false — did the next move go where the paragraph pointed?\n'
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+run "pytest -q" $'2 passed in 0.01s\n'
+run $'cat > tests/test_b.py <<\'EOF\'\ndef test_x():\n    assert 2 == 1\nEOF' ""
+run "pytest -q" $'F.\nE       AssertionError: assert 2 == 1\n1 failed, 1 passed in 0.02s\n'
+pre "git status"                      # carrier: the injection rides on this call
+pre "sed -n 1,20p tests/test_b.py"    # the answer: goes to the named file
+[ "$(ledger INJECT_ANSWER named)" = "True" ] && pass "named=true when the next move opens the file the injection named" || fail "named: '$(ledger INJECT_ANSWER named)' names: '$(ledger INJECT_ANSWER names)'"
+[ "$(ledger INJECT_ANSWER same)" = "False" ] && pass "same=false on the same pair (the old metric would have said nothing more)" || fail "same: $(ledger INJECT_ANSWER same)"
+
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+run "pytest -q" $'2 passed in 0.01s\n'
+run $'cat > tests/test_b.py <<\'EOF\'\ndef test_x():\n    assert 2 == 1\nEOF' ""
+run "pytest -q" $'F.\nE       AssertionError: assert 2 == 1\n1 failed, 1 passed in 0.02s\n'
+pre "git status"
+pre "cat README.md"
+[ "$(ledger INJECT_ANSWER named)" = "False" ] && pass "named=false when the next move goes elsewhere" || fail "named: '$(ledger INJECT_ANSWER named)'"
+
+sandbox "pytest -q"; export HOME="$H" RABADON_DIR="$H/.rabadon"
+run "pytest -q" $'2 passed in 0.01s\n'
+run "pytest -q" $'F.\nE       AssertionError: assert 2 == 1\n1 failed, 1 passed in 0.02s\n'
+pre "git status"
+pre "cat README.md"
+[ "$(ledger INJECT_ANSWER named)" = "" ] && [ "$(ledger INJECT_ANSWER same)" = "False" ] && pass "no named field when the paragraph named no file — an unanswerable question is not a no" || fail "named: '$(ledger INJECT_ANSWER named)' same: '$(ledger INJECT_ANSWER same)'"
+
 printf 'inject-payload: %s passed, %s\n' "$PASSN" "$([ $FAIL = 0 ] && echo '0 failed' || echo 'SOME FAILED')"
 exit $FAIL

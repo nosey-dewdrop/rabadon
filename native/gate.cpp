@@ -1708,6 +1708,12 @@ struct Sess {
   string    injAnsPrevSig;        // the same, held after delivery, awaiting an answer
   long long injAnsAfterSeq = -1;  // answer = the first move with a seq above this
   string    injAnsSignal;         // which signal is owed an answer
+  // The files the injection NAMED (changed-list + last-edited), comma-joined.
+  // `same` cannot come back false for a competent agent whose next command is
+  // always a new one; this can: did the next move touch what the paragraph
+  // pointed at. Held from queue time (Pending) to delivery (Ans).
+  string    injPendingNamed;
+  string    injAnsNamed;
   // "the same signal" is the same NAME within this session (the plan's fifth
   // decision). Two arrays rather than a map: this struct is serialised by hand.
   std::vector<string> injNames;
@@ -1953,10 +1959,12 @@ struct State {
     // only when its own gate above is set, so reading it when that gate is
     // clear cannot find anything — the scan was pure cost.
     if (!s.injPending.empty()) s.injPendingPrevSig = get_str(obj, "injPendingPrevSig");
+    if (!s.injPending.empty()) s.injPendingNamed = get_str(obj, "injPendingNamed");
     s.injAnsSignal = get_str(obj, "injAnsSignal");
     if (!s.injAnsSignal.empty()) {
       s.injAnsPrevSig = get_str(obj, "injAnsPrevSig");
       s.injAnsAfterSeq = (long long)get_num(obj, "injAnsAfterSeq");
+      s.injAnsNamed = get_str(obj, "injAnsNamed");
     }
     // R5. A session written before R5 has none of these keys; get_num answers 0
     // and get_str answers "", so injCapMoveSeq would read back as move 0 — "the
@@ -2032,10 +2040,13 @@ struct State {
     // fact nobody has an opinion about.
     if (!s.injPendingPrevSig.empty())
       o << ",\"injPendingPrevSig\":\"" << json_escape(s.injPendingPrevSig) << "\"";
+    if (!s.injPendingNamed.empty())
+      o << ",\"injPendingNamed\":\"" << json_escape(s.injPendingNamed) << "\"";
     if (!s.injAnsSignal.empty())
       o << ",\"injAnsSignal\":\"" << json_escape(s.injAnsSignal) << "\""
         << ",\"injAnsPrevSig\":\"" << json_escape(s.injAnsPrevSig) << "\""
-        << ",\"injAnsAfterSeq\":" << s.injAnsAfterSeq;
+        << ",\"injAnsAfterSeq\":" << s.injAnsAfterSeq
+        << (s.injAnsNamed.empty() ? string() : ",\"injAnsNamed\":\"" + json_escape(s.injAnsNamed) + "\"");
     // R5, WRITTEN ONLY WHEN ARMED. Every other field in this object collapses
     // to a zero/empty default when nothing has happened, and native/postuse_
     // test.sh's differential relies on exactly that: a key the native gate
@@ -3626,15 +3637,35 @@ int main(int argc, char** argv) {
       // same move finishing, not the agent's reply to anything.
       if (ms.injAnsAfterSeq >= 0 && open_move->seq > ms.injAnsAfterSeq) {
         const bool same = (open_move->sig == ms.injAnsPrevSig);
+        // `named`: the next move touches a file the paragraph pointed at — by
+        // path for an edit, by mention for a command. -1 when the paragraph
+        // named nothing (a contrast with no file list), so a reader never
+        // counts an unanswerable question as "no".
+        int named = -1;
+        if (!ms.injAnsNamed.empty()) {
+          named = 0;
+          const string hay = isBash ? command : relPath;
+          size_t a = 0;
+          while (a < ms.injAnsNamed.size()) {
+            size_t b = ms.injAnsNamed.find(", ", a);
+            if (b == string::npos) b = ms.injAnsNamed.size();
+            const string f = ms.injAnsNamed.substr(a, b - a);
+            if (!f.empty() && hay.find(f) != string::npos) { named = 1; break; }
+            a = b + 2;
+          }
+        }
         em.emit("INJECT_ANSWER",
                 "\"signal\":\"" + json_escape(ms.injAnsSignal) + "\",\"mseq\":" +
                 std::to_string(open_move->seq) +
                 ",\"psig\":\"" + json_escape(ms.injAnsPrevSig) + "\"" +
                 ",\"sig\":\"" + json_escape(open_move->sig) + "\"" +
-                ",\"same\":" + (same ? "true" : "false"));
+                ",\"same\":" + (same ? "true" : "false") +
+                (named < 0 ? string() : string(",\"named\":") + (named ? "true" : "false") +
+                 ",\"names\":\"" + json_escape(ms.injAnsNamed) + "\""));
         ms.injAnsAfterSeq = -1;
         ms.injAnsSignal.clear();
         ms.injAnsPrevSig.clear();
+        ms.injAnsNamed.clear();
       }
       // R3 tier 1: the shape of the text that was written, stored beside the
       // move it belongs to. Computed once, here, on the move that is new —
@@ -3680,7 +3711,16 @@ int main(int argc, char** argv) {
       // reading is silent for a command that fails without printing anything
       // that looks like an error (`false`, a bare `exit 1`), and recording
       // those as rc 0 is the lie this whole card was cut to end.
-      open_move->claimed_rc = (E.failed || !open_move->err_sig.empty()) ? 1 : 0;
+      //
+      // THE CLAIM IS NOT THE VOCABULARY. err_sig stays loose on purpose (it is
+      // a bucket key), but "this move failed" was being read off the same
+      // loose test, so any command that PRINTED an error word — `cat` of a
+      // handler, a ledger dump, `grep -r error` — claimed a failure, and the
+      // contrast trigger fired on it. Measured live 2026-09-02, twice in one
+      // afternoon, each one spending an injection from the session's budget of
+      // two. A failure is claimed when the harness says so, or when a line of
+      // the output LEADS with an error the way a runtime writes one.
+      open_move->claimed_rc = (E.failed || rbmoves::has_leading_error(runText)) ? 1 : 0;
       // A completion is an append with the same seq, not a patch of the line
       // already on disk. The reader lets the later line win.
       stt.append_move(*open_move);
@@ -3716,7 +3756,7 @@ int main(int argc, char** argv) {
     // hook after this scope has closed, and a lambda that captured these by
     // reference would be reading a dead stack frame (measured: the recompose
     // came back with an empty signal name and the tool response as its why).
-    struct Queued { string name, why; size_t n = 0; };
+    struct Queued { string name, why, named; size_t n = 0; };
     auto q = std::make_shared<Queued>();
     auto compose = [&](const string& name, const string& why, size_t nseqs) -> string {
       rbinject::Ctx c;
@@ -3756,6 +3796,9 @@ int main(int argc, char** argv) {
         if (ms.moves[i].suite == 0) { c.redCmd = ms.moves[i].raw; c.redIsSuite = true; break; }
         if (ms.moves[i].claimed_rc == 1) { c.redCmd = ms.moves[i].raw; c.redIsSuite = false; break; }
       }
+      // what this text NAMES, for (b): the files an attentive agent would go to
+      q->named = c.changed;
+      if (!c.file.empty() && q->named.find(c.file) == string::npos) q->named += (q->named.empty() ? "" : ", ") + c.file;
       return rbinject::build(c);
     };
     // By-value captures of the block-local lambdas and the shared holder: the
@@ -3807,6 +3850,7 @@ int main(int argc, char** argv) {
       }
       ms.injPending = compose(name, why, nseqs);
       ms.injPendingSignal = name;
+      ms.injPendingNamed = q->named;
       q->name = name; q->why = why; q->n = nseqs;
       // (b)'s "before" half, taken HERE and not at delivery. The newest move at
       // the moment the pattern completed IS the behaviour the diagnosis is
@@ -3981,7 +4025,7 @@ int main(int argc, char** argv) {
     // failure pattern). Offered to the verdict block for that case alone.
     if (hook == "PostToolUse") resignal_after_verdict = [&, tier0_pass, q, compose]() {
       tier0_pass();
-      if (injQueuedThisEvent && !ms.injPending.empty()) ms.injPending = compose(q->name, q->why, q->n);
+      if (injQueuedThisEvent && !ms.injPending.empty()) { ms.injPending = compose(q->name, q->why, q->n); ms.injPendingNamed = q->named; }
     };
 
     // ---------- R3: tier 1, and it runs AFTER tier 0 for a reason -----------
@@ -5763,6 +5807,8 @@ int main(int argc, char** argv) {
     ss.injAnsPrevSig = injPrevSig;
     ss.injAnsSignal = name;
     ss.injAnsAfterSeq = injMoveSeq;
+    ss.injAnsNamed = ss.injPendingNamed;
+    ss.injPendingNamed.clear();
   }
   stt.save();
   return 0;

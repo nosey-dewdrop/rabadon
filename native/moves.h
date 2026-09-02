@@ -198,6 +198,44 @@ inline bool error_line(const string& l) {
   return false;
 }
 
+// THE LINE THAT IS THE ERROR, not a line that mentions one. error_line() is the
+// vocabulary test and it is deliberately loose — it feeds a hash whose job is
+// "same error again?". This is the strict one: the mark stands at the head of
+// the line (`NameError: ...`, `FAILED x::y`, `error: ...`, pytest's `E   ...`),
+// the way a runtime or a runner writes it and the way a cat'ed source file or a
+// printed log line does not. `Traceback` announces; the error is the last line.
+inline bool error_leads(const string& l) {
+  size_t i = 0;
+  while (i < l.size() && (l[i] == ' ' || l[i] == '\t')) i++;
+  if (i + 1 < l.size() && l[i] == 'E' && l[i + 1] == ' ') { i += 2; while (i < l.size() && l[i] == ' ') i++; }
+  if (l.compare(i, 9, "Traceback") == 0) return false;
+  // the mark is the PREFIX, not merely early: `raise ValueError("...")` in a
+  // cat'ed source file has the mark in its first 24 characters and is not an
+  // error that happened.
+  static const char* LEADS[] = {
+    "Error", "error:", "error[", "ERROR", "Exception", "error TS",
+    "FAILED", "failed:", "panic:", "fatal:", "Segmentation fault",
+    "AssertionError", "TypeError", "ValueError", "SyntaxError", "NameError",
+    "KeyError", "ImportError", "ModuleNotFoundError", "RuntimeError",
+    "undefined reference", "cannot find"
+  };
+  for (const char* m : LEADS)
+    if (l.compare(i, strlen(m), m) == 0) return true;
+  return false;
+}
+
+// does any line of this output LEAD with an error mark
+inline bool has_leading_error(const string& out) {
+  size_t i = 0;
+  while (i < out.size()) {
+    size_t e = out.find('\n', i);
+    if (e == string::npos) e = out.size();
+    if (error_leads(out.substr(i, e - i))) return true;
+    i = e + 1;
+  }
+  return false;
+}
+
 inline string err_sig(const string& out, const string& root) {
   string keep;
   size_t i = 0;
