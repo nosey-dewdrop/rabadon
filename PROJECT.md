@@ -317,11 +317,27 @@ version_test 13/0. CHANGELOG 0.2.5 written: the per-failure budget with the
 measurement that motivated it, and the CI tag fix. Full `make test` at 0.2.5:
 exit 0, 123 suite scripts. `v0.2.5` tagged and pushed; release run 33672288930.
 
-NOT VERIFIED: the release run's outcome and the registry state after it — the
-next entry carries them or says what failed.
+Release run 33672288930: seven jobs green (four builds, publish, both smoke
+installs). Registry: `{ next: '0.2.3-rc.1', latest: '0.2.5' }`, all four
+platform packages at 0.2.5. `npm i rabadon@0.2.5` into an empty directory
+answered `rabadon 0.2.5`.
 
-NEXT: read the release run; then the only thing still open anywhere is the
-false positive rate under this build, which needs days of real traffic.
+**The budget fix verified in the PUBLISHED binary**, not the local build. Four
+cycles of one failure, then two of a different one, driven through the
+downloaded `@rabadon/darwin-arm64/rabadon-gate`:
+
+    after failure #1   regression_contrast#9e4eb1ed=2, repeat#9e4eb1ed=2
+    after failure #2   + repeat#1902892a=2, regression_contrast#1902892a=1
+
+Four budget lines, no pair above two. On the per-session key the second
+failure would have received nothing.
+
+NOT VERIFIED: the same on linux by hand (the release's ubuntu smoke job passed;
+I did not repeat it). Nothing about a stranger's real work.
+
+NEXT: the false positive rate under this build. It is the only item left
+anywhere in this log and no commit can answer it — it needs days of the
+operator's own traffic.
 
 ### 2026-09-02 (15) — the budget CHALLENGE is resolved: charged per failure, not per session
 
