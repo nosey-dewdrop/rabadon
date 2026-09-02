@@ -289,6 +289,40 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (16) — 0.2.5: the budget fix ships, and a red CI turned out to be a wrong clone
+
+The budget change from entry (15) reaches users only through a release, so
+0.2.5 was cut. On the way, CI went red on four jobs with a claim that was
+false on its face: "a dead `npm i -g rabadon` is presented as a command to
+type" — for a command that had been live on the registry for an hour.
+
+`install_docs_test.sh` decides whether that command works by reading
+`git tag --list` for `v<package.json version>`. It is offline on purpose (no
+`npm view` on the test path, so it runs identically in a container with only
+git and a shell), and it is a lock that RELEASES ITSELF: the moment the
+version is tagged, the check passes and every line it guarded becomes legal
+with no edit to the test. `actions/checkout@v4` fetches no tags by default, so
+CI was asking a question it had no data for. Fixed in the workflow with
+`fetch-depth: 0`, not in the test — the clone was wrong, and weakening a check
+to match a broken environment is the move this project exists to refuse.
+
+The same lock then went red locally at 0.2.5-untagged, correctly: 36 ok / 2
+fail, naming README and quickstart. That is the lock doing its job, not a
+defect, and the fix is the tag rather than an edit. Tagged, re-ran, 22 ok / 0
+fail.
+
+DONE: CI green on `4865bb4` (run 33671496806, six jobs). Version 0.2.5 across
+package.json, native/version.h and four manifests; `--check` agrees;
+version_test 13/0. CHANGELOG 0.2.5 written: the per-failure budget with the
+measurement that motivated it, and the CI tag fix. Full `make test` at 0.2.5:
+exit 0, 123 suite scripts. `v0.2.5` tagged and pushed; release run 33672288930.
+
+NOT VERIFIED: the release run's outcome and the registry state after it — the
+next entry carries them or says what failed.
+
+NEXT: read the release run; then the only thing still open anywhere is the
+false positive rate under this build, which needs days of real traffic.
+
 ### 2026-09-02 (15) — the budget CHALLENGE is resolved: charged per failure, not per session
 
 Entry (11) raised it and left it for a ruling; the operator's instruction was
