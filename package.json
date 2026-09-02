@@ -1,6 +1,6 @@
 {
   "name": "rabadon",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "rabadon catches your coding agent's error before it compounds, and fixes it. It runs inside the live session, sees the error in the move that makes it, and hands the agent what the agent cannot see: what actually broke, and where this attempt diverges from the last one that worked. The agent writes the fix.",
   "type": "module",
   "engines": {
@@ -15,10 +15,10 @@
   },
   "exports": "./index.mjs",
   "optionalDependencies": {
-    "@rabadon/darwin-arm64": "0.2.4",
-    "@rabadon/darwin-x64": "0.2.4",
-    "@rabadon/linux-x64": "0.2.4",
-    "@rabadon/linux-arm64": "0.2.4"
+    "@rabadon/darwin-arm64": "0.2.5",
+    "@rabadon/darwin-x64": "0.2.5",
+    "@rabadon/linux-x64": "0.2.5",
+    "@rabadon/linux-arm64": "0.2.5"
   },
   "scripts": {
     "postinstall": "node scripts/build.mjs",

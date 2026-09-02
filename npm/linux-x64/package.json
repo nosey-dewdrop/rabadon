@@ -1,6 +1,6 @@
 {
   "name": "@rabadon/linux-x64",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "rabadon prebuilt native core for linux-x64 — installed automatically by the 'rabadon' package on this platform.",
   "license": "MIT",
   "repository": {
