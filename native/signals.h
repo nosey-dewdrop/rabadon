@@ -69,6 +69,16 @@ inline bool is_edit(const rbmoves::Move& m) {
   return m.tool == "Edit" || m.tool == "Write" || m.tool == "MultiEdit";
 }
 
+// A WRITE is an edit OR a shell command the ring knows wrote a file (`>`, `>>`,
+// `tee`, `sed -i` — gate.cpp fills `path` on those Bash moves). The contrast
+// trigger and its payload ask "what changed since the green", and a heredoc
+// changes a file exactly as much as the Edit tool does. The other detectors
+// stay on is_edit on purpose: oscillation compares edit signatures and the
+// assertion-count rule reads text, and a shell write carries neither.
+inline bool is_write(const rbmoves::Move& m) {
+  return is_edit(m) || (m.tool == "Bash" && !m.path.empty());
+}
+
 inline string dir_of(const string& p) {
   const size_t s = p.rfind('/');
   return s == string::npos ? string(".") : p.substr(0, s);
@@ -179,7 +189,7 @@ inline vector<Hit> detect(const vector<rbmoves::Move>& m) {
         vector<long long> seqs; seqs.push_back(m[greenAt].seq);
         int edits = 0;
         for (size_t i = greenAt + 1; i < n; i++)
-          if (is_edit(m[i]) && !m[i].path.empty()) { edits++; seqs.push_back(m[i].seq); }
+          if (is_write(m[i]) && !m[i].path.empty()) { edits++; seqs.push_back(m[i].seq); }
         seqs.push_back(last.seq);
         out.push_back({ "regression_contrast", 0.7, seqs,
                         edits > 0

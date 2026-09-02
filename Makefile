@@ -304,6 +304,11 @@ test: all
 # also drives the agent REPEATING itself and requires same=true, because a field
 # that is always false proves the field exists and nothing about the agent.
 	./native/inject_answer_test.sh
+# inject_answer_test.sh proves the ledger can say whether the agent READ it. this
+# one proves what it read was TRUE: the quoted error is the error and not the JSON
+# envelope, a heredoc counts as a changed file, and a red that uses no error
+# words still fires the contrast trigger (2026-09-02, all three measured live).
+	./native/inject_payload_test.sh
 # signals_test.sh proves the DETECTORS fire on a fixture. this one proves the
 # SCREEN the user reads when those detectors are replayed over their own move
 # rings -- `rabadon usage --signals`. Different claim, so a different file:

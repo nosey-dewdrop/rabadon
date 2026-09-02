@@ -21,6 +21,8 @@
 #include <regex>
 #include <set>
 #include <string>
+#include <functional>
+#include <memory>
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -2780,6 +2782,61 @@ static void rb_prof_report() {
           (g_prof_main - g_prof_ctor) / 1000.0, (end - g_prof_main) / 1000.0, g_prof_ctor);
 }
 
+
+// THE TEXT THE RUN PRINTED, not the envelope it arrived in. Claude Code hands
+// a Bash result over as {"stdout":..,"stderr":..} and the gate keeps that
+// object verbatim in `toolResponse` (see the walk near the top of main). Every
+// newline inside it is the two characters backslash-n, so a line-oriented
+// reader sees ONE line: the whole object. Measured 2026-09-02 in a live
+// session: the injection quoted `{"stdout":"def collect(item, bucket=[]):` as
+// "the previous attempt ended with", because the first 120 characters of that
+// single line were a file the agent had cat'ed, and the assertion that actually
+// failed sat 300 characters further along the same line. The suite verdict
+// already un-escapes once before judging (the `out` below in the post-run
+// block); the move record did not, and this is the one place both readers of
+// error text now come for their input.
+static string response_text(const string& toolResponse) {
+  if (toolResponse.size() < 2 || toolResponse[0] != '{') return toolResponse;
+  const string so = get_str(toolResponse, "stdout"), se = get_str(toolResponse, "stderr");
+  if (so.empty() && se.empty()) return json_unescape(toolResponse);
+  return se.empty() ? so : so.empty() ? se : so + "\n" + se;
+}
+
+// THE FILE A SHELL COMMAND WROTE, when the shell is the editor. Agents write
+// files through the shell as a matter of course — `cat > x.py <<EOF`,
+// `echo ... >> conf`, `tee`, `sed -i` — and the move ring called none of it an
+// edit, so "changed since that green" came out empty in exactly the sessions
+// where it was needed (measured 2026-09-02: the agent created the failing test
+// with a heredoc and the injection named no file). The parser that already
+// lifts redirections out of the argv is asked for the target; only writes to
+// a real path count, so `> /dev/null` and `2>&1` name nothing. First target
+// wins: a command that writes two files is one move and the ring holds one
+// path per move.
+static string shell_write_target(const string& command, const string& cwd) {
+  rbtext::Parsed sp = rbtext::parse(command);
+  auto plausible = [](const string& t) {
+    return !t.empty() && t[0] != '&' && t[0] != '$' && t.rfind("/dev/", 0) != 0 && t != "-";
+  };
+  for (const auto& seg : sp.segs) {
+    for (const auto& r : seg.redirs)
+      if ((r.op == ">" || r.op == ">>") && plausible(r.target)) return rbmoves::relativise(r.target, cwd);
+    if (seg.words.empty()) continue;
+    const string& w0 = seg.words[0].text;
+    if (w0 == "tee") {
+      for (size_t i = 1; i < seg.words.size(); i++)
+        if (!seg.words[i].text.empty() && seg.words[i].text[0] != '-' && plausible(seg.words[i].text))
+          return rbmoves::relativise(seg.words[i].text, cwd);
+    } else if (w0 == "sed") {
+      bool inplace = false;
+      for (size_t i = 1; i < seg.words.size(); i++)
+        if (seg.words[i].text.rfind("-i", 0) == 0 || seg.words[i].text == "--in-place") inplace = true;
+      if (inplace && seg.words.size() > 2 && plausible(seg.words.back().text))
+        return rbmoves::relativise(seg.words.back().text, cwd);
+    }
+  }
+  return string();
+}
+
 int main(int argc, char** argv) {
   g_prof_main = rb_prof_ns();
   atexit(rb_prof_report);
@@ -3439,6 +3496,11 @@ int main(int argc, char** argv) {
   stt.legacyKey = sidLegacy;
   stt.load();
   Sess& ss = stt.session();
+  // `ms` is the same session, named for the move-record block below. Declared
+  // HERE, at the scope of the whole event, because the verdict block later
+  // invokes lambdas from that block; a reference declared inside it would be
+  // captured from a frame that has already closed.
+  Sess& ms = ss;
 
   // twin-delivery dedupe (same law as the node gate): tool events carry a
   // unique tool_use_id; non-tool events (Stop/SessionStart/prompt) dedupe on
@@ -3499,9 +3561,21 @@ int main(int argc, char** argv) {
   // R4: set when a diagnosis is assembled during THIS event, so the delivery at
   // the bottom of main knows to leave it for the next one.
   bool injQueuedThisEvent = false;
+  // THE VERDICT ARRIVES AFTER THE DETECTORS HAVE SPOKEN. The move is recorded
+  // and the tier-0 detectors run here, near the top of the event; the suite
+  // verdict for that same move is stamped 800 lines further down, by the
+  // classifier that owns it. So at detection time the newest move's `suite` is
+  // still -1, and a detector that asks "did the suite just go red" is really
+  // asking "did the output happen to contain an error word". Measured
+  // 2026-09-02: `Tests: 1 failed, 2 passed` after a green earlier in the
+  // session — CHECK_FAIL on the ledger, suite stamped 0, and NO SIGNAL,
+  // because nothing in that output is in error_line()'s vocabulary. The
+  // trigger was structurally silent on every runner that summarises without
+  // that vocabulary. The verdict block calls this once it has stamped a red;
+  // the pass re-emits nothing it already said.
+  std::function<void()> resignal_after_verdict;
   if (rbmoves::enabled() && (hook == "PreToolUse" || hook == "PostToolUse") &&
       (toolName == "Bash" || toolName == "Edit" || toolName == "Write" || toolName == "MultiEdit")) {
-    Sess& ms = stt.session();
     const bool isBash = (toolName == "Bash");
     const string relPath = filePath.empty() ? string() : rbmoves::relativise(filePath, cwd);
     const string sig = isBash ? rbmoves::sig_bash(command, cwd)
@@ -3521,7 +3595,7 @@ int main(int argc, char** argv) {
       rbmoves::Move m;
       m.ts = now_ms();
       m.tool = toolName;
-      m.path = relPath;
+      m.path = isBash ? shell_write_target(command, cwd) : relPath;
       m.sig = sig;
       m.raw = rbmoves::clip(isBash ? command : relPath);
       if (!isBash) {
@@ -3583,13 +3657,14 @@ int main(int argc, char** argv) {
       // Only a command produces output that can carry a failure. PostToolUse
       // for a successful edit therefore contributes no signature; a genuine
       // tool failure arrives on PostToolUseFailure, which is handled elsewhere.
-      open_move->err_sig = toolName == "Bash" ? rbmoves::err_sig(toolResponse, cwd) : string();
+      const string runText = toolName == "Bash" ? response_text(toolResponse) : string();
+      open_move->err_sig = runText.empty() ? string() : rbmoves::err_sig(runText, cwd);
       // R4: keep the READABLE line beside the signature. The ring stores a hash
       // (Rec is fixed-width and its layout is asserted byte for byte), and a
       // hash is not something an agent can be told. One line, clipped, in the
       // session file.
       if (!open_move->err_sig.empty()) {
-        const string et = rbinject::readable_error(toolResponse, cwd);
+        const string et = rbinject::readable_error(runText, cwd);
         if (!et.empty()) ms.lastErrText = et;
       }
       // A CLAIM, from text the session produced about itself. PostToolUse
@@ -3627,7 +3702,61 @@ int main(int argc, char** argv) {
     //   weak    -> falls through, ledger only, the agent never sees it.
     // Nothing below returns, blocks, or touches an exit code; reports/R4's
     // claim 3 compares the exit codes with this on and off.
-    auto queue_injection = [&](const string& name, const string& why, size_t nseqs) {
+    // THE TEXT IS A FUNCTION OF THE LEDGER, so it can be asked again. It is
+    // first assembled when the detector fires — before this event's suite
+    // verdict is stamped onto the newest move — and the verdict block asks
+    // once more after stamping a red, so the contrast sentence says "it was
+    // red" when it was, rather than "it failed with that error" because the
+    // move's `suite` still read -1 at the moment the detector spoke.
+    // Held behind a shared_ptr, like tier0 below: the verdict block calls the
+    // hook after this scope has closed, and a lambda that captured these by
+    // reference would be reading a dead stack frame (measured: the recompose
+    // came back with an empty signal name and the tool response as its why).
+    struct Queued { string name, why; size_t n = 0; };
+    auto q = std::make_shared<Queued>();
+    auto compose = [&](const string& name, const string& why, size_t nseqs) -> string {
+      rbinject::Ctx c;
+      c.signal = name; c.why = why; c.attempt = (int)nseqs;
+      c.err = ms.lastErrText;
+      for (size_t i = ms.moves.size(); i-- > 0;)
+        if (rbsig::is_write(ms.moves[i]) && !ms.moves[i].path.empty()) { c.file = ms.moves[i].path; break; }
+      for (size_t i = ms.moves.size(); i-- > 0;)
+        if (ms.moves[i].suite == 1 && !ms.moves[i].raw.empty()) { c.greenCmd = ms.moves[i].raw; break; }
+      // the contrast trigger's payload: which files moved between the last
+      // green suite and now. Deduplicated and capped at four names — the point
+      // is to hand over a short list the agent can act on, and a paragraph that
+      // lists twenty files is one the 400-character clip eats anyway.
+      {
+        size_t greenAt = (size_t)-1;
+        for (size_t i = ms.moves.size(); i-- > 0;)
+          if (ms.moves[i].suite == 1) { greenAt = i; break; }
+        if (greenAt != (size_t)-1) {
+          std::vector<string> names;
+          for (size_t i = ms.moves.size(); i-- > greenAt + 1 && names.size() < 4;) {
+            const string& p = ms.moves[i].path;
+            if (!rbsig::is_write(ms.moves[i]) || p.empty()) continue;
+            bool dup = false;
+            for (const auto& q : names) if (q == p) { dup = true; break; }
+            if (!dup) names.push_back(p);
+          }
+          for (size_t i = 0; i < names.size(); i++)
+            c.changed += (i ? ", " : "") + names[i];
+        }
+      }
+      // the red half of Law 3's pair: the NEWEST move that did not work,
+      // whether that was the suite going red or a command coming back with the
+      // error. Newest, because the pair is only worth something if the failing
+      // side is the one the agent just lived through.
+      for (size_t i = ms.moves.size(); i-- > 0;) {
+        if (ms.moves[i].raw.empty()) continue;
+        if (ms.moves[i].suite == 0) { c.redCmd = ms.moves[i].raw; c.redIsSuite = true; break; }
+        if (ms.moves[i].claimed_rc == 1) { c.redCmd = ms.moves[i].raw; c.redIsSuite = false; break; }
+      }
+      return rbinject::build(c);
+    };
+    // By-value captures of the block-local lambdas and the shared holder: the
+    // verdict block invokes a copy of this chain after this scope has closed.
+    auto queue_injection = [&, compose, q](const string& name, const string& why, size_t nseqs) {
       // THE EVENT THAT FINDS A PATTERN NEVER SPEAKS ABOUT IT. The plan's first
       // settled question: a diagnosis rides the front of the NEXT tool call,
       // never the one it was computed in. Two reasons, and the second is the
@@ -3672,45 +3801,9 @@ int main(int argc, char** argv) {
         if (ms.injPendingSignal == name) mark_mute();
         return;
       }
-      rbinject::Ctx c;
-      c.signal = name; c.why = why; c.attempt = (int)nseqs;
-      c.err = ms.lastErrText;
-      for (size_t i = ms.moves.size(); i-- > 0;)
-        if (rbsig::is_edit(ms.moves[i]) && !ms.moves[i].path.empty()) { c.file = ms.moves[i].path; break; }
-      for (size_t i = ms.moves.size(); i-- > 0;)
-        if (ms.moves[i].suite == 1 && !ms.moves[i].raw.empty()) { c.greenCmd = ms.moves[i].raw; break; }
-      // the contrast trigger's payload: which files moved between the last
-      // green suite and now. Deduplicated and capped at four names — the point
-      // is to hand over a short list the agent can act on, and a paragraph that
-      // lists twenty files is one the 400-character clip eats anyway.
-      {
-        size_t greenAt = (size_t)-1;
-        for (size_t i = ms.moves.size(); i-- > 0;)
-          if (ms.moves[i].suite == 1) { greenAt = i; break; }
-        if (greenAt != (size_t)-1) {
-          std::vector<string> names;
-          for (size_t i = ms.moves.size(); i-- > greenAt + 1 && names.size() < 4;) {
-            const string& p = ms.moves[i].path;
-            if (!rbsig::is_edit(ms.moves[i]) || p.empty()) continue;
-            bool dup = false;
-            for (const auto& q : names) if (q == p) { dup = true; break; }
-            if (!dup) names.push_back(p);
-          }
-          for (size_t i = 0; i < names.size(); i++)
-            c.changed += (i ? ", " : "") + names[i];
-        }
-      }
-      // the red half of Law 3's pair: the NEWEST move that did not work,
-      // whether that was the suite going red or a command coming back with the
-      // error. Newest, because the pair is only worth something if the failing
-      // side is the one the agent just lived through.
-      for (size_t i = ms.moves.size(); i-- > 0;) {
-        if (ms.moves[i].raw.empty()) continue;
-        if (ms.moves[i].suite == 0) { c.redCmd = ms.moves[i].raw; c.redIsSuite = true; break; }
-        if (ms.moves[i].claimed_rc == 1) { c.redCmd = ms.moves[i].raw; c.redIsSuite = false; break; }
-      }
-      ms.injPending = rbinject::build(c);
+      ms.injPending = compose(name, why, nseqs);
       ms.injPendingSignal = name;
+      q->name = name; q->why = why; q->n = nseqs;
       // (b)'s "before" half, taken HERE and not at delivery. The newest move at
       // the moment the pattern completed IS the behaviour the diagnosis is
       // about; by delivery time one more move has already been recorded (the
@@ -3858,11 +3951,17 @@ int main(int argc, char** argv) {
       // do not wait: the arm outlives this hook on purpose, exactly like the net
     };
 
-    if (rbsig::enabled()) {
+    // ONE LEDGER LINE PER FINDING, however many passes look. The set is keyed
+    // on name+why+seqs — the same finding seen by the second pass is skipped,
+    // a finding that only exists once the verdict is stamped is emitted then.
+    auto tier0 = std::make_shared<std::set<string>>();
+    auto tier0_pass = [&, tier0, queue_injection, maybe_repair]() {
+      if (!rbsig::enabled()) return;
       for (const auto& h : rbsig::detect(ms.moves)) {
         string seqs;
         for (size_t i = 0; i < h.seqs.size(); i++)
           seqs += (i ? "," : "") + std::to_string(h.seqs[i]);
+        if (!tier0->insert(h.name + "|" + h.why + "|" + seqs).second) continue;
         em.emit("SIGNAL",
                 "\"signal\":\"" + h.name + "\""
                 ",\"conf\":" + std::to_string(h.conf).substr(0, 4) +
@@ -3871,7 +3970,15 @@ int main(int argc, char** argv) {
         queue_injection(h.name, h.why, h.seqs.size());
         maybe_repair(h.name);
       }
-    }
+    };
+    tier0_pass();
+    // Only the newest move can gain a verdict later in this event, and only a
+    // red one changes what the detectors would say (a green never completes a
+    // failure pattern). Offered to the verdict block for that case alone.
+    if (hook == "PostToolUse") resignal_after_verdict = [&, tier0_pass, q, compose]() {
+      tier0_pass();
+      if (injQueuedThisEvent && !ms.injPending.empty()) ms.injPending = compose(q->name, q->why, q->n);
+    };
 
     // ---------- R3: tier 1, and it runs AFTER tier 0 for a reason -----------
     // The cascade is the whole safety argument. rbsig::detect above has already
@@ -4471,6 +4578,8 @@ int main(int argc, char** argv) {
       if (!ss.moves.empty() && (passed || sawFailure)) {
         ss.moves.back().suite = passed ? 1 : 0;
         stt.append_move(ss.moves.back());   // R1.2: a verdict is an append too
+        // the detectors ran before this verdict existed; a red is new evidence
+        if (!passed && resignal_after_verdict) resignal_after_verdict();
       }
       stt.save();
 

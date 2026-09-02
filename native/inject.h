@@ -162,15 +162,35 @@ inline string clip_chars(const string& s, size_t maxChars) {
 // gets, with the scratch paths and the project root taken off it first (the
 // same masking moves.h hashes through, so what is shown matches what was
 // bucketed).
-inline string readable_error(const string& out, const string& root) {
+//
+// TWO PASSES, NOT ONE. error_line() answers "does this line mention an error",
+// and a source file the agent just cat'ed mentions plenty (`raise ValueError`,
+// `except Exception`). What a human quotes is the line that IS the error: the
+// mark stands at its head — `AssertionError: ...`, `FAILED tests/x.py::t`,
+// pytest's `E   AssertionError`, `error: ...`. So the first pass takes only
+// lines whose mark leads, and the second pass is the old rule, kept as the
+// fallback for compilers and runtimes whose one error line has a path in front.
+inline bool error_leads(const string& l) {
   size_t i = 0;
-  while (i < out.size()) {
-    size_t e = out.find('\n', i);
-    if (e == string::npos) e = out.size();
-    const string line = out.substr(i, e - i);
-    i = e + 1;
-    if (!rbmoves::error_line(line)) continue;
-    return clip_chars(rbmoves::squeeze(rbmoves::mask_scratch(rbmoves::relativise(line, root))), 120);
+  while (i < l.size() && (l[i] == ' ' || l[i] == '\t')) i++;
+  if (i + 1 < l.size() && l[i] == 'E' && l[i + 1] == ' ') { i += 2; while (i < l.size() && l[i] == ' ') i++; }
+  // `Traceback (most recent call last):` announces the error; the error is the
+  // last line of that block, and it leads with its own name (NameError: ...).
+  if (l.compare(i, 9, "Traceback") == 0) return false;
+  return rbmoves::error_line(l.substr(i, 24));
+}
+
+inline string readable_error(const string& out, const string& root) {
+  for (int pass = 0; pass < 2; pass++) {
+    size_t i = 0;
+    while (i < out.size()) {
+      size_t e = out.find('\n', i);
+      if (e == string::npos) e = out.size();
+      const string line = out.substr(i, e - i);
+      i = e + 1;
+      if (pass == 0 ? !error_leads(line) : !rbmoves::error_line(line)) continue;
+      return clip_chars(rbmoves::squeeze(rbmoves::mask_scratch(rbmoves::relativise(line, root))), 120);
+    }
   }
   return string();
 }
