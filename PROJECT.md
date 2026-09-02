@@ -289,6 +289,57 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (15) — the budget CHALLENGE is resolved: charged per failure, not per session
+
+Entry (11) raised it and left it for a ruling; the operator's instruction was
+to finish rather than ask. Applied exactly as proposed there, with nothing
+added: the cap key is now `<signal>#<err_sig>` instead of `<signal>`.
+
+    before   two paragraphs per signal, per SESSION
+    after    two paragraphs per signal, per FAILURE
+
+Nothing else moved. `CAP_PER_SIGNAL` is still 2, the wording is unchanged, the
+400-character budget is unchanged, and a signal with no error signature keeps
+the bare name so it behaves exactly as before rather than getting a fresh
+budget every event. One function, `capkey_of`, is the single spelling of the
+key — the charge, the check and the repair arm's "did R4 get its chances" all
+call it, because three spellings of one key is three ways for a budget to leak.
+The repair arm sums every key that begins with the signal name, so its
+condition is unchanged in meaning.
+
+**Two bugs found by running it, neither visible by reading it:**
+
+1. The first separator was `\x01`. `injSeen` serialises as `"<key>=<count>"`
+   through `json_escape`, and a 0x01 byte does not survive that round trip — it
+   came back as `?`, every key compared unequal to itself, and the cap never
+   engaged at all: 8 injections where 2 were wanted, with three identical keys
+   sitting side by side in `injSeen`. The separator is `#`, which cannot occur
+   in a signal name (C identifiers) or an err_sig (16 hex chars).
+2. My first fixture asserted "one failure, five cycles, exactly two
+   injections" and got four. That was the fixture being wrong, not the code:
+   five cycles wake TWO detectors (the contrast on each red, and `repeat` once
+   the same command returns the same error), and the cap is per signal. The
+   assertion is now the actual invariant, read off the ledger's own budget
+   lines: **no `(signal, failure)` pair above two.**
+
+Measured, `inject_payload_test.sh` section 9: one failure repeated five times —
+no signal exceeds two paragraphs, extras are INJECT_CAPPED. A second, different
+failure in the same session — injections go 4 to 7, `injSeen` grows to four
+budget lines, and no pair exceeds two. On the old key the second failure would
+have received nothing, which is the 3.4-hour mute measured in entry (11).
+
+DONE: `./native/inject_payload_test.sh` 35 -> 40 passed, 0 failed.
+
+NOT VERIFIED: the cost side. A session hitting four distinct failures can now
+receive up to eight paragraphs instead of two; at the measured 68-character
+median that is under 600 characters, but no session has actually done it yet.
+Full `make test`: exit 0, 123 suite scripts. signals 44/0, yield 13/0,
+inject_answer 16/0, moves 22/0, postuse 88/0.
+
+NEXT: nothing is open in the trigger path. The last item on the whole list is
+the false positive rate under this build, which no commit can answer — it needs
+days of the operator's own traffic.
+
 ### 2026-09-02 (14) — 0.2.4 is on npm, `npm i -g rabadon` works, and the docs stop saying it does not
 
 Release run 33666806818, tag `v0.2.4`: four builds, publish, and both smoke
