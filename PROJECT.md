@@ -289,6 +289,51 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (8) — the release hung for 2h23m in a test that runs a real script(1)
+
+`v0.2.3-rc.1` was tagged and the release workflow ran. **Both darwin builds
+passed** — the step that killed v0.2.0, v0.2.1 and v0.2.2 (no pytest on the
+macOS runner) is fixed and now proven on a real runner. The two linux jobs
+then sat in `make all && make test` for 2h23m and were cancelled.
+
+Where it hung, from the runner's own cleanup log (a cancelled job publishes
+its log; an in-progress one does not, which is why this could not be read
+while it ran):
+
+    Terminate orphan process: pid (20392) (script_wrapper_test.sh)
+    Terminate orphan process: pid (20405) (python3)
+    Terminate orphan process: pid (20407) (script)
+
+`script_wrapper_test.sh` section 1 runs a REAL `script(1)` under a pty from
+python3's stdlib — deliberately, so the premise is measured and not narrated.
+util-linux's script(1) can hold the pty open after its child exits, and
+`pty.spawn` then waits forever. Nothing bounded it. CI never showed this: the
+ubuntu-latest jobs (24.04, util-linux 2.39) finish in 7 minutes; the release
+matrix pins ubuntu-22.04 (util-linux 2.37) for glibc compatibility.
+
+Fix: every real script(1) invocation is fenced with a wall clock. The probe
+gets 10s (no answer → PTY_OK=0, the section reports NOT MEASURED exactly as it
+already does where python3 has no pty); each case gets 20s and fails as itself
+rather than stopping the release. First attempt at this broke the suite —
+`env PATH=... pty_run` cannot invoke a shell function (`env: pty_run:
+Permission denied`), so 7 cases silently ran nothing; the PATH override moved
+inside pty_run. Caught by running it, not by reading it.
+
+DONE: `./native/script_wrapper_test.sh` 61 passed, 0 failed on mac (identical
+to the pre-change count — `git stash` compared). On ubuntu:22.04 in a
+container, util-linux 2.37.2: 52 passed, 0 failed, 1 skipped, 10.5s, same
+before and after (a container has no pty, so section 1 skips there — the
+hang is specific to a runner that HAS one).
+
+NOT VERIFIED: that this un-hangs the release. The container cannot reproduce
+the hang, so the only proof is the next release run on ubuntu-22.04. The tag
+`v0.2.3-rc.1` is now on a commit whose test suite can hang; it will be moved,
+not reused, after CI is green on the fix.
+
+NEXT: push the fix, CI green, retag (`git tag -d v0.2.3-rc.1 && git push
+origin :v0.2.3-rc.1`, then tag the fixed commit), read the release run job by
+job.
+
 ### 2026-09-02 (7) — first publish, as a pre-release under `next`
 
 The operator asked for the release decision to be made, not asked about.
