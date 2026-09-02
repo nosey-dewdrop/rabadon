@@ -289,6 +289,49 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-02 (4) — the claim stops inheriting the vocabulary; (b) gets a question that can be answered no
+
+Both NEXT items from entry (3), done and fixtured. No PROJECT.md step is
+touched; both are corrections to how the ledger measures, not new capability.
+
+1. **`claimed_rc` no longer comes from the loose vocabulary.** On PostToolUse
+   it was `E.failed || !err_sig.empty()`, and err_sig matches any line that
+   CONTAINS "error"/"not found"/"ValueError". So a `cat` of a handler or a
+   `tail` of the ledger claimed a failure, and the contrast trigger fired on it
+   (two live hits, entry 3). Now: `E.failed || rbmoves::has_leading_error()`,
+   where a line counts only if an error mark is its PREFIX after whitespace
+   (`NameError: ...`, `FAILED x::y`, `E   AssertionError`, `error TS2345`,
+   `fatal:`); `Traceback` announces and is skipped. err_sig itself stays loose
+   — it is a bucket key, and `repeat`/`root_migration` need it that way. First
+   cut used "mark within the first 24 chars" and `raise ValueError("…")` in a
+   cat'ed file still fired; the fixture caught it, the rule became a prefix.
+2. **INJECT_ANSWER carries `named`.** The queue remembers what the paragraph
+   NAMED (changed-list + last-edited); the answer says whether the next move
+   went there — path for an edit, mention for a command. `same` is kept beside
+   it. When the paragraph named nothing, the field is absent, not false: an
+   unanswerable question must not be counted as a no. Serialised only when
+   non-empty, so a session that never injected writes the same bytes as before.
+
+DONE: `native/inject_payload_test.sh` 19 passed, 0 failed (sections 7–8 new:
+printed vocabulary after a green → 0 SIGNAL; a leading Traceback still claims;
+named=true / named=false / absent). signals 39/0, signals_screen 38/0,
+inject_answer 16/0, moves 22/0, postuse 88/0 — unchanged. Full `make test`:
+exit 0, 122 suite scripts, no failing line.
+
+NOT VERIFIED: `named` on live traffic — zero events since the binary was
+rebuilt. What (1) LOSES is not measured: a command that fails and prints its
+error with a path in front (`src/x.c:12: error: …`) no longer claims rc=1 on
+PostToolUse; it still hashes into err_sig, and the suite verdict is untouched,
+but a contrast fired only by such a line is gone. Doubled RUN_START, still not
+looked at. The `raw` 96-byte clip, still.
+
+NEXT: leave this binary running in watch mode over the operator's own sessions
+and read the ledger after a working week: count regression_contrast SIGNAL vs
+INJECT_CAPPED (was 40 vs 35 today, i.e. the budget was being spent on noise),
+and count `named=true` over INJECT_ANSWER. That number, not another synthetic
+repo, is the next thing worth knowing. Nothing else in the trigger path should
+move before it is read.
+
 ### 2026-09-02 (3) — three live runs, no red; the ledger's (b) is answered by a metric that cannot say no
 
 Two more throwaway repos, driven by real `claude -p` (Claude Code 2.1.257,
