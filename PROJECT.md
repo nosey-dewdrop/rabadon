@@ -289,6 +289,53 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (2) — the wrapper test applied to rabadon's own headline number
+
+The operator's question, in their own words: a pair of scissors works, but you
+cannot eat with scissors. Does this thing get REPLACED by a shell function and
+a prompt? Applied to the ledger rather than argued about.
+
+**521 refusals was the wrong number to lead with, and it has been demoted.**
+Split by whether the state comes back:
+
+    439  recoverable   wip commit message, action on a red base, hidden verdict
+     82  irreversible  force-push, delete outside the tree, reflog expiry,
+                       blind sed -i over source, a rule moved into disabled[]
+
+Every one of the 439 is a rule someone writes in a shell function in an
+afternoon. Quoting them as the product's value is the wrapper trap this
+project's own instructions name. They are still worth refusing; they are not
+worth installing something for.
+
+The 82 split again, because a guard measured on its own red-team suites is
+measuring itself: **57 on real work, 25 in throwaway sandboxes. 13.8 per week**
+across 11 distinct days. `bench/irreversible.py` computes it and prints the
+sandbox split rather than folding it into the total.
+
+**A second measurement, and this one is negative.** red-base is the rule the
+product's story leans on — "stop the next action the moment the base is red".
+Of its 65 refusals: 27 sessions saw the suite go green again eventually, 38
+never did, and only 7 went green within 25 events of the refusal. So the
+refusal usually stops an action; it does not usually produce a fix. The
+compound-error claim is weaker than the README implied and the README no longer
+implies it.
+
+README now leads with the irreversible number and says plainly who will see
+far fewer of them — a developer who does not run agents unattended. BENCHMARK
+§3d carries the full split.
+
+DONE: `bench/irreversible.py`; BENCHMARK §3d; README's lead paragraph
+rewritten. docs_truth 42/0, install_docs 22/0, `make test` exit 0, 123 scripts.
+
+NOT VERIFIED, and it is the gap between "useful" and "necessary": how many
+irreversible actions a STRANGER's agent attempts in a week. 13.8 is one
+operator who runs agents hard with a shell. No local traffic can stand in for
+someone else's.
+
+NEXT: nothing in the code. The measurement that matters now needs one engineer
+who does not know this project, running it for a week, and sending back
+`bench/precision.py` and `bench/irreversible.py`.
+
 ### 2026-09-03 — the false-reject rate, measured from 27 days of real work
 
 The last open item in this log ("needs days of real traffic") turned out to be
