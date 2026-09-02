@@ -163,16 +163,29 @@ inline vector<Hit> detect(const vector<rbmoves::Move>& m) {
       for (size_t i = n; i-- > 0;)
         if (m[i].suite == 1) { greenAt = i; break; }
       if (greenAt != (size_t)-1 && greenAt + 1 < n) {
+        // THE TRANSITION IS THE EVIDENCE, not the edit record. Requiring a
+        // counted Edit move here made the detector silent in a live session
+        // measured 2026-09-02: the agent created the failing file with
+        // `cat > test_b.py <<EOF` inside a Bash command, so nothing the ring
+        // calls an edit ever landed, while the suite went green -> red exactly
+        // as the trigger describes. Writing files through the shell is normal
+        // agent behaviour, not an edge case, and a detector that only sees the
+        // Edit tool is blind to half of every session.
+        //
+        // So the fact is stated at the strength it is known: this suite passed
+        // earlier and does not now. The file list stays a PAYLOAD — named when
+        // the ring happens to know it, omitted when it does not — and never a
+        // precondition for saying the true part.
         vector<long long> seqs; seqs.push_back(m[greenAt].seq);
         int edits = 0;
         for (size_t i = greenAt + 1; i < n; i++)
           if (is_edit(m[i]) && !m[i].path.empty()) { edits++; seqs.push_back(m[i].seq); }
-        if (edits > 0) {
-          seqs.push_back(last.seq);
-          out.push_back({ "regression_contrast", 0.7, seqs,
-                          "the suite was green earlier this session and " +
-                          std::to_string(edits) + " edit(s) landed before this failure" });
-        }
+        seqs.push_back(last.seq);
+        out.push_back({ "regression_contrast", 0.7, seqs,
+                        edits > 0
+                          ? "the suite was green earlier this session and " +
+                            std::to_string(edits) + " edit(s) landed before this failure"
+                          : string("the suite was green earlier this session and is not now") });
       }
     }
   }

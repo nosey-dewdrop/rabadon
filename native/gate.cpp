@@ -4292,19 +4292,25 @@ int main(int argc, char** argv) {
         // So the zero-counts are stripped first (a green run that prints
         // `0 failed` must stay green) and then any surviving failure vocabulary
         // disqualifies the pass count entirely.
-        string greenEvid = out;
-        try {
-          static const std::regex zc(
-              "\\b0+\\s*(fail(ed|ure|ures|s|ing)?|errors?)\\b|"
-              "(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*0+\\b",
-              std::regex::ECMAScript | std::regex::icase);
-          greenEvid = std::regex_replace(out, zc, " ");
-        } catch (...) { greenEvid = out; }
-        const bool anyFailureWord = rx_test(
-            "fail(ed|ure|ures|s|ing)?|errors?|traceback|assert(ion)?|"
-            "\\bnot ok\\b|panic:|segmentation fault", greenEvid);
+        // A COUNT IS ANSWERED BY A COUNT, NEVER BY A LOOSE WORD. The first
+        // version of this clause disqualified a pass count whenever any failure
+        // vocabulary appeared anywhere in the output, and a live session showed
+        // within the hour what that costs: the agent ran
+        // `python3 -m pytest -q 2>&1 | tail -5; ls; cat *.py`, the `cat` printed
+        // test sources containing the word `assert`, and a suite that had just
+        // reported `2 passed` was stamped RED. This repo already paid for that
+        // lesson once, in the other direction, and wrote it down above: a
+        // counted zero outranks a word. The same is true of a counted pass.
+        //
+        // So the only thing allowed to cancel a pass count is another COUNT —
+        // a failure count in either written order — and, further down, a crash
+        // string, which describes a runner that never reached its own summary.
+        const bool failCountPresent =
+            rx_test("[1-9][0-9]*\\s*(failed|failing|failures?|errors?)\\b", out) ||
+            rx_test("(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*[1-9]", out);
         const bool passCount =
-            !anyFailureWord && rx_test("[1-9][0-9]*\\s+(passed|passing)\\b", out);
+            !failCountPresent && rx_test("[1-9][0-9]*\\s+(passed|passing)\\b", out);
+        const bool anyFailureWord = failCountPresent;
         std::smatch m;
         std::regex fc("\\bfail(?:ed|ures)?\\s*[:= ]\\s*(\\d+)", std::regex::ECMAScript | std::regex::icase);
         if (std::regex_search(out, m, fc)) passed = (atoll(m[1].str().c_str()) == 0);
@@ -4410,9 +4416,29 @@ int main(int argc, char** argv) {
       //
       // hardFailure still wins. A segfault next to `0 failed` means the runner
       // never got to the end, and the count is describing a run that died.
+      // A NON-ZERO PASS COUNT WITH NO FAILURE COUNT ANSWERS A LOOSE WORD the
+      // same way a counted zero does, and for the same reason. Measured live
+      // 2026-09-02: `pytest -q` reported `2 passed`, the same compound command
+      // then `cat`-ed the test sources, and the word `assert` inside a source
+      // file turned a passing suite RED. The runner counted; nothing else in
+      // that output was the runner speaking. countedFailure and hardFailure are
+      // untouched, so `1 failed, 5 passed` is still red and a segfault beside a
+      // green summary is still red.
+      // The failure count is re-read here WITHOUT a leading word boundary, on
+      // purpose. `countedFailure` above anchors on \b, and when an escape
+      // sequence is still two characters the digit is preceded by the letter
+      // `n` — `...test_a\n1 failed, 5 passed` — so no boundary exists and the
+      // count is invisible to it. That is the same trap this file documents for
+      // the red half; a pass count is only allowed to answer a loose word when
+      // no failure count is present in EITHER reading.
+      const bool declaredPassCount =
+          !countedFailure &&
+          !rx_test("[1-9][0-9]*\\s*(failed|failing|failures?|errors?)\\b", out) &&
+          !rx_test("(fail(ed|ure|ures|s|ing)?|errors?)\\s*[:= ]\\s*[1-9]", out) &&
+          rx_test("[1-9][0-9]*\\s+(passed|passing)\\b", out);
       const bool sawFailure =
           countedFailure || hardFailure ||
-          (!statedExitZero && !declaredZeroFailures && softFailure);
+          (!statedExitZero && !declaredZeroFailures && !declaredPassCount && softFailure);
 
       // A CRASH STRING CANCELS THE GREEN. `passed` is decided from the counts,
       // and the counts describe the tests the runner got through — not the
