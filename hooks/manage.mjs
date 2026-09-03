@@ -50,12 +50,37 @@ const BASELINE = {
   disabled: ['red-base'],
 };
 
+// The law has to land on disk before anything else runs, so every failure here
+// is fatal — but it is an ORDINARY failure (read-only checkout, full disk, a
+// directory owned by root), not a bug, and a Node stack trace tells the operator
+// nothing they can act on. Exit 3 is init's existing "cannot guard yet" code.
 function writeBaseline(dir, name) {
   const guardDir = path.join(dir, '.rabadon');
-  fs.mkdirSync(guardDir, { recursive: true });
+  const guardFile = path.join(guardDir, 'guard.json');
   const guard = { project: name, ...BASELINE, generatedBy: 'rabadon init --no-llm (baseline; run `rabadon guard` to author project rules)' };
-  fs.writeFileSync(path.join(guardDir, 'guard.json'), JSON.stringify(guard, null, 2) + '\n');
-  return path.join(guardDir, 'guard.json');
+  try {
+    fs.mkdirSync(guardDir, { recursive: true });
+    fs.writeFileSync(guardFile, JSON.stringify(guard, null, 2) + '\n');
+  } catch (e) {
+    // The diagnosis comes from errno, never from a guess: the same catch is
+    // reached by a read-only mount and a full disk, and telling somebody with a
+    // full disk to "fix the permissions" sends them to debug the wrong machine.
+    // Unknown codes say nothing about the cause rather than inventing one.
+    const why = {
+      EACCES: [`${dir} is not writable by this user`, 'fix the permissions, or run `rabadon init <some-writable-dir>`'],
+      EPERM: [`${dir} is not writable by this user`, 'fix the permissions, or run `rabadon init <some-writable-dir>`'],
+      EROFS: [`${dir} is on a read-only filesystem`, 'remount it read-write, or run `rabadon init <some-writable-dir>`'],
+      ENOSPC: ['the disk is full', 'free some space, then re-run `rabadon init`'],
+      EDQUOT: ['this user is over their disk quota', 'free some space, then re-run `rabadon init`'],
+      ENOTDIR: [`a component of ${dir} is a file, not a directory`, 'check the path, then re-run `rabadon init`'],
+    }[e.code];
+    const [cause, fix] = why || [`the write failed (${e.code || e.message})`, 'resolve that, then re-run `rabadon init`'];
+    console.error(`rabadon init: could not write the guard at ${guardFile}.`);
+    console.error(`  ${cause} — nothing was installed, and this project is NOT guarded.`);
+    console.error(`  ${fix}.`);
+    process.exit(3);
+  }
+  return guardFile;
 }
 
 function hasClaude() {

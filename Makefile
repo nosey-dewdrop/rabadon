@@ -166,6 +166,23 @@ test: all
 # five rabadon entries in .cursor/hooks.json, so a Cursor user had no exit at
 # all. Every case runs under mktemp with its own HOME and RABADON_DIR.
 	./native/exit_path_test.sh
+# exit_path_test.sh holds the way OUT. this holds the way IN when the disk says
+# no. measured 2026-09-03: `rabadon init` in a directory the user cannot write
+# printed nine lines of Node stack trace and exited 1 — and never said the one
+# thing that changes what the operator does next, that NOTHING was installed and
+# the tree is unguarded. A stranger reads that as a broken tool, not a read-only
+# directory. Written on the axis rather than the incident: mkdir and writeFileSync
+# are separate cases, and a writable project is asserted to still install, so a
+# "fix" that refuses everywhere cannot pass. It also holds the DIAGNOSIS: the same
+# catch is reached by a read-only mount and a full disk, so the cause is read off
+# errno and never assumed — telling somebody with a full disk to fix their
+# permissions sends them to debug the wrong machine. Reverting the stack-trace fix
+# takes it 27 ok to 9 ok / 6 fail; reverting the errno table, to 18 ok / 9 fail.
+# The faked-errno harness is held by its own vacuity guard: while this suite was
+# being written the errno was passed in argv, manage.mjs overwrote argv before the
+# throw, and six diagnosis assertions passed on output that never mentioned an
+# errno at all. Refuses to run as root, which writes through mode 555.
+	./native/init_unwritable_test.sh
 	./native/audit_test.sh
 # audit_test.sh proves the chain INSIDE one day file. this one proves there IS
 # one day file. the chained spool is named by a date and the repo held two
