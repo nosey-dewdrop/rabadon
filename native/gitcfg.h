@@ -373,4 +373,41 @@ inline bool last_value(const vector<rbtext::Word>& t, size_t gi, size_t sub, con
   return true;
 }
 
+// ---------- the alias a user configured, read the way git reads it ----------
+// cmdtext.h resolves an alias the command line writes down. This answers the
+// other half: `git config alias.yolo "push --force"` typed once, months ago,
+// then `git yolo origin main` — a general bypass of every git verb law, found
+// by an outside reviewer on 2026-09-03 and reproduced at exit 0.
+//
+// Installed as cmdtext.h's AliasReader callback, not called from it: that file
+// reads command TEXT and must not learn about a filesystem, and this one
+// already includes nothing from it. The lookup walks the same file order
+// config_files() gives every other question, so an alias in /etc/gitconfig,
+// ~/.gitconfig, XDG, .git/config or config.worktree is found exactly where git
+// would find it, and the LAST definition wins, as git does.
+//
+// A `!shell` body is returned verbatim; cmdtext's expander already knows that
+// shape and hands it to the machinery that reads a command out of a script.
+inline bool disk_alias_body(const string& name, const string& gitDirHint, string& body) {
+  if (name.empty()) return false;
+  for (size_t i = 0; i < name.size(); i++)
+    if (!(isalnum((unsigned char)name[i]) || name[i] == '-' || name[i] == '_')) return false;
+  string gitDir = gitDirHint;
+  if (gitDir.empty()) {
+    // the ordinary case: a .git beside the working directory
+    struct stat st;
+    if (stat(".git", &st) == 0) gitDir = S_ISDIR(st.st_mode) ? ".git" : "";
+  }
+  vector<std::pair<string, string> > files;
+  config_files(gitDir, files);
+  vector<Value> vals;
+  Limits lim;
+  const string want = "alias." + name;
+  for (size_t i = 0; i < files.size(); i++)
+    read_file(files[i].first, want, files[i].second, vals, 0, lim);
+  if (vals.empty()) return false;
+  body = vals.back().text;
+  return !body.empty();
+}
+
 }  // namespace rbgitcfg

@@ -219,6 +219,37 @@ blocks "alias inside sh -lc"         "$REPO" "sh -lc \"git -c alias.x='push --fo
 blocks "alias inside eval"           "$REPO" "eval \"git -c alias.x='push --force' x origin main\""
 
 echo
+echo "== e2e: an alias ALREADY ON DISK, and one this line writes =="
+# THE HOLE AN OUTSIDE REVIEWER FOUND, 2026-09-03. Every case above puts the
+# alias on the command line with `-c`. A user does not: they run
+# `git config alias.yolo "push --force"` once, and months later type
+# `git yolo origin main`. That was exit 0 — a general bypass of every git law
+# in baseline.h, with no quoting trick and nothing odd in the command text.
+"$REALGIT" -C "$REPO" config alias.yolo "push --force"
+"$REALGIT" -C "$REPO" config alias.lg   "log --oneline -5"
+"$REALGIT" -C "$REPO" config alias.bang "!git push --force origin main"
+blocks "configured alias, force push"  "$REPO" "git yolo origin main"
+blocks "configured bang alias"         "$REPO" "git bang"
+blocks "configured alias in sh -lc"    "$REPO" "sh -lc 'git yolo origin main'"
+allows "configured alias of a read"    "$REPO" "git lg"
+# git PRINTS THE MANUAL and runs nothing for `--help`, measured against git
+# 2.39.5: `git yolo --help` says "'yolo' is aliased to 'push --force'" and
+# opens git-push(1), exit 0, remote untouched. Expanding it anyway refuses a
+# documentation lookup — a false reject while the user is READING.
+allows "an alias asked for its manual" "$REPO" "git yolo --help"
+allows "the short form of that"        "$REPO" "git yolo -h"
+
+# A definition EARLIER ON THE SAME LINE is not on disk yet when the gate
+# decides — nothing has run — so the parse collects it as it walks segments.
+blocks "defined and used, one line"    "$REPO" "git config alias.z 'push --force'; git z origin main"
+blocks "defined --global, then used"   "$REPO" "git config --global alias.q 'push -f'; git q origin main"
+allows "defined but never invoked"     "$REPO" "git config alias.z 'push --force'; git status"
+allows "an alias of a read, same line" "$REPO" "git config alias.st status; git st"
+allows "the definition quoted in echo" "$REPO" "echo 'git config alias.z push --force'"
+# and the table must not leak from one command line into the next
+allows "the next line does not inherit it" "$REPO" "git z origin main"
+
+echo
 echo "== e2e: the same shapes reach the user rule layer =="
 blocks "guard.json + alias"          "$GREPO" "git -c alias.x='push --force' x origin main"
 blocks "guard.json + chained alias"  "$GREPO" "git -c alias.a=b -c alias.b='push --force' a origin main"

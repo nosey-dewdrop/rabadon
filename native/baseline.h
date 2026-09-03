@@ -86,6 +86,22 @@
 
 #include "cmdtext.h"
 #include "gitcfg.h"
+
+// THE ON-DISK GIT ALIAS, WIRED HERE AND NOWHERE ELSE. cmdtext.h resolves what a
+// command line writes down and must not learn about a filesystem; gitcfg.h can
+// read git's config files and includes nothing from cmdtext. This translation
+// unit includes both, so it is the one place that can introduce them, and it
+// does it once, at static-init time, for every caller of rbtext::parse().
+//
+// Without it `git config alias.yolo "push --force"` followed by `git yolo
+// origin main` walks past every git law in this file (measured 2026-09-03,
+// exit 0, reported by an outside reviewer).
+namespace {
+struct RbInstallDiskAlias {
+  RbInstallDiskAlias() { rbtext::disk_alias_reader() = &rbgitcfg::disk_alias_body; }
+};
+static RbInstallDiskAlias rb_install_disk_alias_;
+}  // namespace
 #include "pathres.h"
 
 namespace rbbase {

@@ -1815,6 +1815,83 @@ inline bool git_configenv_alias(const vector<Word>& t, size_t gi, size_t sub, co
 
 // Rewrites `t` into the argv git will really run. A `!` body is not argv, so it
 // comes back through *shellBody and the caller hands it to pass 3.
+// ---------- pass 7a: an alias ALREADY ON DISK is still the subcommand -------
+// THE HOLE THIS CLOSES, and it was found by an outside reviewer on 2026-09-03,
+// not by this project:
+//
+//   git config alias.yolo "push --force"    (once, and it persists)
+//   git yolo origin main                    (exit 0 — every git law walked past)
+//
+// Pass 7 resolves an alias the SAME LINE writes down. A user's alias is not on
+// the line; it is in .git/config or ~/.gitconfig, put there minutes or months
+// earlier, and every law that asks "is the subcommand push" was comparing
+// against `yolo`. That is a general bypass of every git verb this file guards,
+// with no `$(...)`, no quoting trick and nothing to notice in the command text.
+//
+// The lookup is a CALLBACK rather than a call into rbgitcfg, because this file
+// reads command TEXT and knows nothing about a filesystem; gitcfg.h includes
+// nothing from here and the direction stays that way. A caller that has a repo
+// on disk installs the reader; one that does not (a pure text test) passes
+// nothing and behaves exactly as before.
+//
+// What it deliberately does NOT do: resolve an alias for a name that is also a
+// git builtin. git resolves builtins first, so `alias.status=...` never runs,
+// and pass 7 already documents that same limit for the on-line form.
+typedef bool (*AliasReader)(const string& name, const string& gitDirHint, string& body);
+inline AliasReader& disk_alias_reader() { static AliasReader r = nullptr; return r; }
+
+// WHICH DIRECTORY THE COMMAND WILL RUN IN. The gate's own process cwd is not
+// it: a hook event carries the agent's `cwd`, and the reader has to look for
+// `.git` there, not wherever the binary happens to be. Set by the caller
+// before parse(); empty means "use the process cwd", which is what a plain
+// text test wants.
+inline string& parse_cwd() { static string c; return c; }
+
+// AND AN EARLIER SEGMENT ON THE SAME LINE CAN WRITE ONE.
+//
+//   git config alias.z "push --force"; git z origin main
+//
+// The disk reader above cannot see this: the config file is written by the
+// FIRST segment, at run time, and the gate decides before anything runs. So
+// the parse collects `git config alias.<name> <body>` as it walks the
+// segments, and a later segment on the same line looks there too. Cleared per
+// parse; it is a fact about one command line, not about the machine.
+inline string key_lower(const string& in) {
+  string k = in;
+  for (size_t i = 0; i < k.size(); i++) k[i] = lower_c(k[i]);
+  return k;
+}
+inline vector<std::pair<string, string> >& line_alias_table() {
+  static vector<std::pair<string, string> > t; return t;
+}
+inline bool line_alias_lookup(const string& name, string& body) {
+  const vector<std::pair<string, string> >& t = line_alias_table();
+  for (size_t i = t.size(); i-- > 0;)
+    if (t[i].first == name) { body = t[i].second; return !body.empty(); }
+  return false;
+}
+// `git config [--global|--local|...] alias.<name> <body>` — a definition, not a
+// verb this file guards. Any option is stepped over; only the two operands are
+// read, and only when the key really names an alias.
+inline void note_line_alias(const vector<Word>& t) {
+  const size_t ci = command_index(t);
+  if (ci >= t.size() || !name_is(base_of(t[ci].text), "git")) return;
+  size_t sub = 0;
+  if (!git_subcommand(t, ci, sub) || t[sub].text != "config") return;
+  string key, val; int seen = 0;
+  for (size_t i = sub + 1; i < t.size(); i++) {
+    const string& w = t[i].text;
+    if (!w.empty() && w[0] == '-') continue;
+    if (seen == 0) key = w; else if (seen == 1) val = w;
+    seen++;
+  }
+  if (seen < 2 || key.compare(0, 6, "alias.") != 0) return;
+  string name = key.substr(6);
+  for (size_t i = 0; i < name.size(); i++) name[i] = lower_c(name[i]);
+  if (name.empty() || val.empty()) return;
+  line_alias_table().push_back(std::make_pair(name, plain_value(val)));
+}
+
 inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>* limits) {
   const size_t ci = command_index(t);
   if (ci >= t.size() || !name_is(base_of(t[ci].text), "git")) return;
@@ -1825,12 +1902,38 @@ inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>*
     const string tok = t[sub].text;
     string body;
     if (!git_line_alias(t, ci, sub, tok, body)) {
+      // `git <alias> --help` PRINTS THE MANUAL AND RUNS NOTHING. Measured
+      // against git 2.39.5: `git yolo --help` on an alias of `push --force`
+      // says "'yolo' is aliased to 'push --force'", opens git-push(1) and
+      // exits 0 — the remote is never touched. Expanding it anyway made the
+      // gate refuse a documentation lookup, which is a false reject of the
+      // most annoying kind: the user is READING, and the tool says no.
+      bool asksForHelp = false;
+      for (size_t i = sub + 1; i < t.size(); i++)
+        if (t[i].text == "--help" || t[i].text == "-h") { asksForHelp = true; break; }
+      // a definition earlier on THIS line beats the disk: it is what git will
+      // see by the time this segment runs.
+      if (!asksForHelp && !tok.empty() && tok[0] != '-' && line_alias_lookup(key_lower(tok), body)) {
+        goto have_body;
+      }
+      // the same name, looked for where git would actually find it
+      if (!asksForHelp && disk_alias_reader() && !tok.empty() && tok[0] != '-') {
+        vector<string> chdirs; string gitDir;
+        git_repo_knobs(t, ci, sub, chdirs, gitDir);
+        if (gitDir.empty() && !parse_cwd().empty()) gitDir = parse_cwd() + "/.git";
+        string disk;
+        if (disk_alias_reader()(tok, gitDir, disk) && !disk.empty()) {
+          body = disk;
+          goto have_body;
+        }
+      }
       if (limits && git_configenv_alias(t, ci, sub, tok))
         limits->push_back("an alias named '" + tok + "' is bound by --config-env to an "
                           "environment variable, so what git will run under that name is not "
                           "in this command line");
       return;
     }
+have_body:
     string key = tok;
     for (size_t i = 0; i < key.size(); i++) key[i] = lower_c(key[i]);
     for (size_t i = 0; i < seen.size(); i++) if (seen[i] == key) return;  // an alias cycle
@@ -2073,6 +2176,7 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
     // same line defines is resolved here, so the structural reader sees the
     // subcommand AND the rebuilt text a deny regex is matched against carries
     // it too. A `!` body is a shell program, and joins the scripts below.
+    note_line_alias(sg.words);   // `git config alias.x ...` earlier on this line
     string aliasShell;
     expand_git_alias(sg.words, &aliasShell, &out.limits);
     // and the options that alias body may itself have written as one word: an
@@ -2172,6 +2276,9 @@ inline void emit(const string& text, int group, int parent, Parsed& out, int dep
 }
 
 inline Parsed parse(const string& cmd) {
+  // one command line, one alias table: a definition in the line just parsed
+  // must not still be believed on the next one.
+  line_alias_table().clear();
   Parsed p;
   bool ok = true;
   string why;

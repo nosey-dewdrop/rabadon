@@ -3384,6 +3384,13 @@ int main(int argc, char** argv) {
   const string hook = E.hook;
   string cwd = E.cwd;
   if (cwd.empty()) { const char* c = getenv("PWD"); cwd = c ? c : "."; }
+  // EVERY parse below looks for `.git` where the AGENT is, not where this
+  // binary happens to be: a hook event carries the cwd and the process never
+  // chdir's to it. Set AFTER the fallback above, or an event with no cwd hands
+  // the parser an empty path. Without it the on-disk git alias lookup reads
+  // the wrong repo's config — measured, the alias cases passed by hand and
+  // failed under a harness that runs the gate from elsewhere.
+  rbtext::parse_cwd() = cwd;
 
   // ---------- THREE STATES, and the middle one is the whole adoption ramp -----
   // SILENT  nothing runs. RABADON_OFF=1 (the recursion guard every child
