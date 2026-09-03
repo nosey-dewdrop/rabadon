@@ -60,16 +60,46 @@ judge() {
   echo $?
 }
 
-# THE NAMES. Not a list of shapes someone found; a generated sweep of what a
-# config key can look like, including the ones this project has already been
-# bitten by and the ones it has not.
-NAMES=(
-  yolo YOLO YoLo y1 x-y x_y a.b a.b.c deploy.prod q.q v2.1 dot.
-  .lead a..b "with space" "tab	x" "" - _ -- __ x- -x 9lives
-  push status log commit                 # names that collide with builtins
-  ünlü türkçe-ı ÜNLÜ                     # non-ascii, and the Turkish dotless i
-  a-very-long-name-that-nobody-would-type-but-git-might-accept
-)
+# THE NAMES — A CROSS-PRODUCT, NOT A LIST.
+# The first version of this file held a flat 30-entry array, and a reviewer
+# broke it in five minutes by taking the product of two axes it kept separate:
+# every dotted name in the array was lowercase and every cased name was
+# undotted, so `alias.A.B` — a capital in a SUBSECTION, which git does not fold
+# — was a cell nobody typed. That is the same disease the array was written to
+# cure: a generator seeded by a hand-written list is an enumeration with extra
+# steps.
+#
+# So the names are built here, by multiplying the axes out. git arbitrates
+# every cell: a name it will not store is skipped and counted, a name it
+# resolves must be refused, a harmless body must not be.
+NAMES=()
+for case in lower UPPER Mixed; do
+  for shape in plain one-dot two-dot lead-dot double-dot trail-dot dash under digit; do
+    base=""
+    case "$shape" in
+      plain)      base="deploy" ;;
+      one-dot)    base="deploy.prod" ;;
+      two-dot)    base="deploy.prod.eu" ;;
+      lead-dot)   base=".deploy" ;;
+      double-dot) base="deploy..prod" ;;
+      trail-dot)  base="deploy." ;;
+      dash)       base="de-ploy" ;;
+      under)      base="de_ploy" ;;
+      digit)      base="deploy2" ;;
+    esac
+    case "$case" in
+      lower) NAMES+=("$base") ;;
+      UPPER) NAMES+=("$(printf '%s' "$base" | tr 'a-z' 'A-Z')") ;;
+      Mixed) NAMES+=("$(printf '%s' "$base" | awk '{ for(i=1;i<=length($0);i++){ c=substr($0,i,1); printf (i%2 ? toupper(c) : c) } }')") ;;
+    esac
+  done
+done
+# and the shapes a product does not reach: names that collide with a git
+# builtin, non-ASCII including the Turkish dotless i (where a naive
+# lowercase differs from a locale-aware one), whitespace, and the empty name.
+NAMES+=(push status log commit ünlü türkçe-ı ÜNLÜ "with space" "tab	x" "" - _ 9lives
+        a-very-long-name-that-nobody-would-type-but-git-might-accept)
+
 BODY_DANGEROUS='push --force'
 BODY_BANG='!rm -rf ~/Documents'
 BODY_SAFE='log --oneline -2'
@@ -104,7 +134,10 @@ for name in "${NAMES[@]}"; do
     # itself only reaches through `git config alias..lead`. Reported here, in
     # the suite, so it stays visible and counted rather than being quietly
     # excluded: a limit named is not the same as a hole hidden.
-    if [ "$name" = ".lead" ]; then
+    # keyed on the SHAPE, not on one spelling: any name whose first character
+    # is a dot lands in an empty subsection, and the product generates three of
+    # them (lower/UPPER/Mixed).
+    if [ "${name#.}" != "$name" ]; then
       LIMITS=$((LIMITS + 1)); "$REALGIT" -C "$REPO" config --unset-all "alias.$name" 2>/dev/null; continue
     fi
     CHECKED=$((CHECKED + 1))
@@ -121,9 +154,9 @@ for name in "${NAMES[@]}"; do
   done
 done
 [ "$FAIL" = "0" ] && pass "every one of $CHECKED resolvable (name, body) pairs agreed with git, from 3 directories ($SKIPPED name(s) git itself refused, $LIMITS named limit(s) below)"
-[ "$LIMITS" = "3" ] \
-  && pass "the empty-subsection name (\`git config alias..x\`) is the one known divergence — 1 name x 3 bodies, counted, not hidden" \
-  || bad "the named-limit count moved: expected 3 (one name, three bodies), got $LIMITS — a limit appeared or disappeared without anyone saying so"
+[ "$LIMITS" = "9" ] \
+  && pass "the empty-subsection shape (\`git config alias..x\`) is the one known divergence — 3 spellings x 3 bodies, counted, not hidden" \
+  || bad "the named-limit count moved: expected 9 (three leading-dot spellings, three bodies), got $LIMITS — a limit appeared or disappeared without anyone saying so"
 
 # THE ORACLE MUST BE ABLE TO FAIL. A suite that cannot go red proves nothing,
 # so drive a name the gate is known to handle and assert the harness sees a

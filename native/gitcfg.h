@@ -478,7 +478,11 @@ inline bool disk_alias_body(const string& name, const string& gitDirHint,
     files.push_back(std::make_pair(aenv.includes[i], string("in -c include.path on the line")));
   vector<Value> vals;
   Limits lim;
-  const string want = "alias." + name;
+  // git's own folding rule, per component: section and variable fold, the
+  // subsection does not. `fold_config_key` is that rule, and it is the one
+  // this file must use — a name lowercased whole looks up a key that is not
+  // the one on disk (measured 2026-09-03).
+  const string want = rbtext::fold_config_key("alias." + name);
   for (size_t i = 0; i < files.size(); i++)
     read_file(files[i].first, want, files[i].second, vals, 0, lim);
   if (vals.empty()) return false;

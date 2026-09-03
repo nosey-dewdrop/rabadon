@@ -195,7 +195,7 @@ instrumentation and no memory of what happened.
 
 | window | refusals | declared wrong | rate |
 |--------|----------|----------------|------|
-| all 27 days with traffic (2026-08-04 → 09-02) | 521 | 70 | 13 % |
+| all 29 days with traffic (2026-08-04 → 09-02) | 521 | 70 | 13.4 % |
 | since 2026-08-28 | 126 | 1 | **0.8 %** |
 
 Both rows are real and the difference between them is the whole story: **69 of

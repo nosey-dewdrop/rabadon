@@ -2000,7 +2000,15 @@ inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>*
           if (kl == "include.path") aenv.includes.push_back(plain_value(v));
         }
         string disk;
-        if (disk_alias_reader()(key_lower(tok), gitDir, aenv, disk) && !disk.empty()) {
+        // NOT key_lower(). A config key folds case on the SECTION and the
+        // VARIABLE and NOT on the subsection — measured against git 2.39.5:
+        // `alias.A.B` is resolved by `git A.B` and `git A.b`, and not by
+        // `git a.b`. Lowercasing the whole token asked for `alias.a.b` while
+        // the file held `[alias "A"] B`, so an alias with a capital in its
+        // subsection ran past every git law (found by an outside reviewer,
+        // 2026-09-03 — the fifth bypass in this one lookup). The reader is
+        // handed the name as typed and folds it the way git does.
+        if (disk_alias_reader()(tok, gitDir, aenv, disk) && !disk.empty()) {
           body = disk;
           goto have_body;
         }

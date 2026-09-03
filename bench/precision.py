@@ -19,6 +19,7 @@ if "--since" in sys.argv:
     since = sys.argv[sys.argv.index("--since") + 1]
 
 stops = collections.Counter(); wrongs = collections.Counter()
+traffic_days = set()
 by_day = collections.defaultdict(lambda: [0, 0])
 examples = {}
 for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
@@ -30,10 +31,14 @@ for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
         except Exception:
             continue
         ev = d.get("ev")
-        if ev not in ("STOP", "WRONG_REFUSAL") or not d.get("ts"):
+        if not d.get("ts"):
             continue
         day = datetime.datetime.fromtimestamp(d["ts"] / 1000).strftime("%Y-%m-%d")
         if since and day < since:
+            continue
+        if ev in ("STEP_START", "STOP"):
+            traffic_days.add(day)
+        if ev not in ("STOP", "WRONG_REFUSAL"):
             continue
         rule = d.get("rule", "?")
         if ev == "STOP":
@@ -46,7 +51,12 @@ S, W = sum(stops.values()), sum(wrongs.values())
 if not S:
     print("no refusals in the ledger" + (f" since {since}" if since else "")); sys.exit(0)
 
-label = f"since {since}" if since else f"{len(by_day)} days"
+# DAYS WITH TRAFFIC, not days that happen to contain a refusal. `len(by_day)`
+# counted the latter and printed "17 days" for a window the docs call 27 and
+# `irreversible.py` calls 29 — three numbers for one ledger, caught by two
+# consecutive outside reviews. A tool whose headline is "the number is
+# published either way" cannot afford a wrong denominator.
+label = f"since {since}" if since else f"{len(traffic_days)} days with traffic"
 print(f"refusals {label}: {S}    declared wrong by the operator: {W}    "
       f"false-positive rate: {100*W/S:.1f}%")
 print("\n  %-34s %8s %7s %6s" % ("rule", "refused", "wrong", "rate"))
