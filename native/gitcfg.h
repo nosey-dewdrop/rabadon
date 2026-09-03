@@ -388,18 +388,61 @@ inline bool last_value(const vector<rbtext::Word>& t, size_t gi, size_t sub, con
 //
 // A `!shell` body is returned verbatim; cmdtext's expander already knows that
 // shape and hands it to the machinery that reads a command out of a script.
-inline bool disk_alias_body(const string& name, const string& gitDirHint, string& body) {
+inline bool disk_alias_body(const string& name, const string& gitDirHint,
+                            const rbtext::AliasEnv& aenv, string& body) {
   if (name.empty()) return false;
   for (size_t i = 0; i < name.size(); i++)
     if (!(isalnum((unsigned char)name[i]) || name[i] == '-' || name[i] == '_')) return false;
-  string gitDir = gitDirHint;
-  if (gitDir.empty()) {
-    // the ordinary case: a .git beside the working directory
+  // WHERE THE USER IS STANDING IS NOT THE TOP OF THE REPO. A developer works in
+  // `src/`, and git walks UP until it finds the repo — so an alias configured
+  // in .git/config answers there exactly as it does at the root. This function
+  // used to `stat(".git")` in the gate's own process directory: at the repo
+  // root it found the alias and refused; one `cd src/` and the same command
+  // ran. Measured 2026-09-03 by an outside reviewer, and the common case, not
+  // an exotic one — 97 green checks missed it because every alias case in the
+  // grid stood at the root.
+  //
+  // pathres.h already answers this correctly for the force-push law itself
+  // (upward walk, `.git` as a FILE for linked worktrees and submodules, bare
+  // repos). The alias path simply was not calling it. It is called here rather
+  // than from cmdtext.h because that file must not learn about a filesystem;
+  // this one already includes pathres.h.
+  string gitDir = gitDirHint.empty() ? string() : rbpath::git_dir_at(
+      gitDirHint.size() > 5 && gitDirHint.compare(gitDirHint.size() - 5, 5, "/.git") == 0
+        ? gitDirHint.substr(0, gitDirHint.size() - 5) : gitDirHint);
+  if (gitDir.empty() && !gitDirHint.empty()) {
     struct stat st;
-    if (stat(".git", &st) == 0) gitDir = S_ISDIR(st.st_mode) ? ".git" : "";
+    if (stat(gitDirHint.c_str(), &st) == 0) gitDir = gitDirHint;  // an explicit --git-dir
   }
+  if (gitDir.empty()) {
+    // walk up from where the command will run, the way git does. The hint the
+    // caller passes is `<cwd>/.git` when nothing on the line named a repo, so
+    // the walk starts at that cwd; with no hint at all there is nothing to
+    // walk and the lookup simply finds nothing.
+    string dir = gitDirHint;
+    if (dir.size() > 5 && dir.compare(dir.size() - 5, 5, "/.git") == 0)
+      dir = dir.substr(0, dir.size() - 5);
+    for (int up = 0; up < 64 && !dir.empty(); up++) {
+      const string g = rbpath::git_dir_at(dir);
+      if (!g.empty()) { gitDir = g; break; }
+      const size_t slash = dir.rfind('/');
+      if (slash == string::npos || slash == 0) break;
+      dir = dir.substr(0, slash);
+    }
+  }
+  if (!aenv.gitDir.empty()) gitDir = aenv.gitDir;
   vector<std::pair<string, string> > files;
   config_files(gitDir, files);
+  // A `GIT_CONFIG_GLOBAL=` / `GIT_CONFIG_SYSTEM=` prefix on the command LINE
+  // replaces what config_files() read from this process's environment: the
+  // shell that runs the command will see the prefix, this process does not.
+  // Appended last so it wins, the way git's own last-value-wins works.
+  if (!aenv.configGlobal.empty())
+    files.push_back(std::make_pair(aenv.configGlobal, string("in $GIT_CONFIG_GLOBAL on the line")));
+  if (!aenv.configSystem.empty())
+    files.push_back(std::make_pair(aenv.configSystem, string("in $GIT_CONFIG_SYSTEM on the line")));
+  for (size_t i = 0; i < aenv.includes.size(); i++)
+    files.push_back(std::make_pair(aenv.includes[i], string("in -c include.path on the line")));
   vector<Value> vals;
   Limits lim;
   const string want = "alias." + name;

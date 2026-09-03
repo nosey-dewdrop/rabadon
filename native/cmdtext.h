@@ -1305,14 +1305,34 @@ inline bool expand_word(const string& w, const vector<Binding>& env, vector<stri
   return any;
 }
 
+// QUOTES INSIDE THE BODY ARE THE SHELL'S, AND GIT HONOURS THEM. An alias body
+// is not a bare word list: git splits it the way a shell would, so
+// `alias.inner = "-c alias.zz='push --force' zz"` is FOUR words, the third of
+// which carries a space. Splitting on whitespace alone made it six, the `-c`
+// pair never matched `alias.<name>=<body>`, and an alias whose body defines
+// another alias walked past every git law (found here 2026-09-03 while probing
+// for a cell the new grid missed). The quote characters are dropped, as a
+// shell drops them, so the token that reaches a law is what git will see.
 inline void split_ws(const string& s, vector<Word>& out) {
   size_t i = 0;
   while (i < s.size()) {
     while (i < s.size() && ws(s[i])) i++;
-    size_t j = i;
-    while (j < s.size() && !ws(s[j])) j++;
-    if (j > i) out.push_back(Word{s.substr(i, j - i), false});
-    i = j;
+    if (i >= s.size()) break;
+    string cur;
+    bool any = false;
+    while (i < s.size() && !ws(s[i])) {
+      const char c = s[i];
+      if (c == '\'' || c == '"') {
+        const char q = c;
+        i++;
+        while (i < s.size() && s[i] != q) { cur += s[i]; i++; }
+        if (i < s.size()) i++;   // the closing quote
+        any = true;
+        continue;
+      }
+      cur += c; i++; any = true;
+    }
+    if (any) out.push_back(Word{cur, false});
   }
 }
 
@@ -1837,7 +1857,23 @@ inline bool git_configenv_alias(const vector<Word>& t, size_t gi, size_t sub, co
 // What it deliberately does NOT do: resolve an alias for a name that is also a
 // git builtin. git resolves builtins first, so `alias.status=...` never runs,
 // and pass 7 already documents that same limit for the on-line form.
-typedef bool (*AliasReader)(const string& name, const string& gitDirHint, string& body);
+// The third argument is what a `VAR=... git ...` prefix on THIS line sets for
+// git's own config lookup: `GIT_CONFIG_GLOBAL=other git zap` makes git read a
+// different file than the process environment says, and the reader has to see
+// that or it enumerates the wrong files (measured 2026-09-03, exit 0). Empty
+// when the line sets nothing, which is the ordinary case.
+struct AliasEnv {
+  string configGlobal, configSystem, gitDir;
+  // `-c include.path=<file>` on the line pulls in ANOTHER config file, and an
+  // alias defined there is one git will run. The disk reader follows
+  // `include.path` inside the files it enumerates, but a path named on the
+  // command line was never one of them (measured 2026-09-03: exit 0). Every
+  // such value, in order, appended after the enumerated files so the last one
+  // wins as git's own last-value-wins does.
+  vector<string> includes;
+};
+typedef bool (*AliasReader)(const string& name, const string& gitDirHint,
+                            const AliasEnv& env, string& body);
 inline AliasReader& disk_alias_reader() { static AliasReader r = nullptr; return r; }
 
 // WHICH DIRECTORY THE COMMAND WILL RUN IN. The gate's own process cwd is not
@@ -1943,8 +1979,28 @@ inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>*
           gitDir = dir + "/.git";
         }
         if (gitDir.empty() && !parse_cwd().empty()) gitDir = parse_cwd() + "/.git";
+        // the config files this LINE points git at, not the ones this process
+        // happens to have in its environment
+        AliasEnv aenv;
+        for (size_t i = 0; i < ci; i++) {
+          const string& w = t[i].text;
+          const size_t eq = w.find('=');
+          if (eq == string::npos) continue;
+          const string n = w.substr(0, eq), v = plain_value(w.substr(eq + 1));
+          if (n == "GIT_CONFIG_GLOBAL") aenv.configGlobal = v;
+          else if (n == "GIT_CONFIG_SYSTEM") aenv.configSystem = v;
+          else if (n == "GIT_DIR") aenv.gitDir = v;
+        }
+        for (size_t i = ci + 1; i + 1 < sub && i + 1 < t.size(); i++) {
+          if (t[i].text != "-c") continue;
+          string k, v;
+          if (!git_config_pair(t[i + 1].text, k, v)) continue;
+          string kl = k;
+          for (size_t x = 0; x < kl.size(); x++) kl[x] = lower_c(kl[x]);
+          if (kl == "include.path") aenv.includes.push_back(plain_value(v));
+        }
         string disk;
-        if (disk_alias_reader()(key_lower(tok), gitDir, disk) && !disk.empty()) {
+        if (disk_alias_reader()(key_lower(tok), gitDir, aenv, disk) && !disk.empty()) {
           body = disk;
           goto have_body;
         }

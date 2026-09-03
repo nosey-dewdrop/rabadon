@@ -302,6 +302,58 @@ allows "a read alias in ~/.gitconfig" "$REPO" "git homeread"
 blocks "a disk alias chained"       "$ALIASREPO" "git gridchain origin main"
 blocks "a disk bang alias"          "$ALIASREPO" "git gridbang"
 
+# --- axis: the body is itself a definition ---------------------------------
+# git splits an alias body the way a shell does, so quotes inside it hold a
+# word together. Splitting on whitespace alone made
+# `alias.inner = "-c alias.zz='push --force' zz"` six words instead of four,
+# the -c pair never matched, and an alias whose BODY defines another alias
+# walked past every law. Found while probing for a cell this grid missed,
+# 2026-09-03 — the grid's own axes did not reach it either.
+"$REALGIT" -C "$ALIASREPO" config alias.gridinner "-c alias.zz='push --force' zz"
+"$REALGIT" -C "$ALIASREPO" config alias.gridquoted "push '--force' origin main"
+"$REALGIT" -C "$ALIASREPO" config alias.gridsafe "-c color.ui=false log --oneline"
+blocks "a body that defines an alias" "$ALIASREPO" "git gridinner origin main"
+blocks "the same, cased"              "$ALIASREPO" "git GRIDINNER origin main"
+blocks "quotes around a flag in body" "$ALIASREPO" "git gridquoted"
+allows "a body with a harmless -c"    "$ALIASREPO" "git gridsafe"
+
+# --- AXIS FIVE: WHERE THE USER IS STANDING ---------------------------------
+# The four axes above all vary what you TYPE. None varied where you ARE, and
+# every disk-alias case ran at the repo root — so the fix looked complete while
+# one `cd src/` walked straight through it. A developer works in a
+# subdirectory; that is the common case, not an exotic cell. Found by an
+# outside reviewer on 2026-09-03 with 97 checks green.
+#
+# git walks UP from the cwd until it finds the repo, and so must the alias
+# lookup: subdirectory, nested subdirectory, a linked worktree whose `.git` is
+# a FILE, and `-C <subdir>` all resolve the same repo.
+mkdir -p "$ALIASREPO/src/deep"
+blocks "from a subdirectory"        "$ALIASREPO/src" "git gridpush origin main"
+blocks "from a nested subdirectory" "$ALIASREPO/src/deep" "git gridpush origin main"
+blocks "subdirectory plus casing"   "$ALIASREPO/src" "git GRIDPUSH origin main"
+blocks "-C at a SUBdirectory"       "$REPO" "git -C $ALIASREPO/src gridpush origin main"
+blocks "a bang body from a subdir"  "$ALIASREPO/src" "git gridbang"
+allows "a read alias from a subdir" "$ALIASREPO/src" "git gridread"
+allows "ordinary push from a subdir" "$ALIASREPO/src" "git push origin feature/mine"
+# a linked worktree: `.git` is a FILE holding `gitdir: ...`, and the alias in
+# the main repo's config still answers there.
+if "$REALGIT" -C "$ALIASREPO" worktree add -q "$ROOT/gridwt" -b gridwtbranch 2>/dev/null; then
+  blocks "from a linked worktree"   "$ROOT/gridwt" "git gridpush origin main"
+  allows "a read alias in a worktree" "$ROOT/gridwt" "git gridread"
+else
+  echo "  (skip) git worktree unavailable — the .git-as-a-FILE cell was NOT measured"
+fi
+
+# --- AXIS SIX: the alias is in a file the reader never enumerated ----------
+# Three ways a command line points git at config the enumerator does not know
+# about. All three were exit 0 on 2026-09-03, in silence, which is worse than a
+# named limit: this project's standard is that a gap gets named, not glossed.
+blocks "-c include.path pulls it in" "$REPO" "git -c include.path=$ALIASREPO/.git/config gridpush origin main"
+blocks "GIT_CONFIG_GLOBAL= on the line" "$REPO" "GIT_CONFIG_GLOBAL=$ALIASREPO/.git/config git gridpush origin main"
+blocks "GIT_DIR= on the line"        "$REPO" "GIT_DIR=$ALIASREPO/.git git gridpush origin main"
+allows "a harmless -c is not a file" "$REPO" "git -c color.ui=false status"
+allows "an include with no alias"    "$REPO" "git -c include.path=/dev/null status"
+
 # --- the axes crossed with the line forms already covered above ------------
 blocks "-c overrides a disk alias"  "$ALIASREPO" "git -c alias.gridread='push --force' gridread origin main"
 allows "-c overrides toward safety" "$ALIASREPO" "git -c alias.gridpush=status gridpush"
