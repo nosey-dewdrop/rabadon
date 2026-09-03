@@ -46,6 +46,7 @@ GATE="$HERE/rabadon-gate"
 
 ROOT=$(mktemp -d "${TMPDIR:-/tmp}/rabadon-gitverbs.XXXXXX")
 trap 'rm -rf "$ROOT"' EXIT
+REAL_HOME="$HOME"          # before the redirect: section 2b needs a non-temp path
 export HOME="$ROOT/home"
 export RABADON_DIR="$ROOT/home/.rabadon"
 export RABADON_NOTIFY=0
@@ -147,8 +148,13 @@ for n in git rm rmdir shred unlink find xargs; do
   chmod +x "$FAKE/$n"
 done
 
+# A FRESH SESSION PER CALL. loop-stop refuses the third identical command in one
+# session and returns the same exit 2 a law does, so a fixed session_id makes a
+# repeated line look refused BY A LAW when nothing here judged it. Measured
+# elsewhere in this repo: two outside reviews nearly filed a false "clean" on it.
 judge() {   # $1 command -> prints BLOCK or ALLOW
-  printf '{"hook_event_name":"PreToolUse","session_id":"gv","cwd":"%s","tool_name":"Bash","tool_input":{"command":%s}}' \
+  printf '{"hook_event_name":"PreToolUse","session_id":"gv-%s-%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":%s}}' \
+    "$$" "$RANDOM$RANDOM" \
     "$PROJ" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")" \
     | PATH="$FAKE:$PATH" "$GATE" >/dev/null 2>&1
   [ $? -eq 2 ] && echo BLOCK || echo ALLOW
@@ -195,6 +201,70 @@ must_not_block "git reflog expire --expire=90.days.ago"
 must_not_block "git reflog"
 must_not_block "echo 'never run git reset --hard @{u} on main' >> NOTES.md"
 must_not_block "grep -rn 'git clean -xfd' docs/"
+echo
+
+# ---------------------------------------------------------------------------
+# 2b. MOVING IS NOT DELETING -- except when the destination already exists.
+#
+# `rm -rf <outside>` is refused and `mv <outside> /tmp/x` was allowed, one verb
+# apart. The corpus filed that as a hole. It is not, and the difference was
+# MEASURED in a scratch repo rather than argued:
+#
+#   mv home/important /tmp/gone   -> the bytes are still readable at /tmp/gone.
+#                                    The path moved; nothing was destroyed. A
+#                                    refusal here is a false one.
+#   mv b.txt a.txt (a.txt EXISTS) -> a.txt's old contents are gone. No reflog,
+#                                    no trash, nothing to undo it with. That is
+#                                    the same loss `> a.txt` causes, and the
+#                                    redirect law already refuses that one.
+#
+# So the axis is not the verb, it is whether the DESTINATION ALREADY HOLDS
+# SOMETHING. Outside the project tree git cannot undo it either way, which is
+# the same containment question every law in this file asks.
+echo "2b. mv: the destination decides, not the verb"
+# THE LAB MUST NOT BE UNDER TEMP FOR THIS ONE. in_temp_area() in pathres.h calls
+# anything below the machine's temp roots disposable -- correct, and it means a
+# fixture built in mktemp can never produce an out-of-tree landing: land_of()
+# answers CONTAINED and no law fires. Redirecting HOME does not help, because
+# the check is on the RESOLVED path, not on $HOME. Measured while writing this:
+# with the fixture under mktemp, `land_of` returned CONTAINED(2) and the section
+# could not fail no matter what the law did; moved outside temp it returns
+# ESCAPES(3). So this section builds its own lab beside the real home and takes
+# it away again, and it asserts the premise first so a future move back under
+# temp shows up as a failure here rather than as a section that always passes.
+# beside the REAL home (saved before HOME was redirected), which is the one
+# place guaranteed not to be temp. Removed at the end of the section and by the
+# EXIT trap, so nothing survives the run.
+# THE NAME MATTERS. word_could_name_law() makes a segment relevant when any
+# operand looks like it could name a guard file, and "rabadon" in the path is
+# enough. With this lab called .rabadon-outlab every case below passed even with
+# the relevance filter for mv/cp deleted from baseline.h -- the fixture was
+# rescuing the law it was supposed to be testing. Measured: filter removed, the
+# real gate answered exit 0 on the same command this section called refused.
+# The name carries nothing rabadon looks for.
+OUT_LAB=$(mktemp -d "$REAL_HOME/.gv-outlab.XXXXXX")
+trap 'rm -rf "$ROOT" "$OUT_LAB"' EXIT
+mkdir -p "$OUT_LAB/outside"
+echo "three months of work" > "$OUT_LAB/outside/occupied.txt"
+# PREMISE: this path must really be outside anything the resolver forgives.
+# If it is not, every must_block below would pass vacuously.
+if [ "$(judge "rm -rf $OUT_LAB/outside")" = BLOCK ]; then
+  ok "premise: $OUT_LAB is a true out-of-tree landing (rm -rf there is refused)"
+else
+  bad "premise FAILED: rm -rf $OUT_LAB/outside was allowed, so this lab is inside a forgiven area (temp?) and every mv/cp case below would pass without testing anything"
+fi
+
+# the destructive spelling: an existing file outside the tree is overwritten
+must_block "mv $PROJ/keep/file.txt $OUT_LAB/outside/occupied.txt"
+must_block "cp $PROJ/keep/file.txt $OUT_LAB/outside/occupied.txt"
+
+# the twins: nothing is destroyed, and a refusal here would be the expensive
+# kind of wrong (see the 02:25 incident in baseline.h's redirect law)
+must_not_block "mv $PROJ/keep/file.txt $OUT_LAB/outside/does-not-exist-yet.txt"
+must_not_block "mv $PROJ/keep/file.txt $PROJ/keep/renamed.txt"
+must_not_block "cp $PROJ/keep/file.txt $OUT_LAB/outside/fresh-copy.txt"
+must_not_block "mv $PROJ/keep/file.txt $OUT_LAB/outside/"
+rm -rf "$OUT_LAB"
 echo
 
 # ---------------------------------------------------------------------------

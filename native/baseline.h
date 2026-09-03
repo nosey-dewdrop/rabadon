@@ -1736,6 +1736,72 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     }
   }
 
+  // ---- the same loss, spelled without deleting anything ------------------
+  //
+  // `rm -rf <outside>` was refused and `mv <file> <outside>` was allowed, one
+  // verb apart, and the corpus filed that as a hole. It is not one, and the
+  // difference was MEASURED rather than argued:
+  //
+  //   mv home/important /tmp/gone     the bytes are still readable at /tmp/gone.
+  //                                   The path moved; nothing was destroyed.
+  //   mv b.txt a.txt, a.txt EXISTING  a.txt's old contents are gone. No reflog,
+  //                                   no trash, nothing to undo it with.
+  //
+  // So the axis is not the verb, it is whether the DESTINATION ALREADY HOLDS
+  // SOMETHING. That is the same loss `> a.txt` causes, and the truncating-redirect
+  // law above already refuses that one outside the tree — this is that law's
+  // twin for the verbs that carry a source with them.
+  //
+  // ONLY THE LAST OPERAND IS THE DESTINATION, and only when it names a file
+  // that exists NOW. `mv a b c dir/` moves into a directory and destroys
+  // nothing; a destination that does not exist yet destroys nothing; a
+  // destination inside the project tree is recoverable by git, which is the
+  // same containment question every law in this file asks. Each of those is a
+  // twin in git_verbs_test.sh section 2b, because a false refusal on an
+  // ordinary `mv` is the expensive kind of wrong (the 02:25 incident in the
+  // redirect law above).
+  if (!disabled_has(disabled, "baseline-overwrite-outside")) {
+    static const char* kMoveVerbs[] = {"mv", "cp", "install"};
+    bool moving = false;
+    for (const char* v : kMoveVerbs) if (rbtext::name_is(name, v)) { moving = true; break; }
+    if (moving) {
+      vector<string> operands;
+      for (size_t i = ci + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (!w.empty() && w[0] == '-') continue;      // an option is not a path
+        operands.push_back(w);
+      }
+      // one operand is a malformed command; two or more means the last is the
+      // destination. `-t DIR` reverses that, so a line carrying it is left alone
+      // rather than judged on the wrong operand.
+      bool targetFirst = false;
+      for (size_t i = ci + 1; i < t.size(); i++)
+        if (t[i].text == "-t" || t[i].text.compare(0, 9, "--target-") == 0) targetFirst = true;
+      if (operands.size() >= 2 && !targetFirst) {
+        const string& dest = operands.back();
+        const string abs = rbpath::lexical_abs(rbpath::expand_known_vars(dest), cwd);
+        struct stat st;
+        // a directory destination is a move INTO it: nothing is overwritten
+        const bool existingFile = !abs.empty() && ::stat(abs.c_str(), &st) == 0 &&
+                                  !S_ISDIR(st.st_mode);
+        if (existingFile) {
+          const bool scratchCwd = is_temp_root(root);
+          const Land L = land_of(dest, cwd, scratchCwd ? string() : root);
+          if (L.where == rbpath::ESCAPES) {
+            hit = {"baseline-overwrite-outside",
+                   string("`") + name + "` onto an existing file outside the project tree "
+                   "replaces it, and git cannot undo it there",
+                   string(name) + " would overwrite '" + dest + "', which resolves to " +
+                   L.real + ", outside the project tree (" + root + ") — that file's "
+                   "contents are gone the moment it runs. Move it aside first, or "
+                   "write to a name nothing holds"};
+            return true;
+          }
+        }
+      }
+    }
+  }
+
   if (!disabled_has(disabled, "baseline-rm-rf-outside")) {
     const rbpath::Delete d = rbpath::delete_of(t);
     if (!d.isDelete || !rbtext::name_is(name, "rm")) return false;
@@ -1847,6 +1913,18 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd,
     const string b = rbtext::base_of(p.segs[s].words[ci].text);
     relevant = relevant || rbtext::name_is(b, "git") || rbpath::is_delete_command(b) ||
                rbtext::is_content_destroyer(b);
+    // AND THE VERBS THAT OVERWRITE WITHOUT DELETING. mv/cp/install carry a
+    // source, so they are on none of the lists above — `is_delete_command` says
+    // no because nothing is unlinked, `is_content_destroyer` says no because
+    // nothing is truncated in place. Measured: `mv a.txt b.txt` with b.txt
+    // existing leaves b.txt's old contents unrecoverable, no reflog and no
+    // trash, which is the loss `> b.txt` causes and the redirect law already
+    // refuses. Without this line baseline-overwrite-outside never ran, because
+    // the segment was declined here before any law was asked. Three name
+    // comparisons, and only while the law is on.
+    if (!relevant && !disabled_has(disabled, "baseline-overwrite-outside"))
+      relevant = rbtext::name_is(b, "mv") || rbtext::name_is(b, "cp") ||
+                 rbtext::name_is(b, "install");
     // THE SUPERVISION TREE MAKES A SEGMENT RELEVANT WHATEVER THE VERB IS.
     //
     // This filter is the laws' own precondition, and it named the verbs the
