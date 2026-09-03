@@ -215,6 +215,70 @@ RC=$(run "$PROJ" "rm -f $RABADON_DIR/enabled")
   && pass "the refusal is on the ledger under its own rule id" \
   || fail "no baseline-supervision-tamper record on the spool"
 
+# WRITING INTO THE LEDGER IS TAMPERING TOO, and it was the half nobody asked
+# about. Every case above REMOVES something. These two ADD to the day file or
+# rewrite it where it lies, and both were allowed with exit 0 while `> <day>`
+# was refused:
+#
+#   echo x >> <day>.jsonl    the truncating-redirect law skips appends by
+#                            design -- an append destroys nothing -- and the
+#                            supervision check sat UNDERNEATH that skip, so a
+#                            `>>` aimed at the chained file never reached a law.
+#   sed -i '' s/a/b/ <day>   in-place edit: the exact thing `rabadon audit`
+#                            exists to convict, walking past the gate that is
+#                            supposed to make the audit meaningful.
+#
+# A line appended by hand breaks the chain for every line after it, and a line
+# edited in place breaks it from that point on. Either one turns a verifiable
+# day into an unverifiable one -- which is the same loss as deleting it, spelled
+# as a write.
+echo "the ledger is not append-only to everyone else"
+while IFS='|' read -r desc cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run "$PROJ" "$cmd")
+  [ "$RC" = "2" ] && pass "refused: $desc" || fail "NOT refused ($RC): $cmd"
+done <<EOF
+a line appended to the chained day file|echo x >> $RABADON_DIR/spool/2026-01-01.jsonl
+the same append with printf|printf x >> $RABADON_DIR/spool/2026-01-01.jsonl
+a file appended onto the day file|cat /etc/hosts >> $RABADON_DIR/spool/2026-01-01.jsonl
+the head sidecar appended to|echo aa >> $RABADON_DIR/spool/2026-01-01.jsonl.head
+the day file edited where it lies|sed -i '' 's/a/b/' $RABADON_DIR/spool/2026-01-01.jsonl
+the same edit through perl|perl -pi -e 's/a/b/' $RABADON_DIR/spool/2026-01-01.jsonl
+EOF
+
+# THE TWINS. An append is ordinary work everywhere else, and a law that refused
+# every `>>` would refuse the shape agents write most. Only the supervision tree
+# is special, and only because rabadon's own record lives there.
+while IFS='|' read -r desc cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run "$PROJ" "$cmd")
+  [ "$RC" = "0" ] && pass "allowed: $desc" || fail "REFUSED ($RC), must allow: $cmd"
+done <<EOF
+an append inside the project|echo x >> $PROJ/notes.md
+an append to a log in the project|printf 'l\n' >> $PROJ/build.log
+sed -i on a project file|sed -i '' 's/a/b/' $PROJ/notes.md
+a project file that merely NAMES the spool|echo 'see ~/.rabadon/spool' >> $PROJ/notes.md
+EOF
+
+# READING THE LEDGER IS NOT TAMPERING WITH IT, and this is the half a careless
+# fix breaks. `rabadon usage`, `rabadon audit` and every operator who wants to
+# know what happened read these files; a law that refused sed on the spool would
+# refuse looking at your own record. Only the IN-PLACE flag writes, so only the
+# in-place flag is judged -- the same distinction the flag test in baseline.h
+# makes, asserted from outside it.
+while IFS='|' read -r desc cmd; do
+  [ -z "$desc" ] && continue
+  RC=$(run "$PROJ" "$cmd")
+  [ "$RC" = "0" ] && pass "allowed: $desc" || fail "REFUSED ($RC), must allow: $cmd"
+done <<EOF
+sed printing a day of the ledger|sed -n '1,5p' $RABADON_DIR/spool/2026-01-01.jsonl
+sed rewriting to stdout, not in place|sed 's/a/b/' $RABADON_DIR/spool/2026-01-01.jsonl
+grep on the ledger|grep CHECK_FAIL $RABADON_DIR/spool/2026-01-01.jsonl
+cat on the ledger|cat $RABADON_DIR/spool/2026-01-01.jsonl
+perl reading the ledger without -i|perl -ne 'print' $RABADON_DIR/spool/2026-01-01.jsonl
+sed asked for its version|sed --version
+EOF
+
 # THE VERB IS NOT THE POINT, THE TARGET IS. `mv <dir>/enabled /tmp/x` disarms the
 # gate exactly as rm does, and it returned 0 while the rm spelling returned 2 —
 # the relevance pre-filter in check_parsed listed the verbs the older laws act

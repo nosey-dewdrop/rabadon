@@ -1160,8 +1160,25 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const stri
     if (!disabled_has(disabled, "baseline-truncating-redirect")) {
       for (size_t r = 0; r < p.segs[s].redirs.size(); r++) {
         const rbtext::Redir& rd = p.segs[s].redirs[r];
-        if (rd.op.find('>') == string::npos || rbtext::redir_appends(rd)) continue;
+        if (rd.op.find('>') == string::npos) continue;
         if (rd.target.empty() || rd.target.compare(0, 5, "/dev/") == 0) continue;
+        // THE SUPERVISION TREE IS ASKED BEFORE THE APPEND SKIP, and that order
+        // is the whole point of these four lines. An append destroys nothing, so
+        // the truncating law rightly ignores `>>` everywhere else — but the
+        // ledger is a HASH CHAIN, and a line appended to it by any hand other
+        // than append() breaks every line after it exactly as an edit does. A
+        // day that can no longer be verified is lost the same way a deleted day
+        // is lost; it just reads as a write instead of a delete.
+        //
+        // Measured before this moved: `> <day>.jsonl` exit 2, `echo x >>
+        // <day>.jsonl` exit 0, on the same file in the same lab. The supervision
+        // check sat below the `redir_appends` skip, so no `>>` ever reached it.
+        if (!disabled_has(disabled, "baseline-supervision-tamper") &&
+            inside_supervision(rd.target, cwds[s])) {
+          hit = supervision_hit(rd.target, "the redirection '" + rd.op + "' at");
+          return true;
+        }
+        if (rbtext::redir_appends(rd)) continue;
         // `2>&1` is a DESCRIPTOR DUPLICATION, not a write. It opens nothing,
         // creates nothing, truncates nothing, and there is no file named `1`
         // anywhere in it. The operator carries a `>`, so this law read it as a
@@ -1190,16 +1207,6 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd0, const stri
             for (char c : rd.target) if (c < '0' || c > '9') { fd = false; break; }
           }
           if (fd) continue;
-        }
-        // The supervision tree first, and before the containment question,
-        // because `> <home>/mode.last` is how the out-of-band mode detector is
-        // blinded and `> <home>/spool/<day>.jsonl` empties a day of the chain —
-        // neither of which depends on whether that tree happens to sit inside
-        // the project or inside temp.
-        if (!disabled_has(disabled, "baseline-supervision-tamper") &&
-            inside_supervision(rd.target, cwds[s])) {
-          hit = supervision_hit(rd.target, "the redirection '" + rd.op + "' at");
-          return true;
         }
         const Land L = land_of(rd.target, cwds[s], root);
         if (L.where != rbpath::ESCAPES) continue;
@@ -1238,6 +1245,34 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
                                    "ln", "rsync", "chmod", "chown"};
     bool relevant = false;
     for (const char* v : kVerbs) if (rbtext::name_is(name, v)) { relevant = true; break; }
+    // AND THE EDITORS, but only when they were told to write the file back.
+    //
+    // `sed -i '' s/a/b/ <day>.jsonl` rewrites a chained line where it lies,
+    // which is the precise act `rabadon audit` exists to convict — and it
+    // returned exit 0 while `> <day>.jsonl` returned 2. Same file, same tree,
+    // opposite verdicts, because these verbs are on no list any older law reads.
+    //
+    // THE FLAG IS THE WHOLE TEST. `sed s/a/b/ <file>` prints to stdout and
+    // changes nothing; refusing that would refuse reading, which is most of what
+    // an agent does with these tools. Only the in-place forms write: sed's -i
+    // (and --in-place), perl/ruby's -i, and the -i inside a cluster like -pi or
+    // -ne. Everything else in this family stays allowed everywhere, including
+    // inside the supervision tree.
+    if (!relevant) {
+      bool editor = rbtext::name_is(name, "sed") || rbtext::name_is(name, "perl") ||
+                    rbtext::name_is(name, "ruby") || rbtext::name_is(name, "gsed");
+      if (editor) {
+        for (size_t i = ci + 1; i < t.size(); i++) {
+          const string& w = t[i].text;
+          if (w.size() < 2 || w[0] != '-') continue;
+          if (w == "--in-place" || w.compare(0, 11, "--in-place=") == 0) { relevant = true; break; }
+          if (w[1] == '-') continue;                    // some other long option
+          for (size_t k = 1; k < w.size(); k++)         // -i, -pi, -ni, -i.bak
+            if (w[k] == 'i') { relevant = true; break; }
+          if (relevant) break;
+        }
+      }
+    }
     if (relevant) {
       for (size_t i = ci + 1; i < t.size(); i++) {
         const string& w = t[i].text;
