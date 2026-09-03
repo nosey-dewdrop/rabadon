@@ -289,6 +289,53 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (8) — off the alias surface: the ledger holds, and a user's own rule could hang their session
+
+Five reviews had all been alias-focused, so this pass went looking elsewhere
+while the sixth ran. Two results, one reassuring and one a real defect.
+
+**The ledger holds every way I could bend it.** Four tamper shapes, each on a
+fresh spool: a forged line, a truncation, a deleted last line, a wiped file,
+and two swapped lines. `rabadon-audit` answered TAMPER-EVIDENT on all of them,
+naming the line where the chain broke. Then 60 concurrent hook calls into one
+project from 60 threads: 60 exit-0s, 60 ledger lines, zero unparseable, and the
+audit verdict INTACT. Nothing here needed fixing and that is worth writing
+down — it is the first part of this codebase an outside review has not dented.
+
+**A DEFECT, and it is on the hot path.** `rx_test` compiles a project's deny
+pattern with `std::regex`, which backtracks with no step limit. A guard
+carrying `(a+)+b` — the shape somebody writes by accident, not by malice —
+turned a 100,000-character command into **5.18 seconds** of CPU before the gate
+answered. The same command against the compiled laws alone costs 0.02s, so the
+cost was entirely the user's own rule, paid on every tool call that hits it.
+A supervisor that can be made to hang by a typo in its own config is a
+supervisor that gets uninstalled.
+
+Fixed by bounding the INPUT rather than rewriting the engine: a rule sees the
+first 20,000 characters and, separately, the last 20,000. Past a few thousand
+characters a command's tail is data — a base64 blob, a heredoc, a pasted file —
+and no rule in this repo's guards, nor any the arbiter has authored, matches
+beyond a couple of hundred. The tail window is there so the bound is a LIMIT
+and not a hole: a dangerous verb after a 60k paste is still refused, measured.
+
+    100k chars against the backtracking rule   5.18s -> 1.08s
+    `git push --force origin main`             still exit 2, 0.00s
+    verb after a 60k paste                     still exit 2, 0.02s
+
+`native/rule_cost_test.sh` holds both halves — the cost, and that nothing was
+weakened to buy it — plus a falsifiability check so the suite cannot pass
+vacuously.
+
+DONE: `make test` exit 0, 125 suite scripts. rule_cost 5/0. Ledger tamper and
+concurrency results above, each run against a fresh isolated spool.
+
+NOT VERIFIED: 1.08s is still not fast for a pathological rule on a huge
+command; it is merely no longer a hang. The kernel sandbox, `protectedPaths`
+against symlinks and hardlinks, and `init`/`remove`/`doctor` on unusual repos
+were not attacked in this pass.
+
+NEXT: the sixth review is running against exactly those.
+
 ### 2026-09-03 (7) — the generator was seeded by a hand-written list, which is an enumeration with extra steps
 
 Fifth review. It broke the oracle in five minutes by taking a product the
