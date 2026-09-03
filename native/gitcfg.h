@@ -271,6 +271,11 @@ inline void read_file(const string& path, const string& want, const string& labe
     }
     if (sec.empty()) continue;                     // a variable outside any section
     size_t n = i;
+    // git's variable names are alnum and `-`; a dot in a key belongs to the
+    // SECTION side and is handled by the header parse above, so this stays as
+    // git has it. (The dotted-alias bypass was the allowlist in
+    // disk_alias_body, not this scanner: `alias.yo.lo` reaches a file as
+    // section `alias`, subsection `yo`, variable `lo`.)
     while (n < line.size() && (isalnum((unsigned char)line[n]) || line[n] == '-')) n++;
     const string name = line.substr(i, n - i);
     if (name.empty()) continue;
@@ -391,8 +396,36 @@ inline bool last_value(const vector<rbtext::Word>& t, size_t gi, size_t sub, con
 inline bool disk_alias_body(const string& name, const string& gitDirHint,
                             const rbtext::AliasEnv& aenv, string& body) {
   if (name.empty()) return false;
+  // A DOT IS PART OF THE NAME, and git stores it as a SUBSECTION: `git config
+  // alias.yo.lo "push --force"` writes `[alias "yo"] lo = push --force`, and
+  // `git yo.lo` runs it. The allowlist here rejected the dot and abandoned the
+  // lookup before a file was opened, so `git yo.lo origin main` walked past
+  // every git law while `git yolo` was refused — one character apart. Found by
+  // an outside reviewer on 2026-09-03, the third consecutive review to find a
+  // bypass in this function, and the reason the suite below now asks the real
+  // git binary what a name resolves to instead of enumerating names by hand.
+  //
+  // The filter stays, because an alias name is not an arbitrary string and a
+  // lookup key built from one is used to open files: what is allowed is git's
+  // own key syntax, dot included, and nothing that could climb a path.
   for (size_t i = 0; i < name.size(); i++)
-    if (!(isalnum((unsigned char)name[i]) || name[i] == '-' || name[i] == '_')) return false;
+    if (!(isalnum((unsigned char)name[i]) || name[i] == '-' || name[i] == '_' ||
+          name[i] == '.')) return false;
+  // NOT A PATH — A CONFIG KEY. The first cut of this filter refused `..` out of
+  // path-traversal instinct, and the oracle suite caught it within a minute:
+  // git stores `alias.a..b` as `[alias "a."] b` and resolves it, so refusing
+  // the name here reopened the same bypass one character further along. The
+  // name never becomes a path; it becomes section/subsection/variable through
+  // config_key(), and the files opened are the ones config_files() enumerates.
+  //
+  // A LEADING dot is not refused either, and that is not an oversight: git
+  // stores `alias..lead` as `[alias ""] lead` and RUNS it — measured, it
+  // reaches push and dies on "No configured push destination". Every guess
+  // this filter made about what git would not accept turned out to be a
+  // bypass; the oracle suite found both within a minute of being written.
+  // The only thing left out is a trailing dot, which names no variable and
+  // which git does not resolve.
+  if (name[name.size() - 1] == '.') return false;
   // WHERE THE USER IS STANDING IS NOT THE TOP OF THE REPO. A developer works in
   // `src/`, and git walks UP until it finds the repo — so an alias configured
   // in .git/config answers there exactly as it does at the root. This function

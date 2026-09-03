@@ -515,6 +515,12 @@ test: all
 # alias, a lease push, a force to a private branch, an alias defined and never
 # invoked.
 	./native/git_alias_test.sh
+# git_alias_test.sh enumerates alias shapes by hand and four consecutive outside
+# reviews each found a cell it did not contain. This one does not think of
+# names: it generates them, asks the REAL git binary what each resolves to, and
+# fails on any divergence in either direction — a miss is a bypass, a refusal
+# of a name git never runs is a false reject.
+	./native/git_alias_oracle_test.sh
 # the same question one option later: `git push -fu origin main`. git's
 # subcommands read their options with parse-options and parse-options takes them
 # clustered, so -fu is --force --set-upstream — and both layers missed that word
