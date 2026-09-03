@@ -62,6 +62,33 @@ One action is deliberately not free: a `git push` when code changed after the
 last green test run. There the gate runs your suite before it opens, so that
 one hook call costs whatever your tests cost.
 
+## How much disk does the ledger use?
+
+**About 2.7 MB a day — roughly 1 GB a year — and nothing deletes it for you.**
+Measured on the machine that writes this: 30 days of append-only JSONL in
+`~/.rabadon/spool` came to 82 MB. That is one operator running coding agents
+hard all day; a lighter session writes proportionally less, because every line
+is an event that actually happened.
+
+This is stated here because a tool that quietly grows a gigabyte a year in your
+home directory, and only mentions it in `doctor` output, deserves to be
+uninstalled. Now you know before you install.
+
+What you can do about it:
+
+```sh
+du -sh ~/.rabadon/spool            # what it costs today
+rabadon doctor                     # reports the size among its checks
+rm ~/.rabadon/spool/2026-0[1-6]*.jsonl   # older months, if you want them gone
+```
+
+Deleting old days is safe for the gate: it reads the ledger to answer
+questions about the current session, and every hash chain is per-file, so
+removing a whole day breaks nothing. It does lose the history that
+`bench/precision.py` and `rabadon stats` read, which is the whole reason
+nothing prunes it automatically — a guard that silently deletes its own
+evidence is a guard whose numbers you cannot check.
+
 ## Does anything leave my machine?
 
 No. Events go over a local unix socket and to local files under `~/.rabadon`.

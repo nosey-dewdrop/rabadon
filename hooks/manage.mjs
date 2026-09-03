@@ -34,6 +34,20 @@ const BASELINE = {
     { id: 'no-hook-bypass', deny: 'git\\s+(commit|push)[^|;&]*--no-verify', why: 'bypassing hooks bypasses every gate at once' },
   ],
   protectedPaths: [],
+  // OFF ON A FIRST INSTALL, and the number is the reason. red-base refuses any
+  // action while the project's own suite is red — the product's core story,
+  // and its worst-behaved rule on 29 days of real traffic: 65 refusals across
+  // only 13 sessions and 6 days (26 in one day, 17 in one session), a 15 %
+  // operator-declared wrong rate, and a suite that went green again within 25
+  // events in 7 of the 65. That is not a guard firing on distinct mistakes; it
+  // is a rule that can jam a debugging session in a loop, which is how a tool
+  // gets uninstalled by lunch on day one.
+  //
+  // It stays compiled in and one word away: delete the id from `disabled` when
+  // you want work to stop while the base is red. Shipping it ON by default and
+  // letting a stranger discover it mid-debug is the trade this project is not
+  // willing to make.
+  disabled: ['red-base'],
 };
 
 function writeBaseline(dir, name) {

@@ -300,14 +300,21 @@ back:
 | class | refusals in 29 days | can you undo it? |
 |-------|--------------------|------------------|
 | recoverable — commit message, red base, hidden verdict | 439 | yes, re-run it |
-| **irreversible** — force-push, delete outside the tree, reflog expiry, blind in-place rewrite, guard switched off | **82** | no |
+| deferred — a push or deploy held back until the suite is green | 16 | nothing was lost |
+| **irreversible** — force-push, delete outside the tree, reflog expiry, blind in-place rewrite, guard switched off | **66** | no |
 
-And the 82 split again, because a guard measured on its own test harness is
-measuring itself: **57 on the operator's real work, 25 inside throwaway
+The middle row used to sit in the bottom one, and an outside reviewer caught it
+on 2026-09-03: `push-gate` was 15 of 57 real-work refusals — 26 % of the
+headline — and every one of its events reads *"code was edited after the last
+passing test run"*. A push was deferred; nothing was destroyed. Counting it as
+irreversible made this project's own script violate the thesis it was written
+to defend. It is still a rule worth having; it is now counted where it belongs.
+
+The 66 split again, because a guard measured on its own test harness is
+measuring itself: **41 on the operator's real work, 25 inside throwaway
 sandboxes** this project's own red-team suites create. On real work that is
-**13.8 per week**, across 11 distinct days.
+**9.9 per week**, across 9 distinct days.
 
-    15  push-gate                        a push after code changed since the last green suite
      9  no-blind-inplace-source-rewrite  sed -i over source with no backup
      6  baseline-truncating-redirect     `>` onto a tracked file
      6  no-rm-rf-outside                 a delete reaching outside the project
@@ -317,14 +324,13 @@ sandboxes** this project's own red-team suites create. On real work that is
      3  guard-weaken                     a rule moved into disabled[]
      2  baseline-reflog-drop             `git gc --prune=now` — the way back, deleted
      2  no-force-push-main
-     1  no-wrangler-deploy               a deploy from a session that had not run the tests
      1  no-shell-rewrite-of-guard-or-promise
 
 Reproduce: `python3 bench/irreversible.py` (add `--since YYYY-MM-DD` for a
 window). It reads the ledger and nothing else, and it prints the sandbox split
 rather than hiding it in the total.
 
-**Read this honestly.** Fourteen a week is one operator running coding agents
+**Read this honestly.** Ten a week is one operator running coding agents
 hard, on a machine where those agents are trusted with a shell. A developer who
 does not run agents unattended will see a fraction of it. The number that would
 settle the question — how many irreversible actions a *stranger's* agent

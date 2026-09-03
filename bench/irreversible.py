@@ -22,11 +22,19 @@ import json, glob, os, sys, collections, datetime
 IRREVERSIBLE = {
     "no-rm-rf-outside", "baseline-rm-rf-outside", "baseline-delete-not-rm",
     "baseline-law-unmade", "baseline-truncating-redirect", "baseline-reflog-drop",
-    "no-force-push-main", "push-gate", "guard-weaken",
+    "no-force-push-main", "guard-weaken",
     "no-shell-rewrite-of-guard-or-promise", "no-blind-inplace-source-rewrite",
-    "anti-path-frozen", "no-wrangler-deploy", "no-shell-write-protected-path",
+    "anti-path-frozen", "no-shell-write-protected-path",
     "promise-anti-path",
 }
+# DEFERRED, NOT DESTROYED — and this list is the reason the headline moved.
+# An outside reviewer (2026-09-03) pulled the raw events and found `push-gate`
+# was 15 of 57 real-work refusals, every one reading "code was edited after the
+# last passing test run — run the test suite first". Nothing was lost; a push
+# waited. Counting it as irreversible made this script violate the very thesis
+# it exists to defend, so it is counted and reported separately instead of
+# being deleted — a rule worth having, in the class it belongs to.
+DEFERRED = {"push-gate", "no-wrangler-deploy"}
 # A refusal whose target is a scratch tree is the tool exercising itself.
 SANDBOX = ("/tmp/", "/private/tmp", "_kum", "redteam", "rbpack", "hakem",
            "sandbox", "_f3g", "probe", "rbd_", "rbmeas", "k21")
@@ -35,6 +43,7 @@ SPOOL = os.path.expanduser(os.environ.get("RABADON_SPOOL", "~/.rabadon/spool"))
 since = sys.argv[sys.argv.index("--since") + 1] if "--since" in sys.argv else None
 
 real, lab, days, allday = [], 0, set(), set()
+deferred = collections.Counter()
 for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
     for line in open(f, errors="replace"):
         if not line.strip():
@@ -50,7 +59,12 @@ for f in sorted(glob.glob(os.path.join(SPOOL, "*.jsonl"))):
             continue
         if d.get("ev") in ("STEP_START", "STOP"):
             allday.add(day)
-        if d.get("ev") != "STOP" or d.get("rule") not in IRREVERSIBLE:
+        if d.get("ev") != "STOP":
+            continue
+        if d.get("rule") in DEFERRED:
+            deferred[d.get("rule")] += 1
+            continue
+        if d.get("rule") not in IRREVERSIBLE:
             continue
         blob = str(d.get("detail", "")) + str(d.get("pipe", ""))
         if any(m in blob for m in SANDBOX):
@@ -70,3 +84,7 @@ if real:
         print("  %-36s %5d" % (r, n))
 else:
     print("nothing irreversible was refused on real work in this window")
+if deferred:
+    print("\n  deferred, not destroyed (a push or deploy held back, counted apart):")
+    for r, n in deferred.most_common():
+        print("    %-34s %5d" % (r, n))
