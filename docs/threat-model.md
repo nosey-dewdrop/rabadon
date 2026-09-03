@@ -57,6 +57,24 @@ State these plainly. In a plain hooked session (no `rabadon exec`):
   starts with a metacharacter (e.g. `".*secret.*"`) has no literal prefix the
   kernel can anchor — `rabadon exec` reports that it skipped it, and **the hook
   still checks it**, but there is no kernel fence behind it.
+- **A destructive call written in another language.** The parser reads shell.
+  `python3 -c "import subprocess; subprocess.run(['git','push','--force','origin','main'])"`
+  reaches the remote and the hook sees one `python3` invocation with a `-c`
+  string it does not interpret. The same is true of `node -e`, `ruby -e` and a
+  script file the agent writes and then runs. An agent writes Python as readily
+  as bash, so this is not a corner case — it is the honest boundary of a shell
+  parser, and the answer is the kernel fence (`rabadon exec`), which does not
+  care what language asked for the write. Named here because it was found by an
+  outside review on 2026-09-03 and it belongs in this list rather than in a
+  session log.
+- **A tree deleted from outside itself.** `cd .. && rm -rf $(basename $PWD)`
+  names neither the project nor its law, so no operand the gate resolves points
+  at anything protected. `rabadon --status` prints this as one of 21 measured
+  shapes that destroy a project's `.rabadon/` and are allowed deliberately: the
+  cut that refuses it also refuses `rm -rf ./old-project`, which would fence you
+  inside your own tree. The mitigation is stated in the same place — commit
+  `.rabadon/` to git, where the copy survives all 21 and `git checkout .rabadon`
+  puts the law back.
 - **An agent prompted around the hook.** Because the hook's refusal is text fed
   to the agent, an agent that has been instructed to work around gates can, in
   principle, restructure its actions to avoid the matcher. Hooks constrain a
