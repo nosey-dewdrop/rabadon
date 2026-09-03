@@ -503,5 +503,43 @@ if [ $RC -eq 0 ] && printf '%s' "$OUT" | grep -q "verdict: INTACT"; then
   pass "(k) interleaved C++ and JS writes verify as one chain -> INTACT (exit 0)"
 else fail "(k) the mixed-writer day file does not verify: rc=$RC"; printf '%s\n' "$OUT" | sed 's/^/    | /'; fi
 
+# ---------------------------------------------------------------------------
+# A NEVER-USED LEDGER AND A DELETED ONE ARE NOT THE SAME FACT.
+# Every harder tamper convicts — a byte edited, a line dropped, a day file
+# deleted while its sidecar remains, all exit 1. Deleting BOTH halves is the
+# easiest of them and it used to exit 0 with "the ledger is empty — nothing to
+# verify yet", presenting a wipe as a fresh install (outside review,
+# 2026-09-03). The three states are now told apart by the directory itself.
+echo
+echo "== a wiped ledger is not a fresh install =="
+WH="$(mktemp -d "${TMPDIR:-/tmp}/rbwipe.XXXXXX")"
+WP="$(mktemp -d "${TMPDIR:-/tmp}/rbwipep.XXXXXX")"
+mkdir -p "$WH/.rabadon" "$WP/.rabadon" "$WP/.git"
+printf 'ref: refs/heads/main\n' > "$WP/.git/HEAD"
+printf '{"project":"p","testCommand":"true"}\n' > "$WP/.rabadon/guard.json"
+env HOME="$WH" RABADON_DIR="$WH/.rabadon" "$AUDIT" >/dev/null 2>&1
+if [ "$?" = "0" ]; then pass "no spool directory at all: a fresh install, exit 0"
+else fail "a machine that never ran rabadon was reported as a problem"; fi
+
+mkdir -p "$WH/.rabadon/spool"; : > "$WH/.rabadon/enabled"
+for i in 1 2 3 4; do
+  printf '{"hook_event_name":"PreToolUse","session_id":"w%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":"echo hi %s"}}' \
+    "$RANDOM$i" "$WP" "$i" \
+    | env HOME="$WH" RABADON_DIR="$WH/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1
+done
+env HOME="$WH" RABADON_DIR="$WH/.rabadon" "$AUDIT" >/dev/null 2>&1
+if [ "$?" = "0" ]; then pass "with events on record, the chain verifies, exit 0"
+else fail "a clean ledger was reported as broken"; fi
+
+rm -f "$WH"/.rabadon/spool/*
+env HOME="$WH" RABADON_DIR="$WH/.rabadon" "$AUDIT" >/dev/null 2>&1
+RC_WIPED=$?
+if [ "$RC_WIPED" = "2" ]; then pass "the whole spool deleted: UNVERIFIABLE, exit 2 — not a silent 0"
+else fail "a wiped ledger exited $RC_WIPED; the easiest attack is the one that passes"; fi
+if env HOME="$WH" RABADON_DIR="$WH/.rabadon" "$AUDIT" 2>&1 | grep -q "UNVERIFIABLE"; then
+  pass "and it says so in words, naming the recovery"
+else fail "the wiped case exits 2 but does not say why"; fi
+rm -rf "$WH" "$WP"
+
 echo "audit: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

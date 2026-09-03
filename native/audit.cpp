@@ -300,8 +300,30 @@ int main(int argc, char** argv) {
 
   printf("rabadon audit — ledger integrity · %s\n\n", spool.c_str());
   if (files.empty() && heads.empty()) {
-    printf("  no spool files. the ledger is empty — nothing to verify yet.\n");
-    return 0;
+    // A NEVER-USED LEDGER AND A DELETED ONE ARE NOT THE SAME FACT, and this
+    // branch used to answer both with exit 0 — "nothing to verify yet" on a
+    // spool somebody had just wiped. Every HARDER attack convicts: a byte
+    // edited, a line removed, a day file deleted while its sidecar remains,
+    // all exit 1. Deleting both halves is the easiest of them and it was the
+    // one that passed (found by an outside reviewer, 2026-09-03).
+    //
+    // The two are told apart by what the directory itself says. A spool that
+    // has never existed is a fresh install. A spool DIRECTORY that exists and
+    // holds nothing is either a fresh install one event short, or a wipe —
+    // this cannot tell which, so it says exactly that and exits 2, the code
+    // this tool already uses for "I could not check", never 0.
+    struct stat sst;
+    const bool dirExists = stat(spool.c_str(), &sst) == 0 && S_ISDIR(sst.st_mode);
+    if (!dirExists) {
+      printf("  no spool directory. rabadon has not recorded anything here yet.\n");
+      return 0;
+    }
+    printf("  the spool directory exists and holds no day files and no sidecars.\n"
+           "  that is a fresh install before its first event — or a ledger that was\n"
+           "  deleted whole, and from here the two look identical. UNVERIFIABLE.\n"
+           "  if this project has ever been supervised, treat it as a wipe:\n"
+           "    git -C <project> checkout .rabadon   # the law, if you committed it\n");
+    return 2;
   }
 
   long long totalChained = 0, totalUnchained = 0, totalBreaks = 0, totalUnverifiable = 0;

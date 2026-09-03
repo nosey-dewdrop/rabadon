@@ -134,11 +134,39 @@ static bool guard_denies_net(const string& guard) {
 }
 
 // resolve a project-relative prefix to an absolute subpath for the profile
+//
+// AND CANONICALISE IT, because the KERNEL matches on its own canonical path.
+// Seatbelt's `(subpath ...)` and bubblewrap's binds see the path after symlinks
+// are resolved; a profile naming `/tmp/lab/work/secrets` when `work` is a
+// symlink fences a path the kernel never visits. The write then succeeds with
+// exit 0 while `--print` shows a plausible deny rule — the one SILENT failure
+// on the surface the docs call the hard boundary, and the trigger is ordinary:
+// `/tmp` is `/private/tmp` on macOS, a home on a mounted volume, ~/Documents
+// under iCloud, or simply a symlinked working copy. Measured 2026-09-03 by an
+// outside reviewer: the file said `pwned`.
+//
+// The project directory was already canonicalised at the call site, which is
+// why the RELATIVE form was safe and only the absolute one was not. Both forms
+// go through realpath now.
+//
+// A prefix that does not exist yet cannot be resolved, and that is not a
+// failure: the deepest existing ancestor is resolved and the rest appended, so
+// a fence over a directory the run will create still names the real path.
+static string canon(const string& in) {
+  if (in.empty()) return in;
+  char rp[4096];
+  if (realpath(in.c_str(), rp)) return string(rp);
+  const size_t slash = in.rfind('/');
+  if (slash == string::npos || slash == 0) return in;
+  const string head = canon(in.substr(0, slash));
+  return head + in.substr(slash);
+}
+
 static string abspath(const string& dir, const string& rel) {
-  if (!rel.empty() && rel[0] == '/') return rel;
+  if (!rel.empty() && rel[0] == '/') return canon(rel);
   string d = dir;
   while (d.size() > 1 && d.back() == '/') d.pop_back();
-  return d + "/" + rel;
+  return canon(d + "/" + rel);
 }
 
 static string seatbelt_profile(const string& dir, const vector<string>& prefixes, bool denyNet) {

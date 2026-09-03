@@ -203,5 +203,62 @@ else
   skip "--deny-net network arm" 1 "curl is not on this machine, so no request could be attempted"
 fi
 
+# THE KERNEL MATCHES ITS OWN CANONICAL PATH, so a fence naming a symlink fences
+# nothing. Measured 2026-09-03 by an outside reviewer: with `work` a symlink to
+# the real project, an absolute protectedPath under `work/` emitted a plausible
+# `(deny file-write* (subpath ".../work/secrets"))`, --print looked right, and
+# the write went through at exit 0 — the one SILENT failure on the surface the
+# docs call the hard boundary. Ordinary triggers, not exotic: /tmp is
+# /private/tmp on macOS, $TMPDIR is under /private/var, a home on a mounted
+# volume, ~/Documents under iCloud. The relative form was always safe (the
+# project dir is realpath'd at the call site); only the absolute one was not.
+#
+# Driven from python so the lab is built and judged in one place: the shell
+# version of this fixture quietly mis-set its own paths and reported a hole
+# that the same scenario, built correctly, does not have.
+if "$SB" --check >/dev/null 2>&1; then
+  SBABS="$(cd "$(dirname "$SB")" && pwd)/$(basename "$SB")"
+  SLOUT="$(python3 - "$SBABS" <<'PYEOF'
+import os, sys, json, subprocess, tempfile, shutil
+SB = sys.argv[1]
+SL = tempfile.mkdtemp()
+try:
+    for d in ("store/proj/secrets", "store/proj/.rabadon", "rhome/.rabadon/spool"):
+        os.makedirs(os.path.join(SL, d))
+    open(os.path.join(SL, "rhome/.rabadon/enabled"), "w").close()
+    os.symlink(os.path.join(SL, "store/proj"), os.path.join(SL, "work"))
+    key = os.path.join(SL, "store/proj/secrets/key.txt")
+    open(key, "w").write("TOPSECRET\n")
+    guard = {"project": "proj", "testCommand": "true",
+             "protectedPaths": [{"id": "s", "match": "^" + SL + "/work/secrets/.*", "why": "ro"}]}
+    open(os.path.join(SL, "store/proj/.rabadon/guard.json"), "w").write(json.dumps(guard))
+    env = dict(os.environ, HOME=SL + "/rhome", RABADON_DIR=SL + "/rhome/.rabadon", RABADON_NOTIFY="0")
+    proj, work = SL + "/store/proj", SL + "/work"
+    pr = subprocess.run([SB, "--print", "--", "true"], cwd=proj, env=env, capture_output=True, text=True)
+    resolved = os.path.realpath(proj) + "/secrets"
+    print("PROFILE_RESOLVED", "yes" if resolved in pr.stdout else "no")
+    subprocess.run([SB, "--", "sh", "-c", "echo pwned > " + key], cwd=proj, env=env, capture_output=True, text=True)
+    print("AFTER_REAL", open(key).read().strip())
+    subprocess.run([SB, "--", "sh", "-c", "echo pwned > " + work + "/secrets/key.txt"], cwd=work, env=env, capture_output=True, text=True)
+    print("AFTER_LINK", open(key).read().strip())
+    ok = os.path.join(SL, "store/proj/ok.txt")
+    subprocess.run([SB, "--", "sh", "-c", "echo fine > " + ok], cwd=proj, env=env, capture_output=True, text=True)
+    print("UNPROTECTED", open(ok).read().strip() if os.path.exists(ok) else "MISSING")
+finally:
+    shutil.rmtree(SL, ignore_errors=True)
+PYEOF
+)"
+  case "$SLOUT" in *"PROFILE_RESOLVED yes"*) pass "the emitted profile names the resolved path, not the symlink" ;;
+    *) fail "the profile still carries the unresolved path" ;; esac
+  case "$SLOUT" in *"AFTER_REAL TOPSECRET"*) pass "a write through the REAL path is refused when the fence names the symlink" ;;
+    *) fail "the protected file was overwritten — the kernel fence named a path it never sees" ;; esac
+  case "$SLOUT" in *"AFTER_LINK TOPSECRET"*) pass "and a write through the SYMLINK path is refused too" ;;
+    *) fail "the protected file was overwritten through the symlink" ;; esac
+  case "$SLOUT" in *"UNPROTECTED fine"*) pass "an unprotected write in the same project still runs" ;;
+    *) fail "the fence refused a write it was never asked to refuse" ;; esac
+else
+  skip "the symlinked-fence arm" 4 "no kernel sandbox backend on this platform"
+fi
+
 echo "sandbox: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"
 [ "$bad" -eq 0 ]
