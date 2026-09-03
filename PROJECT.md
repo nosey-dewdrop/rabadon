@@ -289,6 +289,55 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (7) — the generator was seeded by a hand-written list, which is an enumeration with extra steps
+
+Fifth review. It broke the oracle in five minutes by taking a product the
+oracle's own name list kept separate: every dotted name in that array was
+lowercase, every cased name was undotted, and `alias.A.B` — a capital in a
+SUBSECTION — was a cell nobody had typed.
+
+    git config alias.A.B 'push --force'
+    git A.B origin main   -> exit 0    (bypass)
+    git a.b origin main   -> exit 2
+
+Measured against git 2.39.5, and the rule is not what I assumed: a config key
+folds case on the SECTION and the VARIABLE and **not** on the subsection.
+`alias.A.B` answers to `git A.B` and `git A.b`, and NOT to `git a.b`. My
+`key_lower(tok)` lowercased the whole name, so the lookup asked for
+`alias.a.b` while the file held `[alias "A"] B`. `fold_config_key` in
+cmdtext.h already implemented git's real per-component rule and the reader
+simply was not using it. Fixed in two lines; seven spellings verified against
+git's own `--get`, including that `git a.b` must NOT be refused.
+
+**The finding under the finding, and it is the same one as last time.** A
+generator seeded by a hand-written array is an enumeration with extra steps.
+The names are now built as a cross-product — {lower, UPPER, Mixed} ×
+{plain, one dot, two dots, leading dot, double dot, trailing dot, dash,
+underscore, digit} — plus the shapes a product cannot reach (builtin
+collisions, non-ASCII with the Turkish dotless ı, whitespace, empty, a
+60-character name). 48 → **69 generated pairs**, and reverting the fold turns
+**36 assertions red**. The known limit is now keyed on the SHAPE (any
+leading-dot name) rather than on one spelling, so the product cannot silently
+grow past it.
+
+**The day label, caught by two consecutive reviews and now fixed.**
+`bench/precision.py` printed "17 days" — days that happen to contain a
+refusal — for a window BENCHMARK called 27 and `irreversible.py` called 29.
+Three numbers for one ledger. It now counts days with traffic and prints 29,
+matching. README's reproduce line for the 0.8 % headline said
+`python3 bench/precision.py`, which prints 13.4 %; it now names `--since`.
+
+DONE: `make test` exit 0, 124 suite scripts, built first and run alone. Oracle
+PASS with 69 generated pairs (and 36 red with the fold reverted). docs_truth
+42/0. `precision.py` and the docs now say 29 days in both places.
+
+NOT VERIFIED: `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0` env pairs are still a
+bypass. It is named in gitcfg.h's header as a known limit, and the oracle
+structurally cannot see it because the oracle writes config through
+`git config`. Named, not closed.
+
+NEXT: ask a sixth time.
+
 ### 2026-09-03 (6) — the reviewer stopped reporting cells and reported the METHOD, so the suite now asks git
 
 Fourth review. All three fixes from (5) verified by the reviewer's own runs,
