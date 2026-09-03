@@ -289,6 +289,67 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (4) — the reviewer came back with two holes in yesterday's fix, and the real lesson is the test shape
+
+Second independent review, same instructions: verify every claimed fix by
+running it. Four of six held. Finding #1 — the alias bypass — was **still open
+in two shapes, both introduced by the fix that closed it**, and both were found
+in about ten minutes.
+
+**HOLE 1, case folding on the disk path.** git config keys fold case on both
+sides, so `alias.deploy` answers to `git DEPLOY`. `git_line_alias` lowercased;
+the disk reader compared the raw token. Measured here immediately:
+`git deploy origin main` → exit 2, `git DEPLOY origin main` → exit 0. Not
+push-specific: with `alias.nuke = '!rm -rf $HOME/Documents'`, `git nuke` → 2 and
+`git NUKE` → 0. The whole bypass back, one shift key away.
+
+**HOLE 2, `-C` collected and discarded.** `git_repo_knobs` fills `chdirs`, and
+the alias lookup used only `gitDir` — so `git --git-dir=../other/.git far` was
+refused while `git -C ../other far` walked past every law. Two spellings of one
+fact, one of them unguarded.
+
+Both fixed: `key_lower(tok)` on the disk lookup, and `chdirs.back()` resolved
+against `parse_cwd()` when no explicit git-dir is given. Ten shapes verified,
+including the legitimate twins (`git deploy --help`, `git nosuchalias`,
+`-C` at a repo that has no such alias).
+
+**THE FINDING THAT MATTERS IS NOT EITHER HOLE.** `make test` was fully green —
+123 suites, exit 0 — while a general bypass of every git law was live. The
+reviewer named the cause exactly: the tests are organised **by past incident,
+not by the axes of the surface**. Every case tested the fix along the axis it
+was written on. `-c` aliases folded case, so folding looked covered. `-C` was
+tested with a `-c` alias, so `-C` looked covered. Neither cell existed.
+
+So `git_alias_test.sh` gained a GRID over the four independent axes — where the
+alias lives (`-c` / same-line `git config` / `.git/config` / `~/.gitconfig`),
+how the name is cased (defined × invoked), which repo git is pointed at (cwd /
+`-C` / `--git-dir`), and what the body is (verb / chain / `!shell`). 75 → 93
+checks.
+
+**And the grid was proved to bite, not just to pass.** Reverting the case fix
+alone turns 5 checks red; reverting the `-C` fix alone turns 4 red; restored,
+93/93. A suite that stays green while a hole is open is worse than no suite —
+it manufactures confidence — so a new grid that has never been seen red is not
+evidence of anything.
+
+Also done: the disk cost moved from `docs/faq.md` to the line above the install
+command in README. The reviewer's word for having it only in the FAQ was
+"cosmetic", and that was right — nobody reads the FAQ before `npm i -g`.
+
+One suite failed on the first full run and was NOT weakened:
+`day_cache_test.sh` asserts a forked child's first call is under 50µs and
+measured 58. Run alone eight times it reads 12–16µs. Eight Claude processes
+were on the machine; it is load, not a regression, and the re-run is green.
+
+DONE: `make test` exit 0, 123 suite scripts. git_alias 93/0 (and 88/5, 89/4
+with each fix reverted). docs_truth 42/0, install_docs 22/0.
+
+NOT VERIFIED: whether the grid's four axes are the right four. It covers what
+this review and the last one reached; a fifth axis nobody has named would be
+invisible to it exactly as the two cells above were.
+
+NEXT: ask the same reviewer a third time.
+
 ### 2026-09-03 (3) — an outside reviewer found a general bypass, an inflated headline, and a contradiction
 
 An independent agent was asked one question — would you install this — with
