@@ -397,8 +397,24 @@ for f in sorted(glob.glob(os.path.join(spool, '*.jsonl'))):
     unchained += sum(1 for l in mine if not json.loads(l).get('prev'))
     head = f + '.head'
     if not os.path.exists(head): print('NO-HEAD'); sys.exit(0)
-    h, c = open(head).read().split()
-    if h != hashlib.sha256(lines[-1].encode()).hexdigest(): print('HEAD-HASH'); sys.exit(0)
+    # "<hash> <count>" through 0.4, "<hash> <count> hmac" from 0.5. The marker
+    # decides which function to recompute with -- checking a keyed day with the
+    # plain hash convicts a file nobody touched, which is the bug that broke the
+    # operator's own 2026-09-03.
+    parts = open(head).read().split()
+    if len(parts) < 2: print('HEAD-SHAPE'); sys.exit(0)
+    h, c = parts[0], parts[1]
+    keyed = len(parts) > 2 and parts[2] == 'hmac'
+    if keyed:
+        try:
+            key = open(os.path.join(os.environ['RABADON_DIR'], 'chain.key')).read().split('\n')[0]
+        except Exception:
+            print('NO-KEY-FOR-KEYED-DAY'); sys.exit(0)
+        import hmac as _hmac
+        want = _hmac.new(key.encode(), lines[-1].encode(), hashlib.sha256).hexdigest()
+    else:
+        want = hashlib.sha256(lines[-1].encode()).hexdigest()
+    if h != want: print('HEAD-HASH'); sys.exit(0)
     if int(c) != sum(1 for l in lines if json.loads(l).get('prev')): print('HEAD-COUNT'); sys.exit(0)
 print('OK' if found >= 4 and unchained == 0 else 'UNCHAINED=%d/%d' % (unchained, found))
 PY
@@ -540,6 +556,96 @@ if env HOME="$WH" RABADON_DIR="$WH/.rabadon" "$AUDIT" 2>&1 | grep -q "UNVERIFIAB
   pass "and it says so in words, naming the recovery"
 else fail "the wiped case exits 2 but does not say why"; fi
 rm -rf "$WH" "$WP"
+
+# ---------------------------------------------------------------------------
+# THE KEYED SEAL. An outside review rewrote a day end to end in 15 lines of
+# python and audit said INTACT -- correctly, for an unkeyed sha256: anyone who
+# can write the file and its sidecar can recompute both. The seal is HMAC now,
+# and these cases hold the three things that change and the one that must not.
+# ---------------------------------------------------------------------------
+echo
+echo "the keyed seal"
+KH=$(mktemp -d /tmp/rabadon-key-test.XXXXXX)
+mkdir -p "$KH/.rabadon/spool" "$KH/proj/.rabadon"
+echo '{"project":"k","bash":[],"protectedPaths":[],"disabled":[]}' > "$KH/proj/.rabadon/guard.json"
+printf 'on\n' > "$KH/.rabadon/enabled"
+kev() { printf '{"hook_event_name":"PreToolUse","session_id":"k-%s","cwd":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' \
+  "$RANDOM$RANDOM" "$KH/proj" "$1" \
+  | env HOME="$KH" RABADON_DIR="$KH/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1; }
+kaudit() { env HOME="$KH" RABADON_DIR="$KH/.rabadon" "$AUDIT" 2>&1; }
+
+kev 'ls'; kev 'git status'; kev 'git push --force origin main'; kev 'echo ok'
+KDAY=$(ls "$KH/.rabadon/spool"/*.jsonl 2>/dev/null | head -1)
+
+# 1. the key exists, is private, and is NOT in the spool an attacker rewrites
+[ -f "$KH/.rabadon/chain.key" ] \
+  && pass "a key is created on first use" || fail "no chain.key was written"
+KMODE=$(ls -l "$KH/.rabadon/chain.key" 2>/dev/null | cut -c1-10)
+[ "$KMODE" = "-rw-------" ] \
+  && pass "the key is 0600" || fail "the key's mode is $KMODE, want -rw-------"
+case "$(dirname "$KH/.rabadon/chain.key")" in
+  */spool) fail "the key lives in the spool — the directory the attack rewrites" ;;
+  *) pass "the key is outside the spool" ;;
+esac
+
+# 2. the sidecar says which rule sealed the day, and audit agrees
+grep -q ' hmac$' "$KDAY.head" \
+  && pass "the sidecar marks the day as keyed" || fail "no hmac marker: $(cat "$KDAY.head")"
+kaudit | grep -q "INTACT" \
+  && pass "a keyed day verifies INTACT" || { fail "a freshly written keyed day is not INTACT"; kaudit | sed 's/^/    | /' | head -4; }
+
+# 3. THE REVIEW'S ATTACK, verbatim, including forging the marker.
+python3 - "$KDAY" <<'PYA'
+import sys,re,hashlib
+p=sys.argv[1]
+lines=[l for l in open(p).read().splitlines() if l.strip()]
+keep=[l for l in lines if '"STOP"' not in l and '"CHECK_FAIL"' not in l]
+prev="genesis"; out=[]
+for l in keep:
+    l2=re.sub(r'"prev":"[^"]*"','"prev":"%s"'%prev,l); out.append(l2)
+    prev=hashlib.sha256(l2.encode()).hexdigest()
+open(p,'w').write("\n".join(out)+"\n")
+open(p+'.head','w').write("%s %d hmac\n"%(prev,len(out)))
+PYA
+kaudit | grep -q "BREAK" \
+  && pass "the offline rewrite is convicted — re-stitching needs the key" \
+  || { fail "a rewritten day still verifies: the seal is not doing anything"; kaudit | sed 's/^/    | /' | head -4; }
+grep -c 'CHECK_FAIL' "$KDAY" | grep -q '^0$' \
+  && pass "(the attack really did erase the refusal it was aiming at)" \
+  || fail "the attack fixture did not remove the refusal, so nothing was proven"
+rm -rf "$KH"
+
+# 4. MIGRATION, and this one cost the operator's own ledger to learn. A day
+# already on disk under the plain hash must KEEP the plain hash even when a key
+# is available: the key was introduced mid-afternoon on 2026-09-03, every line
+# after 01:02:29 was sealed with HMAC while the 10,735 before it were not, the
+# sidecar claimed the whole day, and audit convicted a file nobody had touched
+# at line 2. A ledger that reports tampering because the TOOL changed its mind
+# teaches the operator to ignore the verdict.
+MH=$(mktemp -d /tmp/rabadon-mig-test.XXXXXX)
+mkdir -p "$MH/.rabadon/spool" "$MH/proj/.rabadon"
+echo '{"project":"m","bash":[],"protectedPaths":[],"disabled":[]}' > "$MH/proj/.rabadon/guard.json"
+printf 'on\n' > "$MH/.rabadon/enabled"
+MDAY="$MH/.rabadon/spool/$(date +%Y-%m-%d).jsonl"
+python3 - "$MDAY" <<'PYB'
+import sys,hashlib,json
+p=sys.argv[1]; prev="genesis"; out=[]
+for i in range(3):
+    line=json.dumps({"v":1,"seq":i+1,"ts":1788400000000+i,"ev":"STEP_OK","prev":prev},separators=(',',':'))
+    out.append(line); prev=hashlib.sha256(line.encode()).hexdigest()
+open(p,'w').write("\n".join(out)+"\n")
+open(p+'.head','w').write("%s %d\n"%(prev,len(out)))     # a 0.4 sidecar: no marker
+PYB
+HEAD_BEFORE=$(cat "$MDAY.head")
+printf '{"hook_event_name":"PreToolUse","session_id":"m-1","cwd":"%s","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' "$MH/proj" \
+  | env HOME="$MH" RABADON_DIR="$MH/.rabadon" RABADON_NOTIFY=0 "$GATE" >/dev/null 2>&1
+grep -q ' hmac' "$MDAY.head" \
+  && { fail "an existing plain day was switched to the keyed seal mid-file — this is the bug that broke the operator's 2026-09-03"; echo "    | before: $HEAD_BEFORE"; echo "    | after:  $(cat "$MDAY.head")"; } \
+  || pass "an existing plain day keeps the plain seal even when a key exists"
+env HOME="$MH" RABADON_DIR="$MH/.rabadon" "$AUDIT" 2>&1 | grep -q "INTACT" \
+  && pass "and that day still verifies INTACT under the rule it was written with" \
+  || { fail "a pre-key day stopped verifying after 0.5 touched it"; env HOME="$MH" RABADON_DIR="$MH/.rabadon" "$AUDIT" 2>&1 | sed 's/^/    | /' | head -4; }
+rm -rf "$MH"
 
 echo "audit: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

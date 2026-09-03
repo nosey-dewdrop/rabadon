@@ -57,6 +57,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "sha256.h"
+#include "pathres.h"
 #include "jsonl.h"
 
 namespace rbchain {
@@ -166,6 +167,104 @@ inline long long count_chained_lines(const string& path) {
   return n;
 }
 
+// ---------- the key the chain is sealed with ---------------------------------
+//
+// WHAT THIS FIXES AND WHAT IT DOES NOT. An outside review rewrote a day file end
+// to end in 15 lines of python -- drop the refusals, re-stitch every prev,
+// rewrite the sidecar -- and `rabadon audit` answered INTACT. It was right to,
+// and README said so already: with an unkeyed hash, anyone who can write the day
+// file and its sidecar can recompute both. The chain proved the file was
+// internally consistent, which is not the same as proving rabadon wrote it.
+//
+// An HMAC changes that ONE thing: recomputing the chain now needs the key, so
+// the rewrite above produces a file that verifies only if the attacker also read
+// `key`. That is why the key does not live in the spool. `~/.rabadon/spool/` is
+// the directory every writer opens all day; `~/.rabadon/chain.key` is opened
+// twice per process and is 0600. Both are inside the supervision tree the gate
+// refuses to let an agent touch, so on the surface rabadon actually mediates the
+// key is no easier to reach than the ledger -- but an attacker who gets at the
+// files some other way now needs two things instead of one, and the second one
+// is never handed to a subprocess, never logged, and never leaves this file.
+//
+// It is NOT tamper-proof and this file will not pretend otherwise. Whoever owns
+// the disk owns the key. What it removes is the offline rewrite: a copy of the
+// spool, on its own, can no longer be forged into a consistent day.
+//
+// MIGRATION IS THE WHOLE DESIGN CONSTRAINT. Thirty days of this operator's real
+// ledger are already on disk under the unkeyed hash, and a change that turned
+// them all into BREAK would be a worse lie than the one it fixes. So the sidecar
+// grew a third field and old files keep verifying under the old rule:
+//
+//     <hash> <count>            pre-0.5: unkeyed sha256, still verified as such
+//     <hash> <count> hmac       0.5+: the hash is HMAC-SHA256 over the same line
+//
+// audit.cpp reads the marker and picks the function; a day written before the
+// key existed stays provable under the rule it was written with, and says so.
+inline string key_path() {
+  return rbpath::rabadon_dir() + "/chain.key";
+}
+
+// The key is created ONCE, on first use, 0600, from the system CSPRNG. Never
+// regenerated: a new key would orphan every day already sealed with the old one.
+// Returns "" when there is no key and one could not be made, and an empty key
+// means the chain falls back to the unkeyed hash rather than failing to record.
+// A ledger that stops writing because a key file is unreadable is a worse
+// outcome than one sealed with a hash; the sidecar marker says which happened.
+inline string chain_key() {
+  static string cached;
+  static bool tried = false;
+  if (tried) return cached;
+  tried = true;
+  const string kp = key_path();
+  { std::ifstream kf(kp, std::ios::binary);
+    if (kf) { std::getline(kf, cached);
+              if (cached.size() >= 32) return cached;
+              cached.clear(); } }
+  // no key yet: make one. O_EXCL so two processes racing here cannot each write
+  // a different key over the other's.
+  unsigned char buf[32];
+  { std::ifstream rnd("/dev/urandom", std::ios::binary);
+    if (!rnd || !rnd.read((char*)buf, sizeof buf)) return cached; }
+  static const char* hexd = "0123456789abcdef";
+  string k; k.reserve(64);
+  for (size_t i = 0; i < sizeof buf; i++) { k += hexd[buf[i] >> 4]; k += hexd[buf[i] & 0xF]; }
+  int fd = ::open(kp.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+  if (fd >= 0) {
+    const string line = k + "\n";
+    ssize_t w = ::write(fd, line.c_str(), line.size()); (void)w;
+    ::close(fd);
+    cached = k;
+    return cached;
+  }
+  // somebody else won the race: read theirs
+  { std::ifstream kf(kp, std::ios::binary);
+    if (kf) { std::getline(kf, cached); if (cached.size() < 32) cached.clear(); } }
+  return cached;
+}
+
+// The seal over one chained line. With a key it is HMAC-SHA256; with none it is
+// the plain sha256 every pre-0.5 day file was written with, so a machine that
+// cannot make a key keeps recording under the old rule instead of not at all.
+inline string seal(const string& line, const string& key) {
+  return key.empty() ? rbsha::hex(line) : rbsha::hmac_hex(key, line);
+}
+
+// Did the sidecar already commit to the keyed seal? Read as a fact about the
+// FILE, not about this process: append() uses it to keep a day on one rule.
+inline bool head_says_hmac(const string& headPath) {
+  std::ifstream hf(headPath);
+  if (!hf) return false;
+  string h;
+  if (!std::getline(hf, h)) return false;
+  const size_t a = h.find(' ');
+  if (a == string::npos) return false;
+  const size_t b = h.find(' ', a + 1);
+  if (b == string::npos) return false;
+  string m = h.substr(b + 1);
+  while (!m.empty() && (m.back() == '\r' || m.back() == ' ' || m.back() == '\n')) m.pop_back();
+  return m == "hmac";
+}
+
 // prev = the committed hash ("genesis" when there is no sidecar);
 // count = the committed line count (-1 = pre-0.4 sidecar, no count)
 inline void read_head(const string& headPath, string& prev, long long& count) {
@@ -200,8 +299,30 @@ inline string append(const string& spoolPath, const string& bodyOpen) {
       const string chained = bodyOpen + ",\"prev\":\"" + prev + "\"}";
       const string line = chained + "\n";
       ssize_t w = write(fd, line.c_str(), line.size()); (void)w;
+      // THE MARKER IS WRITTEN ONLY WHEN THE SEAL IS REALLY KEYED, and it is the
+      // sidecar's third field. audit.cpp reads it to choose which function to
+      // verify with, so a day sealed with a key and a day sealed without one are
+      // both provable under the rule each was written with. Writing "hmac" while
+      // falling back to the plain hash would be the exact class of false claim
+      // this ledger exists to refuse.
+      // A DAY FILE KEEPS THE SEAL IT WAS OPENED WITH. This cost the operator's
+      // own ledger to learn: the key was introduced mid-afternoon, every line
+      // after 01:02:29 was sealed with HMAC while the 10,735 before it were
+      // plain, the sidecar marked the whole day "hmac", and audit convicted a
+      // file nobody had touched at line 2. A ledger that reports tampering
+      // because the TOOL changed its mind is worse than one that is easy to
+      // forge -- it teaches the operator to ignore the verdict.
+      //
+      // So the seal is decided by what the day already is, never by what this
+      // process would prefer. A day with lines in it and no "hmac" marker stays
+      // unkeyed to its last line; only a file whose first chained line is being
+      // written now can adopt the key. Days roll at midnight, so a machine that
+      // makes a key today is fully keyed tomorrow and never half-sealed.
+      const bool dayIsKeyed = (count == 0) ? true : head_says_hmac(headPath);
+      const string k = dayIsKeyed ? chain_key() : string();
       { std::ofstream hf(headPath, std::ios::trunc);
-        if (hf) hf << rbsha::hex(chained) << " " << (count + 1) << "\n"; }
+        if (hf) hf << seal(chained, k) << " " << (count + 1)
+                   << (k.empty() ? "" : " hmac") << "\n"; }
       flock(fd, LOCK_UN);
       close(fd);
       ::unlink(lockPath.c_str());

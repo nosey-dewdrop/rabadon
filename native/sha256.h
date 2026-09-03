@@ -91,4 +91,33 @@ inline std::string hex(const std::string& s) {
   return final_hex(c);
 }
 
+// The same digest as raw bytes. HMAC needs to feed one digest into another, and
+// re-parsing 64 hex characters back into 32 bytes to do it is a second place to
+// get the nibble order wrong.
+inline std::string raw(const std::string& s) {
+  const std::string h = hex(s);
+  std::string out; out.reserve(32);
+  for (size_t i = 0; i + 1 < h.size(); i += 2) {
+    auto nib = [](char c) -> int {
+      if (c >= '0' && c <= '9') return c - '0';
+      return (c | 0x20) - 'a' + 10;
+    };
+    out += (char)(unsigned char)((nib(h[i]) << 4) | nib(h[i + 1]));
+  }
+  return out;
+}
+
+// HMAC-SHA256, RFC 2104, hex out. Block size is 64 bytes: a key longer than
+// that is hashed down first, a shorter one is zero-padded up.
+inline std::string hmac_hex(const std::string& key, const std::string& msg) {
+  std::string k = key.size() > 64 ? raw(key) : key;
+  k.resize(64, '\0');
+  std::string ipad(64, '\0'), opad(64, '\0');
+  for (size_t i = 0; i < 64; i++) {
+    ipad[i] = (char)(unsigned char)(((unsigned char)k[i]) ^ 0x36);
+    opad[i] = (char)(unsigned char)(((unsigned char)k[i]) ^ 0x5c);
+  }
+  return hex(opad + raw(ipad + msg));
+}
+
 } // namespace rbsha

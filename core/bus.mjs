@@ -61,6 +61,43 @@ const LOCK_WAIT_MS = 250;     // total time to fight for the lock before failing
 
 const sha256hex = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+// ---------- the keyed seal, the other half of chain.h ------------------------
+//
+// chain.h seals each line with HMAC-SHA256 under ~/.rabadon/chain.key, and this
+// file is the FOURTH writer into the same day file. If the two disagree about
+// which function seals a line, the second writer's sidecar convicts the first
+// writer's lines -- the exact failure mode chain.h's header warns about for the
+// lock. So the rules here are the same three, in the same order:
+//   - the key is read, never created, from outside the spool;
+//   - a day already on disk keeps the seal it was opened with;
+//   - the marker is written only when the seal is really keyed.
+function rabadonDir() {
+  return process.env.RABADON_DIR || path.join(os.homedir(), '.rabadon');
+}
+let keyCache = null;          // null = not looked for yet, '' = none on disk
+function chainKey() {
+  if (keyCache !== null) return keyCache;
+  keyCache = '';
+  try {
+    const k = fs.readFileSync(path.join(rabadonDir(), 'chain.key'), 'utf8').split('\n')[0];
+    if (k && k.length >= 32) keyCache = k;
+  } catch { /* no key: fall back to the plain hash, exactly as chain.h does */ }
+  return keyCache;
+}
+/** Mirror of chain.h head_says_hmac(): did this day already commit to the key? */
+function headSaysHmac(headPath) {
+  try {
+    const h = fs.readFileSync(headPath, 'utf8').split('\n')[0];
+    return h.split(' ')[2] === 'hmac';
+  } catch { return false; }
+}
+/** Mirror of chain.h seal(). */
+function seal(line, key) {
+  return key
+    ? crypto.createHmac('sha256', key).update(line).digest('hex')
+    : sha256hex(line);
+}
+
 /** Sleep synchronously. emit() is synchronous by contract; it cannot await. */
 function sleepSync(ms) {
   try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* no SAB: spin-free fallback */ }
@@ -132,7 +169,12 @@ export function chainedAppend(spoolPath, event) {
     fs.appendFileSync(spoolPath, chained + '\n');
     // the sidecar is written under the same lock as the line it commits to, so
     // anything the two disagree about happened AFTER emit.
-    fs.writeFileSync(headPath, `${sha256hex(chained)} ${count + 1}\n`);
+    // A DAY FILE KEEPS THE SEAL IT WAS OPENED WITH — see chain.h. Introducing
+    // the key mid-file leaves a day half-sealed and audit convicts a file
+    // nobody touched.
+    const dayIsKeyed = count === 0 ? true : headSaysHmac(headPath);
+    const k = dayIsKeyed ? chainKey() : '';
+    fs.writeFileSync(headPath, `${seal(chained, k)} ${count + 1}${k ? ' hmac' : ''}\n`);
     return chained + '\n';
   } catch {
     return '';   // disk trouble must not stop the run

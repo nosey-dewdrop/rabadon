@@ -45,6 +45,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "sha256.h"
+#include "chain.h"
 #include "jsonl.h"
 #include "cli_help.h"
 #include "moves.h"
@@ -101,6 +102,7 @@ struct Head {
   bool malformed = false;
   string hash;
   long long count = -1;     // -1 = pre-0.4 sidecar, no count committed
+  bool keyed = false;       // the sidecar's third field said "hmac"
 };
 
 static bool is_hex64(const string& s) {
@@ -120,10 +122,24 @@ static Head read_head(const string& p) {
   h.hash = (sp == string::npos) ? raw : raw.substr(0, sp);
   if (!is_hex64(h.hash)) { h.malformed = true; return h; }
   if (sp != string::npos) {
+    // "<hash> <count>" through 0.4, "<hash> <count> hmac" from 0.5. The marker
+    // is READ, never assumed: a day written before the key existed is sealed
+    // with the plain hash and stays provable under that rule, and one written
+    // after is checked with the key. Verifying an unkeyed day as keyed (or the
+    // other way round) would convict a file nobody touched, which is the one
+    // failure this tool cannot afford.
     string c = raw.substr(sp + 1);
+    string marker;
+    const size_t sp2 = c.find(' ');
+    if (sp2 != string::npos) { marker = c.substr(sp2 + 1); c = c.substr(0, sp2); }
+    while (!marker.empty() && (marker.back() == '\r' || marker.back() == ' ')) marker.pop_back();
     if (!c.empty() && c.find_first_not_of("0123456789") == string::npos)
       h.count = strtoll(c.c_str(), nullptr, 10);
     else h.malformed = true;
+    if (!marker.empty()) {
+      if (marker == "hmac") h.keyed = true;
+      else h.malformed = true;      // a marker nobody wrote is not a marker to ignore
+    }
   }
   return h;
 }
@@ -342,6 +358,12 @@ int main(int argc, char** argv) {
     const string path = spool + "/" + f;
     string body = read_file(path);
     Head hd = read_head(path + ".head");
+    // Read once per file, not once per line: the key does not change mid-day,
+    // and opening it 90,000 times would be the measurement this ledger is proud
+    // of thrown away. Empty when there is no key, which only matters for a day
+    // whose sidecar says "hmac" -- reported below as unverifiable rather than
+    // silently checked with the wrong function.
+    const string auditKey = hd.keyed ? rbchain::chain_key() : string();
     if (body.empty() && !hd.present) continue;   // nothing written, nothing claimed
 
     string last = "genesis";     // hash of the last CHAINED line seen
@@ -372,7 +394,7 @@ int main(int argc, char** argv) {
         breakNote = "prev=" + prev.substr(0, 12) + "… expected=" +
                     (last == "genesis" ? last : last.substr(0, 12) + "…");
       }
-      last = rbsha::hex(line);
+      last = hd.keyed ? rbsha::hmac_hex(auditKey, line) : rbsha::hex(line);
       chained++;
 
       if (replay && ts >= cutoff) {

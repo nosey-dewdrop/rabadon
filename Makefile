@@ -39,10 +39,10 @@ native/rabadon-gated: native/gated.cpp native/gated_client.h native/gate.cpp nat
 native/rabadon-claims: native/claims.cpp native/jsonl.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-audit: native/audit.cpp native/sha256.h native/jsonl.h native/cli_help.h native/moves.h
+native/rabadon-audit: native/audit.cpp native/sha256.h native/chain.h native/pathres.h native/cmdtext.h native/jsonl.h native/cli_help.h native/moves.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h native/heldout.h native/policy.h native/inject.h native/moves.h
+native/rabadon-repair: native/repair.cpp native/sha256.h native/chain.h native/pathres.h native/cmdtext.h native/jsonl.h native/cli_help.h native/heldout.h native/policy.h native/inject.h native/moves.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # exec is the OTHER caller of the shared rule engine (rules.h -> baseline.h) and
@@ -64,7 +64,7 @@ native/rabadon-export: native/export.cpp native/cli_help.h native/drill.h native
 # chain.h/sha256.h are here for the same reason: trace reads the ledger's loss
 # evidence (the .head line count, the .unchained sibling) through chain.h's own
 # reader, so a change to the sidecar format has to rebuild this binary too.
-native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/drill.h native/chain.h native/sha256.h
+native/rabadon-trace: native/trace.cpp native/cli_help.h native/jsonl.h native/drill.h native/chain.h native/pathres.h native/cmdtext.h native/sha256.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-serve: native/serve.cpp native/cli_help.h
@@ -1210,7 +1210,7 @@ clean:
 native/rabadon-verify: native/verify.cpp native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-native/rabadon-pipeline: native/pipeline.cpp native/sha256.h native/chain.h native/jsonl.h native/cli_help.h
+native/rabadon-pipeline: native/pipeline.cpp native/sha256.h native/chain.h native/pathres.h native/cmdtext.h native/jsonl.h native/cli_help.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 native/rabadon-do: native/do.cpp native/cli_help.h
