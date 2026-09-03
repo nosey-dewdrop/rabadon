@@ -289,6 +289,66 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (9) — the first YES, with two real defects, and one of them was on the hard boundary
+
+Sixth review, and the first to answer **YES**. It spent its effort off the
+alias surface as asked, confirmed all four carried-over claims, found nothing
+wrong with the ledger under tampering or 40-way concurrency, and then landed
+two defects. Both are now closed, and the second one matters more than its size.
+
+**1. THE KERNEL FENCE DID NOT CANONICALISE ITS OWN PATHS.** `abspath()` in
+sandbox.cpp returned an absolute `protectedPaths` prefix verbatim. Seatbelt
+matches on the kernel's canonical path, so a fence naming a symlinked directory
+fenced nothing:
+
+    protectedPaths: ^/tmp/lab/work/secrets/.*     (work -> store/proj)
+    profile:        (deny file-write* (subpath ".../work/secrets"))
+    the write:      exit 0, the file said `pwned`
+
+This is the ONE silent failure on the surface the docs call the hard boundary.
+Everything else in this tool degrades loudly — a pure-regex path prints that
+the kernel cannot fence it, a missing backend exits 3 rather than running bare
+— and here `--print` showed a plausible deny rule while the write went through.
+The trigger is ordinary: `/tmp` is `/private/tmp` on macOS, `$TMPDIR` lives
+under `/private/var`, a home on a mounted volume, `~/Documents` under iCloud.
+Anyone who pastes the path their shell shows them gets an inert fence.
+
+Fixed with a `canon()` that realpaths each prefix and, for a path that does not
+exist yet, resolves the deepest existing ancestor and re-appends the tail. The
+project directory was already realpath'd at the call site, which is exactly why
+the RELATIVE form was safe and only the absolute one was not. Reverting the fix
+turns 4 checks red; restored, sandbox 21/21.
+
+Worth recording about my own work: my first fixture for this reported a hole
+that did not exist — it built its lab wrong and I nearly "fixed" a phantom. The
+fixture now builds and judges the lab in one python block, and the difference
+between a real finding and a broken harness was one careful measurement.
+
+**2. `rabadon audit` EXITED 0 ON A WHOLLY DELETED LEDGER.** Every harder tamper
+convicts: a byte edited, a line removed, a day file deleted while its sidecar
+remains — all exit 1. Deleting BOTH halves is the easiest of them and it
+answered "the ledger is empty — nothing to verify yet", exit 0. A wipe was
+presented as a fresh install. The three states are now told apart by the
+directory itself: no spool directory is a fresh install (0), events on record
+verify (0), and a spool directory that exists and holds nothing is
+**UNVERIFIABLE (2)** — it names the recovery rather than guessing which of the
+two it is.
+
+**What held, and is worth stating because five reviews have only reported
+damage:** the ledger convicted a forged line, a truncation, a deleted last
+line, a wipe, and two swapped lines. 60 concurrent hook calls from 60 threads
+produced 60 lines, zero unparseable, chain INTACT. The reviewer's own 40-way
+run agreed.
+
+DONE: `make test` exit 0, 125 suite scripts, built first and run alone.
+sandbox 21/0 (17/4 with canon reverted), audit 38/0.
+
+NOT VERIFIED: the reviewer's `rabadon init` finding — a raw Node stack trace in
+a read-only directory instead of a clean message. Cosmetic, no security impact,
+not fixed here.
+
+NEXT: fix that stack trace, then ask a seventh time.
+
 ### 2026-09-03 (8) — off the alias surface: the ledger holds, and a user's own rule could hang their session
 
 Five reviews had all been alias-focused, so this pass went looking elsewhere
