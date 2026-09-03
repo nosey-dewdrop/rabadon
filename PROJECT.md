@@ -289,6 +289,63 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (5) — the grid varied what you type, never where you stand
+
+Third review. The two fixes from (4) hold — the reviewer reproduced the
+revert-proof exactly, 5 red and 4 red. Then it found the cell that mattered,
+and the finding is about the SHAPE of the grid, not about a line of code:
+
+**every disk-alias case in the suite ran at the repo root.** A developer works
+in `src/`. One `cd src/` and the alias fix evaporated: `git zap origin main`
+was exit 2 at the root and exit 0 one directory down, with 97 checks green.
+That is the common case, not an exotic one, and the four axes could not see it
+because all four vary WHAT YOU TYPE and none varies WHERE YOU ARE.
+
+Root cause, and it is the ordinary kind: `disk_alias_body` hand-rolled git-dir
+discovery — `stat(".git")` in the gate's own process directory, no upward walk,
+no `.git`-as-a-FILE. `pathres.h` already does all three correctly and the
+force-push law itself uses it; the alias path simply never called it. Fixed by
+walking up from the event cwd through `rbpath::git_dir_at`, which brings linked
+worktrees and submodules with it for free.
+
+Two more cells closed in the same pass, both silent exit 0 before:
+  - `git -c include.path=<file> zap` — the disk reader follows `include.path`
+    INSIDE the files it enumerates, but a path named on the command line was
+    never one of them.
+  - `GIT_CONFIG_GLOBAL=<file> git zap` and `GIT_DIR=<dir> git zap` — the reader
+    called `getenv`, which sees this process's environment, not the assignment
+    prefix on the line the shell is about to run.
+The AliasReader seam now carries an `AliasEnv` (config-global, config-system,
+git-dir, and every `-c include.path` on the line), so cmdtext.h still knows
+nothing about a filesystem.
+
+**Two new grid axes, and the revert-proof repeated.** Axis five: where the user
+is standing (root / subdirectory / nested / `-C <subdir>` / linked worktree).
+Axis six: config the line points at that the enumerator never had. 97 → 109
+checks. Removing the upward walk alone turns 5 checks red; restored, 109/109.
+
+**A finding about my own process, worth more than any of the above.** Four full
+suite runs in a row went red for reasons that were not the code: a `touch`ed
+header left the tree needing a rebuild, a half-saved source was compiled, a
+binary was missing mid-run because I ran `make` while the suite ran, and a
+timing assertion drifted under eight concurrent Claude processes. Each cost a
+diagnosis cycle. `make test` and a build must not overlap; the suite is the
+last thing that runs, alone.
+
+The reviewer also named a trap for anyone testing this next: `loop-stop`
+refuses the third identical command in a session and returns exit 2, which
+looks exactly like a law refusing. A probe harness must randomise `session_id`
+per call or it will report holes as fixed. Noted here because it nearly
+produced two false all-clears.
+
+DONE: `make test` exit 0, 123 suite scripts, on a tree built first and left
+alone. git_alias 109/0 (and 104/5 with the upward walk reverted).
+
+NOT VERIFIED: whether six axes are enough. Two reviews found two axes nobody
+had named; a seventh is likelier than not.
+
+NEXT: ask a fourth time.
+
 ### 2026-09-03 (4) — the reviewer came back with two holes in yesterday's fix, and the real lesson is the test shape
 
 Second independent review, same instructions: verify every claimed fix by
