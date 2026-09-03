@@ -1916,13 +1916,35 @@ inline void expand_git_alias(vector<Word>& t, string* shellBody, vector<string>*
       if (!asksForHelp && !tok.empty() && tok[0] != '-' && line_alias_lookup(key_lower(tok), body)) {
         goto have_body;
       }
-      // the same name, looked for where git would actually find it
+      // the same name, looked for where git would actually find it.
+      //
+      // TWO THINGS THIS LINE GOT WRONG THE FIRST TIME, both found by an outside
+      // reviewer within minutes of the fix that introduced them (2026-09-03):
+      //
+      //   1. THE NAME IS FOLDED. git config keys fold case on both sides, so
+      //      `alias.deploy` is invoked equally by `git Deploy` and `git DEPLOY`.
+      //      The `-c` path folded (git_line_alias lowercases) and this one
+      //      compared the raw token: `git deploy` was refused and `git DEPLOY`
+      //      ran, which is the whole bypass back, one shift key away.
+      //   2. `-C <dir>` DECIDES WHICH REPO. git_repo_knobs already collects it
+      //      into `chdirs` and this code used only `gitDir`, so an alias living
+      //      in the repo `-C` points at was invisible: `git -C ../other far`
+      //      walked past every law while `git --git-dir=../other/.git far` did
+      //      not. Two spellings of one fact, one of them unguarded.
       if (!asksForHelp && disk_alias_reader() && !tok.empty() && tok[0] != '-') {
         vector<string> chdirs; string gitDir;
         git_repo_knobs(t, ci, sub, chdirs, gitDir);
+        // `-C a -C b` is cumulative in git and the last one is where it lands;
+        // a relative one resolves against the cwd the hook handed us.
+        if (gitDir.empty() && !chdirs.empty()) {
+          string dir = chdirs.back();
+          if (!dir.empty() && dir[0] != '/' && !parse_cwd().empty())
+            dir = parse_cwd() + "/" + dir;
+          gitDir = dir + "/.git";
+        }
         if (gitDir.empty() && !parse_cwd().empty()) gitDir = parse_cwd() + "/.git";
         string disk;
-        if (disk_alias_reader()(tok, gitDir, disk) && !disk.empty()) {
+        if (disk_alias_reader()(key_lower(tok), gitDir, disk) && !disk.empty()) {
           body = disk;
           goto have_body;
         }

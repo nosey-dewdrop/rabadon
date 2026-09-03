@@ -250,6 +250,63 @@ allows "the definition quoted in echo" "$REPO" "echo 'git config alias.z push --
 allows "the next line does not inherit it" "$REPO" "git z origin main"
 
 echo
+echo "== the alias surface as a GRID, not one case per incident =="
+# WHY A GRID. Two holes were found in ten minutes by an outside reviewer on
+# 2026-09-03, both in code written the day before, and both were cells no test
+# visited: a disk alias invoked in a different CASE, and a disk alias in the
+# repo `-C` points at. Every existing case above tests the fix along the axis
+# it was written on — `-c` aliases fold case, so folding was "covered"; `-C`
+# was tested with a `-c` alias, so `-C` was "covered". Neither was.
+#
+# The resolver has four independent axes. This block walks their product for
+# the dangerous body, and the matching legitimate twin, so the next cell
+# nobody thought of is red HERE rather than in someone's repo:
+#
+#   WHERE the alias lives   -c on the line | git config on the line
+#                           | .git/config | ~/.gitconfig
+#   HOW the name is cased   defined lower/mixed x invoked lower/mixed/upper
+#   WHICH repo git is at    cwd | -C <dir> | --git-dir=<dir>
+#   WHAT the body is        a verb | a chain | a !shell program
+ALIASREPO="$ROOT/gridrepo"
+mkdir -p "$ALIASREPO" && "$REALGIT" -C "$ALIASREPO" init -q .
+"$REALGIT" -C "$ALIASREPO" config alias.gridpush "push --force"
+"$REALGIT" -C "$ALIASREPO" config alias.gridMixed "push --force"
+"$REALGIT" -C "$ALIASREPO" config alias.gridbang "!git push --force origin main"
+"$REALGIT" -C "$ALIASREPO" config alias.gridchain gridpush
+"$REALGIT" -C "$ALIASREPO" config alias.gridread "log --oneline -3"
+# a HOME-level alias: the file git reads when the repo has nothing to say
+"$REALGIT" config --file "$HOME/.gitconfig" alias.homepush "push --force"
+"$REALGIT" config --file "$HOME/.gitconfig" alias.homeread "status --short"
+
+# --- axis: case, on the DISK path (the hole) ------------------------------
+blocks "disk alias, lower/lower"    "$ALIASREPO" "git gridpush origin main"
+blocks "disk alias, lower/Mixed"    "$ALIASREPO" "git GridPush origin main"
+blocks "disk alias, lower/UPPER"    "$ALIASREPO" "git GRIDPUSH origin main"
+blocks "disk alias, Mixed/lower"    "$ALIASREPO" "git gridmixed origin main"
+blocks "disk alias, Mixed/UPPER"    "$ALIASREPO" "git GRIDMIXED origin main"
+allows "a read alias, any case"     "$ALIASREPO" "git GridRead"
+
+# --- axis: which repo git is pointed at (the second hole) ------------------
+blocks "-C at the alias's repo"     "$REPO" "git -C $ALIASREPO gridpush origin main"
+blocks "-C plus a cased name"       "$REPO" "git -C $ALIASREPO GRIDPUSH origin main"
+blocks "--git-dir at that repo"     "$REPO" "git --git-dir=$ALIASREPO/.git gridpush origin main"
+blocks "-C and a bang body"         "$REPO" "git -C $ALIASREPO gridbang"
+allows "-C at a repo without it"    "$ALIASREPO" "git -C $REPO gridpush origin main"
+
+# --- axis: where the alias lives ------------------------------------------
+blocks "an alias in ~/.gitconfig"   "$REPO" "git homepush origin main"
+blocks "the same, cased"            "$REPO" "git HomePush origin main"
+allows "a read alias in ~/.gitconfig" "$REPO" "git homeread"
+
+# --- axis: what the body is -----------------------------------------------
+blocks "a disk alias chained"       "$ALIASREPO" "git gridchain origin main"
+blocks "a disk bang alias"          "$ALIASREPO" "git gridbang"
+
+# --- the axes crossed with the line forms already covered above ------------
+blocks "-c overrides a disk alias"  "$ALIASREPO" "git -c alias.gridread='push --force' gridread origin main"
+allows "-c overrides toward safety" "$ALIASREPO" "git -c alias.gridpush=status gridpush"
+
+echo
 echo "== e2e: the same shapes reach the user rule layer =="
 blocks "guard.json + alias"          "$GREPO" "git -c alias.x='push --force' x origin main"
 blocks "guard.json + chained alias"  "$GREPO" "git -c alias.a=b -c alias.b='push --force' a origin main"

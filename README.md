@@ -16,6 +16,13 @@ Everything is local, by law: events append to `~/.rabadon/spool/` on your machin
 
 ## Install
 
+**What it costs before you type it:** ~2.8 ms on every tool call, and an
+append-only ledger in `~/.rabadon/spool` that grows about 2.7 MB a day — near
+1 GB a year on a machine running agents all day, and nothing prunes it for
+you. That is deliberate (a guard that deletes its own evidence cannot be
+checked) and `docs/faq.md` says how to delete old months. Nothing leaves the
+machine and no model is called unless you turn one on.
+
 ```sh
 npm i -g rabadon          # prebuilt binary for your platform; no compiler needed
                           # (from source instead: git clone … && npm install && npm link)
