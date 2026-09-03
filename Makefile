@@ -521,6 +521,11 @@ test: all
 # fails on any divergence in either direction — a miss is a bypass, a refusal
 # of a name git never runs is a false reject.
 	./native/git_alias_oracle_test.sh
+# a user's own deny rule must not be able to hang their session: std::regex
+# backtracks, and `(a+)+b` in a guard.json turned a 100k-char command into 5.18s
+# on the hot path (measured 2026-09-03). Holds the bound AND that no rule was
+# weakened to get it.
+	./native/rule_cost_test.sh
 # the same question one option later: `git push -fu origin main`. git's
 # subcommands read their options with parse-options and parse-options takes them
 # clustered, so -fu is --force --set-upstream — and both layers missed that word

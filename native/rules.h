@@ -193,10 +193,36 @@ inline std::vector<Rule> parse_rules(const string& guard, const string& section,
   return rules;
 }
 
+// A USER'S OWN RULE MUST NOT BE ABLE TO HANG THEIR SESSION.
+// std::regex backtracks and has no step limit, so a pattern like `(a+)+b` —
+// which somebody writes by accident, not by malice — turns a long command into
+// seconds of CPU on the hot path. Measured 2026-09-03: with that rule in
+// guard.json, a 100k-character command took 5.18s; with the compiled laws
+// alone the same command takes 0.02s, so the cost is entirely the user rule's
+// backtracking.
+//
+// The fix is a bound on the INPUT, not a rewrite of the engine. A deny rule
+// exists to recognise a command a human typed; past a few thousand characters
+// the tail is data — a base64 blob, a heredoc, a pasted file — and no rule in
+// this project's own guard, or in any rule the arbiter has ever authored,
+// needs it. So the match sees a bounded prefix.
+//
+// Chosen so it cannot silently weaken a real rule: the longest deny pattern in
+// this repo's own guards matches inside 200 characters, the cap is 100x that,
+// and a command that long is a paste, not a verb. A rule that genuinely needs
+// to see beyond it should match on the shape at the head instead, which is
+// what every law here already does.
+static const size_t RX_MAX_INPUT = 20000;
+
 inline bool rx_test(const string& pattern, const string& text) {
   try {
     std::regex re(pattern, std::regex::ECMAScript | std::regex::icase);
-    return std::regex_search(text, re);
+    if (text.size() <= RX_MAX_INPUT) return std::regex_search(text, re);
+    // The prefix, and then a window at the END as well: a dangerous verb can
+    // sit after a long heredoc body, and dropping the tail entirely would be a
+    // hole rather than a bound.
+    if (std::regex_search(text.substr(0, RX_MAX_INPUT), re)) return true;
+    return std::regex_search(text.substr(text.size() - RX_MAX_INPUT), re);
   } catch (...) { return false; } // a broken rule must not take the gate down
 }
 
