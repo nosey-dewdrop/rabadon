@@ -289,6 +289,63 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (6) — the reviewer stopped reporting cells and reported the METHOD, so the suite now asks git
+
+Fourth review. All three fixes from (5) verified by the reviewer's own runs,
+including the revert-proof (109 → 104, exactly the 5 subdirectory checks). Then
+it found the next cell, one character from the last one:
+
+    git config alias.yo.lo 'push --force'
+    git yo.lo origin main     -> exit 0     (allowed)
+    git push --force ...      -> exit 2
+
+Not push-specific: `alias.nuke.it = '!rm -rf ~/Documents'` ran too. Cause: the
+alias-name allowlist in `disk_alias_body` rejected `.`, so the lookup was
+abandoned before a file was opened. git stores `alias.yo.lo` as
+`[alias "yo"] lo` and resolves it; the same dotted name supplied with `-c` was
+already caught, which is what made it a reader bug rather than a parser one.
+
+**The verdict named the real problem, and it was not the dot.** Four reviews,
+four bypasses, all in one function, each one a cell the hand-written grid did
+not contain. "109 checks green" is a statement about what somebody thought to
+type.
+
+So `native/git_alias_oracle_test.sh` does not think of names. It generates
+them — cases, dots, dashes, spaces, tabs, empty, builtin collisions, non-ASCII
+including the Turkish dotless ı, a 60-character name — pairs each with a
+dangerous verb, a `!shell` body and a harmless body, asks the REAL git binary
+whether it resolves (`git config --get`), and requires the gate to agree from
+three directories. A divergence fails in either direction: a miss is a bypass,
+a refusal of a name git never runs is a false reject. 48 generated pairs.
+
+**It went red on its first run, twice, on names I had just written a filter
+for.** My dot fix carried a path-traversal instinct into a config key: I
+refused `..` and a leading `.`. Both are names git stores and runs
+(`alias.a..b` → `[alias "a."] b`; `alias..lead` → `[alias ""] lead`, which
+reaches push). Guessing what git would not accept reopened the bypass one
+character further along, twice, and the oracle caught both within a minute of
+existing. The filter now refuses only a trailing dot, which names no variable.
+
+**One divergence remains and is counted rather than excluded.**
+`alias..lead` is an EMPTY subsection, and `config_key()` renders "no
+subsection" and "an empty subsection" identically, so the lookup asks for
+`alias.lead` while the disk holds `alias..lead`. Telling them apart means a
+distinguished empty-subsection marker through every reader of a config key, for
+a name no human types. The suite asserts the limit count is exactly 3 (one
+name, three bodies) — if it moves in either direction, the suite goes red and
+somebody has to say why.
+
+DONE: `make test` exit 0, 124 suite scripts (the oracle is now one of them),
+built first and run alone. git_alias 109/0, oracle PASS with 48 generated
+pairs.
+
+NOT VERIFIED: the oracle covers alias NAMES. The other axes — where the config
+lives, which repo, what the body is, where the user stands — are still the
+hand-written grid, and the same argument applies to them: they are cells
+somebody thought of.
+
+NEXT: ask a fifth time.
+
 ### 2026-09-03 (5) — the grid varied what you type, never where you stand
 
 Third review. The two fixes from (4) hold — the reviewer reproduced the
