@@ -289,6 +289,77 @@ spec — never the full chat history, never future versions' details.
 (append-only; newest first; three lines per session:
 DONE / NOT VERIFIED / NEXT)
 
+### 2026-09-03 (3) — an outside reviewer found a general bypass, an inflated headline, and a contradiction
+
+An independent agent was asked one question — would you install this — with
+instructions to be adversarial and to run the measurement scripts itself. It
+reproduced all three scripts to the digit and found five things this project
+had missed. All five are fixed below; none of the fixes was argued with.
+
+**1. A GENERAL BYPASS OF EVERY GIT LAW.** `git config alias.yolo "push --force"`
+typed once, then `git yolo origin main` — exit 0, reproduced here immediately.
+cmdtext.h resolved an alias the command LINE writes (`-c alias.x=...`) and knew
+nothing about the one a user configured months earlier. Fixed in three parts,
+each measured:
+  - `rbgitcfg::disk_alias_body` looks the name up through the same
+    `config_files()` order git uses (/etc, XDG, ~/.gitconfig, .git/config,
+    config.worktree), last definition winning. Wired as a callback so cmdtext.h
+    still knows nothing about a filesystem and gitcfg.h still includes nothing
+    from cmdtext.
+  - a definition EARLIER ON THE SAME LINE (`git config alias.z '...'; git z`)
+    is not on disk when the gate decides, so the parse collects definitions as
+    it walks segments; the table is cleared per parse so one line's alias never
+    leaks into the next.
+  - `parse_cwd()`: the reader was looking for `.git` beside the GATE's process,
+    not the agent's. The cases passed by hand and failed under the harness, and
+    that difference was the bug.
+  Found while fixing it: `git yolo --help` was refused. Measured against git
+  2.39.5 — it prints "'yolo' is aliased to 'push --force'", opens git-push(1)
+  and touches nothing. Refusing a documentation lookup is a false reject of the
+  worst kind, and `--help`/`-h` now skip expansion.
+  `native/git_alias_test.sh`: 75 checks, 0 failed (was 72; 14 new cases).
+
+**2. THE HEADLINE WAS INFLATED, BY THIS PROJECT'S OWN SCRIPT.** `push-gate` was
+in `bench/irreversible.py`'s IRREVERSIBLE set and was 15 of 57 real-work
+refusals — 26 % of the number README led with. Every one of its events reads
+"code was edited after the last passing test run". A push was DEFERRED; nothing
+was destroyed. The script defending the thesis was violating it. `push-gate`
+and `no-wrangler-deploy` moved to a DEFERRED class, counted and printed
+separately rather than deleted. **The rate falls from 13.8/week to 9.9/week**,
+and README and BENCHMARK §3d now say 9.9.
+
+**3. A FLAT CONTRADICTION IN README.** The Status section still read "Not yet
+published to npm — waiting on the maintainer's `npm publish`" while the Install
+section said `npm i -g rabadon`. For a project whose brand is that the ledger
+does not lie, that is the most expensive kind of stale sentence. (Its first
+replacement typed the version number into prose and version_test.sh caught it
+within the minute — the drift check earning its place.)
+
+**4. `red-base` NOW SHIPS OFF.** The rule the product's story leans on is its
+worst behaved: 65 refusals across 13 sessions and 6 days, 26 in one day and 17
+in one session, a 15 % operator-declared wrong rate, and a green suite within
+25 events in 7 of 65. That is a rule that can jam a debugging session in a
+loop. `rabadon init` writes `"disabled": ["red-base"]`; it stays compiled in
+and one word away.
+
+**5. THE DISK COST IS NOW STATED BEFORE INSTALL.** 30 days of ledger is 82 MB —
+2.7 MB/day, about 1 GB/year, and nothing prunes it. It was visible only in
+`doctor` output. docs/faq.md now leads with the number, says why nothing prunes
+automatically (a guard that deletes its own evidence cannot be checked), and
+gives the command to delete old months.
+
+DONE: `make test` exit 0, 123 suite scripts. git_alias 75/0, version 13/0,
+docs_truth 42/0.
+
+NOT VERIFIED: two evasions the reviewer named and this entry does not close —
+`python3 -c "subprocess.run(['git','push','--force'...])"` (an agent writes
+Python as readily as bash; the stated answer is the kernel sandbox via
+`rabadon exec`, which is not the default path), and the documented
+`cd .. && rm -rf $(basename $PWD)`. Both belong in the threat model as named
+limits.
+
+NEXT: put those two in docs/threat-model.md, then ask the reviewer again.
+
 ### 2026-09-03 (2) — the wrapper test applied to rabadon's own headline number
 
 The operator's question, in their own words: a pair of scissors works, but you
