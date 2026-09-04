@@ -264,6 +264,49 @@ must_not_block "mv $PROJ/keep/file.txt $OUT_LAB/outside/does-not-exist-yet.txt"
 must_not_block "mv $PROJ/keep/file.txt $PROJ/keep/renamed.txt"
 must_not_block "cp $PROJ/keep/file.txt $OUT_LAB/outside/fresh-copy.txt"
 must_not_block "mv $PROJ/keep/file.txt $OUT_LAB/outside/"
+echo
+
+# ---------------------------------------------------------------------------
+# 2c. THE SAME LOSS WITH NO DESTINATION OPERAND -- tee and the in-place editors.
+#
+# 2b reads the last operand because mv and cp carry their target there. Two
+# ordinary verbs destroy a file outside the tree while carrying no destination
+# at all, and both measured exit 0 on 2026-09-04 with `rm -rf` on the same
+# directory measuring exit 2:
+#
+#   tee <outside file> < /dev/null       -> the file is emptied
+#   sed -i '' 's/./X/g' <outside file>   -> the bytes are rewritten in place
+#
+# Same loss as `> a.txt` and as `mv b a`: what the file held is unrecoverable,
+# no reflog and no trash. The narrowings are the expensive half and each has a
+# twin below: in-place ONLY (a plain `sed` reads and is harmless), an EXISTING
+# file ONLY, and OUTSIDE the tree ONLY (git can undo the in-tree case).
+#
+# The lab is the same one 2b built, for the same two reasons spelled out there:
+# not under temp (or land_of answers CONTAINED and nothing can fail), and not
+# carrying the string "rabadon" (or word_could_name_law rescues the fixture).
+echo "2c. tee and in-place editors: the destination decides here too"
+if [ "$(judge "rm -rf $OUT_LAB/outside")" = BLOCK ]; then
+  ok "premise: the 2c lab is still a true out-of-tree landing"
+else
+  bad "premise FAILED: the 2c lab is inside a forgiven area and every case below would pass vacuously"
+fi
+
+# the destructive spellings
+must_block "tee $OUT_LAB/outside/occupied.txt"
+must_block "sed -i '' s/./X/g $OUT_LAB/outside/occupied.txt"
+must_block "perl -i -pe s/a/b/ $OUT_LAB/outside/occupied.txt"
+must_block "ruby -i -pe gsub(/a/,'b') $OUT_LAB/outside/occupied.txt"
+
+# the twins -- each one narrows the law, and a refusal here is the expensive
+# kind of wrong: these are the shapes ordinary build scripts are made of.
+must_not_block "tee -a $OUT_LAB/outside/occupied.txt"          # append adds, destroys nothing
+must_not_block "tee $OUT_LAB/outside/not-there-yet.txt"        # nothing held it
+must_not_block "sed s/a/b/ $OUT_LAB/outside/occupied.txt"      # reads, does not write back
+must_not_block "perl -pe s/a/b/ $OUT_LAB/outside/occupied.txt" # same, no -i
+must_not_block "tee $PROJ/keep/file.txt"                       # in-tree: git can undo it
+must_not_block "sed -i '' s/./X/g $PROJ/keep/file.txt"         # in-tree
+must_not_block "ruby -e puts(1)"                               # -e is not -i
 rm -rf "$OUT_LAB"
 echo
 

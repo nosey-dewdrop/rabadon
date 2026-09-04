@@ -1837,6 +1837,88 @@ inline bool check_segment(const vector<rbtext::Word>& t, const string& cwd, cons
     }
   }
 
+  // ---- the same loss again, spelled with no destination operand -----------
+  //
+  // `mv`/`cp` carry their target as the last operand and the law above reads it
+  // there. Two ordinary verbs destroy a file OUTSIDE the tree without ever
+  // being a move and without naming a delete, and both were measured open on
+  // 2026-09-04 with the gate returning 0:
+  //
+  //   tee <outside file> < /dev/null        the file is emptied
+  //   sed -i '' 's/./X/g' <outside file>    the bytes are rewritten in place
+  //
+  // Same loss as `> a.txt` and as `mv b a`: a file that held something holds
+  // something else now, with no reflog and no trash. The axis is once again the
+  // DESTINATION, not the verb — so the shape of this law matches its two
+  // siblings deliberately rather than inventing a third test.
+  //
+  // TWO NARROWINGS, both because a false refusal here is the expensive kind:
+  //   - in-place ONLY. `sed 's/x/y/' f > g` reads f and is untouched; the
+  //     truncating-redirect law owns the `> g` half. Only the flag that makes
+  //     the editor write back to its own input is judged.
+  //   - EXISTING file, OUTSIDE the tree. Inside the project git can undo it,
+  //     which is the containment question every law in this file asks; a
+  //     destination that does not exist yet destroys nothing. Measured: both
+  //     verbs stay allowed in-tree.
+  //
+  // Not closed here, and said out loud rather than implied: under `rabadon
+  // exec` the kernel fence already refuses both, whatever spells them. This law
+  // is for the plain hooked session, where there is no fence.
+  if (!disabled_has(disabled, "baseline-inplace-outside")) {
+    const bool isTee = rbtext::name_is(name, "tee");
+    bool isEditor = false;
+    for (const char* v : {"sed", "perl", "ruby"})
+      if (rbtext::name_is(name, v)) { isEditor = true; break; }
+
+    // an editor is only dangerous with the flag that makes it write its input
+    bool inPlace = false;
+    if (isEditor) {
+      for (size_t i = ci + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (w.size() < 2 || w[0] != '-') continue;
+        if (w == "--in-place" || w.compare(0, 11, "--in-place=") == 0) { inPlace = true; break; }
+        if (w[1] == '-') continue;                     // some other long option
+        if (w.find('i') != string::npos) { inPlace = true; break; }
+      }
+    }
+
+    // tee -a APPENDS: it adds to a file rather than replacing what it held.
+    bool teeAppends = false;
+    if (isTee) {
+      for (size_t i = ci + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (w == "--append") { teeAppends = true; break; }
+        if (w.size() > 1 && w[0] == '-' && w[1] != '-' && w.find('a') != string::npos) { teeAppends = true; break; }
+      }
+    }
+
+    if ((isTee && !teeAppends) || (isEditor && inPlace)) {
+      for (size_t i = ci + 1; i < t.size(); i++) {
+        const string& w = t[i].text;
+        if (w.empty() || w[0] == '-') continue;        // an option is not a path
+        // sed's first operand is its SCRIPT, not a file. `sed -i '' s/a/b/ f`
+        // on BSD even carries an empty backup suffix as its own word. Judging
+        // the script as a path is how this law would refuse `sed -i 's|/etc|x|'`
+        // — so only an operand that names a file which EXISTS is considered,
+        // which a script practically never does.
+        const string abs = rbpath::lexical_abs(rbpath::expand_known_vars(w), cwd);
+        struct stat st;
+        if (abs.empty() || ::stat(abs.c_str(), &st) != 0 || S_ISDIR(st.st_mode)) continue;
+        const bool scratchCwd = is_temp_root(root);
+        const Land L = land_of(w, cwd, scratchCwd ? string() : root);
+        if (L.where != rbpath::ESCAPES) continue;
+        hit = {"baseline-inplace-outside",
+               string("`") + name + "` rewrites an existing file outside the project tree "
+               "in place, and git cannot undo it there",
+               string(name) + " would overwrite '" + w + "', which resolves to " + L.real +
+               ", outside the project tree (" + root + ") — the contents it holds now are "
+               "gone the moment it runs. Write to a new name and move it, or copy the "
+               "file aside first"};
+        return true;
+      }
+    }
+  }
+
   if (!disabled_has(disabled, "baseline-rm-rf-outside")) {
     const rbpath::Delete d = rbpath::delete_of(t);
     if (!d.isDelete || !rbtext::name_is(name, "rm")) return false;
@@ -1960,6 +2042,16 @@ inline bool check_parsed(const rbtext::Parsed& p, const string& cwd,
     if (!relevant && !disabled_has(disabled, "baseline-overwrite-outside"))
       relevant = rbtext::name_is(b, "mv") || rbtext::name_is(b, "cp") ||
                  rbtext::name_is(b, "install");
+    // The same precondition, for the law's in-place twin. tee, sed, perl and
+    // ruby are not verbs any older law acts on either, so `tee <outside file>`
+    // and `sed -i '' ... <outside file>` were declined HERE — the law below ran
+    // for neither of them, and both measured exit 0 while `rm -rf` on the same
+    // directory measured exit 2. This is the same lesson as the mv/cp line
+    // directly above, which is why it is spelled the same way: a law that is
+    // never asked is indistinguishable from a law that says yes.
+    if (!relevant && !disabled_has(disabled, "baseline-inplace-outside"))
+      relevant = rbtext::name_is(b, "tee") || rbtext::name_is(b, "sed") ||
+                 rbtext::name_is(b, "perl") || rbtext::name_is(b, "ruby");
     // THE SUPERVISION TREE MAKES A SEGMENT RELEVANT WHATEVER THE VERB IS.
     //
     // This filter is the laws' own precondition, and it named the verbs the
