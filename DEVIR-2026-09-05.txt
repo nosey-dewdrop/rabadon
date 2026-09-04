@@ -123,6 +123,39 @@ SPAGETTİ (kod tarafı) — AYRI İŞ, MD'DEN SONRA:
   GERİ-ALMA KANITI (bölmeyi geri alınca ne kırılıyor).
 
 ================================================================
+2.5 DARBOĞAZA GİRİNCE — AYNI ŞEYİ 10 KEZ DENEME, EKSİK PARÇAYI KUR
+================================================================
+KURAL: bir şey çalışmıyorsa TEKRAR DENEME ve ÜSTÜNE AJAN SALMA.
+Ajan doğurmak darboğazı çözmez, sadece aynı duvara daha çok kafa
+vurdurur — ve token yakar.
+
+ÜÇÜNCÜ DENEMEDEN ÖNCE DUR VE SOR: "eksik olan ne?"
+Neredeyse her zaman eksik olan bir PARÇA'dır, çabanın miktarı değil:
+  - yanlış çağrı şekli      -> `--help` oku, kaynaktaki usage'ı oku
+  - boş/yanlış çıktı        -> parser'ı oku, hangi şekli bekliyor
+  - komut hiç koşmamış      -> argv'ye bak, tırnak/genişleme bozuk mu
+  - kurulu olmayan bağımlılık -> KUR, etrafından dolaşma
+  - ölçüm ortamı yok        -> ortamı kur (Docker vb.), tahminle yürüme
+
+4 EYLÜL'DE BUNUN ÜÇ ÖRNEĞİ YAŞANDI, üçünde de çözüm tekrar denemek
+DEĞİL, eksik parçayı bulmaktı:
+  1. `rabadon-sandbox exec ...` -> "unknown option". Doğru şekil
+     `--dir D -- <cmd>` idi. Çözüm: --help okumak, 1 tur.
+  2. protectedPaths'e düz string verdim, profil boş çıktı. Parser
+     obje + "match" alanı bekliyordu. Çözüm: parser'ı okumak, 1 tur.
+     (Bunu yapmasaydım "fence çalışmıyor" diye YANLIŞ TEŞHİS koyacaktım.)
+  3. Beş test armı yeşil geçti ama komut hiç koşmamıştı — argv
+     tırnaksız genişlemede parçalanmış. Çözüm: kontrol koşusu eklemek.
+
+ADIM SAYISI SINIRI: aynı hedefe 3 denemede ulaşamadıysan, denemeyi
+BIRAK ve teşhise geç. Teşhis de çıkmazsa TARAFSIZ AJANA SOR — ama
+§3'teki şekilde: "bu neden çalışmıyor, file:line ile göster" diye
+TEKNİK sor, "ne yapayım" diye değil.
+
+VE EKSİK PARÇA KURULUNCA ONU YAZ: bir sonraki tur aynı duvara
+çarpmasın. Bu devirdeki §2 TUZAK listesi tam olarak böyle doğdu.
+
+================================================================
 3. AJAN KULLANIMI — DAMLA'NIN ŞARTI
 ================================================================
 Soru çıkarsa TARAFSIZ AJANA sor, Damla'ya değil. Ama:
