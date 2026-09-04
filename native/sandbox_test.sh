@@ -308,7 +308,30 @@ if [ -x "$SB_ABS" ]; then
   # below is meaningless. Prove the fence is live before trusting its verdicts.
   D7="$(mktemp -d "$HOME/sbx7-XXXXXX")"
   mkdir -p "$D7/proj/.rabadon"
-  printf '{"project":"p","bash":[],"protectedPaths":[],"disabled":[]}' > "$D7/proj/.rabadon/guard.json"
+
+  # THE TWO PLATFORMS DO NOT PROMISE THE SAME FENCE, and this suite used to
+  # assume they did. On macOS the fence is DENY-DEFAULT: with no protected path
+  # named, everything outside the tree and the measured scratch roots is
+  # read-only, so an empty `protectedPaths` still fences. On Linux it is the
+  # narrower NAMED-PATHS shape — sandbox.cpp sets `denyDefault = false` there,
+  # and `wantsEnforcement` is then false when nothing is named, so the command
+  # runs bare. README says exactly this ("on Linux the fence is still the
+  # narrower named-paths shape (deny-default is unmeasured there, so it is not
+  # claimed)"); the test did not, and CI on ubuntu was red for five arms while
+  # macOS was green on the identical commit.
+  #
+  # So the victim is NAMED on Linux and left unnamed on macOS. The question each
+  # arm asks is the same on both — does the kernel stop an interpreter reaching
+  # a path it must not write — and neither platform is asked for a promise the
+  # product does not make.
+  if [ "$(uname -s)" = "Darwin" ]; then
+    SB_SHAPE="deny-default (nothing named)"
+    printf '{"project":"p","bash":[],"protectedPaths":[],"disabled":[]}' > "$D7/proj/.rabadon/guard.json"
+  else
+    SB_SHAPE="named paths"
+    printf '{"project":"p","bash":[],"protectedPaths":["%s"],"disabled":[]}' "$D7/vic" \
+      > "$D7/proj/.rabadon/guard.json"
+  fi
 
   mkvic() { rm -rf "$D7/vic"; mkdir -p "$D7/vic"; echo golden > "$D7/vic/keep.txt"; }
   alive() { [ -f "$D7/vic/keep.txt" ]; }
@@ -317,7 +340,7 @@ if [ -x "$SB_ABS" ]; then
   ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- \
       sh -c "rm -rf '$D7/vic'" ) >/dev/null 2>&1
   if alive; then
-    pass "precondition: with protectedPaths EMPTY the fence is live (a plain rm outside the tree is refused)"
+    pass "precondition: the fence is live in its $SB_SHAPE shape (a plain rm outside the tree is refused)"
 
     # --- the interpreter axis, one arm per language ---
     #
@@ -349,7 +372,7 @@ if [ -x "$SB_ABS" ]; then
       ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- "$lang" "$flag" \
           "$(printf '%s' "$prog" | sed "s|__T__|$D7/vic|g")" ) >/dev/null 2>&1
       if alive; then
-        pass "an unprotected default fences \`$lang\` writing outside the tree"
+        pass "the fence stops \`$lang\` writing outside the tree ($SB_SHAPE)"
       else
         fail "\`$lang\` destroyed a path outside the tree under the fence"
       fi
@@ -369,7 +392,7 @@ if [ -x "$SB_ABS" ]; then
       else
         mkvic
         ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- awk "BEGIN{system(\"rm -rf $D7/vic\")}" ) >/dev/null 2>&1
-        if alive; then pass "an unprotected default fences \`awk\` writing outside the tree"
+        if alive; then pass "the fence stops \`awk\` writing outside the tree ($SB_SHAPE)"
         else fail "\`awk\` destroyed a path outside the tree under the fence"; fi
       fi
       rm -rf "$ctl"
