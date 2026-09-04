@@ -1,0 +1,312 @@
+DEVİR — rabadon, 7 Eylül 2026
+Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: c4d7bcd (push'lu)
+Önceki devirler artık docs/archive/devir/ altında (-09-04, -09-04-B, -09-05).
+Kökte duran: DEVIR-2026-09-06.txt (bir öncekisi) ve bu dosya.
+
+DEVIR-2026-09-06.txt'yi OKU — §4 (yöntem), §6 (orkestrasyon), §7 (değişmeyen
+kurallar) HÂLÂ ZORUNLU, buraya kopyalamadım. Bu dosya onu TEKRARLAMIYOR.
+
+================================================================
+0. TEK CÜMLE
+================================================================
+FAZ 3 kapandı: kökteki 18 md/txt 12'ye indi, 6 dosya arşive TAŞINDI, suite
+taşımadan önce ve sonra birebir aynı (EXIT=0, 4284 ok). Bu turun asıl bulgusu
+FAZ 3'te değil FAZ 4'te: CLAUDE.md'nin 40 satır tavanı bu repoda hiçbir testte
+YOK (kural Damla'nın global hafızasından geliyor), ve dosyayı kısaltmak
+göründüğü kadar serbest değil — 13 kod/test dosyası ona ATIF YAPIYOR.
+
+================================================================
+1. BU OTURUMDA NE YAPILDI — TEK COMMIT
+================================================================
+c4d7bcd  Kökten docs/archive/ altına, hiçbiri SİLİNMEDİ:
+           KAPI-PROMPT.md               73 satır, 0 koddan-ref
+           RABADON-ORKESTRASYON-v6.md  233 satır, 0 koddan-ref
+           SPEC-SELF-REPAIR.md          39 satır, 0 koddan-ref
+         docs/archive/devir/ altına:
+           DEVIR-2026-09-04.txt, -09-04-B.txt, -09-05.txt
+         1 canlı referans çözüldü: PROJECT.md:74 artık arşiv yolunu gösteriyor.
+         GERİ ALMA: tek `git mv` geri + PROJECT.md:74'te tek `sed`.
+
+================================================================
+2. SAYILAR — HEPSİ BU MAKİNEDE ÖLÇÜLDÜ
+================================================================
+make test TAŞIMADAN ÖNCE (dar)  : docs truth 42 ok/0 fail · site claims 10/0
+make test TAŞIMADAN SONRA (tam) : EXIT=0, 4284 ok — 09-06 tabanıyla BİREBİR AYNI
+kök md/txt sayısı               : 18 -> 12
+
+DİKKAT — SAHTE KIRMIZI ARTIK ÜÇ DEĞİL DÖRT. 09-06 §2 üçünü sayıyordu, bu turda
+dördüncüsünü buldum:
+  4577:  ok   - '1 fail' in the same shape still goes RED
+Bu bir `ok` satırı — GEÇEN bir assertion'ın ADI içinde "1 fail" geçiyor.
+`grep -oE "[0-9]+ fail"` bunu yakalayıp seni yanıltır. Doğru yargı: EXIT= satırı
+ve "N passed, 0 failed" özetleri. Tek tek baktım, sıfır gerçek kırmızı var.
+
+FAZ 3'ÜN GEREKÇESİ — NEDEN BU ÜÇÜ (tahmin değil, ölçüm):
+  KAPI-PROMPT + ORKESTRASYON-v6 emekli kosu koşu makinesinin KULLANMA
+  KILAVUZLARI. İkisinin andığı GİRDİ yollarının hepsi FAZ 2'de arşive indi:
+    reports/kosu/DURUM.md · reports/kosu/RAPOR/ · reports/R7/ · KOSU-RABADON.md
+  İkisi arasında 20 `reports/` yolu, hepsi canlı konumda ÖLÜ (arşivde VAR).
+  SPEC-SELF-REPAIR.md hiç inşa edilmemiş bir özelliği anlatıyor: native/ altında
+  `fixture-tamper` yolu YOK (grep boş), ve dosyanın kendi son bölümü işi
+  precision tabanına bağlıyor, o taban geçilmedi. Tasarım notu, bugünkü gerçek değil.
+
+DEVİR TABLOSUNUN YAZMADIĞI, BU TURDA ÖLÇÜLEN İKİ ŞEY:
+  - CLAUDE-eski-misyon.md UNTRACKED. PROJECT.md:2566 bunu zaten doğru söylüyor
+    ("kept locally, untracked"). Yani repo içeriği değil, Damla'nın kendi dosyası.
+    DOKUNMADIM ve dokunulmamalı — DEVIR-09-03 ile aynı muamele.
+  - native/inject_answer_test.sh:6 KOSU-RABADON-5.md'yi anıyor (yorum satırı).
+    09-06 §2 tablosu bunu saymamıştı. Taşınmadı zaten, sorun değil.
+
+KÖKTE KALANLAR VE SEBEPLERİ (yeniden sorgulama, çözülmüş):
+  KOSU-RABADON-5.md  PROJECT.md:9 "The current run is" diyor
+  SPEC.md            native/version_test.sh:151,211 make test içinde açıyor
+  REPORTS.md         kayıt üçlüsü, kural gereği
+  README/CLAUDE/PROJECT/BENCHMARK/CHANGELOG/AGENTS-PROTOCOL  canlı
+  DEVIR-2026-09-06.txt  bir önceki devir
+  DEVIR-2026-09-03.txt + CLAUDE-eski-misyon.md  UNTRACKED, Damla'nın kararı
+
+================================================================
+3. FAZ 4 — BAŞLAMADAN OKU. BU TURUN ASIL BULGUSU BURADA.
+================================================================
+FAZ 4 "CLAUDE.md'yi 40 satıra indir" diye devredildi. Ölçtüm, iş göründüğü gibi
+DEĞİL. Üç bulgu, üçü de kod okuyarak doğrulandı:
+
+3.1 TAVAN BU REPODA YOK. `40 satır / 40 line / tavan / ceiling` diye taradım:
+    repoda CLAUDE.md'nin boyunu şart koşan TEK BİR TEST YOK. Kural Damla'nın
+    global hafızasından geliyor: ~/.claude/.../memory/feedback_kayit_sistemi.md
+    "CLAUDE.md | Şu an ne doğru? | Üstüne yazılır, büyümez. **Tavan 40 satır.**"
+    Yani bu bir repo kuralı değil, Damla'nın kayıt sistemi kuralı. İhlali suite
+    kırmızı yapmaz. BU, kuralı geçersiz kılmaz — kimin kuralı olduğunu söyler.
+
+3.2 CLAUDE.md YÜKSEK TAŞIYAN BİR ARAYÜZ. 13 dosya ona atıf yapıyor:
+      numarayla (3) : hook_upgrade_test.sh:181 "CLAUDE.md 8"
+                      publish_redaction_test.sh:544 "CLAUDE.md non-negotiable 2"
+                      native/prices.h:22 "Law 7 and CLAUDE.md rule 7"
+      TIRNAK İÇİNDE BİREBİR CÜMLEYLE (4):
+                      refusal_rate.sh:5      "False rejects are counted, not
+                                              excused... published either way."
+                      signals_screen_test.sh:245 "a commit that changes what
+                                              rabadon does updates README/docs
+                                              in the same commit. Stale docs are
+                                              lies with good formatting."
+                      contract_test.sh:38, silent_skip_test.sh:17
+      bölüm adıyla / parafrazla (6): selfheal_path_test.sh:316,
+                      discovery_scope_test.sh:29, redbase_scope_test.sh:16,
+                      gate.cpp:5517, make_deps_test.sh:245, refenv/run.sh:6
+    Numaralı üçünü ELLE DOĞRULADIM, üçü de bugün tam tutuyor (rule 7 =
+    local-first, rule 8 = report negative results, non-negotiable 2 = criteria
+    ayrı commit'te).
+    SONUÇ: madde NUMARALARINI kaydırmak ya da alıntılanan CÜMLELERİ değiştirmek
+    13 atfı sessizce YALANCI çıkarır. VE HİÇBİR TEST BUNU YAKALAMAZ — hepsi
+    yorum satırı, hiçbiri çalıştırılabilir assertion değil. Bu tam olarak
+    09-05 §6'nın "adı ile ölçtüğü şey ayrışabilir" tuzağının belge tarafı.
+
+3.3 ARİTMETİK TUTMUYOR. Bölüm satır sayıları:
+      Non-negotiables 27 · Quality bar 25 · If PROJECT.md is wrong 23 ·
+      How to work 16 · Self-audit 13 · two enemies 12 · Session ritual 10 ·
+      When stuck 8   (toplam 148)
+    Sadece alıntılanan iki bölüm (Non-negotiables + Quality bar) = 52 satır.
+    Tavan 40. Yani atıf yüzeyi TEK BAŞINA tavanı aşıyor.
+
+3.4 AMA HAFIZA KURALININ GEREKÇESİ FARKLI BİR ŞEY SÖYLÜYOR. Aynı hafıza dosyası:
+    "Kural birikmesinin kökü de bulundu: GEÇMİŞ CLAUDE.md'ye yazılıyordu. Dün ne
+     yapıldığı bugünün kuralıymış gibi orada kalıp üst üste biniyordu. Geçmiş
+     REPORTS.md'ye taşınınca CLAUDE.md büyümeyi bırakır."
+    Yani tavanın DERDİ geçmiş birikmesi. Bugünkü CLAUDE.md'yi bu gözle okudum:
+    148 satırın tamamı DURAN KURAL, içinde tarih/olay/geçmiş YOK. Yani tavanın
+    kapatmak için var olduğu hastalık bu dosyada GÖRÜNMÜYOR.
+
+FAZ 4 İÇİN ÜÇ YOL — KARAR DAMLA'NIN, BEN SEÇMEDİM:
+  (a) Tavanı uygula: 8 maddeyi ve tırnaklı 4 cümleyi BİREBİR koruyup gerisini
+      PROJECT.md'ye taşı, sonra 13 atfın 13'ünü tek tek yeniden doğrula.
+      Uzun iş ama tavan tutar.
+  (b) Bu repo için ölçülmüş gerekçeyle İSTİSNA yaz (geçmiş yok + atıf yüzeyi
+      40'ı aşıyor), REPORTS.md'ye tek satır, FAZ 5'e geç.
+  (c) FAZ 4'ü Damla'ya bırak, FAZ 5'i şimdi yap.
+  BU OTURUM (c)'YE GEÇTİ, çünkü Damla uyuyordu ve FAZ 4 tek "karar" fazı.
+  FAZ 5 BAŞLAMADI — bir sonraki oturumun işi.
+
+================================================================
+4. SIRADAKİ İŞ — FAZLAR
+================================================================
+FAZ 1  reports/ envanteri       -> KAPANDI (09-06)
+FAZ 2  reports/ boşaltılır      -> KAPANDI (09-06, ea1a007)
+FAZ 3  kökteki md + DEVIR'ler   -> KAPANDI (bu tur, c4d7bcd)
+FAZ 4  CLAUDE.md 40 satır       -> AÇIK, KARAR BEKLİYOR (§3, üç yol)
+FAZ 5  ürün yüzü (README+audit) -> SIRADAKİ İŞ, ölçümü hazır
+
+FAZ 5'İN HAZIR ÖLÇÜMÜ (09-06 §3.1'den, yeniden koşturma):
+  `rabadon audit` -> exit 1, DOĞRULANDI. Kırık: 2026-09-03.jsonl satır 10736
+  (bilinen 3 Eylül yarası, kasten onarılmamış — doğru karar).
+  AYRICA 5 dosya UNVERIFIABLE: 08-17.unchained (40 satır), 08-21.unchained
+  (78 satır), ve 08-08/08-09/08-29 içinde 8/3/1 satır.
+  README'nin çıkış kodu sözleşmesi SADECE exit 1'i değil exit 2 sebebini de
+  anlatmalı. audit.cpp:31-32 üç değerli: 0 hepsi doğrulandı / 1 en az bir kırık
+  / 2 kırık yok ama doğrulanamayan var.
+  README'nin diğer bayat maddeleri: 09-04 §8'de 12 madde numaralı duruyor,
+  en kritiği satır 132'nin "bir günü toptan yeniden yazabilir" itirafı
+  (a63b0c3'ten beri YANLIŞ, kendini küçümsüyor) ve "~23k satır" -> gerçek 26.661.
+  09-05 §5'teki KONUMLANDIRMA cümlesi de README'de YOK:
+  "rabadon repair'in RAKİBİ değil ÖN ŞARTI — repair'in çalışabilmesi için
+   dünyanın geri alınabilir kalması lazım."
+
+gate.cpp'yi bölmek HÂLÂ BU İŞİN PARÇASI DEĞİL. FAZ 5 bitmeden konuşulmaz.
+
+================================================================
+5. YÖNTEM — BU TURDA EKLENEN (09-06 §4'e EK, onu da oku)
+================================================================
+5.1 BİR BELGEYİ TAŞIMADAN ÖNCE "BU NEYİN KILAVUZU" DİYE SOR. FAZ 3'ün kararı
+    satır sayısından ya da referans sayısından çıkmadı; iki dosyanın ANDIĞI
+    GİRDİ YOLLARININ ölü olmasından çıktı. Bir manuel, makinesini en fazla bir
+    faz yaşar. Ölçüsü: dosyanın andığı yolları `[ -e ]` ile tek tek dene.
+
+5.2 AJANIN DOĞRU BULGUSU + YANLIŞ ÇIKARIMI AYNI RAPORDA GELİR. Ajan
+    "reports/ diye bir klasör yok, bu dosyalar ölü yola atıf yapıyor" dedi —
+    BULGU DOĞRU. Ama sebebini bilmiyordu (FAZ 2'de arşive taşındı, silinmedi)
+    ve "R7 hiçbir şey üretmedi" diye yazdı — YANLIŞ, docs/archive/reports/R7/
+    duruyor. Ajanın ölçümünü al, ÇIKARIMINI alma. 09-06 §6 KURAL 2'nin canlı örneği.
+
+5.3 SORDUĞUM ŞEYİ DEĞİL, DOĞRU ŞEYİ ÖLÇTÜĞÜMDEN EMİN OL. KOSU-RABADON-5.md §1
+    "Ne değil: kapı değil, guardrail değil" diyor ve bunu README'ye karşı
+    "çelişki" diye yazacaktım. README:5'i açtım: "Not a watchdog, not a gate,
+    not a dashboard" — İKİSİ AYNI ŞEYİ SÖYLÜYOR. Yazmadan önce açtım, yanlış
+    bulgu üretmedim. Bir çelişki iddia etmeden önce İKİ tarafı da oku.
+
+5.4 GREP İLE KIRMIZI SAYMA, ÖZET SATIRINI OKU. Bu turda "1 fail" gördüm ve
+    peşine düştüm; çıkan şey GEÇEN bir testin ADIYDI (§2). Doğru refleks:
+    peşine düşmek doğruydu, "EXIT=0 var, boşver" demek yanlış olurdu.
+
+================================================================
+6. ORKESTRASYON — 09-06 §6 AYNEN GEÇERLİ, İKİ EK
+================================================================
+09-06 §6'daki 6 KURAL değişmedi (taraf seçtirme yok · her iddiayı kendin
+tekrar koştur · mekanik iş ajansız · paralel ve dar · "ne bulamadım" iste ·
+gate çağıracak ajana dört tuzağı kopyala). BU TURDA İKİ AJAN SALINDI, ikisi de
+ÖLÇÜM sorusuyla, ikisi de işe yaradı. Ekler:
+
+EK 1 — AJANA "KARAR VERME" DEMEK YETMİYOR, "SEBEBİNİ BİLMİYORSUN" DA DE.
+  Ajan repo tarihini bilmiyor. "Bu yol yok" diyebilir ama "demek ki hiç
+  olmadı" diye ekler. Prompta yaz: "bir şeyin yokluğunu görürsen SEBEBİNİ
+  UYDURMA, sadece yok olduğunu bildir."
+
+EK 2 — BU TURDA İŞE YARAYAN İKİ AJAN ŞEKLİ (tekrar kullanılabilir):
+  1. "Şu N dosyanın her birinin İDDİASI bugünkü kodun hangi satırıyla
+      ÇELİŞİYOR? Cümleyi alıntıla, file:line göster. Düzeltme metni YAZMA.
+      Ayrıca: hangi iddiayı DOĞRULAYAMADIN ve neden?"
+  2. "Şu dosyaya yapılan HER atfı bul. Her atıf için: numarayla mı, bölüm
+      adıyla mı, TIRNAK İÇİNDE BİREBİR CÜMLEYLE mi atıf yapıyor? Birebir
+      alıntı bugünkü metinle hâlâ tutuyor mu? Yorum satırı mı, çalıştırılabilir
+      assertion mı? Öneri YAZMA, sadece tablo + sayı."
+  İkincisi FAZ 4'ün asıl bulgusunu (§3.2) üretti — ben tek başıma grep'leseydim
+  "13 yerde geçiyor" derdim, "4'ü tırnak içinde birebir" demezdim.
+
+================================================================
+7. DEĞİŞMEYEN KURALLAR (09-06 §7 ile aynı, kısaltıldı)
+================================================================
+- ÖLÇMEDEN KURAL YAZMA. GERİ-ALMA KANITI OLMADAN COMMIT ATMA.
+- ŞÜPHEDEYSEN SİLME, TAŞI. Silme yetkin yok.
+- UNTRACKED DOSYA = DAMLA'NIN KARARI. Dokunma.
+- BİR ADIM = BİR COMMIT, her adımda suite yeşil, bitir + push, sonra söyle.
+  Mesaj lowercase İngilizce, co-author YOK.
+- TAM SUITE 7+ DAKİKA: arka planda TEK SEFER, `grep -E "^EXIT="` ile bekle.
+  KOŞU SIRASINDA AĞACA DOKUNMA. Önce DAR test, tam suite en son.
+- YOL TARAMASINDA UZANTI LİSTESİ: *.sh *.cpp *.h *.py *.mjs Makefile
+  *.json *.jsonl *.tsv *.txt — kod/veri ayrımı yapma. Ama tarihsel KAYIT olan
+  veriye dokunma ("bu yol koşuyor mu", "bu yol geçiyor mu" değil).
+- BİR FAZ BİTMEDEN DİĞERİNE GEÇME. Faz ortasında kalırsan yarım devret ve DUR.
+
+================================================================
+8. STITCHU DERSİ — BEŞ KÖK HATA, VE HER BİRİNİN PANZEHİRİ
+================================================================
+Damla 5 Eylül'de `~/Desktop/stitchu-sohbet.txt`'yi (5067 satır, 01.09-05.09,
+900 saat) önüme koydu: "bunun gibi her şeyi önleyecek kusursuz bir koşu."
+Transkriptin tamamını okudum. Sonuç bir tane cümleye iniyor:
+
+  ÜRÜN ÖLÇÜLDÜ, TEMEL ÖLÇÜLMEDİ. Damla 1 ay boyunca "9. madde: sabit sözlük
+  değil, dikiş primitifleri" dedi. 5 Eylül'de kod sayıldı: motorda hâlâ 48
+  switch/case, primitifler 10 yerde. Bir ay boyunca o maddeye HİÇ
+  dokunulmamıştı ve bunu kimse fark etmedi, çünkü her koşu ÜSTÜNE kat çıktı.
+
+Bu bölüm rabadon'un devrinde duruyor çünkü rabadon TAM OLARAK bu hastalığın
+ilacı olduğunu iddia eden üründür. Kendi koşumuz aynı hastalığa yakalanırsa
+ürünün iddiası çöker.
+
+--- HATA 1: KABUL ÖLÇÜTÜNÜ İŞİ YAPAN YAZDI -------------------------------
+  Stitchu'da: "tarafsız hakem" vardı ama hakemin ölçütünü koşuyu kuran yazdı.
+  Damla'nın kendi teşhisi: "hakem onayladı dediğimde aslında kendi koyduğum
+  çıtayı geçtim diyordum."
+  PANZEHİR (bu repoda zaten var, GEVŞETME): kabul komutu ajanın önerdiği
+  değil, ÖNCEDEN yazılı olan `make test` + adı geçen dar testtir. Ajan yeni
+  bir kapı ÖNERİRSE o kapı ayrı commit'te ve ayrı gerekçeyle girer (CLAUDE.md
+  non-negotiable 2). Ajanın kendi yazdığı testle kendini geçirmesi = reward
+  hacking, bu projenin reddetmek için var olduğu şey.
+
+--- HATA 2: HEDEF LİSTESİ TEKRARLANDI, TAKİP EDİLMEDİ ---------------------
+  Stitchu'da: 14 maddelik brief ALTI KEZ baştan tekrarlandı. Hangi madde
+  kapandı, hangisi açık — kaydı YOKTU. Damla'nın cümlesi: "14 maddelik liste
+  altı kez tekrarlanıyorsa o liste takip edilmiyor demektir."
+  PANZEHİR: bu repoda kayıt üçlüsü VAR (CLAUDE/PROJECT/REPORTS) ve fazların
+  durumu §4'te tek tabloda duruyor. KURAL: bir faz kapandığında REPORTS.md'ye
+  tek satır + devirdeki tabloya işaret. Aynı fazı iki devirde "SIRADAKİ" diye
+  görürsen DUR — o faz takip edilmiyor demektir, tekrar yazma, sebebini sor.
+
+--- HATA 3: SÜREÇ İLERLEDİ, İŞ YERİNDE SAYDI ------------------------------
+  Stitchu'da: "koşu bitti mi / faz geçti mi" soruldu, "enum gitti mi"
+  sorulmadı. 27 ajan, 4.5 milyon token, 66 bin saniye — ve çekirdek aynı.
+  PANZEHİR: her faz kapanışının üç satırından BİRİ "ne DEĞİŞMEDİ" olacak.
+  Faz kapanışı şu soruyu cevaplamadan yazılamaz: "bu faz bitmeseydi ürünün
+  hangi cümlesi yanlış kalırdı?" Cevap yoksa faz süreç fazıdır, ürün fazı
+  değil. (Bu turda FAZ 3 için cevap: kökte 6 ölü dosya duruyor olurdu.)
+
+--- HATA 4: DARBOĞAZDA AJAN DOĞURULDU -------------------------------------
+  Stitchu'da: bir site-eleştiri ajanı brief'ini aşıp 69 ALT-AJAN doğurdu,
+  tek başına 110k token, doğurdukları milyonu geçti, ve ürettiği dosya
+  (`site-elestiri.md`) HİÇ YAZILMADI. Damla "ajan doğurmasınlar" dedi.
+  PANZEHİR (09-05 §2.5 + 09-06 §4.2, ZATEN YAZILI, uygula):
+  3 denemede olmuyorsa DUR ve teşhise geç; eksik olan bir PARÇA'dır, çabanın
+  miktarı değil. VE: SALDIĞIN AJANA "ALT-AJAN DOĞURMA" DİYE AÇIKÇA YAZ.
+  Ajan sayısı bir başarı ölçüsü değil, bir maliyet.
+
+--- HATA 5: FİZİKSEL/DIŞ DOĞRULAMA HİÇ ZORLANMADI -------------------------
+  Stitchu'da: 900 saatte bir kez kumaş kesilmedi. Prova dikilseydi kule ilk
+  gün çökerdi.
+  PANZEHİR (rabadon karşılığı, 09-04 §10'da zaten yazılı ve HÂLÂ AÇIK):
+  "yabancı makine, yabancı kod tabanı, bir hafta." Bugüne kadar TEK OPERATÖR
+  TEK MAKİNE. Bu, rabadon'un dikilmemiş provasıdır. FAZ 5 bitince sıradaki
+  iş budur — README'yi güzelleştirmek değil.
+
+--- HEPSİNİN ALTINDAKİ TEK KURAL -----------------------------------------
+  ÜSTÜNE KAT ÇIKMA, TEMELİ ÖLÇ. Bir iş emri geldiğinde ilk soru:
+  "bu, istenen şeyin KENDİSİ mi, yoksa istenen şeyin ÜSTÜNE konan bir kat mı?"
+  Stitchu'da flat estetiği/kumaş/rehber/vitrin hepsi gerçekten yapıldı ve
+  hepsi yanlış temelin üstüne kondu. Bir ay o yüzden gitti.
+  Bu turda FAZ 4'ü YAPMAMAMIN sebebi tam olarak bu: CLAUDE.md'yi 40 satıra
+  kırpmak bir KAT olurdu; ölçünce altında 13 atıflık taşıyıcı duvar çıktı.
+
+================================================================
+9. BU DEVİRDEN SONRAKİ HER KOŞU İÇİN — DEĞİŞMEYEN ALTI ŞART
+================================================================
+Damla'nın stitchu'da tekrar tekrar yazdığı ve her koşuda aşınan şartlar.
+Burada bir kez yazılı; bir daha brief'e kopyalanmayacak, BURADAN okunacak.
+
+1. FAZLAR TAZE AJANLA, İŞİ BİTEN ÖLÜR. Ana oturum ajanın transcript'ini
+   OKUMAZ, sadece raporunu alır. (09-06 §6 KURAL 4.)
+2. SORULAR DAMLA'YA DEĞİL TARAFSIZ AJANA. Ama ajana TARAF SEÇTİRME: ÖLÇÜM
+   ve TEKNİK ELEŞTİRİ ister, KARAR istemez. (09-06 §6 KURAL 1.)
+3. HER AJAN İDDİASINI KENDİN TEKRAR KOŞTUR. Ölçülmüş geçmiş: 15 iddiadan 5,
+   sonra 7'den 2 yanlıştı; bu turda ajanın bulgusu doğru ÇIKARIMI yanlıştı.
+4. COMPOUNDING ERROR HER FAZDA ÖLÇÜLÜR: her faz kendi kapısı + ÖNCEKİ
+   fazların kapıları. Biri kızarırsa ilerleme yok.
+5. ADIMLAR ARASI HEDEF KONTROLÜ: "hedeften şaştık mı?" Bu repoda hedef
+   cümlesi: ajanın GERİ ALINAMAZ hamlesini, o hamle olmadan önce durdurmak.
+   Bir faz bu cümleye hizmet etmiyorsa süreç fazıdır.
+6. BİR ADIM = BİR COMMIT, her adımda suite yeşil, bitir + push.
+
+VE DAMLA'NIN KENDİ CÜMLESİ, DEĞİŞTİRİLMEDEN:
+  "ölçüm bir hedef değil. ölçmeden zaten yapamazsın. hedef ürün, müşteri,
+   müşteri deneyimi."
+  Bu repoda karşılığı: 4284 yeşil test bir HEDEF DEĞİL. Hedef, rabadon'u
+  kuran birinin geri alınamaz bir hamleden gerçekten kurtulması. FAZ 5
+  (README + audit dürüstlüğü) bu yüzden sıradaki iştir — çünkü bugün
+  `rabadon audit` koşturan bir yabancı, README'nin "olamaz" dediği exit 1'i
+  alıyor. Ürün yüzü yalan söylüyorsa motor doğru olsa ne yazar.
