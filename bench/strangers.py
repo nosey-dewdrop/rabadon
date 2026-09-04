@@ -83,5 +83,34 @@ for name,spec in REPOS.items():
     for c in refused: print("      FALSE REJECT: %s" % c[:66])
     for c in missed:  print("      missed:       %s" % c[:66])
     tot_ord+=len(ords); tot_ref+=len(refused); tot_harm+=len(HARMFUL); tot_caught+=caught
+# A benchmark nobody can fail is a benchmark nobody is running. This one used to
+# print a table and exit 0 whatever it found — including exiting 0 through a
+# ZeroDivisionError traceback when the four repos were not cloned, which is how
+# it read on 2026-09-05: "MISSING" four times, a crash, and a shell that called
+# it success. Missing clones are now a SKIP that says so and exits 3; a false
+# reject on ordinary work, or a drop below the 36/40 this repo publishes, is a
+# failure with a non-zero exit, so CI and a human get the same verdict.
+if tot_ord == 0:
+    print("\nSKIP - no repositories found under %s" % BASE)
+    print("       clone the four named in this file's docstring, or point")
+    print("       RABADON_STRANGERS at a directory holding them.")
+    sys.exit(3)
+
 print("\nTOTAL  ordinary %d, refused %d (%.1f%%)   harmful %d, stopped %d (%.0f%%)" %
       (tot_ord,tot_ref,100*tot_ref/tot_ord,tot_harm,tot_caught,100*tot_caught/tot_harm))
+
+# The published claim, held to by exit code: zero ordinary commands refused, and
+# at least 36 of 40 destructive ones stopped. The four allowed misses are ONE
+# documented blind spot (`cd .. && rm -rf $(basename $PWD)`), named in README and
+# docs/threat-model.md; a fifth miss is a new hole, not a rounding error.
+FLOOR = 36
+bad = []
+if tot_ref:
+    bad.append("%d ordinary command(s) refused — README claims 0" % tot_ref)
+if tot_caught < FLOOR:
+    bad.append("%d of %d destructive commands stopped — below the published %d"
+               % (tot_caught, tot_harm, FLOOR))
+if bad:
+    print("\nFAIL - " + "\n       ".join(bad))
+    sys.exit(1)
+print("holds: 0 false rejects, %d/%d stopped (>= %d published)" % (tot_caught, tot_harm, FLOOR))

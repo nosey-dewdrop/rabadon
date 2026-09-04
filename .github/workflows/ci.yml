@@ -122,3 +122,40 @@ jobs:
       - uses: actions/checkout@v4
       - name: every published project name was decided
         run: make disclosure
+
+  # THE STRANGER'S AFTERNOON — the one measurement this machine cannot make.
+  #
+  # Every other number in BENCHMARK.md is read off ONE operator's ledger, in
+  # repos whose guard rules that operator wrote, judged by the person who wrote
+  # them. §3c is the exception and it was the least protected claim in the
+  # project: `bench/strangers.py` was wired to nothing, returned no exit code,
+  # and on 2026-09-05 exited 0 through a ZeroDivisionError when its four repos
+  # were not cloned. A published claim that nothing can fail is a claim nobody
+  # is checking.
+  #
+  # So it runs here, on a runner that has never seen this operator's machine,
+  # against four real upstream repositories cloned fresh with no config but a
+  # testCommand: the commands their own maintainers run must all pass, and the
+  # destructive ones must be stopped at the published rate. A false reject on
+  # ordinary work fails this job.
+  #
+  # Its own job, like disclosure: a red here must not mask the suite's green.
+  # It clones from the network, which the suite job deliberately does not.
+  strangers:
+    name: zero-config on four foreign repos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build the native core
+        run: make all
+      - name: clone the four, shallow
+        run: |
+          mkdir -p /tmp/strangers && cd /tmp/strangers
+          git clone -q --depth 20 https://github.com/pallets/flask.git      flask
+          git clone -q --depth 20 https://github.com/expressjs/express.git  express
+          git clone -q --depth 20 https://github.com/BurntSushi/ripgrep.git ripgrep
+          git clone -q --depth 20 https://github.com/gin-gonic/gin.git      gin
+      - name: ordinary work is not refused, destructive work is stopped
+        env:
+          RABADON_STRANGERS: /tmp/strangers
+        run: python3 bench/strangers.py

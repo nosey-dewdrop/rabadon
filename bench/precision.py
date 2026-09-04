@@ -59,12 +59,24 @@ if not S:
 label = f"since {since}" if since else f"{len(traffic_days)} days with traffic"
 print(f"refusals {label}: {S}    declared wrong by the operator: {W}    "
       f"false-positive rate: {100*W/S:.1f}%")
+
+# A WRONG_REFUSAL whose rule never appears as a STOP is a wrong with no refusal
+# under it: the rule was renamed or retired, its refusals are on the ledger under
+# the NEW id, and the operator's verdict stayed behind on the old one. That puts
+# a numerator over a denominator it does not belong to. Both numbers are printed
+# and neither is called the real one — dropping the orphans would move the rate
+# in this project's own favour, which is the direction that needs the most proof.
+orphan = {r: c for r, c in wrongs.items() if r not in stops}
+O = sum(orphan.values())
+if O:
+    print(f"  of those, {O} name a rule that never refuses in this window "
+          f"(renamed or retired) — counting only the living rules: "
+          f"{W-O}/{S} = {100*(W-O)/S:.1f}%")
 print("\n  %-34s %8s %7s %6s" % ("rule", "refused", "wrong", "rate"))
 for rule, n in stops.most_common():
     w = wrongs.get(rule, 0)
     print("  %-34s %8d %7d %5.0f%%   %s" % (rule, n, w, 100*w/n, examples.get(rule, "")[:52]))
-extra = [r for r in wrongs if r not in stops]
-if extra:
+if orphan:
     print("\n  wrong refusals whose rule no longer refuses (renamed or retired):")
-    for r in extra:
-        print("    %-32s %d" % (r, wrongs[r]))
+    for r, c in sorted(orphan.items(), key=lambda x: -x[1]):
+        print("    %-32s %d" % (r, c))

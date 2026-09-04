@@ -193,10 +193,23 @@ the operator, after the fact, saying that refusal should not have fired. The
 false-reject rate is one divided by the other, and it needs no survey, no
 instrumentation and no memory of what happened.
 
+Measured 2026-09-05. The ledger is live and grows under the operator's own
+work, so a count read tomorrow is a larger count — the date is part of the
+claim, not decoration.
+
 | window | refusals | declared wrong | rate |
 |--------|----------|----------------|------|
 | all 28 days with traffic (2026-08-04 → 09-04) | 524 | 70 | 13.4 % |
+| the same, counting only rules that still refuse | 524 | 59 | 11.2 % |
 | since 2026-08-28 | 192 | 1 | **0.5 %** |
+
+The middle row exists because 11 of the 70 name a rule that never appears as a
+refusal: `ctest-red-block`, `tests-red`, `tests-are-RED` and two more spellings
+of what is `red-base` today. The rule was renamed; its refusals moved to the new
+id and the operator's verdicts stayed on the old ones, which puts a numerator
+over a denominator it does not belong to. **The 13.4 % row is still the one
+quoted**, because the correction moves the number in this project's own favour
+and a guard that rounds its own error rate down has stopped measuring itself.
 
 Both rows are real and the difference between them is the whole story: **69 of
 the 70 wrong refusals happened on two days, 26 and 27 August.** That is what
@@ -277,6 +290,15 @@ RABADON_STRANGERS=/tmp/str python3 bench/strangers.py
 
 Every command is handed to the gate as a hook event and only the verdict is
 read. The clones are never modified and the harmful list is never run.
+
+**And it is held to, on a machine that is not this one.** Until 2026-09-05 this
+was the least protected claim here: the script was wired to nothing, returned no
+exit code, and printed `MISSING` four times and crashed with a traceback — at
+exit 0 — when the repos were not cloned. It now fails on a single false reject
+or a drop below 36 of 40 stopped, skips at exit 3 rather than crashing when the
+clones are absent, and runs as its own CI job on a fresh ubuntu runner that
+clones the four upstream repositories itself. The operator's machine no longer
+gets to be the only witness to this number.
 
 **What this is still not.** These are the commands a maintainer runs, chosen by
 reading each project's own docs — not a recording of someone actually working.
