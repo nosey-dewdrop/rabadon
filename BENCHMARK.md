@@ -195,22 +195,22 @@ instrumentation and no memory of what happened.
 
 | window | refusals | declared wrong | rate |
 |--------|----------|----------------|------|
-| all 29 days with traffic (2026-08-04 → 09-02) | 521 | 70 | 13.4 % |
-| since 2026-08-28 | 126 | 1 | **0.8 %** |
+| all 28 days with traffic (2026-08-04 → 09-04) | 524 | 70 | 13.4 % |
+| since 2026-08-28 | 192 | 1 | **0.5 %** |
 
 Both rows are real and the difference between them is the whole story: **69 of
 the 70 wrong refusals happened on two days, 26 and 27 August.** That is what
 tuning a rule against real work looks like — the rules that were wrong were
 `ctest-tail-hides-verdict` (37 wrong of 152), `red-suite-test-write` (7 of 17)
 and `red-base` (10 of 65), each argued down with a written reason on the ledger.
-In the 126 refusals since, one was called wrong.
+In the 192 refusals since, one was called wrong.
 
-What those 126 stopped, in the operator's own repos: 34 `git commit -m "wip"`
+What those 192 stopped, in the operator's own repos: 34 `git commit -m "wip"`
 against a project whose guard demands a real message, 34 actions on a red test
-base, 9 recursive deletes outside the project, 7 truncating redirects onto a
-tracked file, 6 blind in-place source rewrites, 5 attempts to take apart a
-project's own `.rabadon/` law, 2 force-pushes to `main`, and one edit that would
-have put `red-base` into `disabled[]`.
+base, 24 truncating redirects onto a tracked file, 22 force-pushes to a shared
+branch, 21 recursive deletes resolving outside the project, 6 blind in-place
+source rewrites, 5 attempts to take apart a project's own `.rabadon/` law, and
+one edit that would have put `red-base` into `disabled[]`.
 
 Reproduce, on your own ledger, offline:
 
@@ -233,7 +233,7 @@ a hundred and twenty-six.
 
 ## 3c. A project rabadon has never seen  `[proven]`
 
-§3b's 0.8 % is one operator, one machine, and rules that operator wrote. The
+§3b's 0.5 % is one operator, one machine, and rules that operator wrote. The
 question it cannot answer is the one that decides a stranger's first afternoon:
 **zero config, an unfamiliar codebase — does it refuse ordinary work?**
 
@@ -288,7 +288,7 @@ it does here.
 
 ## 3d. The refusals that cannot be undone — the only ones worth installing for  `[proven]`
 
-521 refusals is the wrong number to quote and this section exists to say so.
+524 refusals is the wrong number to quote and this section exists to say so.
 Most of them are recoverable: a `wip` commit message, an action on a red test
 base, a `ctest` invocation whose tail hides the verdict. Worth refusing, and
 undoable — which means **anyone can write those rules in a shell function in an
@@ -297,11 +297,11 @@ afternoon, and nobody installs a tool for them.**
 The claim that survives that test is narrower. Split by whether the state comes
 back:
 
-| class | refusals in 29 days | can you undo it? |
+| class | refusals in 28 days | can you undo it? |
 |-------|--------------------|------------------|
-| recoverable — commit message, red base, hidden verdict | 439 | yes, re-run it |
-| deferred — a push or deploy held back until the suite is green | 16 | nothing was lost |
-| **irreversible** — force-push, delete outside the tree, reflog expiry, blind in-place rewrite, guard switched off | **66** | no |
+| recoverable — commit message, red base, hidden verdict | 414 | yes, re-run it |
+| deferred — a push or deploy held back until the suite is green | 9 | nothing was lost |
+| **irreversible** — truncating redirect, delete outside the tree, reflog expiry, blind in-place rewrite, guard switched off | **101** | no |
 
 The middle row used to sit in the bottom one, and an outside reviewer caught it
 on 2026-09-03: `push-gate` was 15 of 57 real-work refusals — 26 % of the
@@ -310,19 +310,20 @@ passing test run"*. A push was deferred; nothing was destroyed. Counting it as
 irreversible made this project's own script violate the thesis it was written
 to defend. It is still a rule worth having; it is now counted where it belongs.
 
-The 66 split again, because a guard measured on its own test harness is
-measuring itself: **41 on the operator's real work, 25 inside throwaway
+The 101 split again, because a guard measured on its own test harness is
+measuring itself: **73 on the operator's real work, 28 inside throwaway
 sandboxes** this project's own red-team suites create. On real work that is
-**9.9 per week**, across 9 distinct days.
+**18.2 per week**, across 11 distinct days.
 
-     9  no-blind-inplace-source-rewrite  sed -i over source with no backup
-     6  baseline-truncating-redirect     `>` onto a tracked file
+    21  baseline-truncating-redirect     `>` onto a tracked file
+    19  baseline-rm-rf-outside           a delete resolving outside the project
+     8  no-blind-inplace-source-rewrite  sed -i over source with no backup
      6  no-rm-rf-outside                 a delete reaching outside the project
-     4  anti-path-frozen                 an edit to a file the promise froze
      4  no-shell-write-protected-path
      4  baseline-law-unmade              taking apart the project's own .rabadon/
+     3  baseline-reflog-drop             reflog expiry — the way back, deleted
      3  guard-weaken                     a rule moved into disabled[]
-     2  baseline-reflog-drop             `git gc --prune=now` — the way back, deleted
+     2  anti-path-frozen                 an edit to a file the promise froze
      2  no-force-push-main
      1  no-shell-rewrite-of-guard-or-promise
 
