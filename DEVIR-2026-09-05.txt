@@ -4,16 +4,44 @@ Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: 407d481 (push'lu)
 Bu dosya onları TEKRARLAMIYOR — sadece bu turun işini ve kuralını ekliyor.
 
 ================================================================
-0. BU TURUN İŞİ — SIRAYLA, ATLAMADAN
+0. BU TURUN İŞİ — FAZLARLA. BİR FAZA FAZLA YÜK BİNMESİN.
 ================================================================
-Damla uyurken ilerleyecek. İki aşama, sırası ÖNEMLİ:
+Damla uyurken ilerleyecek. Kural onun kendi kuralı:
+"işi küçült, FAZLARA BÖL, bir faza fazla yük binmesin. büyük işler
+ verme kendine."
 
-  AŞAMA 1: REPO TEMİZLİĞİ. Ölü md yığınını ve spagettiyi temizle.
-  AŞAMA 2: Temizlik BİTTİKTEN sonra ürün işine devam (§4).
+BEŞ FAZ. HER FAZ TEK BAŞINA KAPANIR: kendi commit'i, kendi yeşil
+suite'i, kendi tek satırlık REPORTS.md kaydı. Bir faz bitmeden
+sonrakine GEÇME. Faz ortasında kalırsan, kaldığın yeri yaz ve DUR —
+yarım faz devretmek, tam faz devretmekten iyidir.
 
-AŞAMA 1 BİTMEDEN AŞAMA 2'YE GEÇME. Sebebi: bugünkü ölçüm, motorun
-sağlam ama YÜZÜNÜN kırık olduğunu gösterdi. Yüz kırıkken kod eklemek
-spagettiyi büyütür.
+  FAZ 1  reports/ envanteri.       ÖLÇÜM, silme yok.
+  FAZ 2  reports/ boşaltılır.      Canlı bilgi taşınır, gerisi arşiv.
+  FAZ 3  kökteki 13 md + DEVIR'ler. Hangisi canlı, ölçerek.
+  FAZ 4  CLAUDE.md 40 satır tavanı.
+  FAZ 5  ürün yüzü (§4-A: README + audit).
+
+gate.cpp'yi bölmek BU TURUN İŞİ DEĞİL. §2'nin sonunda duruyor,
+FAZ 5 bittikten sonra ayrıca konuşulur. 3169 testli 5.869 satırlık
+bir dosyayı ölçmeden refactor etmek geri alınamaz risk.
+
+HER FAZIN SONUNDA ÜÇ SATIR (zorunlu, uzun rapor YOK):
+  - ne ölçüldü (sayıyla)
+  - ne değişti (dosya sayısı, commit hash)
+  - ne bulunamadı / neye dokunulmadı
+
+FAZ FAZ NE YAPILACAĞI §2'de. Sebebi: bugünkü ölçüm motorun sağlam
+ama YÜZÜNÜN kırık olduğunu gösterdi. Yüz kırıkken kod eklemek
+spagettiyi büyütür — o yüzden temizlik önce, ürün yüzü sonra, kod
+refactor'ü en sona.
+
+CONTEXT EKONOMİSİ (Damla'nın kuralı, ihlal edilmeyecek):
+  - ASLA DOSYA DOĞURMA. Temizlik turu yeni rapor dosyası üretmez;
+    kayıt REPORTS.md'ye tek satır gider.
+  - Mekanik iş (sayım, grep, envanter) AJANSIZ yapılır, saf shell/python.
+  - Ajan sadece YARGI gerektiren ve SAYISI BELLİ işe salınır.
+  - Ajandan UZUN RAPOR isteme. 10-15 tool call'da bitsin.
+  - Tam suite 7+ dakika: gereksiz koşturma, faz sonunda BİR KEZ.
 
 ================================================================
 1. ÖLÇÜLMÜŞ DURUM — TEMİZLİĞİN HEDEFİ BU SAYILAR
@@ -63,17 +91,29 @@ TUZAK 3 — TEMİZLİK BİR COMMIT DEĞİL. Adım adım commit at, her adımda
   suite yeşil kalsın. "173 md'yi sildim" tek commit'i geri alınamaz bir
   hamledir ve neyin niye gittiği kaybolur.
 
-TEMİZLİK SIRASI (öneri, ölçerek değiştir):
-  1. reports/ envanteri çıkar: hangi dosyada canlı sayı/karar var, hangisi
-     ölü tur çıktısı. Sayıyla raporla.
-  2. Canlı olanları REPORTS.md'ye (en yeni üstte) özetle taşı.
-  3. Kalanı arşivle/sil, reports/ klasörünü kaldır.
-  4. Kökteki 13 dağınık md'yi ele al: CLAUDE-eski-misyon.md, KAPI-PROMPT.md,
-     KOSU-RABADON-5.md, RABADON-ORKESTRASYON-v6.md, SPEC-SELF-REPAIR.md gibi
-     tur artıkları — hangisi canlı? Ölçerek karar ver, referansları kontrol et.
-  5. CLAUDE.md 40 satır tavanına çekilsin (kural bu).
-  6. DEVIR-*.txt dosyaları: üç tane birikti. Bunlar da tarihli birikme.
-     En yenisi kalsın, eskileri arşive.
+FAZ 1 — reports/ ENVANTERİ. Silme YOK, sadece ölçüm.
+  118 dosyanın hangisinde CANLI bilgi var (ölçüm sayısı, verilmiş karar),
+  hangisi ölü tur çıktısı? Sayıyla raporla. Bu faz hiçbir şey silmez,
+  hiçbir şey taşımaz — sadece envanter çıkarır ve üç satırla kapanır.
+  Envanteri DOSYAYA YAZMA; üç satırlık kapanışta söyle.
+
+FAZ 2 — reports/ BOŞALTILIR.
+  Canlı olanlar REPORTS.md'ye (en yeni üstte) ÖZET olarak taşınır.
+  Kalanı arşivlenir, reports/ kaldırılır. `rm -rf reports/` ATMA.
+  Adım adım commit — "118 dosyayı sildim" tek commit'i geri alınamaz.
+
+FAZ 3 — KÖKTEKİ 13 MD + DEVIR DOSYALARI.
+  CLAUDE-eski-misyon.md, KAPI-PROMPT.md, KOSU-RABADON-5.md,
+  RABADON-ORKESTRASYON-v6.md, SPEC-SELF-REPAIR.md gibi tur artıkları.
+  Hangisi canlı? ÖLÇEREK karar ver, TUZAK 1'deki referans kontrolünü
+  her dosya için koştur. DEVIR-*.txt üç tane birikti (bunlar da tarihli
+  birikme): en yenisi kalır, eskileri arşive.
+
+FAZ 4 — CLAUDE.md 40 SATIR TAVANI.
+  Kural bu. Geçmiş REPORTS.md'ye taşınır, CLAUDE.md sadece "şu an ne
+  doğru"yu tutar.
+
+FAZ 5 — ÜRÜN YÜZÜ. §4-A: README + audit dürüstlüğü. Detay §4'te.
 
 SPAGETTİ (kod tarafı) — AYRI İŞ, MD'DEN SONRA:
   gate.cpp 5.869 satır. Bölünmeli mi? ÖNCE ÖLÇ: hangi sorumluluklar iç içe,
