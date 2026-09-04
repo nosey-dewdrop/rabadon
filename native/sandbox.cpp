@@ -169,9 +169,77 @@ static string abspath(const string& dir, const string& rel) {
   return canon(d + "/" + rel);
 }
 
-static string seatbelt_profile(const string& dir, const vector<string>& prefixes, bool denyNet) {
-  string p =
-    "(version 1)\n"
+// The writable set a deny-default profile must keep open, MEASURED rather than
+// listed from memory. A clean `make` of this very repo was run under a
+// deny-default profile and it failed on the first file:
+//
+//   clang++: error: unable to make temporary file: Operation not permitted
+//
+// because macOS hands every process a per-user $TMPDIR under /var/folders, and
+// a compiler writes its temporaries there before it writes any output. Leaving
+// it out does not fence an agent; it breaks every toolchain on the machine. The
+// same run passed once /private/var/folders was open, building all binaries.
+//
+// These are holes in a wall on purpose. A fence that stops `node -e rmSync` on
+// the home directory while letting a build write its scratch files is the trade
+// this tool exists to make — the alternative is a fence nobody leaves on.
+static vector<string> writable_roots(const string& dir) {
+  vector<string> w;
+  w.push_back(canon(dir));            // the tree the caller came to work in
+  w.push_back("/private/tmp");
+  w.push_back("/tmp");
+  w.push_back("/private/var/folders"); // $TMPDIR — see above, measured
+  w.push_back("/dev");                 // /dev/null and friends
+  const char* home = getenv("HOME");
+  if (home && *home) {
+    const string h = canon(home);
+    w.push_back(h + "/.cache");
+    w.push_back(h + "/.npm");
+  }
+  const char* td = getenv("TMPDIR");
+  if (td && *td) w.push_back(canon(td));
+  return w;
+}
+
+// Two shapes, and which one is built is a POLICY question, not a style one.
+//
+// allow-default: everything is writable except the paths guard.json named.
+//   This is what exec compiled for its whole life, and it has a hole the size
+//   of the axis it was sold to close. `protectedPaths` is empty in a default
+//   guard.json, and an empty list compiles to a profile that denies NOTHING —
+//   measured: under it, `node -e "fs.rmSync(<home path>,{recursive:true})"`
+//   ran to completion and the victim was gone. docs/threat-model.md answered
+//   the whole interpreter axis with "the answer is the kernel fence", so the
+//   user who most needed that answer — the one who never wrote a
+//   protectedPaths entry — was the one who did not have it.
+//
+// deny-default: the tree is writable, plus the measured scratch roots above,
+//   and everything else on the disk is read-only. It does not care what
+//   language asked for the write, which is exactly why it closes an axis a
+//   shell parser cannot: perl, node, ruby, awk and python all get EPERM from
+//   the kernel with no rule naming any of them.
+static string seatbelt_profile(const string& dir, const vector<string>& prefixes,
+                               bool denyNet, bool denyDefault) {
+  string p = "(version 1)\n";
+  if (denyDefault) {
+    p +=
+      "(deny default)\n"
+      "; rabadon: the tree is writable, the rest of the disk is not. A write\n"
+      "; refused here fails with EPERM whatever language asked for it.\n"
+      "(allow process* signal sysctl-read mach* ipc* file-read*)\n";
+    for (const string& r : writable_roots(dir))
+      p += "(allow file-write* (subpath \"" + r + "\"))\n";
+    // a named protected path stays read-only even INSIDE the writable tree
+    for (const string& pre : prefixes) {
+      string ap = abspath(dir, pre);
+      p += "(deny file-write* (subpath \"" + ap + "\"))\n";
+      p += "(deny file-write* (literal \"" + ap + "\"))\n";
+    }
+    if (denyNet) p += "(deny network*)\n";
+    else         p += "(allow network*)\n";
+    return p;
+  }
+  p +=
     "(allow default)\n"
     "; rabadon: kernel-enforced guard.json — protected paths are read-only,\n"
     "; the denied writes fail with EPERM even if the hook was bypassed.\n";
@@ -403,9 +471,26 @@ int main(int argc, char** argv) {
   for (const string& s : skipped)
     fprintf(stderr, "rabadon sandbox: rule \"%s\" has no literal path prefix — the KERNEL cannot fence a pure-regex path; the hook still checks it.\n", s.c_str());
 
+  // THE FENCE IS NOT OPTIONAL ANY MORE.
+  //
+  // It used to be built only when guard.json named a protected path, so the
+  // default configuration — protectedPaths: [] — compiled a profile that
+  // denied nothing and exec ran the command bare. That is measured, not
+  // supposed: under an empty list, `node -e "fs.rmSync(<home dir>,{recursive:
+  // true,force:true})"` returned 0 and the directory was gone, while the very
+  // same deletion spelled `rm -rf` was refused by the gate two lines earlier.
+  // One axis, two answers, and the weaker one was the default.
+  //
+  // On macOS the fence is now deny-default whenever no protected path asked
+  // for the narrower shape: the tree plus the measured scratch roots stay
+  // writable and the rest of the disk does not. Linux keeps the old shape,
+  // because bubblewrap was NOT measured on this machine and a fence claimed
+  // but untested is worse than one honestly absent — `--status` says so.
 #if defined(__APPLE__)
-  string profile = seatbelt_profile(dir, prefixes, netDeny);
+  const bool denyDefault = true;
+  string profile = seatbelt_profile(dir, prefixes, netDeny, denyDefault);
 #else
+  const bool denyDefault = false;
   string profile; // Linux builds the bwrap argv directly below
 #endif
 
@@ -473,7 +558,7 @@ int main(int argc, char** argv) {
     return 127;
   }
 
-  const bool wantsEnforcement = !prefixes.empty() || netDeny;
+  const bool wantsEnforcement = denyDefault || !prefixes.empty() || netDeny;
   if (wantsEnforcement && !backend) {
     fprintf(stderr,
       "rabadon sandbox: guard.json asks for kernel enforcement but %s is not usable here — REFUSING to run unprotected.\n"

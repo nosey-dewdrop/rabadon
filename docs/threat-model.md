@@ -18,9 +18,27 @@ rabadon enforces at three places of different strength:
 Under `rabadon exec`, the guard is compiled into an OS policy (macOS Seatbelt,
 Linux bubblewrap). Inside that sandbox:
 
+- **On macOS, every write outside the working tree** fails with `EPERM`, whether
+  or not the guard names a single path. The tree you passed to `--dir` is
+  writable, along with the scratch roots a toolchain cannot work without
+  (`/tmp`, `$TMPDIR`, `/dev`, `~/.cache`, `~/.npm`); the rest of the disk is
+  read-only. This is what closes the interpreter axis below: the kernel does not
+  read the language, so `perl -e`, `node -e`, `ruby -e`, `python3 -c` and
+  `awk 'BEGIN{system(...)}'` are one case, not five.
+  Until 2026-09-04 this fence was built **only** when `protectedPaths` had an
+  entry, so the default configuration — an empty list — compiled a policy that
+  denied nothing and ran the command bare. Measured then:
+  `node -e "require('fs').rmSync('<dir outside the tree>',{recursive:true,force:true})"`
+  returned 0 under `rabadon exec` and the directory was gone.
+- **Reads are untouched.** It is a write fence; anything readable before is
+  readable inside.
+- **On Linux the fence is still the narrower shape** — `bubblewrap` binds the
+  named `protectedPaths` read-only over an otherwise writable tree. Deny-default
+  has **not** been measured on Linux, and an unmeasured claim is worse than an
+  absent one, so it is not made here.
 - **Writes to `protectedPaths`** with a literal path prefix fail with `EPERM` —
   even from a subprocess, even if no hook ran, even if the agent never asked
-  rabadon.
+  rabadon. These stay read-only even inside the writable tree.
 - **The network is denied** when the guard says `"network":"deny"` — the process
   simply cannot reach it.
 
@@ -64,7 +82,10 @@ State these plainly. In a plain hooked session (no `rabadon exec`):
   script file the agent writes and then runs. An agent writes Python as readily
   as bash, so this is not a corner case — it is the honest boundary of a shell
   parser, and the answer is the kernel fence (`rabadon exec`), which does not
-  care what language asked for the write. Named here because it was found by an
+  care what language asked for the write. On macOS that answer is now real for
+  a default configuration too, which it was not when this paragraph was first
+  written: see the measurement above. In a plain hooked session, with no
+  `rabadon exec`, this axis remains open. Named here because it was found by an
   outside review on 2026-09-03 and it belongs in this list rather than in a
   session log.
 - **A tree deleted from outside itself.** `cd .. && rm -rf $(basename $PWD)`

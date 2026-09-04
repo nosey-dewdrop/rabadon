@@ -189,10 +189,29 @@ RD=$("$SB" --dir "$PROJ" -- /bin/sh -c "cat '$PROJ/protected/reference.txt'" 2>"
 [ "$RD" = "golden" ] && pass "the protected path is still READABLE (read-only, not invisible)" \
   || { fail "protected read failed"; sed 's/^/    | /' "$TMP/r.err" | head -5; }
 
-# empty guard -> runs bare (nothing to enforce)
+# An empty guard still RUNS the command — but it no longer runs it bare.
+#
+# This assertion used to be named "the sandbox is opt-in per rule" and it only
+# ever checked that `echo ran` produced output, which is true with a fence and
+# true without one. When the empty-guard default became deny-default on
+# 2026-09-04 the behaviour underneath it changed and this stayed green: the
+# name was the only thing that was wrong, which is the expensive kind of wrong.
+# It now asserts BOTH halves of what the default owes a caller — ordinary work
+# runs, and a write outside the tree does not.
 BARE="$TMP/bare"; mkdir -p "$BARE/.rabadon"; echo '{"project":"bare"}' > "$BARE/.rabadon/guard.json"
 OUT=$("$SB" --dir "$BARE" -- /bin/sh -c "echo ran" 2>/dev/null)
-[ "$OUT" = "ran" ] && pass "no rules -> the command runs bare (sandbox is opt-in per rule)" || fail "empty guard did not run"
+[ "$OUT" = "ran" ] && pass "an empty guard still runs ordinary work" || fail "empty guard did not run"
+# NOT under $TMP: /tmp and $TMPDIR are deliberately writable (a compiler needs
+# them), so a victim placed there proves nothing about the fence. This is the
+# lab-under-/tmp trap, and it caught this very assertion on first run.
+BAREVIC="$(mktemp -d "$HOME/rbfence-XXXXXX")"; echo golden > "$BAREVIC/keep.txt"
+"$SB" --dir "$BARE" -- /bin/sh -c "echo HACKED > '$BAREVIC/keep.txt'" >/dev/null 2>&1
+if grep -q golden "$BAREVIC/keep.txt" 2>/dev/null; then
+  pass "and an empty guard is NOT an unfenced one — a write outside the tree is refused"
+else
+  fail "an empty guard ran unfenced: the write outside the tree landed"
+fi
+rm -rf "$BAREVIC"
 
 # --deny-net closes the network (best-effort: curl to a bogus host must fail)
 if command -v curl >/dev/null 2>&1; then
@@ -258,6 +277,139 @@ PYEOF
     *) fail "the fence refused a write it was never asked to refuse" ;; esac
 else
   skip "the symlinked-fence arm" 4 "no kernel sandbox backend on this platform"
+fi
+
+
+# ---------------------------------------------------------------------------
+# 7. THE DEFAULT CONFIGURATION IS FENCED — the interpreter axis, closed by the
+#    kernel rather than by naming languages.
+#
+# THE HOLE THIS CLOSES. `protectedPaths: []` is what a new project gets, and
+# the fence used to be compiled only when that list had an entry. So the
+# profile denied nothing and exec ran the command bare, measured on 2026-09-04:
+#
+#   node -e "require('fs').rmSync('<outside dir>',{recursive:true,force:true})"
+#     -> exit 0, the directory was gone, under `rabadon exec`
+#
+# while the identical deletion spelled `rm -rf <outside dir>` was refused by the
+# gate. One axis, two answers, and the weaker one was the default — and
+# docs/threat-model.md pointed at this fence as THE answer for interpreters.
+#
+# Why the kernel and not a parser rule: the axis has unbounded spellings
+# (perl/node/ruby/awk/php/python, -e and -c, system() and unlink() and
+# rmtree()). The fence does not read the language at all, so all of them are
+# one case. Each arm below asserts BOTH halves — the destructive spelling is
+# refused AND the ordinary use of the same interpreter still runs, because a
+# false refusal here breaks every build script on the machine.
+SB_ABS="$PWD/native/rabadon-sandbox"
+if [ -x "$SB_ABS" ]; then
+  # PRECONDITION GUARD (see 5.3 in the handoff): if the victim can be deleted
+  # with the fence in place for a reason unrelated to this arm, every assertion
+  # below is meaningless. Prove the fence is live before trusting its verdicts.
+  D7="$(mktemp -d "$HOME/sbx7-XXXXXX")"
+  mkdir -p "$D7/proj/.rabadon"
+  printf '{"project":"p","bash":[],"protectedPaths":[],"disabled":[]}' > "$D7/proj/.rabadon/guard.json"
+
+  mkvic() { rm -rf "$D7/vic"; mkdir -p "$D7/vic"; echo golden > "$D7/vic/keep.txt"; }
+  alive() { [ -f "$D7/vic/keep.txt" ]; }
+
+  mkvic
+  ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- \
+      sh -c "rm -rf '$D7/vic'" ) >/dev/null 2>&1
+  if alive; then
+    pass "precondition: with protectedPaths EMPTY the fence is live (a plain rm outside the tree is refused)"
+
+    # --- the interpreter axis, one arm per language ---
+    #
+    # Each arm is (language, flag, program) held as THREE separate arguments,
+    # never one string. An earlier version of this loop expanded the program
+    # unquoted, argv shattered on spaces and the sandbox reported
+    # "exec failed: No such file or directory" — nothing ran, the victim was
+    # untouched, and three arms passed for that reason. A test that passes
+    # because the command never started is worse than no test, so each arm now
+    # PROVES the interpreter ran before it trusts the victim's survival: the
+    # same program is run once against a throwaway path it is allowed to
+    # delete, and the arm is only judged if that control actually deleted it.
+    run_arm() {
+      lang="$1"; flag="$2"; prog="$3"
+      command -v "$lang" >/dev/null 2>&1 || { skip "the $lang arm" 1 "$lang is not installed here"; return; }
+
+      # control: the identical spelling aimed INSIDE the writable tree must
+      # succeed, which proves the interpreter and the program text are sound.
+      ctl="$D7/proj/ctl"; rm -rf "$ctl"; mkdir -p "$ctl"; echo x > "$ctl/f"
+      ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- "$lang" "$flag" \
+          "$(printf '%s' "$prog" | sed "s|__T__|$ctl|g")" ) >/dev/null 2>&1
+      if [ -e "$ctl/f" ]; then
+        fail "the $lang control never ran (argv or interpreter broken) — the arm below would be vacuous"
+        rm -rf "$ctl"; return
+      fi
+      rm -rf "$ctl"
+
+      mkvic
+      ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- "$lang" "$flag" \
+          "$(printf '%s' "$prog" | sed "s|__T__|$D7/vic|g")" ) >/dev/null 2>&1
+      if alive; then
+        pass "an unprotected default fences \`$lang\` writing outside the tree"
+      else
+        fail "\`$lang\` destroyed a path outside the tree under the fence"
+      fi
+    }
+
+    run_arm node    -e "require('fs').rmSync('__T__',{recursive:true,force:true})"
+    run_arm perl    -e "system('rm -rf __T__')"
+    run_arm ruby    -e "require 'fileutils'; FileUtils.rm_rf('__T__')"
+    run_arm python3 -c "import shutil; shutil.rmtree('__T__')"
+    # awk has no -e: its program IS the first operand. Passing an empty flag
+    # would put an empty argv element in front of it, so it gets its own arm.
+    if command -v awk >/dev/null 2>&1; then
+      ctl="$D7/proj/ctl"; rm -rf "$ctl"; mkdir -p "$ctl"; echo x > "$ctl/f"
+      ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- awk "BEGIN{system(\"rm -rf $ctl\")}" ) >/dev/null 2>&1
+      if [ -e "$ctl/f" ]; then
+        fail "the awk control never ran — the arm below would be vacuous"
+      else
+        mkvic
+        ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- awk "BEGIN{system(\"rm -rf $D7/vic\")}" ) >/dev/null 2>&1
+        if alive; then pass "an unprotected default fences \`awk\` writing outside the tree"
+        else fail "\`awk\` destroyed a path outside the tree under the fence"; fi
+      fi
+      rm -rf "$ctl"
+    else
+      skip "the awk arm" 1 "awk is not installed here"
+    fi
+    rm -rf "$D7/vic"
+
+    # --- the expensive half: ordinary work must still run ---
+    if ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- \
+           node -e "require('fs').writeFileSync('built.txt','x')" ) >/dev/null 2>&1 \
+       && [ -f "$D7/proj/built.txt" ]; then
+      pass "and an ordinary \`node -e\` write INSIDE the tree still runs"
+    else
+      fail "the fence refused an ordinary in-tree build write — false refusal"
+    fi
+
+    # $TMPDIR is why this is measured and not assumed: a clean `make` of this
+    # repo failed under a deny-default profile with "unable to make temporary
+    # file: Operation not permitted", because every compiler writes scratch
+    # files to /var/folders before it writes any output.
+    if ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- \
+           sh -c 'T=$(mktemp) && echo x > "$T" && rm -f "$T"' ) >/dev/null 2>&1; then
+      pass "a toolchain's \$TMPDIR scratch write still runs (a compiler needs it)"
+    else
+      fail "\$TMPDIR is fenced — this breaks every compiler on the machine"
+    fi
+
+    if ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- \
+           sh -c "cat '$D7/proj/.rabadon/guard.json' >/dev/null" ) >/dev/null 2>&1; then
+      pass "reads outside the writable set are untouched (it is a write fence)"
+    else
+      fail "the fence blocked a read"
+    fi
+  else
+    fail "precondition: the fence is NOT live with an empty protectedPaths — every assertion in 7 would be vacuous"
+  fi
+  rm -rf "$D7"
+else
+  skip "the unprotected-default fence arm" 9 "no kernel sandbox backend on this platform"
 fi
 
 echo "sandbox: $ok passed, $bad failed, $SKIP skipped ($SKIPA assertion(s) not run)"
