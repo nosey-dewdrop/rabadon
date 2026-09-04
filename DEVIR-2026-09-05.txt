@@ -1,0 +1,167 @@
+DEVİR — rabadon, 5 Eylül 2026
+Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: 407d481 (push'lu)
+Önceki devirler: DEVIR-2026-09-04.txt ve -04-B.txt. İKİSİNİ DE OKU.
+Bu dosya onları TEKRARLAMIYOR — sadece bu turun işini ve kuralını ekliyor.
+
+================================================================
+0. BU TURUN İŞİ — SIRAYLA, ATLAMADAN
+================================================================
+Damla uyurken ilerleyecek. İki aşama, sırası ÖNEMLİ:
+
+  AŞAMA 1: REPO TEMİZLİĞİ. Ölü md yığınını ve spagettiyi temizle.
+  AŞAMA 2: Temizlik BİTTİKTEN sonra ürün işine devam (§4).
+
+AŞAMA 1 BİTMEDEN AŞAMA 2'YE GEÇME. Sebebi: bugünkü ölçüm, motorun
+sağlam ama YÜZÜNÜN kırık olduğunu gösterdi. Yüz kırıkken kod eklemek
+spagettiyi büyütür.
+
+================================================================
+1. ÖLÇÜLMÜŞ DURUM — TEMİZLİĞİN HEDEFİ BU SAYILAR
+================================================================
+md dosyası toplam            : 173
+  bunların reports/ altında  : 118  (kosu/RAPOR 59, R7 23, kosu 21, +15)
+  kökte dağınık duran        : 13
+  docs/                      : 12  (+6 docs/archive)
+kaynak                       : 26.661 satır
+  gate.cpp                   : 5.869   <- asıl spagetti burada
+  cmdtext.h                  : 2.431
+  baseline.h                 : 2.102
+test dosyası                 : 128
+tam suite                    : EXIT=0, 3169 ok  (temizlikten ÖNCE, referans al)
+
+HAFIZADAKİ KURAL (feedback_kayit_sistemi.md) — REPO BUNU İHLAL EDİYOR:
+  "Merkezi reports/ klasörü YASAK. TARİHLİ DOSYA ADI YASAK. Denetim
+   çıktıları sabit adlı dosyaya gider, üstüne yazılır."
+  Kayıt üçlüsü: CLAUDE.md (ne doğru, tavan 40 satır) / PROJECT.md (ne
+  inşa ediyoruz) / REPORTS.md (ne oldu, sadece eklenir).
+reports/ altındaki 118 dosya tam olarak bu kuralın yasakladığı birikme.
+
+================================================================
+2. TEMİZLİK — NASIL, VE ÜÇ TUZAK
+================================================================
+TUZAK 1 — BAZI MD'LER TESTLERE BAĞLI. Körlemesine silme, suite kırılır.
+  Koddan/testten referans alanlar (silmeden önce referansı da çöz):
+    README.md 21, CLAUDE.md 21, PROJECT.md 14, docs/commands.md 8,
+    SPEC.md 5, BENCHMARK.md 5, AGENTS-PROTOCOL.md 5, docs/guard.md 4,
+    docs/butce.md 4, .rabadon/handoff.md 4, threat-model.md 3,
+    quickstart.md 3, faq.md 3, uninstall.md 2, agent-contract.md 2,
+    COUNTER.md 2, KOSU-RABADON-5.md 2, CHANGELOG.md 2, POSITIONING.md 1
+  docs_truth_test.sh doküman iddialarını KODA KARŞI ölçüyor — bir md'yi
+  silersen ya da cümlesini değiştirirsen o test konuşur. Bu iyi bir şey,
+  bekçi olarak kullan.
+  Bir md'yi silmeden ÖNCE:  grep -rn "<dosya adı>" --include='*.sh'
+                            --include='*.cpp' --include='*.h' --include='Makefile' .
+
+TUZAK 2 — SİLME YETKİSİ. Damla'nın kuralı: birleştirmek içeriğe karışma
+  izni DEĞİL. Şüphedeysen SİLME, `docs/archive/` altına TAŞI ve REPORTS.md'ye
+  tek satır yaz. Bilgi atmak, bilgi vermemekten beterdir.
+  reports/ altındaki 118 dosya için de aynısı: toptan `rm -rf reports/`
+  ATMA. Önce içlerinde CANLI bilgi var mı bak (ölçüm sayıları, kararlar);
+  varsa REPORTS.md'ye özet olarak taşı, sonra arşivle.
+
+TUZAK 3 — TEMİZLİK BİR COMMIT DEĞİL. Adım adım commit at, her adımda
+  suite yeşil kalsın. "173 md'yi sildim" tek commit'i geri alınamaz bir
+  hamledir ve neyin niye gittiği kaybolur.
+
+TEMİZLİK SIRASI (öneri, ölçerek değiştir):
+  1. reports/ envanteri çıkar: hangi dosyada canlı sayı/karar var, hangisi
+     ölü tur çıktısı. Sayıyla raporla.
+  2. Canlı olanları REPORTS.md'ye (en yeni üstte) özetle taşı.
+  3. Kalanı arşivle/sil, reports/ klasörünü kaldır.
+  4. Kökteki 13 dağınık md'yi ele al: CLAUDE-eski-misyon.md, KAPI-PROMPT.md,
+     KOSU-RABADON-5.md, RABADON-ORKESTRASYON-v6.md, SPEC-SELF-REPAIR.md gibi
+     tur artıkları — hangisi canlı? Ölçerek karar ver, referansları kontrol et.
+  5. CLAUDE.md 40 satır tavanına çekilsin (kural bu).
+  6. DEVIR-*.txt dosyaları: üç tane birikti. Bunlar da tarihli birikme.
+     En yenisi kalsın, eskileri arşive.
+
+SPAGETTİ (kod tarafı) — AYRI İŞ, MD'DEN SONRA:
+  gate.cpp 5.869 satır. Bölünmeli mi? ÖNCE ÖLÇ: hangi sorumluluklar iç içe,
+  hangi fonksiyon nereye ait. ÖLÇMEDEN BÖLME — 3169 testli bir dosyayı
+  refactor etmek, ölçmeden yapılırsa geri alınamaz risk.
+  Bölersen: bir adım = bir commit, her adımda suite yeşil, ve her adımda
+  GERİ-ALMA KANITI (bölmeyi geri alınca ne kırılıyor).
+
+================================================================
+3. AJAN KULLANIMI — DAMLA'NIN ŞARTI
+================================================================
+Soru çıkarsa TARAFSIZ AJANA sor, Damla'ya değil. Ama:
+
+  - TARAF SEÇTİRME. "bu iyi mi / yapmalı mıyım / hangisi daha güzel" YASAK.
+    Ajan ÖLÇÜM ve TEKNİK ELEŞTİRİ getirir, KARAR değil.
+  - Sorular teknik olsun: "gate.cpp'de hangi sorumluluklar iç içe, file:line
+    ile göster", "bu md'nin iddiası kodun hangi satırıyla çelişiyor",
+    "bu bölme hangi testi kırar".
+  - HER AJAN İDDİASINI KENDİN TEKRAR KOŞTUR. Geçen turlarda ajanların
+    15 iddiasından 5'i yanlıştı, bu turda 7'den 2'si. Ölçmeden aktarma.
+  - Ajandan "NE BULAMADIM"ı da iste — kapalı bulduğu eksen, açık
+    bulduğundan bazen daha değerli.
+  - Paralel ve dar: her ajan TEK konuda, birbirinin dosyasına dokunmadan.
+    Ana oturum ajanın transcript'ini OKUMAZ, sadece raporu alır.
+
+Önceki devrin §9'u tam orkestrasyon promptunu taşıyor — GATE ÇAĞIRACAK
+ajan salıyorsan oradaki dört tuzağı prompta AYNEN kopyala, yoksa ölçüm çöp.
+
+================================================================
+4. TEMİZLİK BİTİNCE — ÜRÜN İŞİ, ÖNCELİK SIRASIYLA
+================================================================
+A) README + audit DÜRÜSTLÜĞÜ. En yüksek getirili iş, ve sebebi ölçüldü:
+   motor sağlam (3169 test, HMAC mühür, kernel fence) ama repoyu açan
+   biri bunu GÖREMİYOR, ve `rabadon audit` koşturursa README'nin
+   "olamaz" dediği exit 1'i alıyor.
+   - audit exit 1: ÖNCE KOŞTUR, durumu gör (bu turda koşturulmadı,
+     DOĞRULANMADI). Önceki devir §4 ve §7-C kararı taşıyor: 3 Eylül
+     dosyasını bırakıp sözleşmeyi yazmak, ya da arşive TAŞIMAK (SİLME).
+   - README'nin 9 bayat maddesi: en kritiği satır 132'nin "bir günü
+     toptan yeniden yazabilir" itirafı — a63b0c3'ten beri YANLIŞ ve
+     kendini küçümsüyor. Ayrıca "~23k satır" -> gerçek 26.661.
+
+B) LINUX FENCE. Tek gerçek kod açığı: yorumlayıcı ekseni Linux'ta AÇIK
+   (bwrap kolu `--dev-bind / /`, allow-default). macOS'taki
+   writable_roots() mantığının bwrap karşılığı gerekiyor.
+   BU MAKİNEDE BUBBLEWRAP YOK — ölçemediğini yazma, önce Docker'da
+   ölçüm ortamı kur. İkizler zorunlu: temiz build, $TMPDIR, ağ, in-tree.
+
+C) Task/WebFetch/mcp__* kapıdan geçiyor mu — DOĞRULANMADI, hâlâ açık.
+   Sadece Bash/Write/Edit yargılanıyorsa bir subagent tamamen serbest
+   demektir, ve bu "ajanı denetliyorum" iddiasının ortasında boşluk.
+
+================================================================
+5. KONUMLANDIRMA — 4 EYLÜL'DE ARAŞTIRILDI, README'DE YOK
+================================================================
+Fable 5.1 1 Eylül 2026'da çıktı ($10/M girdi, $50/M çıktı, cache okuma
+$0.25/M — %75 ucuzladı). Ölçülen konumlandırma:
+
+  - Fable 5.1 uzun koşuda REPAIR yapıyor: 38 saatlik denetimsiz koşuda
+    önceki bir ML hatasını kendi yakalayıp düzeltmiş, 6 deney başlatmış.
+    SWE-bench Pro %81.2 ile lider.
+  - AMA aynı sürümde guard'lar GEVŞEDİ: siber safeguard'lar Claude Code
+    oturumu başına ~%60 daha az giriyor. System card'da model'in "safety
+    classifier'ların etrafından dolaşabildiği" ve kesme girişiminden sonra
+    çalışmaya devam ettiği vakalar belgeli.
+    (Üçüncü-taraf özetlerden alındı — BİRİNCİL system card okunmadı,
+     DOĞRULANMADI. Doğrulanmalı.)
+
+  AYRIM: repair GERİ ALINABİLİR olanı düzeltir (bozuk kod, yanlış sonuç).
+  rabadon GERİ ALINAMAZ olanı engeller (silinen dosya, force-push'lanmış
+  tarih). Ajan silinen dosyayı "düzeltemez" — düzeltilecek şey kalmıyor.
+  Yani rabadon repair'in RAKİBİ değil, ÖN ŞARTI: repair'in çalışabilmesi
+  için dünyanın geri alınabilir kalması lazım.
+
+  Bu cümle README'de YOK. A maddesinde yazılmalı.
+
+================================================================
+6. YÖNTEM — DEĞİŞMEYEN KURALLAR
+================================================================
+- ÖLÇMEDEN KURAL YAZMA. Bu turda "delik" diye gelen 5 iddianın 4'ü delik
+  değildi (önceki tur), ve bu turda kendi testimde 2 sahte yeşil çıktı.
+- GERİ-ALMA KANITI OLMADAN COMMIT ATMA. Her düzeltme için "kuralı geri
+  alınca kaç test kırmızı" ölç ve commit mesajına yaz.
+- BİR TESTİN ADI İLE ÖLÇTÜĞÜ ŞEY AYRIŞABİLİR. Davranış değiştirdiğinde
+  hâlâ yeşil kalan test, muhtemelen hiçbir şey ölçmüyordur. (Bu turda
+  "no rules -> runs bare" testi tam olarak böyleydi.)
+- TAM SUITE 7+ DAKİKA. Arka planda TEK SEFER koştur, `grep -E "^EXIT="`
+  ile bekle (satır başı! testin kendi çıktısında da "EXIT=" geçiyor).
+  KOŞU SIRASINDA AĞACA DOKUNMA — make_deps_test.sh yarışı kırmızı verir.
+- BİR ADIM = BİR COMMIT, bitir + push, sonra söyle. Mesaj lowercase
+  İngilizce, co-author YOK.
