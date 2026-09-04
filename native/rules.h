@@ -212,18 +212,66 @@ inline std::vector<Rule> parse_rules(const string& guard, const string& section,
 // and a command that long is a paste, not a verb. A rule that genuinely needs
 // to see beyond it should match on the shape at the head instead, which is
 // what every law here already does.
-static const size_t RX_MAX_INPUT = 20000;
+// 20000 WAS THE WRONG NUMBER, AND CI ON A MACHINE THAT IS NOT THE AUTHOR'S IS
+// HOW IT WAS FOUND. The cap above bounds the input but not the WORK: against a
+// backtracking pattern the cost is still superlinear inside the window, and the
+// two standard libraries then disagree about what happens, both badly.
+//
+//   libc++   (macOS)  a complexity cap throws std::regex_error — at 200 chars
+//                     already, for `(a+)+b`. The catch below turned that into
+//                     `false`: the user's rule SILENTLY DID NOT APPLY, and the
+//                     suite read 1.5s and called it a pass.
+//   libstdc++ (Linux) no such cap: the same call ran past the harness's 30s
+//                     timeout. CI printed "the session is hung" on ubuntu while
+//                     macOS was green on the identical commit.
+//
+// Measured on this machine, libc++, pattern `(a+)+b`, all inputs throwing:
+//   200 chars 13.9ms · 1k 55ms · 5k 248ms · 10k 496ms · 20k 1004ms
+//
+// So the cap comes down to 2000, which is 10x the longest deny pattern any
+// guard in this repo actually needs and still a paste rather than a verb, and
+// the failure is no longer silent: a pattern the engine refuses to finish is
+// reported to the caller instead of being answered "no match". A rule that
+// cannot be evaluated is a rule the operator must hear about — answering
+// "allowed" on their behalf is the one outcome a guard may never produce
+// quietly.
+static const size_t RX_MAX_INPUT = 2000;
+
+// Set when the engine gave up on a pattern rather than deciding it. The gate
+// reads it to say WHICH rule could not be judged; it is never used to allow.
+inline bool& rx_last_gave_up() { static thread_local bool v = false; return v; }
 
 inline bool rx_test(const string& pattern, const string& text) {
+  rx_last_gave_up() = false;
   try {
     std::regex re(pattern, std::regex::ECMAScript | std::regex::icase);
     if (text.size() <= RX_MAX_INPUT) return std::regex_search(text, re);
     // The prefix, and then a window at the END as well: a dangerous verb can
     // sit after a long heredoc body, and dropping the tail entirely would be a
     // hole rather than a bound.
-    if (std::regex_search(text.substr(0, RX_MAX_INPUT), re)) return true;
-    return std::regex_search(text.substr(text.size() - RX_MAX_INPUT), re);
-  } catch (...) { return false; } // a broken rule must not take the gate down
+    //
+    // THE TWO WINDOWS ARE TRIED INDEPENDENTLY, and that is the whole point of
+    // the try inside the loop. A catastrophic pattern can exhaust the engine on
+    // the PREFIX — 2000 `a`s with no `b` is the worst case for `(a+)+b` — and a
+    // single try/catch around both searches let that one failure swallow the
+    // tail as well: the verb sitting at the end was never looked at, and the
+    // gate answered "allowed". One window giving up must not decide for the
+    // other.
+    bool gave_up = false;
+    const size_t offs[2] = {0, text.size() - RX_MAX_INPUT};
+    for (size_t off : offs) {
+      try {
+        if (std::regex_search(text.substr(off, RX_MAX_INPUT), re)) return true;
+      } catch (const std::regex_error&) { gave_up = true; }
+    }
+    rx_last_gave_up() = gave_up;
+    return false;
+  } catch (const std::regex_error&) {
+    // A malformed pattern, or one this engine will not finish even on a bounded
+    // input. Both mean the same thing to the operator: this rule did not decide.
+    rx_last_gave_up() = true;
+    return false;
+  } catch (...) { rx_last_gave_up() = true; return false; }
 }
 
 // A user rule is judged PER EXECUTABLE SURFACE of the command, and each surface

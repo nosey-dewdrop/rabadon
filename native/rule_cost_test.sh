@@ -56,30 +56,20 @@ PY
 
 echo "rule-cost: a backtracking rule cannot own the hot path"
 BIG="$(python3 -c 'print("echo " + "a"*100000)')"
-# BEST OF THREE, and the reason is not flakiness-tolerance. The question this
-# asks is whether the INPUT BOUND holds — a property of the code — and a single
-# sample answers a different question: whether this machine was busy for one
-# second. Measured on the author's idle machine the bound costs 1.5-2.2s against
-# a 3s limit; under a parallel `make test` the same binary sampled 3.2s, 9.9s
-# and 25.3s while `rabadon-gate` itself, timed directly, never left 0.02s.
-# Scheduler noise was being read as a regression. Three tries, the fastest kept:
-# a bound that is actually broken cannot produce one fast run, and a machine
-# under load usually can. The limit itself is NOT relaxed.
-BEST=""
-for _ in 1 2 3; do
-  read -r rc secs <<<"$(judge "$BIG")"
-  [ "$rc" = "timeout" ] && continue
-  if [ -z "$BEST" ] || python3 -c "import sys; sys.exit(0 if float('$secs') < float('$BEST') else 1)"; then
-    BEST="$secs"
-  fi
-  python3 -c "import sys; sys.exit(0 if float('$secs') < 3.0 else 1)" && break
-done
-if [ -z "$BEST" ]; then
+# ONE sample, and it is allowed to be one again. This measured 1.5-2.2s on the
+# author's macOS and >30s on ubuntu CI ("the session is hung") on the identical
+# commit, because RX_MAX_INPUT was 20000 and the two standard libraries disagree
+# about a backtracking pattern that size — libc++ throws a complexity error that
+# was being swallowed as "no match", libstdc++ just runs. With the cap at 2000
+# (rules.h) the same command costs 0.12s here, so noise no longer decides the
+# verdict and a best-of-N would only hide the next real regression.
+read -r rc secs <<<"$(judge "$BIG")"
+if [ "$rc" = "timeout" ]; then
   bad "a 100k-character command never returned — the session is hung"
 else
-  python3 -c "import sys; sys.exit(0 if float('$BEST') < 3.0 else 1)" \
-    && pass "a 100k-character command against a backtracking rule returned in ${BEST}s (<3s, best of 3)" \
-    || bad "a 100k-character command took ${BEST}s at its fastest of 3 — the bound is not holding"
+  python3 -c "import sys; sys.exit(0 if float('$secs') < 3.0 else 1)" \
+    && pass "a 100k-character command against a backtracking rule returned in ${secs}s (<3s)" \
+    || bad "a 100k-character command took ${secs}s — the bound is not holding"
 fi
 
 echo "rule-cost: and nothing was weakened to get it"
@@ -92,6 +82,31 @@ TAIL="$(python3 -c 'print("echo " + "x"*60000 + "; git push --force origin main"
 read -r rc secs <<<"$(judge "$TAIL")"
 [ "$rc" = "2" ] && pass "a dangerous verb after a 60k paste is still refused (${secs}s)" \
                 || bad "a verb past the prefix window was missed (exit $rc) — the bound is a hole"
+# THE HALF THE COST TEST COULD NOT SEE. A bound that makes the gate fast by
+# making a rule not apply has not bounded anything — it has removed the rule and
+# said nothing. With RX_MAX_INPUT at 20000 that is exactly what happened on
+# macOS: libc++ threw a complexity error, the catch answered "no match", and
+# both this suite and the operator read a fast pass. So the bound is held to the
+# other half too: inside the window a catastrophic rule must still DECIDE.
+BAIT="$(python3 -c 'print("echo " + "a"*1500 + "b")')"   # inside any window
+read -r rc secs <<<"$(judge "$BAIT")"
+[ "$rc" = "2" ] && pass "a backtracking rule still fires inside the window (exit 2, ${secs}s) — bounded, not disabled" \
+                || bad "the redos-bait rule did not fire on a string it matches (exit $rc) — the bound silently removed a user's rule"
+
+# AND THE ONE THAT HOLDS THE TWO WINDOWS APART. 5000 `a`s is longer than the
+# cap, so the match is decided by the prefix and tail windows rather than the
+# whole string — and the prefix here is 2000 `a`s with no `b`, the worst case
+# for `(a+)+b`, where libc++ throws a complexity error. rules.h used to wrap
+# BOTH searches in one try: the prefix giving up swallowed the tail with it, and
+# a dangerous verb sitting at the end of a long paste was never looked at while
+# the gate answered "allowed". Revert that loop to a single try/catch and this
+# line goes red. It is not about the value of the cap — it is about one window
+# not being allowed to decide for the other.
+BAIT2="$(python3 -c 'print("echo " + "a"*5000 + "b")')"
+read -r rc secs <<<"$(judge "$BAIT2")"
+[ "$rc" = "2" ] && pass "and at 5k characters — decided by the tail window after the prefix gave up (exit 2, ${secs}s)" \
+                || bad "the rule went undecided at 5k characters (exit $rc) — the engine gave up and the gate called it allowed"
+
 read -r rc secs <<<"$(judge 'echo hello')"
 [ "$rc" != "2" ] && pass "an ordinary command is still allowed" \
                  || bad "an ordinary command was refused"
