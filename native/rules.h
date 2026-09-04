@@ -15,7 +15,12 @@
 
 #include <cctype>
 #include <fstream>
+#include <chrono>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
 #include <regex>
+#include <thread>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -237,38 +242,106 @@ inline std::vector<Rule> parse_rules(const string& guard, const string& section,
 // quietly.
 static const size_t RX_MAX_INPUT = 2000;
 
-// Set when the engine gave up on a pattern rather than deciding it. The gate
-// reads it to say WHICH rule could not be judged; it is never used to allow.
+// AND A CLOCK, BECAUSE THE INPUT BOUND IS NOT PORTABLE PROTECTION. Bounding the
+// input bounds the engine only if the engine's cost is bounded by its input,
+// and for a backtracking pattern it is not — it is exponential in it. What the
+// two standard libraries do then is not the same thing, and CI on a machine
+// that is not the author's is what surfaced it:
+//
+//   libc++   (macOS)  a complexity cap throws std::regex_error, and `(a+)+b`
+//                     hits it at FIFTY characters. Fast, and the rule silently
+//                     did not apply.
+//   libstdc++ (Linux) no cap at all. The same call ran past the harness's 30s
+//                     timeout — "the session is hung" — on the identical commit
+//                     that was green on macOS twice over.
+//
+// So neither an input cap nor the catch below is the bound; they are what makes
+// the bound cheap. The bound is a deadline: the match runs on its own thread
+// and the caller stops waiting after RX_BUDGET_MS. A rule that cannot be
+// decided in that time is REPORTED as undecided, never answered "allowed" on
+// the operator's behalf, because a guard that quietly stops applying a rule is
+// worse than one that is slow.
+//
+// The thread is only paid for on inputs long enough to be a risk; a rule
+// against an ordinary command still matches inline, on the hot path, with no
+// thread and no clock. Measured here: an ordinary command 0.00s, a 100k paste
+// against `(a+)+b` 0.12s.
+static const size_t RX_THREAD_ABOVE = 256;
+static const int    RX_BUDGET_MS    = 250;
+
+// Set when the engine gave up on a pattern rather than deciding it — a
+// complexity error, or a deadline that passed. The gate reads it to say WHICH
+// rule could not be judged; it is never used to allow.
 inline bool& rx_last_gave_up() { static thread_local bool v = false; return v; }
+
+// One window, decided or given up on. `gave_up` is set, never cleared, so a
+// caller can OR several windows together.
+inline bool rx_search_bounded(const std::regex& re, const string& text, bool& gave_up) {
+  if (text.size() <= RX_THREAD_ABOVE) {
+    try { return std::regex_search(text, re); }
+    catch (const std::regex_error&) { gave_up = true; return false; }
+    catch (...) { gave_up = true; return false; }
+  }
+  // A detached worker and a shared answer: the caller must be able to walk away
+  // from a search that will not end, which is exactly what libstdc++ produces
+  // and what no exception will ever interrupt. The state is heap-allocated and
+  // owned by a shared_ptr held by BOTH sides, so a worker that finishes long
+  // after the deadline writes into memory that is still alive and frees it on
+  // its way out — the one shape here that a runaway thread cannot turn into a
+  // use-after-free.
+  struct Shared {
+    std::mutex m; std::condition_variable cv;
+    bool done = false, hit = false, threw = false;
+  };
+  auto st = std::make_shared<Shared>();
+  // BOTH captures are by value. A worker that outlives the deadline outlives
+  // this frame, and a reference to the caller's regex would be a dangling one
+  // the moment rx_test returns — the exact bug this whole path exists to avoid
+  // trading for. Copying a compiled regex costs nothing next to the search.
+  auto rec = std::make_shared<std::regex>(re);
+  std::thread([st, rec, text]() {
+    const std::regex& re = *rec;
+    bool hit = false, threw = false;
+    try { hit = std::regex_search(text, re); }
+    catch (...) { threw = true; }
+    { std::lock_guard<std::mutex> g(st->m); st->hit = hit; st->threw = threw; st->done = true; }
+    st->cv.notify_one();
+  }).detach();
+  std::unique_lock<std::mutex> lk(st->m);
+  if (!st->cv.wait_for(lk, std::chrono::milliseconds(RX_BUDGET_MS), [&]{ return st->done; })) {
+    gave_up = true;   // the deadline passed; the worker runs on and is ignored
+    return false;
+  }
+  if (st->threw) { gave_up = true; return false; }
+  return st->hit;
+}
 
 inline bool rx_test(const string& pattern, const string& text) {
   rx_last_gave_up() = false;
+  bool gave_up = false;
   try {
     std::regex re(pattern, std::regex::ECMAScript | std::regex::icase);
-    if (text.size() <= RX_MAX_INPUT) return std::regex_search(text, re);
+    if (text.size() <= RX_MAX_INPUT) {
+      const bool r = rx_search_bounded(re, text, gave_up);
+      rx_last_gave_up() = gave_up;
+      return r;
+    }
     // The prefix, and then a window at the END as well: a dangerous verb can
     // sit after a long heredoc body, and dropping the tail entirely would be a
     // hole rather than a bound.
     //
-    // THE TWO WINDOWS ARE TRIED INDEPENDENTLY, and that is the whole point of
-    // the try inside the loop. A catastrophic pattern can exhaust the engine on
-    // the PREFIX — 2000 `a`s with no `b` is the worst case for `(a+)+b` — and a
-    // single try/catch around both searches let that one failure swallow the
-    // tail as well: the verb sitting at the end was never looked at, and the
-    // gate answered "allowed". One window giving up must not decide for the
-    // other.
-    bool gave_up = false;
+    // THE TWO WINDOWS ARE JUDGED APART. A catastrophic pattern can exhaust the
+    // engine on the PREFIX — 2000 `a`s with no `b` is the worst case for
+    // `(a+)+b` — and one try/catch around both searches let that failure
+    // swallow the tail with it: the verb at the end was never looked at and the
+    // gate answered "allowed". One window giving up must not decide the other.
     const size_t offs[2] = {0, text.size() - RX_MAX_INPUT};
-    for (size_t off : offs) {
-      try {
-        if (std::regex_search(text.substr(off, RX_MAX_INPUT), re)) return true;
-      } catch (const std::regex_error&) { gave_up = true; }
-    }
+    for (size_t off : offs)
+      if (rx_search_bounded(re, text.substr(off, RX_MAX_INPUT), gave_up)) return true;
     rx_last_gave_up() = gave_up;
     return false;
   } catch (const std::regex_error&) {
-    // A malformed pattern, or one this engine will not finish even on a bounded
-    // input. Both mean the same thing to the operator: this rule did not decide.
+    // A malformed pattern: it never compiled, so no window ever ran.
     rx_last_gave_up() = true;
     return false;
   } catch (...) { rx_last_gave_up() = true; return false; }
