@@ -71,7 +71,7 @@ already happened.
 - [ ] S0.4 Close the 7-day/30-day number mismatch between README usage
       sample and BENCHMARK.md. One window, one count, everywhere.
 - [ ] S0.5 Strip internal notes from public files (native/G1-PIPELINE.md
-      work-order tone, personal notes in SPEC-SELF-REPAIR.md).
+      work-order tone, personal notes in docs/archive/SPEC-SELF-REPAIR.md).
 
 ## Promise 1 — the contract
 
