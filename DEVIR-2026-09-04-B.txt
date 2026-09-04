@@ -1,0 +1,183 @@
+DEVİR — rabadon, 4 Eylül 2026 (ikinci oturum)
+Bu dosyayı okuyup KALDIĞIN YERDEN devam et.
+Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: 80db8d9 (push'lu)
+Önceki devir: DEVIR-2026-09-04.txt — §5 (tuzaklar) ve §9 (orkestrasyon) HÂLÂ GEÇERLİ,
+buraya kopyalamadım. ONU DA OKU.
+
+================================================================
+0. TEK CÜMLE
+================================================================
+Yorumlayıcı ekseni kapandı ama kod yazarak değil: asıl bulgu, kernel fence'in
+VARSAYILAN kullanıcıda hiç kurulmuyor olmasıydı — belge "cevap kernel fence"
+diyordu ve o cevap orada yoktu. Vaat deliği, kod deliği değil.
+
+================================================================
+1. BU OTURUMDA NE YAPILDI — ÜÇ COMMIT
+================================================================
+b35cdf5  macOS'ta fence artık deny-default ve HER ZAMAN kuruluyor. Ağaç +
+         ölçülmüş scratch kökleri yazılabilir, disk geri kalanı salt-okunur.
+         Ekseni DİL ADI GEÇMEDEN kapatıyor. sandbox_test.sh bölüm 7 (+9).
+
+6c131f3  baseline-inplace-outside: tee / sed -i / perl -i / ruby -i ağaç
+         DIŞINDA var olan bir dosyayı yerinde eziyorsa reddediliyor. Eksen
+         yine HEDEF, fiil değil — mv/cp kuralının kardeşi.
+         git_verbs_test.sh bölüm 2c (44 -> 56 ok).
+
+80db8d9  "eleven laws" / "three compiled-in laws" dört yerde bayattı.
+         Id ile saydım: 14.
+
+================================================================
+2. §7-A KARARI — SORU BUYDU, CEVAP BU (gerekçesi ölçüldü)
+================================================================
+SORU: yorumlayıcı ekseni gate ile mi kernel ile mi kapanır?
+CEVAP: KERNEL. Çünkü kernel dili okumuyor — perl/node/ruby/python/awk TEK
+       VAKA. Gate ile yazsam beş yazımı kovalardım, altıncısı yarın çıkardı.
+
+Gate tarafını da ölçtüm, korkulan maliyet YOKTU ama gerekmedi:
+  makinedeki rabadon DIŞI gerçek yorumlayıcı çağrısı : 349 (146 dosya)
+  bunların içinde yıkıcı fiil geçen                  : 0
+  (package.json / Makefile / CI yaml / .sh'den çıkarıldı, uydurulmadı)
+  UYARI: tek makine, çoğu Damla'nın kendi reposu. Bağımsız örneklem DEĞİL.
+
+================================================================
+3. SAYILAR — HEPSİ BU MAKİNEDE ÖLÇÜLDÜ
+================================================================
+make test   : EXIT=0, 3169 "ok" satırı
+sandbox     : 31 ok / 0 fail  (tam suite altında da 31 — sapma yok)
+git verbs   : 56 ok / 0 fail  (GREEN)
+make deps   :  7 ok / 0 fail
+docs truth  : 42 ok / 0 fail
+
+FENCE ÖLÇÜMÜ (protectedPaths BOŞ, yani varsayılan hal):
+  ÖNCE : node/perl/ruby/python3/awk -> 5/5 exit 0, kurban SİLİNDİ
+  SONRA: 5/5 EPERM, kurban SAĞ
+  masum: in-tree yazma, $TMPDIR, ağ, okuma -> 9/9 serbest
+  gerçek iş yükü: temiz `make`, 20 binary -> yeşil
+
+INPLACE ÖLÇÜMÜ (hook'lu session, fence YOK):
+  yıkıcı: tee / sed -i / perl -i -pe / ruby -i -pe -> 4/4 exit 2
+  masum : tee -a, in-tree tee+sed -i, -i'siz sed/perl, var olmayan hedef,
+          ruby -e -> 8/8 exit 0
+
+GERİ-ALMA KANITLARI:
+  fence deny-default kapatılınca      31 ok -> 26 ok / 5 fail
+  inplace İLGİLİLİK SATIRI silinince  56 ok -> 52 ok / 4 fail
+  inplace KURAL GÖVDESİ kapatılınca   56 ok -> 52 ok / 4 fail
+
+================================================================
+4. AÇIK KALANLAR — KOD
+================================================================
+- LINUX'TA YORUMLAYICI EKSENİ HÂLÂ AÇIK. bwrap kolu `--dev-bind / /` ile her
+  şeyi yazılabilir bağlıyor (allow-default). Deny-default'u ORADA ÖLÇEMEDİM
+  (bu makinede bubblewrap yok), o yüzden İDDİA ETMEDİM — threat-model'de
+  açıkça "Linux'ta ölçülmedi" yazıyor. Bu en büyük açık iş.
+- Hook'lu session'da (fence yok) yorumlayıcı ekseni AÇIK ve öyle kalıyor.
+  Kasıtlı: cevabı fence. threat-model bunu artık dürüstçe söylüyor.
+- GIT_CONFIG_COUNT / GIT_CONFIG_KEY_0 env çiftleri (önceki devirden, duruyor)
+- cd .. && rm -rf $(basename $PWD) — WAIVED (önceki devirden)
+- alias..lead boş alt-bölüm (önceki devirden)
+- Task / WebFetch / mcp__* kapıdan geçiyor mu — DOĞRULANMADI, ben de
+  koşturmadım. Önceki devir §7-D. Hâlâ açık soru.
+- docker -v / ssh / kubectl / aws s3 rm — kapsam kararı, önceki devir §7-E.
+
+================================================================
+5. AÇIK KALANLAR — DEFTER VE README (DOKUNMADIM)
+================================================================
+- `rabadon audit` exit 1 meselesi (3 Eylül yarası). ÖNCEKİ DEVİR §4 ve §7-C.
+  BU OTURUMDA KOŞTURMADIM, DOĞRULAMADIM. Hâlâ "C-ÖNCESİ ACİL" olarak duruyor:
+  bugün audit çalıştıran biri README'nin "olamaz" dediği kodu alıyor.
+- README §8'in kalan maddeleri duruyor (satır 132'nin "bir günü toptan
+  yeniden yazabilir" itirafı ARTIK YANLIŞ, mühür HMAC, audit çıkış kodu
+  sözleşmesi, "~23k satır" -> gerçek 26.484, loop-stop read-only muafiyeti).
+  Ben SADECE kural sayısını (11->14) ve fence cümlesini düzelttim.
+- DEVIR-2026-09-03.txt ve DEVIR-2026-09-04.txt commit edilmemiş duruyor —
+  Damla'nın kararı, ellemedim.
+
+================================================================
+6. YÖNTEM — BU OTURUMDA ÖĞRENİLEN (önceki devrin §5'ine EK)
+================================================================
+6.1 KENDİ TESTİNDE İKİ SAHTE YEŞİL YAKALADIM. İkisi de "yeşil = doğru"
+    varsayımının nasıl çöktüğünü gösteriyor:
+
+    (a) ARGV PARÇALANMASI. Beş dil armında program metnini tırnaksız
+        genişlettim, argv kelimelere bölündü, sandbox "exec failed: No such
+        file or directory" dedi — KOMUT HİÇ KOŞMADI. Kurban sağ kaldığı için
+        üç arm yeşil göründü. Geri-alma ölçümü 5 yerine 2 fail verince
+        yakaladım.
+        ÇÖZÜM: her arma KONTROL KOŞUSU. Aynı program, silmesine İZİN VERİLEN
+        bir yola karşı koşuyor; gerçekten silmediyse arm "vacuous" diye
+        KIRMIZI oluyor. Bir arm ancak kontrolü geçtiyse yargılanıyor.
+
+    (b) ADI YALAN SÖYLEYEN ASSERTION. Mevcut "no rules -> the command runs
+        bare" testi davranışı değiştirdikten SONRA da yeşil kaldı, çünkü
+        sadece `echo ran`ın çıktı verdiğini ölçüyordu — fence'li de fence'siz
+        de doğru. Davranış değişti, test değişmedi, kimse fark etmedi.
+        DERS: bir testin adı ile ölçtüğü şey ayrışabilir. Davranış
+        değiştirirken "hangi test bunu ölçüyordu" diye ara; hâlâ yeşilse
+        muhtemelen hiçbir şey ölçmüyordur.
+
+6.2 İLGİLİLİK FİLTRESİ KURALIN YARISIDIR. baseline.h'te kural yazmak yetmiyor;
+    segment `relevant` değilse kural HİÇ ÇAĞRILMIYOR. Yeni fiil ekliyorsan
+    (tee/sed/perl/ruby) filtre satırını da ekle. Bunu ölçerek yakaladım:
+    kural yazılıydı, testler kırmızıydı, kural hiç ateşlemiyordu.
+    GERİ-ALMA KANITINI İKİ YARI İÇİN AYRI AYRI AL.
+
+6.3 "CEVAP X" DİYEN BELGEYİ ÖLÇ. threat-model "yorumlayıcının cevabı kernel
+    fence" diyordu. Cevabı ölçmeye gidince fence'in varsayılan halde HİÇ
+    KURULMADIĞINI buldum. Belgeye yazılı bir çözümün gerçekten çalıştığını
+    varsayma — koştur.
+
+6.4 YASAK LİSTESİNİ ÖLÇEREK KUR, HATIRLAYARAK DEĞİL. İlk deny-default profilim
+    temiz build'i İLK DOSYADA öldürdü:
+      clang++: error: unable to make temporary file: Operation not permitted
+    Her derleyici $TMPDIR'a (/var/folders) yazıyor. Onu listeye ölçerek
+    ekledim. Ezberden yazsaydım makinedeki her toolchain'i kırıyordum.
+
+6.5 TAM SUITE 7+ DAKİKA. Arka planda TEK SEFER koştur, `EXIT=` satırını bekle.
+    Ben üç kez koşturup 10 dk timeout yedim — israf.
+    TUZAK: `grep "EXIT="` testin KENDİ çıktısındaki metne de takılıyor.
+    `grep -E "^EXIT="` kullan (satır başı).
+    TUZAK 2: suite koşarken dosya düzenleme = make_deps_test.sh kırmızı
+    ("the make arm left the tree needing a rebuild"). Kod hatası değil, yarış.
+    Koşu sırasında ağaca DOKUNMA.
+
+6.6 LAB TUZAĞINA BEN DE DÜŞTÜM. Kurbanı $TMP altına koydum ve fence'in onu
+    korumadığını sandım — /tmp ve $TMPDIR KASTEN yazılabilir. Kurban $HOME
+    altında olmalı. (Önceki devir §5.1 bunu zaten yazıyordu.)
+
+================================================================
+7. SIRADAKİ İŞ — ÖNCELİK SIRASIYLA
+================================================================
+A) LINUX FENCE. Tek gerçek kod açığı. bwrap kolu hâlâ allow-default, yani
+   yorumlayıcı ekseni Linux'ta AÇIK. macOS'taki writable_roots() mantığının
+   bwrap karşılığı: `--ro-bind / /` + ağaç ve scratch köklerini rw bind.
+   ÖLÇMEDEN YAZMA — bu makinede bubblewrap yok. Ya Linux'a erişim bul, ya da
+   Docker'da ölç. İkizler MUTLAKA: temiz build, $TMPDIR, ağ, in-tree yazma.
+
+B) audit exit 1 (önceki devir §7-C ve §4). ÖNCE KOŞTUR, durumu gör. Karar
+   Damla'nın: 3 Eylül dosyasını olduğu gibi bırakıp README'ye üç değerli
+   sözleşmeyi yazmak, mı yoksa arşive TAŞIMAK mı (SİLME — taşı).
+
+C) README §8'in kalan 9 maddesi. En kritiği satır 132: "bir günü toptan
+   yeniden yazabilir" itirafı a63b0c3'ten beri YANLIŞ ve kendini küçümsüyor.
+
+D) Task/WebFetch/mcp__* kapı dışında mı — DOĞRULA (bir subagent tamamen
+   serbest mi?). Bu "ajanı denetliyorum" iddiasının ortasında boşluk olabilir.
+
+================================================================
+8. DAMLA'NIN SORUSU — BU OTURUM NE EKLEDİ
+================================================================
+Soru: "olay how big is it. iyiyse güzelse satarız, yoksa flop."
+
+Bu oturum ürünün ANLATISINI değiştirdi, kod kadar önemli:
+
+- Önceki devir "güçlü parser, ince politika" diyordu. Fence artık politikanın
+  en kalın parçası ve PARSER'A HİÇ BAĞLI DEĞİL. Kalabalıktaki herkes ya
+  izolasyon ya regex; rabadon'da ikisi bir arada ve BİRBİRİNİN AÇIĞINI
+  KAPATIYOR: parser komutun ANLAMINI okuyor (kalabalıkta kimse yapmıyor),
+  kernel de parser'ın okuyamadığı dili kapatıyor. Ayrım burası.
+- Ve bu oturumun asıl satılabilir cümlesi dürüstlük tarafında: ürün kendi
+  belgesinin yalanını ölçüp düzeltti. "protectedPaths boşken fence yoktu"
+  itirafı commit mesajında yazılı. Bu projenin sattığı şey bu.
+- HÂLÂ EKSİK, DEĞİŞMEDİ: yabancı makine, yabancı kod tabanı, bir hafta.
+  Tek operatör tek makine. Bu ölçüm olmadan cevap tam değil.
