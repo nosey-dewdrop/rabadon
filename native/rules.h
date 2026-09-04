@@ -9,7 +9,7 @@
 // is that it exists once and both callers link it.
 //
 // Two things are deliberately NOT here: the emit/ledger side (chain.h owns
-// that) and the three compiled-in laws (baseline.h owns those). This header is
+// that) and the compiled-in laws (baseline.h owns those, fourteen of them today). This header is
 // only the project's OWN guard.json rules and how they are matched.
 #pragma once
 

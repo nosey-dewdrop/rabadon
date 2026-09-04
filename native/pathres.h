@@ -1,6 +1,6 @@
 // pathres.h — ONE answer to "where does this path land". (C++17)
 //
-// This used to live inside baseline.h, next to the three compiled-in laws, and
+// This used to live inside baseline.h, next to the compiled-in laws, and
 // it was the only path resolver in the binary — so the OTHER layer that judges
 // paths did not have one. A project's guard.json deny rule is a regex, and a
 // regex reads the spelling:

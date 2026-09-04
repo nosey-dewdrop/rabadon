@@ -1,7 +1,7 @@
 // cmdtext.h — THE command parser. There is one, and both layers link it.
 //
 // rabadon asks a Bash command two questions. A deny rule asks what the line
-// LOOKS like (a regex, rules.h). The three compiled-in laws ask what the line
+// LOOKS like (a regex, rules.h). The compiled-in laws ask what the line
 // DOES (a structural read, baseline.h). Both have to answer a third question
 // first — where does one command end, which word is the command name, which
 // words are arguments, and which text is data — and for a while each answered
