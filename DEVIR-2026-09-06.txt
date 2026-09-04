@@ -1,0 +1,215 @@
+DEVİR — rabadon, 6 Eylül 2026
+Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: ea1a007 (push'lu)
+Önceki devirler: DEVIR-2026-09-05.txt, -09-04-B.txt, -09-04.txt.
+ÜÇÜNÜ DE OKU. Bu dosya onları TEKRARLAMIYOR — sadece bu turda OLANI ve
+ÖLÇÜLENİ ekliyor. Eskilerin tuzak, yöntem ve orkestrasyon bölümleri
+HÂLÂ ZORUNLU.
+
+================================================================
+0. TEK CÜMLE
+================================================================
+FAZ 1 ve FAZ 2 kapandı: reports/ (573 dosya) arşive TAŞINDI, suite
+taşımadan önce ve sonra birebir aynı yeşil. Bu turun asıl dersi ise
+kırmızıdan geldi: bir yol referansı sadece KODDA değil VERİDE de
+yaşıyor, ve benim tuzak taramam .json'ı atlamıştı.
+
+BU TUR BİR KOŞU FAZI DEĞİLDİ VE FAZ 3 AÇILMADI. Damla'nın emri:
+shell bitince fazı kapat, dur, devir yaz.
+
+================================================================
+1. BU OTURUMDA NE YAPILDI — TEK COMMIT
+================================================================
+ea1a007  reports/ -> docs/archive/reports/. 573 dosyanın hepsi git'te
+         olduğu için `git mv` tam geçmişi taşıdı; GERİ ALMA tek `git mv`.
+         Hiçbir dosya SİLİNMEDİ.
+         8 dosyada 45 canlı yol güncellendi.
+         REPORTS.md 137 -> 192 satır (canlı bilgi özetle taşındı).
+
+================================================================
+2. SAYILAR — HEPSİ BU MAKİNEDE ÖLÇÜLDÜ
+================================================================
+make test TABAN (taşımadan önce)   : EXIT=0, 4284 ok, 0 gerçek kırmızı
+make test TAŞIMADAN SONRA          : EXIT=0, 4284 ok — BİREBİR AYNI
+site_claims_test.sh (tek başına)   : 10 pass / 0 fail
+
+DİKKAT — SAHTE KIRMIZI: çıktıda "failed" içeren 3 satır var ve ÜÇÜ DE
+kırmızı DEĞİL. İkisi süit BAŞLIĞI ("failed_call: a tool call that
+failed...", "failed_call: 21 passed, 0 failed"), biri bir fixture'ın
+BEKLENEN RED çıktısı ("FAIL testsuite [node --test]"). Tabanda da,
+sonrasında da aynı üçü. `grep -c fail` ile yargı verme.
+
+reports/ ENVANTERİ (FAZ 1, ölçüm):
+  toplam dosya                : 573 (hepsi git'te takipli)
+  md                          : 130   <- devir 118 diyordu, GERÇEK 130
+  toplam boyut                : 14 MB
+  md satırı                   : 23.850
+  dağılım: kosu/RAPOR 59 · kosu 21 · R7 23 · kalan 27
+  yol adıyla koddan referans alan md : 22
+  make test'in çağırdığı      : SIFIR (Makefile'da tek satır yok,
+                                sadece 7 YORUM satırı)
+  accept.sh                   : 15 tane, ve sadece BİRBİRLERİNİ çağırıyorlar
+
+KÖKTEKİ 13 MD — FAZ 3 İÇİN HAZIR ÖLÇÜM (yeniden ölçme, bu tablo taze):
+  dosya                        satır  koddan-ref
+  README.md                      189   23
+  CLAUDE.md                      148   21   <- 40 satır tavanı ihlal (FAZ 4)
+  PROJECT.md                    2600   14
+  BENCHMARK.md                   394    7
+  AGENTS-PROTOCOL.md             185    5
+  SPEC.md                        253    5
+  KOSU-RABADON-5.md              414    2
+  CHANGELOG.md                    78    1
+  CLAUDE-eski-misyon.md           33    0
+  KAPI-PROMPT.md                  73    0
+  RABADON-ORKESTRASYON-v6.md     233    0
+  SPEC-SELF-REPAIR.md             39    0
+  REPORTS.md                     192    0   <- KURAL GEREĞİ KALIR, taşıma
+
+  FAZ 3 İÇİN ÇÖZÜLMÜŞ BAĞLAR (tekrar aramana gerek yok):
+  - SPEC.md KALIR: native/version_test.sh:151,211 onu make test içinde
+    açıyor, ve README.md:158 ona link veriyor.
+  - KOSU-RABADON-5.md taşınırsa PROJECT.md:9 ve :15 GÜNCELLENMELİ —
+    "The current run is KOSU-RABADON-5.md" diyor.
+  - CLAUDE-eski-misyon.md'ye PROJECT.md:2566 atıf yapıyor.
+  - SPEC-SELF-REPAIR.md'ye PROJECT.md:74 atıf yapıyor.
+  - AGENTS-PROTOCOL.md'yi native/mine_honest.sh:47 (yorum) ve
+    RABADON-ORKESTRASYON-v6.md anıyor.
+  - docs_truth_test.sh SADECE üç docs/ dosyasını bekçiliyor
+    (commands.md, faq.md, uninstall.md) — kökteki hiçbirini değil.
+  - DEVIR-09-03/04/04-B/05 GIT'TE TAKİPLİ; 09-03 untracked.
+
+================================================================
+3. BU TURDA KAPANAN İKİ "DOĞRULANMADI"
+================================================================
+3.1 `rabadon audit` exit 1 — İKİ DEVİRDİR "koşturulmadı" diyordu, KOŞTURDUM.
+    GERÇEK: exit 1, doğrulandı.
+    Kırık: 2026-09-03.jsonl satır 10736
+           (prev=12ba53c9… expected=d790fc7e…) — bilinen 3 Eylül yarası,
+           kasten onarılmamış, doğru karar.
+    YENİ BULGU (hiçbir devirde yazmıyordu): 5 dosya daha UNVERIFIABLE —
+      2026-08-17.unchained.jsonl  40 satır, tamamen zincir dışı
+      2026-08-21.unchained.jsonl  78 satır, tamamen zincir dışı
+      08-08 / 08-09 / 08-29 içinde zincirlemeyen yazıcıdan 8 / 3 / 1 satır
+    Yani README'nin çıkış kodu sözleşmesi SADECE exit 1'i değil,
+    exit 2 sebebini (doğrulanamayan) de anlatmalı. FAZ 5-A'nın işi.
+
+3.2 ÜÇ KIRIK REFERANS — bu turda açılmadı, ZATEN kırıktı, kimse yazmamıştı:
+    site/build.py:87 ve native/repair.cpp:422 -> reports/2026-08-01-hakem-korpusu
+      o klasör YOK. İkisi de yorumda, o yüzden hiçbir test görmüyor.
+    scripts/kos-smoke.sh:81 -> $REPO/scripts/kos.sh kopyalıyor,
+      dosya 26 Ağu'da scripts/arsiv/'e taşınmış. make test'te değil,
+      sessizce ölü. kosu koşu makinesi zaten emekli.
+
+================================================================
+4. YÖNTEM — BU TURDA ÖĞRENİLEN (önceki devirlerin §5/§6'sına EK)
+================================================================
+4.1 YOL REFERANSI VERİDE DE YAŞIYOR — BU TURUN KIRMIZISI BUYDU.
+    Taşımadan önce TUZAK 1 taramasını yaptım ama --include listeme
+    .json / .jsonl KOYMADIM. Sonuç: suite EXIT=2.
+      site/measured.json     KOŞTURULABİLİR komut stringi tutuyor (3 yol)
+      site/findings.jsonl    kanıt yolu tutuyor (31 yol)
+    ve native/site_claims_test.sh:49 "build.py'ın andığı her yol VAR OLMALI"
+    diyor, make test içinde.
+    DERS: yol taraması yaparken uzantı listesi
+      *.sh *.cpp *.h *.py *.mjs Makefile *.json *.jsonl *.tsv *.txt
+    olmalı. Kod ve veri ayrımı yapma.
+
+    AMA HEPSİNİ DÜZELTME: site/field.jsonl ve site/rule_census.json da
+    reports/ diyor ve KASTEN BIRAKILDI — onlar o gün ne olduğunun
+    TARİHSEL KAYDI, çalıştırılabilir yol değil. Geçmişi yeniden yazmak
+    defterin varlık sebebine aykırı. Ayrım: "bu yol koşuyor mu" diye sor,
+    "bu yol geçiyor mu" diye değil.
+
+4.2 §2.5 İŞE YARADI, İKİ KEZ. İkisinde de çözüm tekrar denemek değil
+    EKSİK PARÇAYI bulmaktı, ve ikisi de 1 turda kapandı:
+    (a) `./native/rabadon audit` -> "No such file". Tekrar denemedim;
+        `ls native/` ile gerçek adı buldum: rabadon-audit.
+    (b) Suite EXIT=2. Tekrar koşturmadım; kırmızı satırı OKUDUM
+        ("MISSING-FILE express.locked ..."), kaynağı grep'ledim,
+        uzantı listesini tamamladım, dört dosyayı birden ölçtüm.
+    Sonra DAR ölçtüm: tam suite'i 7 dk beklemeden site_claims_test.sh'ı
+    tek başına koşturdum (10/0), ancak ondan sonra tam suite.
+
+4.3 YORUM SATIRLARINA DOKUNMA. Kod içindeki "reports/..." atıflarının
+    çoğu bir ÖLÇÜMÜN KAYNAĞINI gösteriyor ("bu sayı şuradan geldi").
+    Yolu düzeltmek onları düzeltmez, PROVENANS'ı bozar. Bıraktım.
+
+4.4 ARŞİVLEMEDEN ÖNCE CANLI BİLGİYİ ÇIKAR. reports/ altında hâlâ doğru
+    olan şeyler vardı (F3k tabanı, 2b hükmü, iki kapanmamış kalem).
+    Arşive gömmeden önce REPORTS.md'ye özet olarak taşındı, ki hiçbiri
+    yalnız arşivden erişilebilir olmasın.
+
+================================================================
+5. SIRADAKİ İŞ — FAZLAR, DEĞİŞMEDİ
+================================================================
+FAZ 1  reports/ envanteri          -> KAPANDI (bu tur)
+FAZ 2  reports/ boşaltılır          -> KAPANDI (bu tur, ea1a007)
+FAZ 3  kökteki 13 md + DEVIR'ler    -> SIRADAKİ. Ölçümü §2'de HAZIR.
+FAZ 4  CLAUDE.md 40 satır tavanı    -> bugün 148 satır.
+FAZ 5  ürün yüzü (README + audit)   -> §3.1 artık ölçülü, sözleşme yazılabilir.
+
+gate.cpp'yi bölmek HÂLÂ BU İŞİN PARÇASI DEĞİL. 5.869 satır, 3169 test.
+FAZ 5 bitmeden konuşulmaz.
+
+FAZ 3'E BAŞLARKEN: §2'deki tablo taze, YENİDEN ÖLÇME. Sadece
+"0 ref" çıkan dördünü (CLAUDE-eski-misyon, KAPI-PROMPT,
+RABADON-ORKESTRASYON-v6, SPEC-SELF-REPAIR) taşımadan önce
+PROJECT.md'deki dört atfı çöz. REPORTS.md kural gereği kökte kalır.
+
+================================================================
+6. ORKESTRASYON — DAMLA'NIN EMRİ, BU TURDAN İTİBAREN ZORUNLU
+================================================================
+İş AJANLARLA yürüyecek. Ek sorular DAMLA'YA DEĞİL TARAFSIZ AJANA sorulacak.
+
+KURAL 1 — TARAF SEÇTİRME. Ajan ÖLÇÜM ve TEKNİK ELEŞTİRİ getirir, KARAR
+  DEĞİL. Kararı sen ve Damla verir.
+  Kötü: "bu md silinmeli mi?" / "rabadon iyi ürün mü?" / "hangisi güzel?"
+  İyi : "şu 13 md'nin her biri için: koddan/testten referans var mı,
+         file:line ile göster. İddiasını kodun hangi satırı yalanlıyor?"
+
+KURAL 2 — HER AJAN İDDİASINI KENDİN TEKRAR KOŞTUR. Ölçülmüş geçmiş:
+  önceki turlarda 15 iddiadan 5'i, sonrakinde 7'den 2'si YANLIŞTI.
+  Bu turda ben ajan salmadım (mekanik işti) ama KENDİ taramam da
+  eksikti (§4.1) — ajanınki de eksik olacak. Ölçmeden aktarma.
+
+KURAL 3 — MEKANİK İŞ AJANSIZ. Sayım, grep, envanter, dosya taşıma:
+  saf shell/python. Bu turun FAZ 1+2'si tamamen ajansız yapıldı ve
+  doğru karar buydu. Ajan YARGI gerektiren ve SAYISI BELLİ işe salınır.
+
+KURAL 4 — PARALEL VE DAR. Her ajan TEK konuda, birbirinin dosyasına
+  dokunmadan. Ana oturum ajanın TRANSCRIPT'ini OKUMAZ, sadece raporunu
+  alır. Uzun rapor İSTEME — 10-15 tool call'da bitsin.
+
+KURAL 5 — "NE BULAMADIM"I İSTE. Ajanın KAPALI bulduğu eksen, açık
+  bulduğundan bazen daha değerlidir: tekrar test etmeni engeller.
+
+KURAL 6 — GATE ÇAĞIRACAK AJANA DÖRT TUZAĞI AYNEN KOPYALA
+  (DEVIR-2026-09-04.txt §9 KURAL 2'de tam metin; yazmazsan ölçüm ÇÖP):
+  hook_event_name ZORUNLU · session_id HER ÇAĞRIDA FARKLI · lab /tmp
+  ALTINDA OLMASIN · lab yolunda "rabadon" kelimesi GEÇMESİN.
+  Ve ÖNCE HARNESS DOĞRULA: force-push -> 2, git status -> 0.
+
+BU TUR İÇİN AJANA SORULACAK ŞEKİLDE HAZIR İKİ SORU (FAZ 3/5):
+  1. "Kökteki şu 4 md (CLAUDE-eski-misyon, KAPI-PROMPT,
+      RABADON-ORKESTRASYON-v6, SPEC-SELF-REPAIR): her birinin İDDİASI
+      bugünkü kodun hangi satırıyla ÇELİŞİYOR? Cümleyi alıntıla,
+      file:line göster. Düzeltme metni YAZMA."
+  2. "README'nin audit çıkış kodu sözleşmesi: kod gerçekte hangi
+      koşulda 0, 1, 2 dönüyor? audit.cpp'den file:line ile göster.
+      Bu makinede ölçülen exit 1 ve 5 UNVERIFIABLE dosyayı sözleşmenin
+      neresi karşılıyor, neresi karşılamıyor?"
+
+================================================================
+7. DEĞİŞMEYEN KURALLAR
+================================================================
+- ÖLÇMEDEN KURAL YAZMA.
+- GERİ-ALMA KANITI OLMADAN COMMIT ATMA.
+- BİR ADIM = BİR COMMIT, her adımda suite yeşil, bitir + push, sonra söyle.
+  Mesaj lowercase İngilizce, co-author YOK.
+- ŞÜPHEDEYSEN SİLME, TAŞI. Silme yetkin yok. Bilgi atmak, bilgi
+  vermemekten beterdir.
+- BİR TESTİN ADI İLE ÖLÇTÜĞÜ ŞEY AYRIŞABİLİR.
+- TAM SUITE 7+ DAKİKA: arka planda TEK SEFER, `grep -E "^EXIT="` ile bekle.
+  KOŞU SIRASINDA AĞACA DOKUNMA (make_deps_test.sh yarışı kırmızı verir).
+  Ve önce DAR test koştur, tam suite en son.
+- İŞİ KÜÇÜLT, FAZLARA BÖL, BİR FAZA FAZLA YÜK BİNDİRME.
