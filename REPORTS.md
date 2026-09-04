@@ -8,6 +8,61 @@ Ne oldu, tarih sırasıyla. **En yeni üstte. Sadece eklenir, hiçbir şey silin
 
 ---
 
+## 2026-09-05 — reports/ arşivlendi, kayıt üçlüsüne dönüldü
+
+**Neden:** `reports/` 573 dosya / 130 md / 14 MB'a çıkmıştı ve bu, projenin kendi
+kayıt kuralını (merkezi `reports/` yasak, tarihli dosya adı yasak) ihlal ediyordu.
+Klasör `docs/archive/reports/` altına **taşındı, silinmedi** — 573 dosyanın hepsi
+git'te olduğu için `git mv` tam geçmişi koruyor, geri alma tek `git mv` ile.
+
+**Taşımadan önce ölçüldü (taban):** `make test` EXIT=0, 4284 `ok`, 0 gerçek
+kırmızı. ("failed" içeren 3 satırın ikisi süit BAŞLIĞI, biri fixture'ın
+beklenen RED çıktısı — kırmızı değil.)
+
+**Taşınırken düzeltilen üç canlı yol** (körlemesine taşınsaydı suite kırılırdı):
+- `native/failed_call_test.sh` — `RAPOR/f3e-1-posttooluse-failure-payload.json`'u
+  açıp okuyor, `make test` içinde.
+- `site/build.py:44` — `2026-08-01-real-defect-mine/cases.json` okuyor;
+  `native/site_claims_test.sh` her cited path'in var olmasını şart koşuyor.
+- `site/build.py:1865` — canlı siteye public GitHub linki basıyor.
+
+**Arşivden REPORTS.md'ye taşınan canlı bilgi:**
+- **F3k sonrası taban (2026-08-30, hakem ölçümü):** `make test` exit 0 ·
+  native geniş `ok` 4096 · `PASS (N checks)` 633 · `npm test` 64/0 ·
+  **toplam 4793 yeşil / 0 kırmızı** · 53 adlı süit, 0 küçülen, 0 kaybolan.
+  Dar regex 4044; emekli 4034 sayacıyla fark tam 52 ve `ok`'u sütun 0'dan
+  basan iki süide ait — **kayıp iddia yok**.
+- **`2b` hükmü (F3k, şık B):** ölçüt DEĞİŞMEZ, `2b` kalıcı §1 hedef ihlali
+  olarak yayımlanır. Tavan 1000 µs gevşetilmedi. `rabadon-gated` **sevk
+  EDİLMEZ** — istek başına iki-fork modeli ölçülmüş açık kusur
+  (+2645,3 / +3365,9 µs, 7/7 çift). Sevk edilen kurulumda `settings.json`
+  5 olayda `native/rabadon-gate` kayıtlı, `rabadon-gated` 0 olayda.
+- **`reports/R7/accept.sh` 23 yeşil / 3 kırmızı**, kırmızı ad kümesi
+  `{2b, 6e, 7b}` — büyümedi.
+- **Kapanmamış kalem:** §4.3 yanlış pozitif adayı 1 adet, kapıda değil
+  **self-heal kolunda** — `hooks/refresh.mjs:127` "world-writable + sticky
+  (1777)" gördüğü her atayı kalıcı değil sayıyor; bu makinede `/Users/Shared`
+  ve `/Library/Caches` sistemin süpürmediği 1777 kök. Onarılmadı.
+- **Kapanmamış kalem:** `truth.cpp:336-337` keşif seçicisi — bulan, erteleyen
+  ve kaydeden üç yer var, **sahiplenen kart yok**.
+
+**Ayrıca bu turda ölçüldü (iki devirde "DOĞRULANMADI" duruyordu):**
+`rabadon-audit` bu makinede **exit 1**. Kırık: `2026-09-03.jsonl` satır 10736
+(`prev=12ba53c9… expected=d790fc7e…`) — 3 Eylül yarası, bilinen ve kasten
+onarılmamış. **Yeni bulgu:** 5 dosya daha UNVERIFIABLE —
+`2026-08-17.unchained.jsonl` (40 satır) ve `2026-08-21.unchained.jsonl`
+(78 satır) tamamen zincir dışı; 08-08 / 08-09 / 08-29 içinde zincirlemeyen
+bir yazıcıdan 8 / 3 / 1 satır. README'nin çıkış kodu sözleşmesi bu iki sebebi
+de anlatmalı.
+
+**Ölçülen kırık referanslar (bu turda açılmadı, zaten kırıktı):**
+`site/build.py:87` ve `native/repair.cpp:422` `reports/2026-08-01-hakem-korpusu`
+diyor — o klasör YOK. `scripts/kos-smoke.sh:81` `scripts/kos.sh` kopyalıyor,
+dosya 26 Ağu'da `scripts/arsiv/`'e taşınmış. Üçü de yorum/ölü yolda olduğu
+için hiçbir test görmüyor.
+
+---
+
 ## 2026-08-23 (2) — R6 sayaç
 **Yapıldı:** R6 tamamlandı. Kapanış satırı gerçek fixture'da:
 

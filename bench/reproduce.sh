@@ -68,14 +68,14 @@ RABADON_NOTIFY=0 node bin/rabadon.mjs usage --days 30
 #    Set R7_RUN=1 to actually re-run it. Without that it only reports the state
 #    of the raw record, which is what the numbers are read from.
 line "4. R7 two-armed run  (arm A vs arm B on SWE-smith; raw record + re-run)"
-R7_JSONL="$ROOT/reports/R7/ab_run.jsonl"
+R7_JSONL="$ROOT/docs/archive/reports/R7/ab_run.jsonl"
 if [ "${R7_RUN:-0}" = 1 ]; then
   printf 're-running the two-armed run (this spends agent sessions)...\n'
-  RABADON_NOTIFY=0 "$ROOT/reports/R7/ab_run.sh"
+  RABADON_NOTIFY=0 "$ROOT/docs/archive/reports/R7/ab_run.sh"
 else
   printf 'skipped the re-run (set R7_RUN=1 to spend the sessions and redo it).\n'
-  printf 'harness  : reports/R7/ab_run.sh\n'
-  printf 'pre-reg  : reports/R7/ON-KAYIT.md   (frozen before the run)\n'
+  printf 'harness  : docs/archive/reports/R7/ab_run.sh\n'
+  printf 'pre-reg  : docs/archive/reports/R7/ON-KAYIT.md   (frozen before the run)\n'
 fi
 if [ -s "$R7_JSONL" ]; then
   python3 - "$R7_JSONL" <<'PY'
@@ -96,7 +96,7 @@ for a in sorted(by):
     print(f'  arm {a}: {len(R)} tasks | held-out fix rate {rate:.1f}% | tokens {tok}')
 PY
 else
-  printf 'no raw record yet at reports/R7/ab_run.jsonl — the run has not produced rows.\n'
+  printf 'no raw record yet at docs/archive/reports/R7/ab_run.jsonl — the run has not produced rows.\n'
 fi
 
 line "done"

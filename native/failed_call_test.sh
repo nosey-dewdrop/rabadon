@@ -18,7 +18,7 @@
 #   error: "Exit code 1\nls: /nope: No such file or directory"
 #   (no tool_response field at all)
 #
-# Captured live, verbatim, in reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json.
+# Captured live, verbatim, in docs/archive/reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json.
 # So the hole was rabadon's on both counts: hookev.h's dialect table did not
 # list the name (the event fell through to UNKNOWN and the gate fell open), and
 # hooks/install.mjs never subscribed to it, so on a real machine the event was
@@ -265,7 +265,7 @@ fi
 # ---------------------------------------------------------------------------
 # CLAIM 8 — the captured payload is kept in the repo, verbatim. A shape nobody
 # can re-read is a shape the next reader has to take on trust.
-CAP="$(cd "$HERE/.." && pwd)/reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json"
+CAP="$(cd "$HERE/.." && pwd)/docs/archive/reports/kosu/RAPOR/f3e-1-posttooluse-failure-payload.json"
 if [ -f "$CAP" ] && python3 -c '
 import json,sys
 d = json.load(open(sys.argv[1]))

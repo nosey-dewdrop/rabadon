@@ -103,7 +103,7 @@ def from_mine(rows):
             "repo": c["repo"],
             "file": ", ".join(c.get("sourceFiles", [])) or "?",
             "broke": c.get("subject", "").strip(),
-            "proof": "git apply reports/2026-08-01-real-defect-mine/%s && <the project's own suite>"
+            "proof": "git apply docs/archive/reports/2026-08-01-real-defect-mine/%s && <the project's own suite>"
                      % c.get("patch", ""),
             "status": "reported",
             "detail": "%d source line(s), %d test(s) fall, deterministic over three runs. "

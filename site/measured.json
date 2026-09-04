@@ -78,7 +78,7 @@
     "what": "corpus cheat families the shipped binary refuses"
   },
   "express.locked": {
-    "cmd": "grep -cE '^[0-9a-f]{16,}' reports/2026-08-01-g3-first-held-repair/06-locks.txt",
+    "cmd": "grep -cE '^[0-9a-f]{16,}' docs/archive/reports/2026-08-01-g3-first-held-repair/06-locks.txt",
     "commit": "bdbc448",
     "display": "91",
     "measuredAt": "2026-08-02",
@@ -87,7 +87,7 @@
     "what": "test files hash-locked in that run"
   },
   "express.repairs_held": {
-    "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
+    "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' docs/archive/reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
     "commit": "bdbc448",
     "display": "2",
     "measuredAt": "2026-08-02",
@@ -96,7 +96,7 @@
     "what": "repairs held on a foreign repo, live"
   },
   "express.suite_tests": {
-    "cmd": "reports/2026-08-01-g3-first-held-repair/README.txt",
+    "cmd": "docs/archive/reports/2026-08-01-g3-first-held-repair/README.txt",
     "commit": "bdbc448",
     "display": "1,260",
     "measuredAt": "2026-08-02",

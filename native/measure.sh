@@ -81,8 +81,8 @@ fi
 # Not re-run: it took a real proposer call against expressjs/express at a pinned
 # commit. The numbers are counted out of the run's own ledger and lock list,
 # which ship in this repository, so the reader can count them again.
-echo "-- reports/2026-08-01-g3-first-held-repair"
-G3="$REPO/reports/2026-08-01-g3-first-held-repair"
+echo "-- docs/archive/reports/2026-08-01-g3-first-held-repair"
+G3="$REPO/docs/archive/reports/2026-08-01-g3-first-held-repair"
 if [ -d "$G3" ]; then
   HELD=$(grep -cE '"ev": *"REPAIR_OK"' "$G3/04-ledger-events.jsonl" 2>/dev/null || echo 0)
   LOCKS=$(grep -cE '^[0-9a-f]{16,}' "$G3/06-locks.txt" 2>/dev/null || echo 0)
@@ -206,18 +206,18 @@ if xcases and xp:
 if g3_locks:
     d["express.repairs_held"] = stamp({
         "value": g3_held, "display": str(g3_held),
-        "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
+        "cmd": "grep -cE '\"ev\": *\"REPAIR_OK\"' docs/archive/reports/2026-08-01-g3-first-held-repair/04-ledger-events.jsonl",
         "what": "repairs held on a foreign repo, live",
         "note": "expressjs/express at a3714473, the arbiter being that project's own mocha suite. "
                 "the working tree was never edited."})
     d["express.locked"] = stamp({
         "value": g3_locks, "display": str(g3_locks),
-        "cmd": "grep -cE '^[0-9a-f]{16,}' reports/2026-08-01-g3-first-held-repair/06-locks.txt",
+        "cmd": "grep -cE '^[0-9a-f]{16,}' docs/archive/reports/2026-08-01-g3-first-held-repair/06-locks.txt",
         "what": "test files hash-locked in that run",
         "note": "sha256 of the pristine copy; the arbiter re-hashed each one after the proposer."})
     d["express.suite_tests"] = stamp({
         "value": g3_suite, "display": "{:,}".format(g3_suite),
-        "cmd": "reports/2026-08-01-g3-first-held-repair/README.txt",
+        "cmd": "docs/archive/reports/2026-08-01-g3-first-held-repair/README.txt",
         "what": "tests in the arbiter's suite", "note": "the project's own, not one rabadon wrote."})
 
 with open(p, "w", encoding="utf-8") as f:

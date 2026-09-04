@@ -41,7 +41,7 @@ SEP = "\x1f"  # unit separator: safe inside a commit subject, unlike | or tab
 #                  code, with the command that proves it. appended by
 #                  site/finding.py, never typed into a page.
 MEASURED_PATH = "site/measured.json"
-DEFECTS_PATH = "reports/2026-08-01-real-defect-mine/cases.json"
+DEFECTS_PATH = "docs/archive/reports/2026-08-01-real-defect-mine/cases.json"
 FINDINGS_PATH = "site/findings.jsonl"
 
 # the overview was the last page anybody maintained by hand, and it drifted 25
@@ -1862,7 +1862,7 @@ def index(rows, meas):
             stat("g", o.get("totalCases", 0),
                  f'real defects mined out of {o.get("totalScannedCommits", 0)} commits in '
                  f'{o.get("totalRepos", 0)} open-source projects, each with the patch that proves it',
-                 f"{REPO_URL}/tree/main/reports/2026-08-01-real-defect-mine"),
+                 f"{REPO_URL}/tree/main/docs/archive/reports/2026-08-01-real-defect-mine"),
             stat("y", sum(x[2] for x in SUITES),
                  f"tests in the {len(SUITES)} suites it was run against. "
                  '<a href="/benchmarks">the measurements, each beside the command it came from</a>',
