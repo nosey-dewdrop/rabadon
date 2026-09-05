@@ -8,6 +8,61 @@ Ne oldu, tarih sırasıyla. **En yeni üstte. Sadece eklenir, hiçbir şey silin
 
 ---
 
+## 2026-09-05 — FAZ 5 kapandı: ürün yüzü, ve CI'ın yıllardır kırmızı olan yarısı
+
+**Neden:** `rabadon audit` bu makinede exit 1 dönüyordu, README ise o kodun
+"olamaz" olduğunu söylüyordu. Ürün yüzü yalan söylüyorsa motor doğru olsa ne
+yazar. İş oradan başladı, ama asıl bulgu CI'da çıktı.
+
+**README + BENCHMARK — ölçülüp düzeltilen 9 iddia:**
+- audit çıkış kodu üç değerli yazıldı (0/1/2) ve **bu repoda exit 1 alındığı**
+  README'de duruyor artık: `2026-09-03.jsonl:10736`, kasten onarılmamış.
+- Mühür SHA-256 değil **HMAC-SHA256**, sidecar iki değil **üç** alan taşıyor.
+- "bir günü toptan yeniden yazabilir" itirafı SİLİNDİ — a63b0c3 o saldırıyı
+  kapatmış, `audit_test.sh:611` mahkûm ediyor. Kendini küçümseyen bir yanlıştı.
+- `~23k satır` → **~27k** (gerçek 26.661).
+- loop-stop'un read-only muafiyeti yazıldı (`gate.cpp:5777`).
+- Konumlandırma cümlesi 1. paragrafa girdi: **rabadon repair'in rakibi değil ön
+  şartı** — repair geri alınabiliri düzeltir, rabadon geri alınamazı durdurur.
+- Geri alınamaz reddetme **66 → 101**, gerçek işte **41 → 73**, haftada
+  **9.9 → 18.2**. Yanlış-red penceresi **126/%0.8 → 192/%0.5**.
+- BENCHMARK §3b'ye emekli-kural satırı: 70 wrong'un 11'i bugün var olmayan
+  kurallara ait (`ctest-red-block`, `tests-red`... hepsi bugünkü `red-base`).
+  Yaşayan kurallarla %11.2. **%13.4 quoted kalıyor** — düzeltme kendi lehine.
+- Yabancı repo iddiası (120/0, 36/40) **birebir doğru çıktı**, değişmedi.
+
+**Asıl bulgu — `bench/strangers.py` hiçbir şeye bağlı değildi:** exit code
+döndürmüyordu ve repolar klonlanmamışken `ZeroDivisionError` ile **exit 0**
+veriyordu. README'nin en güçlü iddiası korumasızdı. Artık tek yanlış-red'de
+veya 36/40'ın altında fail ediyor, klon yoksa exit 3 ile SKIP diyor, ve **her
+push'ta ubuntu runner'ında koşuyor** — iddia artık yazarın makinesinden bağımsız.
+
+**Bağ bağlanınca ubuntu üç gerçek hata gösterdi (hepsi ölçülüp kapatıldı):**
+1. `std::regex` bağı taşınabilir değildi. libc++ 50 karakterde `regex_error`
+   atıyor, `catch` onu sessizce "eşleşme yok" yapıyordu — **kullanıcının kuralı
+   hiç uygulanmıyordu**. libstdc++'ta sınır yok, 30s+ asılıyordu ("the session
+   is hung"). Çözüm: `RX_MAX_INPUT` 20000→2000 **ve** 250ms bütçeli ayrı thread.
+   Pes etme artık `rx_last_gave_up()` ile raporlanıyor, sessizce "izin ver"
+   olmuyor. Sıradan komut hâlâ inline, thread'siz, 0.009ms.
+2. Prefix penceresi tail'i yutuyordu: tek `try/catch` ikisini sarıyordu, prefix'te
+   pes eden motor uzun bir paste'in ARDINDAKİ tehlikeli fiili hiç göstermiyordu.
+   İki pencere artık ayrı yargılanıyor. Kanıt: tek try'a döndürünce test kırmızı.
+3. `sandbox_test.sh` macOS'un deny-default'unu her platformdan istiyordu.
+   Ölçülünce çıkan sonuç README'den İYİ: bubblewrap `node -e`/`perl`/`ruby`/
+   `python3 -c`/`awk`'ın **beşini de durduruyor**, beş kol da ubuntu'da yeşil.
+
+**Ölçüm:** `make test` EXIT=0, **4234 ok** (rule_cost 5→7, sandbox 31 assertion).
+CI **yedi job da success** — ubuntu ve macOS ilk kez birlikte yeşil.
+
+**Ne DEĞİŞMEDİ:** `gate.cpp` bölünmedi (bu işin parçası değil). FAZ 4 (CLAUDE.md
+40 satır) açık, Damla'nın kararı. Linux deny-default hâlâ ölçülmedi ve
+iddia EDİLMİYOR — `protectedPaths` boşsa Linux'ta fence hiç kurulmuyor.
+
+**Sonraki:** yabancı OPERATÖR — başkasının kod tabanı, bir hafta. CI bu turda
+makine yarısını kapattı, insan yarısı açık.
+
+---
+
 ## 2026-09-05 — reports/ arşivlendi, kayıt üçlüsüne dönüldü
 
 **Neden:** `reports/` 573 dosya / 130 md / 14 MB'a çıkmıştı ve bu, projenin kendi

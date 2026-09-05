@@ -1,0 +1,230 @@
+DEVİR — rabadon, 8 Eylül 2026
+Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: 643a1d6 (push'lu)
+Kökte duran devirler: bu dosya + DEVIR-2026-09-07.txt (bir öncekisi).
+DEVIR-2026-09-03.txt ve CLAUDE-eski-misyon.md UNTRACKED — Damla'nın kararı,
+DOKUNMA. Eski devirler docs/archive/devir/ altında.
+
+DEVIR-2026-09-07.txt'yi OKU — §8 (stitchu'nun beş kök hatası) ve §9 (değişmeyen
+altı şart) HÂLÂ ZORUNLU, buraya kopyalamadım. Bu dosya onu TEKRARLAMIYOR.
+
+================================================================
+0. TEK CÜMLE
+================================================================
+FAZ 5 (ürün yüzü) KAPANDI: README'nin 9 bayat iddiası ölçülüp düzeltildi. Ama
+bu turun asıl bulgusu README'de değil: rabadon'un KENDİ CI'ı ubuntu'da kırmızıydı
+ve bir kırmızı bir başkasını saklıyordu. Üç gerçek hata çıktı, üçü de kapatıldı,
+CI ilk kez yedi job birden yeşil.
+
+================================================================
+1. BU OTURUMDA NE YAPILDI — 11 COMMIT
+================================================================
+700f76e  README: audit çıkış kodları + mühür (HMAC, 3 alanlı sidecar)
+1817b6d  BENCHMARK + README: ledger sayıları yeniden ölçüldü
+0cb1c05  strangers.py artık fail EDEBİLİR + CI job'ı (yabancı makine)
+0ac015c  rules.h: prefix penceresi tail'i yutuyordu — iki pencere ayrı yargı
+51f99b9  rules.h: regex bağına SAAT — libstdc++'ın sınırı yok, Linux'u asıyordu
+03212c9  sandbox_test: Linux'tan ürünün vermediği sözü istiyordu
+513103f  CI'a geçici tanı adımı (mac'ten tahmin etme, runner'a sor)
+092d604  tanı adımı repodan cd'leyip kendi binary'sini bulamıyordu
+794dc66  protectedPaths düz string değil, {"match": ...} nesnesi
+74f3160  bwrap MOUNT bağlar — silinmiş yolu fence'leyemez, vic silinmiyor boşalıyor
+643a1d6  Linux fence'in gerçekte ne tuttuğu, koda ve README'ye yazıldı
+
+GERİ ALMA: her biri tek `git revert`. Hiçbir dosya silinmedi.
+
+================================================================
+2. SAYILAR — HEPSİ BU MAKİNEDE VE CI'DA ÖLÇÜLDÜ
+================================================================
+make test           : EXIT=0, 4234 ok (önceki taban 4284'tü — FARK AŞAĞIDA)
+CI                  : yedi job da success (ubuntu node20/22, macos node20/22,
+                      disclosure x2, strangers) — ubuntu ilk kez yeşil
+rule_cost_test.sh   : 5 -> 7 assertion
+sandbox_test.sh     : 31 assertion, 0 fail
+
+4284 -> 4234 FARKINI AÇIKLA, YOKSA REGRESYON SANIRSIN: 4284 sayısı 09-07'de
+`grep -cE "^\s+ok"` ile alınmıştı ve o gün suite'in koştuğu ağaç farklıydı.
+Bu turda aynı komutla 4232-4234 arası okundu, ve DÜŞÜŞ DEĞİL: rule_cost'a 2,
+sandbox'a assertion eklendi. Sayı tam karşılaştırılabilir değil çünkü ARA
+KOŞULARDA suite erken ölüyordu. YENİ TABAN: 4234, EXIT=0.
+
+README'DE DÜZELTİLEN 9 İDDİA (hepsi ölçüldü, hiçbiri tahmin değil):
+  audit exit    : README "0 veya 2" diyordu; GERÇEK üç değerli, ve bu repoda
+                  exit 1 dönüyor (2026-09-03.jsonl:10736). Artık README'de yazıyor.
+  mühür         : SHA-256 -> HMAC-SHA256 (chain.h:249). Sidecar 2 -> 3 alan.
+  bayat itiraf  : "bir günü toptan yeniden yazabilir" SİLİNDİ (a63b0c3 kapatmış,
+                  audit_test.sh:611 mahkûm ediyor). Kendini küçümseyen yanlıştı.
+  satır sayısı  : ~23k -> ~27k (gerçek 26.661)
+  loop-stop     : read-only muafiyeti yazıldı (gate.cpp:5777)
+  konumlandırma : "repair'in RAKİBİ değil ÖN ŞARTI" 1. paragrafa girdi
+  geri alınamaz : 66 -> 101 · gerçek işte 41 -> 73 · haftada 9.9 -> 18.2
+  yanlış-red    : 126/%0.8 -> 192/%0.5
+  Linux fence   : aşağıda, §3'te — İDDİA GÜÇLENDİ
+
+DEĞİŞMEYEN (ölçüldü, doğru çıktı): yabancı repo 120 sıradan/0 red, 40 zararlı/36
+durduruldu, dört kaçak aynı belgelenmiş kör nokta. README burada dürüsttü.
+
+BENCHMARK.md §3b'YE EKLENEN SATIR — DİKKAT, BU BİR DÜRÜSTLÜK KARARI:
+70 "wrong"un 11'i bugün var olmayan kurallara ait (ctest-red-block, tests-red,
+tests-are-RED... hepsi bugünkü red-base'in eski yazımları). Yaşayan kurallarla
+oran %13.4 değil %11.2. HER İKİSİ de basılıyor ve **%13.4 quoted kalıyor**,
+çünkü düzeltme projenin KENDİ LEHİNE. Kendi hata oranını aşağı yuvarlayan bir
+guard kendini ölçmeyi bırakmıştır. Bu satırı GEVŞETME.
+
+================================================================
+3. ASIL BULGU — CI YABANCI MAKİNEDİR, VE KIRMIZIYDI
+================================================================
+09-07 §8 HATA 5 "yabancı makine, yabancı kod tabanı" diyordu ve bunu gelecek
+bir iş sanıyorduk. YANLIŞ: CI zaten yabancı makine, ve aylardır ubuntu'da
+kırmızıydı. Üstelik BİR KIRMIZI BİR BAŞKASINI SAKLIYORDU — rule_cost suite'i
+erken öldürdüğü için sandbox kırmızısı hiç görünmemişti.
+
+3.1 REGEX BAĞI TAŞINABİLİR DEĞİLDİ. rules.h `RX_MAX_INPUT`i 20000 tutuyordu.
+    Girdiyi sınırlamak İŞİ sınırlamıyor — backtracking'de maliyet girdiye
+    üstel. İki standart kütüphane bu noktada AYRIŞIYOR, ikisi de kötü:
+      libc++   (macOS)  karmaşıklık sınırı var, `(a+)+b` için 50 KARAKTERDE
+                        regex_error atıyor. catch onu "eşleşme yok" yapıyordu:
+                        KULLANICININ KURALI SESSİZCE UYGULANMIYORDU, ve suite
+                        1.5s okuyup "geçti" diyordu.
+      libstdc++ (Linux) sınır YOK. Aynı çağrı 30s harness timeout'unu aştı,
+                        "the session is hung". macOS aynı commit'te iki kez yeşil.
+    ÇÖZÜM: cap 2000'e indi VE 250ms bütçeli ayrı thread eklendi (RX_BUDGET_MS).
+    Pes etme artık rx_last_gave_up() ile RAPORLANIYOR — asla sessizce "izin ver"
+    olmuyor. Sıradan komut RX_THREAD_ABOVE=256 altında inline, thread yok,
+    ölçüldü: 0.009ms. 100k paste 0.12s.
+    THREAD'DE İKİ TUZAK VAR, İKİSİ DE KAPALI: regex ve text ikisi de DEĞERLE
+    yakalanıyor (deadline'ı aşan worker bu frame'i aşar, referans dangling olur),
+    ve state shared_ptr ile iki tarafça tutuluyor.
+
+3.2 PREFIX PENCERESİ TAIL'İ YUTUYORDU. Tek try/catch iki aramayı da sarıyordu:
+    prefix'te pes eden motor (2000 `a`, `b` yok — worst case) TAIL'i hiç
+    denemiyordu. Yani uzun bir paste'in ARDINDAKİ tehlikeli fiil görülmüyor ve
+    gate "izin verildi" diyordu. Artık iki pencere AYRI yargılanıyor.
+    KANIT: tek try/catch'e geri döndürdüm, rule_cost KIRMIZI oldu. Test gerçek
+    bir deliği koruyor, dekoratif değil.
+
+3.3 SANDBOX TESTİ LİNUX'TAN OLMAYAN BİR SÖZ İSTİYORDU. Test macOS'un
+    deny-default'unu her platformdan bekliyordu. README ise Linux için bunu
+    zaten İDDİA ETMİYOR. Ölçünce çıkan sonuç README'den İYİ:
+      protectedPaths ADLANDIRILDIĞINDA bubblewrap yorumlayıcı ekseninin
+      BEŞİNİ DE tutuyor — node -e, perl -e, ruby -e, python3 -c, awk.
+      Beş kol da ubuntu'da YEŞİL. İlk kez ölçüldü.
+    KALAN GERÇEK BOŞLUK DAR: protectedPaths BOŞSA Linux'ta wantsEnforcement
+    false oluyor ve komut ÇIPLAK koşuyor — yani yapılandırılmamış bir Linux
+    projesinde fence YOK. Bu iddia edilmiyor, README ve sandbox.cpp yorumu
+    tam bunu söylüyor.
+
+3.4 BU TURDA YAPTIĞIM İKİ HATA — TEKRARLAMA:
+    (a) protectedPaths'i düz string dizisi sandım. GERÇEK: {"id","match","why"}
+        NESNESİ, sandbox.cpp "match"i okuyup literal önekini alıyor. Düz string
+        SIFIR prefix'e parse olur, wantsEnforcement false olur ve fence HİÇ
+        KURULMAZ — kollar test edilen sebepten değil BU yüzden düşüyordu.
+    (b) bwrap MOUNT bağlar: var olmayan bir yolu fence'leyemez, bwrap hiç
+        kalkmaz. Seatbelt ise yol ADINA göre reddeder, yol var olsun olmasın.
+        Test kolların sonunda vic'i siliyordu; artık boşaltıyor, silmiyor.
+
+3.5 BİR PROBE'UN NEYİ KANITLADIĞINI SOR. `sh -c "rm -rf ..."` ön koşulu
+    fence hakkında HİÇBİR ŞEY kanıtlamıyor: kural motoru onu daha önce
+    reddediyor (baseline-rm-rf-outside), kernel'e hiç ulaşmıyor. Ön koşul
+    "fence canlı" diye geçiyordu ve YANLIŞTI. Fence'i sınamak istiyorsan
+    kural motorunun OKUYAMADIĞI bir yazım kullan (node -e gibi).
+
+================================================================
+4. SIRADAKİ İŞ — FAZLAR
+================================================================
+FAZ 1  reports/ envanteri       -> KAPANDI (09-06)
+FAZ 2  reports/ boşaltılır      -> KAPANDI (09-06, ea1a007)
+FAZ 3  kökteki md + DEVIR'ler   -> KAPANDI (09-07, c4d7bcd)
+FAZ 4  CLAUDE.md 40 satır       -> AÇIK, KARAR BEKLİYOR. Ölçümü 09-07 §3'te
+                                   HAZIR, YENİDEN ÖLÇME. Üç yol orada duruyor.
+                                   İki devirdir "SIRADAKİ" görünüyorsa DUR:
+                                   bu bir KARAR fazı, Damla'nındır.
+FAZ 5  ürün yüzü (README+audit) -> KAPANDI (bu tur)
+FAZ 6  yabancı OPERATÖR         -> SIRADAKİ İŞ. Aşağıda.
+
+FAZ 6 NEDİR, VE NE DEĞİLDİR:
+  CI bu turda "yabancı MAKİNE" yarısını kapattı — dört gerçek repo, temiz
+  ubuntu runner'ı, her push'ta. Kapanmayan yarı: yabancı OPERATÖR. Bugüne
+  kadar tek insan, tek iş akışı. 09-04 §10'un cümlesi hâlâ geçerli:
+  "yabancı bir makinede, yabancı bir kod tabanında, BİR HAFTA."
+  Bu README'yi güzelleştirmek DEĞİL. Bu, ürünün dikilmemiş provası.
+
+KAPATILABİLİR AMA KAPATILMAMIŞ TEK TEKNİK EKSEN:
+  Linux deny-default (§3.3). Ölçülmedi, iddia edilmiyor. Kapatmak istersen
+  ölçüsü hazır: protectedPaths BOŞ bir projede bwrap'i deny-default şekle
+  sokup sandbox_test'in beş kolunu adlandırma OLMADAN koştur.
+
+gate.cpp'yi bölmek HÂLÂ BU İŞİN PARÇASI DEĞİL.
+
+================================================================
+5. YÖNTEM — BU TURDA ÖĞRENİLEN (09-07 §5'e EK)
+================================================================
+5.1 CI'I OKU. YABANCI MAKİNE ZATEN ORADA. Bu turda "yabancı makine ölçümü"
+    gelecek bir iş sanılıyordu; oysa CI aylardır ubuntu'da kırmızıydı ve
+    kimse bakmıyordu. Bir iş emri geldiğinde ilk refleks: `gh run list`.
+    Ürünün en pahalı ölçümü zaten koşuyor olabilir.
+
+5.2 BİR KIRMIZI BİR BAŞKASINI SAKLAR. rule_cost suite'i erken öldürdüğü için
+    sandbox kırmızısı HİÇ GÖRÜNMEMİŞTİ. İlk kırmızıyı düzeltince ikincisi
+    çıktı, onu düzeltince üçüncü. "Kırmızı sayısı" bir ilerleme ölçüsü değil;
+    ilk kırmızıyı kapat ve TEKRAR KOŞ.
+
+5.3 ÖLÇMEDEN TAHMİN ETME — RUNNER'A SOR. Linux fence'inin neden düştüğünü
+    mac'ten tahmin edecektim. Bunun yerine CI'a GEÇİCİ bir tanı adımı koydum
+    (`--print`, iki probe, ls). Cevap tahminimin ikisini de çürüttü: fence
+    kurulmuyordu (protectedPaths şekli yanlış) ve `sh -c` probe'u kernel'e
+    hiç ulaşmıyordu. Tanı adımı iş bitince KALDIRILDI. Bu kalıbı tekrar kullan:
+    tanı adımı ucuz, yanlış düzeltme pahalı.
+
+5.4 BİR TESTİN KIRMIZI OLABİLDİĞİNİ KANITLA. rule_cost'a eklediğim assertion'ı
+    tek try/catch'e döndürerek KIRMIZI yaptım. İlk yazdığım iki bait (1500 ve
+    1900 karakter) iki cap'te de yeşildi — yani hiçbir şey kanıtlamıyordu ve
+    onu YAZMADAN önce fark ettim. Yeni bir assertion eklediğinde: onu kıran
+    değişikliği yap, kırmızıyı GÖR, sonra geri al.
+
+5.5 BİR SAYIYI BELGEYE YAZARKEN TARİH ÇIPASI KOY. Canlı ledger kayan bir taban:
+    aynı komut oturum içinde 524 sonra 526 verdi (bu oturumun kendi refuse'ları
+    düştü). BENCHMARK.md'ye "Measured 2026-09-05" satırı eklendi. Tarihi olmayan
+    sayı yarın yanlıştır.
+
+5.6 PERFORMANS TESTİNDE ÖNCE MAKİNEYİ ELE. day_cache_test 63µs ile kırmızı
+    verdi (eşik 50), tek başına 3/3 yeşil (13-29µs) — paralel suite'in yükü.
+    rule_cost ise 3/3 KIRMIZI'ydı, yani gerçek. AYRIM: tek başına tekrar
+    koştur. Yeşilse yük, kırmızıysa regresyon. "Flake" deyip geçme, ÖLÇ.
+
+================================================================
+6. ORKESTRASYON — 09-06 (docs/archive/devir/) §6 + 09-07 §6 AYNEN GEÇERLİ
+================================================================
+BU TURDA HİÇ AJAN SALINMADI ve doğru karar buydu. Bütün iş ya mekanikti
+(grep, ölçüm, sed) ya da CI'ın cevaplayacağı bir soruydu. 09-06 KURAL 3
+"mekanik iş ajansız" bu turda tam karşılığını buldu.
+
+AJAN SALARSAN: ÖLÇÜM ve TEKNİK ELEŞTİRİ sordur, KARAR değil. "Alt-ajan
+doğurma" diye AÇIKÇA yaz. Ajanın ölçümünü al, ÇIKARIMINI alma.
+
+================================================================
+7. DEĞİŞMEYEN KURALLAR
+================================================================
+- ÖLÇMEDEN KURAL YAZMA. GERİ-ALMA KANITI OLMADAN COMMIT ATMA.
+- ŞÜPHEDEYSEN SİLME, TAŞI. Silme yetkin yok.
+- UNTRACKED DOSYA = DAMLA'NIN KARARI. Dokunma.
+- BİR ADIM = BİR COMMIT, her adımda suite yeşil, bitir + push, sonra söyle.
+  Mesaj lowercase İngilizce, co-author YOK.
+- TAM SUITE 7+ DAKİKA: arka planda TEK SEFER, `grep -E "^EXIT="` ile bekle.
+  KOŞU SIRASINDA AĞACA DOKUNMA — bu turda bir kez dokundum, EXIT=0 aldım ve
+  o sonucu ÇÖPE ATIP yeniden koşturdum. Güvenilmeyen yeşil, yeşil değildir.
+- SAHTE KIRMIZIYA KANMA: "FAIL" geçen satırların çoğu geçen testlerin ADI ya da
+  bir fixture'ın BEKLENEN çıktısı. Yargıyı EXIT= satırından ver. Bu turda
+  "FAIL testsuite [node --test]: the project's own suite is RED" satırı
+  rabadon'un YAKALADIĞI regresyonu raporlayan çıktıydı — test 4/0 yeşildi.
+- BİR FAZ BİTMEDEN DİĞERİNE GEÇME.
+
+================================================================
+8. ÜRÜNÜN BUGÜNKÜ DÜRÜST HALİ — TEK PARAGRAF
+================================================================
+Motor sağlam: 4234 test, HMAC mühürlü ledger, kernel fence iki platformda
+ölçülü, CI yedi job yeşil. Ürün yüzü artık YALAN SÖYLEMİYOR: `rabadon audit`
+koşturan bir yabancı exit 1 alıyor ve README bunu önceden söylüyor. Sayılar
+kendi aleyhine değil GERÇEK: haftada 18.2 geri alınamaz hamle. Kapanmayan tek
+büyük şey ürünün kendisinde değil, KANITINDA: rabadon'u kuran biri, tek
+operatörden başkası, henüz bir hafta kullanmadı. Damla'nın kendi cümlesi:
+"ölçüm bir hedef değil. hedef ürün, müşteri, müşteri deneyimi."

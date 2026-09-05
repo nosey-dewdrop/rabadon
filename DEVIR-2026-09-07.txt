@@ -1,9 +1,10 @@
 DEVİR — rabadon, 7 Eylül 2026
 Repo: ~/damla_projects_2026/rabadon   dal: main   son commit: c4d7bcd (push'lu)
 Önceki devirler artık docs/archive/devir/ altında (-09-04, -09-04-B, -09-05).
-Kökte duran: DEVIR-2026-09-06.txt (bir öncekisi) ve bu dosya.
+Kökte duran: bu dosya ve DEVIR-2026-09-08.txt (bir sonraki tur).
+DEVIR-2026-09-06.txt 8 Eylül'de docs/archive/devir/ altına taşındı.
 
-DEVIR-2026-09-06.txt'yi OKU — §4 (yöntem), §6 (orkestrasyon), §7 (değişmeyen
+docs/archive/devir/DEVIR-2026-09-06.txt'yi OKU — §4 (yöntem), §6 (orkestrasyon), §7 (değişmeyen
 kurallar) HÂLÂ ZORUNLU, buraya kopyalamadım. Bu dosya onu TEKRARLAMIYOR.
 
 ================================================================
@@ -62,7 +63,7 @@ KÖKTE KALANLAR VE SEBEPLERİ (yeniden sorgulama, çözülmüş):
   SPEC.md            native/version_test.sh:151,211 make test içinde açıyor
   REPORTS.md         kayıt üçlüsü, kural gereği
   README/CLAUDE/PROJECT/BENCHMARK/CHANGELOG/AGENTS-PROTOCOL  canlı
-  DEVIR-2026-09-06.txt  bir önceki devir
+  (DEVIR-2026-09-06.txt artık docs/archive/devir/ altında)
   DEVIR-2026-09-03.txt + CLAUDE-eski-misyon.md  UNTRACKED, Damla'nın kararı
 
 ================================================================
