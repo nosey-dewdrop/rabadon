@@ -405,7 +405,13 @@ if [ -x "$SB_ABS" ]; then
     else
       skip "the awk arm" 1 "awk is not installed here"
     fi
-    rm -rf "$D7/vic"
+    # The victim goes away, but on Linux the fence is a MOUNT and bwrap cannot
+    # bind a path that does not exist — it exits before the command runs, and
+    # the three "ordinary work still runs" arms below would fail for that
+    # reason rather than the one they test. macOS never noticed: Seatbelt
+    # denies by path NAME, existing or not. So the directory is left in place
+    # and only emptied.
+    mkvic
 
     # --- the expensive half: ordinary work must still run ---
     if ( cd "$D7/proj" && "$SB_ABS" --dir "$D7/proj" -- \
