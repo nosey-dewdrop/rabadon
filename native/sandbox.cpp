@@ -483,9 +483,23 @@ int main(int argc, char** argv) {
   //
   // On macOS the fence is now deny-default whenever no protected path asked
   // for the narrower shape: the tree plus the measured scratch roots stay
-  // writable and the rest of the disk does not. Linux keeps the old shape,
-  // because bubblewrap was NOT measured on this machine and a fence claimed
-  // but untested is worse than one honestly absent — `--status` says so.
+  // writable and the rest of the disk does not. Linux keeps the narrower
+  // named-paths shape.
+  //
+  // MEASURED 2026-09-05, on ubuntu CI rather than the author's laptop: with a
+  // protectedPaths entry naming the target, bubblewrap DOES hold the whole
+  // interpreter axis — node -e, perl -e, ruby -e, python3 -c and awk all fail
+  // to delete a named path, all five arms green (native/sandbox_test.sh). What
+  // stays unmeasured on Linux is only DENY-DEFAULT: with nothing named,
+  // `wantsEnforcement` is false and the command runs bare, so an unconfigured
+  // Linux project has no fence. That is the gap, and it is narrower than "the
+  // fence is unmeasured here" — but it is still a gap, so it is not claimed.
+  //
+  // Two things this cost, both worth remembering: bwrap binds a MOUNT, so it
+  // cannot fence a path that does not exist yet, where Seatbelt denies by name
+  // whether the path exists or not; and a `sh -c "rm -rf ..."` probe proves
+  // nothing about either fence, because the rule engine refuses it first
+  // (baseline-rm-rf-outside) and never reaches the kernel.
 #if defined(__APPLE__)
   const bool denyDefault = true;
   string profile = seatbelt_profile(dir, prefixes, netDeny, denyDefault);
