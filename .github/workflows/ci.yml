@@ -101,8 +101,8 @@ jobs:
           SB="$PWD/native/rabadon-sandbox"       # absolute: the cd below leaves the repo
           D=$(mktemp -d "$HOME/fx-XXXXXX"); mkdir -p "$D/proj/.rabadon" "$D/vic"
           echo golden > "$D/vic/keep.txt"
-          printf '{"project":"p","bash":[],"protectedPaths":["%s"],"disabled":[]}' "$D/vic" \
-            > "$D/proj/.rabadon/guard.json"
+          printf '{"project":"p","bash":[],"disabled":[],"protectedPaths":[{"id":"vic","match":"^%s/.*","why":"fixture"}]}' \
+            "$D/vic" > "$D/proj/.rabadon/guard.json"
           echo "--- what argv does it build? ---"
           (cd "$D/proj" && "$SB" --dir "$D/proj" --print -- true) || true
           echo "--- sh -c rm -rf (the precondition that PASSES) ---"

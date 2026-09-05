@@ -329,8 +329,14 @@ if [ -x "$SB_ABS" ]; then
     printf '{"project":"p","bash":[],"protectedPaths":[],"disabled":[]}' > "$D7/proj/.rabadon/guard.json"
   else
     SB_SHAPE="named paths"
-    printf '{"project":"p","bash":[],"protectedPaths":["%s"],"disabled":[]}' "$D7/vic" \
-      > "$D7/proj/.rabadon/guard.json"
+    # A protectedPaths entry is an OBJECT with a `match` regex, not a bare
+    # string — sandbox.cpp reads `"match"` and takes its leading literal. A
+    # plain string array parses to ZERO prefixes, `wantsEnforcement` is then
+    # false, and the command runs with no fence at all: the first version of
+    # this branch made that mistake and the arms failed for that reason rather
+    # than the one being tested.
+    printf '{"project":"p","bash":[],"disabled":[],"protectedPaths":[{"id":"vic","match":"^%s/.*","why":"the victim of this suite"}]}' \
+      "$D7/vic" > "$D7/proj/.rabadon/guard.json"
   fi
 
   mkvic() { rm -rf "$D7/vic"; mkdir -p "$D7/vic"; echo golden > "$D7/vic/keep.txt"; }
