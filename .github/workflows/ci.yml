@@ -88,6 +88,30 @@ jobs:
       - name: build the native core
         run: make all
 
+      # TEMPORARY DIAGNOSIS (remove once the linux fence question is settled).
+      # sandbox_test's interpreter arms fail on ubuntu while the `sh -c rm -rf`
+      # precondition beside them passes, against the same path and the same
+      # fence. Guessing why from a macOS laptop is how a wrong fix gets shipped,
+      # so the question is asked on the machine that answers it.
+      - name: what does the linux fence actually do
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          set -x
+          D=$(mktemp -d "$HOME/fx-XXXXXX"); mkdir -p "$D/proj/.rabadon" "$D/vic"
+          echo golden > "$D/vic/keep.txt"
+          printf '{"project":"p","bash":[],"protectedPaths":["%s"],"disabled":[]}' "$D/vic" \
+            > "$D/proj/.rabadon/guard.json"
+          echo "--- what argv does it build? ---"
+          (cd "$D/proj" && ../../native/rabadon-sandbox --dir "$D/proj" --print -- true) || true
+          echo "--- sh -c rm -rf (the precondition that PASSES) ---"
+          (cd "$D/proj" && "$PWD/../../native/rabadon-sandbox" --dir "$D/proj" -- sh -c "rm -rf '$D/vic'"); echo "rc=$?"
+          ls -la "$D/vic" 2>&1 | head -3; echo "keep.txt: $([ -f "$D/vic/keep.txt" ] && echo ALIVE || echo GONE)"
+          rm -rf "$D/vic"; mkdir -p "$D/vic"; echo golden > "$D/vic/keep.txt"
+          echo "--- node -e (the arm that FAILS) ---"
+          (cd "$D/proj" && "$PWD/../../native/rabadon-sandbox" --dir "$D/proj" -- node -e "require('fs').rmSync('$D/vic',{recursive:true,force:true})"); echo "rc=$?"
+          echo "keep.txt: $([ -f "$D/vic/keep.txt" ] && echo ALIVE || echo GONE)"
+
       - name: native suites
         run: make test
 
